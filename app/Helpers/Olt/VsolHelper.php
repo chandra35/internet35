@@ -115,6 +115,7 @@ class VsolHelper extends BaseOltHelper
             'success' => false,
             'brand' => 'vsol',
             'model' => null,
+            'olt_type' => 'EPON', // VSOL V1600D is EPON
             'description' => null,
             'firmware' => null,
             'hardware_version' => null,

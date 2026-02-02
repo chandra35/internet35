@@ -92,8 +92,11 @@ class HiosoHelper extends BaseOltHelper
             'success' => false,
             'brand' => 'hioso',
             'model' => null,
+            'olt_type' => null, // EPON or GPON
             'description' => null,
             'firmware' => null,
+            'hardware_version' => null,
+            'serial_number' => null,
             'total_pon_ports' => 0,
             'total_uplink_ports' => 0,
             'boards' => [],
@@ -113,6 +116,18 @@ class HiosoHelper extends BaseOltHelper
 
             $result['description'] = $sysDescr;
 
+            // Get sysName - often contains EPON/GPON type
+            $sysName = @snmpget($ipAddress, $snmpCommunity, '1.3.6.1.2.1.1.5.0', 5000000, 2);
+            $sysName = $sysName ? trim(str_replace(['"', "'"], '', $sysName)) : '';
+
+            // Detect OLT type (EPON or GPON) from sysName or sysDescr
+            $combinedInfo = strtoupper($sysName . ' ' . $sysDescr);
+            if (strpos($combinedInfo, 'GPON') !== false) {
+                $result['olt_type'] = 'GPON';
+            } elseif (strpos($combinedInfo, 'EPON') !== false) {
+                $result['olt_type'] = 'EPON';
+            }
+
             // Get sysObjectID to detect enterprise ID
             $sysObjectId = @snmpget($ipAddress, $snmpCommunity, '1.3.6.1.2.1.1.2.0', 5000000, 2);
             $enterpriseId = null;
@@ -123,6 +138,9 @@ class HiosoHelper extends BaseOltHelper
             // Get model from sysDescr - try multiple patterns
             if (preg_match('/HA\d{4}/i', $sysDescr, $matches)) {
                 // Standard Hioso model: HA7302, HA7304, HA7308
+                $result['model'] = strtoupper($matches[0]);
+            } elseif (preg_match('/HA\d{4}/i', $sysName, $matches)) {
+                // Try from sysName
                 $result['model'] = strtoupper($matches[0]);
             } elseif (preg_match('/([A-Z]{2,}\d{3,}[A-Z]*)/i', $sysDescr, $matches)) {
                 // Generic model pattern: letters + numbers
