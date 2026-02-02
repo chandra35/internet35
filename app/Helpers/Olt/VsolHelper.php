@@ -1007,10 +1007,9 @@ class VsolHelper extends BaseOltHelper
             $rttByIndex = [];
             foreach ($rtts as $oid => $val) {
                 if (preg_match('/\.(\d+)$/', $oid, $m)) {
-                    // RTT in nanoseconds, convert to meters (light speed ~5 ns per meter round trip)
-                    $rttNs = (int) preg_replace('/[^0-9]/', '', $val);
-                    $distanceMeters = $rttNs > 0 ? round($rttNs / 10, 0) : null; // Approximate
-                    $rttByIndex[$m[1]] = $distanceMeters;
+                    // RTT value is directly in meters
+                    $rttMeters = (int) preg_replace('/[^0-9]/', '', $val);
+                    $rttByIndex[$m[1]] = $rttMeters > 0 ? $rttMeters : null;
                 }
             }
 

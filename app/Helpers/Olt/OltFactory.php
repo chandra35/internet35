@@ -157,33 +157,67 @@ class OltFactory
                 return $result;
             }
 
-            $sysDescr = strtolower($sysDescr);
+            // Also get sysObjectID for Enterprise ID detection
+            $checkTimeout();
+            $sysObjectId = @\snmpget($ipAddress, $snmpCommunity, '1.3.6.1.2.1.1.2.0', self::SNMP_TIMEOUT, 2);
+
+            $sysDescrLower = strtolower($sysDescr);
             $detectedBrand = null;
 
-            // Detect brand from sysDescr
-            if (strpos($sysDescr, 'zte') !== false || strpos($sysDescr, 'zxa10') !== false) {
-                $detectedBrand = Olt::BRAND_ZTE;
+            // Enterprise ID mapping
+            $enterpriseMap = [
+                '3902' => Olt::BRAND_ZTE,      // ZTE
+                '2011' => Olt::BRAND_HUAWEI,   // Huawei
+                '17409' => Olt::BRAND_HIOSO,   // Hioso
+                '37950' => Olt::BRAND_VSOL,    // VSOL
+            ];
+
+            // Try to detect from Enterprise ID in sysObjectID (most reliable)
+            if ($sysObjectId !== false) {
+                // sysObjectID format: 1.3.6.1.4.1.<enterprise_id>.<...> or iso.3.6.1.4.1.<enterprise_id>.<...>
+                // Also handles: .1.3.6.1.4.1.<enterprise_id>.<...>
+                if (preg_match('/(?:iso|\.?1)\.3\.6\.1\.4\.1\.(\d+)/', $sysObjectId, $matches)) {
+                    $enterpriseId = $matches[1];
+                    if (isset($enterpriseMap[$enterpriseId])) {
+                        $detectedBrand = $enterpriseMap[$enterpriseId];
+                    }
+                }
+            }
+
+            // Fallback: Detect brand from sysDescr string matching
+            if (!$detectedBrand) {
+                if (strpos($sysDescrLower, 'zte') !== false || strpos($sysDescrLower, 'zxa10') !== false) {
+                    $detectedBrand = Olt::BRAND_ZTE;
+                } elseif (strpos($sysDescrLower, 'huawei') !== false || strpos($sysDescrLower, 'ma56') !== false) {
+                    $detectedBrand = Olt::BRAND_HUAWEI;
+                } elseif (strpos($sysDescrLower, 'hioso') !== false || strpos($sysDescrLower, 'ha73') !== false) {
+                    $detectedBrand = Olt::BRAND_HIOSO;
+                } elseif (strpos($sysDescrLower, 'vsol') !== false || strpos($sysDescrLower, 'v1600') !== false) {
+                    $detectedBrand = Olt::BRAND_VSOL;
+                } elseif (strpos($sysDescrLower, 'hsgq') !== false) {
+                    $detectedBrand = Olt::BRAND_HSGQ;
+                }
+            }
+
+            // Route to appropriate helper based on detected brand
+            if ($detectedBrand === Olt::BRAND_ZTE) {
                 $result = ZteC320Helper::identify($ipAddress, $snmpPort, $snmpCommunity, $credentials);
-            } elseif (strpos($sysDescr, 'huawei') !== false || strpos($sysDescr, 'ma56') !== false) {
-                $detectedBrand = Olt::BRAND_HUAWEI;
+            } elseif ($detectedBrand === Olt::BRAND_HUAWEI) {
                 $result = HuaweiHelper::identify($ipAddress, $snmpPort, $snmpCommunity, $credentials);
-            } elseif (strpos($sysDescr, 'hioso') !== false) {
-                $detectedBrand = Olt::BRAND_HIOSO;
+            } elseif ($detectedBrand === Olt::BRAND_HIOSO) {
                 $result = HiosoHelper::identify($ipAddress, $snmpPort, $snmpCommunity, $credentials);
-            } elseif (strpos($sysDescr, 'vsol') !== false || strpos($sysDescr, 'v1600') !== false) {
-                $detectedBrand = Olt::BRAND_VSOL;
+            } elseif ($detectedBrand === Olt::BRAND_VSOL) {
                 $result = VsolHelper::identify($ipAddress, $snmpPort, $snmpCommunity, $credentials);
-            } elseif (strpos($sysDescr, 'hsgq') !== false) {
-                $detectedBrand = Olt::BRAND_HSGQ;
+            } elseif ($detectedBrand === Olt::BRAND_HSGQ) {
                 $result = HsgqHelper::identify($ipAddress, $snmpPort, $snmpCommunity, $credentials);
             } else {
                 // Unknown brand - try ZTE first as default (common in Indonesia)
                 $result = ZteC320Helper::identify($ipAddress, $snmpPort, $snmpCommunity, $credentials);
                 
                 if (!$result['success']) {
-                    // Generic result
+                    // Generic result - use original sysDescr (not lowercased)
                     $result['description'] = $sysDescr;
-                    $result['message'] = 'Brand tidak dapat diidentifikasi. System Description: ' . $sysDescr;
+                    $result['message'] = 'Brand tidak dapat diidentifikasi. System Description: ' . $sysDescr . ($sysObjectId ? ' | sysObjectID: ' . $sysObjectId : '');
                 }
             }
 

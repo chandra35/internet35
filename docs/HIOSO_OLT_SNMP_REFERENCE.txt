@@ -1,0 +1,201 @@
+================================================================================
+                    HIOSO OLT - SNMP OID REFERENCE
+================================================================================
+
+Tanggal: Februari 2026
+Device: Hioso EPON/GPON OLT
+Models: HA7302, HA7304, HA7308
+Enterprise ID: 17409
+SNMP Version: SNMPv2c (default)
+
+================================================================================
+                              REFERENSI WEB
+================================================================================
+
+1. OID Repository
+   - Base: https://oid-base.com/get/1.3.6.1.4.1.17409
+
+2. Hioso/Hitech Enterprise OID
+   - Enterprise ID: 17409 (1.3.6.1.4.1.17409)
+   - Common base for EPON: 1.3.6.1.4.1.17409.2.3
+
+================================================================================
+                           STRUKTUR OID HIOSO
+================================================================================
+
+Enterprise OID: 1.3.6.1.4.1.17409
+  └── gponOlt(2)
+      └── epon(3)
+          ├── ponPort(4) - PON Port Management
+          │   └── ponPortTable(1)
+          │       └── ponPortEntry(1)
+          │           └── ponPortInfo(1)
+          │               ├── .1.{slot}.{port} = ponPortIndex
+          │               ├── .2.{slot}.{port} = ponPortAdminStatus (1=up,2=down)
+          │               └── .3.{slot}.{port} = ponPortOperStatus (1=up,2=down)
+          │
+          └── onu(5) - ONU Management
+              └── onuMgmt(1)
+                  ├── onuTable(1)        ★ ONU INFO TABLE
+                  ├── onuAuthTable(2)    - ONU Auth/Config
+                  ├── uncfgOnuTable(3)   - Unconfigured ONUs
+                  └── onuOpticalTable(4) ★ OPTICAL POWER TABLE
+
+================================================================================
+                         ONU TABLE (1.3.6.1.4.1.17409.2.3.5.1.1.1)
+================================================================================
+
+OID: 1.3.6.1.4.1.17409.2.3.5.1.1.1.1.{column}.{slot}.{port}.{onuId}
+
+Columns:
+  .1  = onuIndex        - Index (slot.port.onuId)
+  .2  = onuSerialNumber - ONU Serial Number (MAC/SN)
+  .3  = onuMacAddress   - MAC Address
+  .4  = onuStatus       - Status (1=online, 2=offline, 3=los, 4=power_off)
+  .5  = onuType         - ONU Type/Model
+  .6  = onuUpTime       - ONU Uptime
+  .7  = onuDistance     - Distance from OLT (meters)
+
+Status Mapping:
+  1 = online
+  2 = offline
+  3 = los (Loss of Signal)
+  4 = power_off
+
+Index Format: {slot}.{port}.{onuId}
+  - slot: PON card slot (biasanya 0 atau 1)
+  - port: PON port number (0-7 untuk HA7308)
+  - onuId: ONU ID (1-64 per PON port)
+
+Contoh:
+  OID: 1.3.6.1.4.1.17409.2.3.5.1.1.1.1.2.0.3.5
+  Artinya: Serial Number dari ONU di slot=0, port=3, onu_id=5
+
+================================================================================
+                    ONU OPTICAL TABLE (1.3.6.1.4.1.17409.2.3.5.1.4.1)
+================================================================================
+
+OID: 1.3.6.1.4.1.17409.2.3.5.1.4.1.1.{column}.{slot}.{port}.{onuId}
+
+Columns:
+  .1  = opticalIndex    - Index
+  .2  = (reserved)
+  .3  = onuRxPower      - ONU Rx Power (dBm * 100 atau mW)
+  .4  = onuTxPower      - ONU Tx Power (dBm * 100)
+  .5  = onuOltRxPower   - OLT Rx Power (dBm * 100)
+  .6  = onuTemperature  - ONU Temperature (°C * 256 atau langsung °C)
+  .7  = onuVoltage      - ONU Voltage (mV)
+
+Power Conversion:
+  - Nilai biasanya dalam dBm * 100
+  - Contoh: -2150 = -21.50 dBm
+  - Atau bisa juga langsung dalam mW, perlu dicek per device
+
+================================================================================
+                    PON PORT TABLE (1.3.6.1.4.1.17409.2.3.4.1.1.1)
+================================================================================
+
+OID: 1.3.6.1.4.1.17409.2.3.4.1.1.1.1.{column}.{slot}.{port}
+
+Columns:
+  .1  = ponPortIndex      - Port Index
+  .2  = ponPortAdminStatus - Admin Status (1=enabled, 2=disabled)
+  .3  = ponPortOperStatus  - Oper Status (1=up, 2=down)
+
+================================================================================
+                    UNCONFIGURED ONU TABLE (1.3.6.1.4.1.17409.2.3.5.1.3.1)
+================================================================================
+
+OID: 1.3.6.1.4.1.17409.2.3.5.1.3.1.1.{column}.{slot}.{port}.{uncfgId}
+
+Columns:
+  .1  = uncfgOnuIndex    - Index
+  .2  = uncfgOnuSerial   - Serial Number
+  .3  = uncfgOnuMac      - MAC Address
+  .4  = uncfgOnuType     - ONU Type
+
+================================================================================
+                    ONU AUTH/CONFIG TABLE (1.3.6.1.4.1.17409.2.3.5.1.2.1)
+================================================================================
+
+OID: 1.3.6.1.4.1.17409.2.3.5.1.2.1.1.{column}.{slot}.{port}.{onuId}
+
+Columns:
+  .1  = authOnuIndex     - Index
+  .2  = authAction       - Action (1=add, 2=delete)
+  .3  = authSerial       - Serial to authorize
+  .4  = authDescription  - ONU Description
+
+================================================================================
+                           HELPER IMPLEMENTATION
+================================================================================
+
+File: app/Helpers/Olt/HiosoHelper.php
+
+Key Methods:
+1. identify() - Auto-detect Hioso OLT via SNMP sysDescr + Enterprise ID
+2. getAllOnus() - Get all ONUs from onuTable
+3. getOnuOpticalInfo() - Get optical power from onuOpticalTable
+4. syncAll() - Sync all ONU data to database
+
+Index Format dalam Helper:
+  - Format: "{slot}.{port}.{onuId}"
+  - Contoh: "0.3.5" = slot 0, port 3, ONU ID 5
+
+================================================================================
+                           TESTED COMMANDS
+================================================================================
+
+Get System Description:
+  snmpget -v2c -c public <ip> 1.3.6.1.2.1.1.1.0
+
+Get System Object ID (Enterprise ID):
+  snmpget -v2c -c public <ip> 1.3.6.1.2.1.1.2.0
+  → Should return: 1.3.6.1.4.1.17409.x.x.x
+
+Get All ONU Serial Numbers:
+  snmpwalk -v2c -c public <ip> 1.3.6.1.4.1.17409.2.3.5.1.1.1.1.2
+
+Get All ONU Status:
+  snmpwalk -v2c -c public <ip> 1.3.6.1.4.1.17409.2.3.5.1.1.1.1.4
+
+Get All ONU Rx Power:
+  snmpwalk -v2c -c public <ip> 1.3.6.1.4.1.17409.2.3.5.1.4.1.1.3
+
+Get PON Port Status:
+  snmpwalk -v2c -c public <ip> 1.3.6.1.4.1.17409.2.3.4.1.1.1.1.3
+
+================================================================================
+                              NOTES
+================================================================================
+
+1. Model Detection:
+   - sysDescr biasanya mengandung "HA73xx" 
+   - Contoh: "HA7308 8-PON EPON OLT"
+
+2. Enterprise ID Detection:
+   - sysObjectID mengandung 1.3.6.1.4.1.17409
+   - Lebih reliable daripada string matching
+
+3. SNMP Community:
+   - Default biasanya "public" (read-only)
+   - Untuk write access: "private" atau custom
+
+4. ONU Description:
+   - Disimpan di authDescription (.2.3.5.1.2.1.1.4)
+   - Mungkin kosong jika tidak diset manual
+
+5. Power Values:
+   - Format bervariasi tergantung firmware
+   - Bisa dalam dBm * 100 atau mW
+   - Perlu kalibrasi per device
+
+================================================================================
+                           CHANGELOG
+================================================================================
+
+Februari 2026:
+- Initial documentation
+- Added OID reference from HiosoHelper.php
+- Added Enterprise ID detection (17409)
+

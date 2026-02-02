@@ -1,21 +1,21 @@
-@extends('layouts.admin')
 
-@section('title', 'Manajemen ONU')
 
-@section('page-title', 'Manajemen ONU')
+<?php $__env->startSection('title', 'Manajemen ONU'); ?>
 
-@section('breadcrumb')
-    <li class="breadcrumb-item"><a href="{{ route('admin.dashboard') }}">Dashboard</a></li>
+<?php $__env->startSection('page-title', 'Manajemen ONU'); ?>
+
+<?php $__env->startSection('breadcrumb'); ?>
+    <li class="breadcrumb-item"><a href="<?php echo e(route('admin.dashboard')); ?>">Dashboard</a></li>
     <li class="breadcrumb-item active">ONU</li>
-@endsection
+<?php $__env->stopSection(); ?>
 
-@section('content')
+<?php $__env->startSection('content'); ?>
 <!-- Stats -->
 <div class="row">
     <div class="col-lg-3 col-6">
         <div class="small-box bg-info">
             <div class="inner">
-                <h3>{{ $stats['total'] ?? 0 }}</h3>
+                <h3><?php echo e($stats['total'] ?? 0); ?></h3>
                 <p>Total ONU</p>
             </div>
             <div class="icon"><i class="fas fa-hdd"></i></div>
@@ -24,7 +24,7 @@
     <div class="col-lg-3 col-6">
         <div class="small-box bg-success">
             <div class="inner">
-                <h3>{{ $stats['online'] ?? 0 }}</h3>
+                <h3><?php echo e($stats['online'] ?? 0); ?></h3>
                 <p>Online</p>
             </div>
             <div class="icon"><i class="fas fa-check-circle"></i></div>
@@ -33,7 +33,7 @@
     <div class="col-lg-3 col-6">
         <div class="small-box bg-danger">
             <div class="inner">
-                <h3>{{ $stats['offline'] ?? 0 }}</h3>
+                <h3><?php echo e($stats['offline'] ?? 0); ?></h3>
                 <p>Offline</p>
             </div>
             <div class="icon"><i class="fas fa-times-circle"></i></div>
@@ -42,7 +42,7 @@
     <div class="col-lg-3 col-6">
         <div class="small-box bg-warning">
             <div class="inner">
-                <h3>{{ $stats['los'] ?? 0 }}</h3>
+                <h3><?php echo e($stats['los'] ?? 0); ?></h3>
                 <p>LOS</p>
             </div>
             <div class="icon"><i class="fas fa-exclamation-triangle"></i></div>
@@ -61,18 +61,19 @@
         </div>
     </div>
     <div class="card-body">
-        <form method="GET" action="{{ route('admin.onus.index') }}">
+        <form method="GET" action="<?php echo e(route('admin.onus.index')); ?>">
             <div class="row">
                 <div class="col-md-3">
                     <div class="form-group">
                         <label>OLT</label>
                         <select name="olt_id" class="form-control select2" data-placeholder="-- Semua OLT --">
                             <option value="">-- Semua OLT --</option>
-                            @foreach($olts as $olt)
-                            <option value="{{ $olt->id }}" {{ request('olt_id') == $olt->id ? 'selected' : '' }}>
-                                {{ $olt->name }}
+                            <?php $__currentLoopData = $olts; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $olt): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                            <option value="<?php echo e($olt->id); ?>" <?php echo e(request('olt_id') == $olt->id ? 'selected' : ''); ?>>
+                                <?php echo e($olt->name); ?>
+
                             </option>
-                            @endforeach
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </select>
                     </div>
                 </div>
@@ -81,9 +82,9 @@
                         <label>Status</label>
                         <select name="status" class="form-control select2" data-placeholder="-- Semua --">
                             <option value="">-- Semua --</option>
-                            <option value="online" {{ request('status') == 'online' ? 'selected' : '' }}>Online</option>
-                            <option value="offline" {{ request('status') == 'offline' ? 'selected' : '' }}>Offline</option>
-                            <option value="los" {{ request('status') == 'los' ? 'selected' : '' }}>LOS</option>
+                            <option value="online" <?php echo e(request('status') == 'online' ? 'selected' : ''); ?>>Online</option>
+                            <option value="offline" <?php echo e(request('status') == 'offline' ? 'selected' : ''); ?>>Offline</option>
+                            <option value="los" <?php echo e(request('status') == 'los' ? 'selected' : ''); ?>>LOS</option>
                         </select>
                     </div>
                 </div>
@@ -92,9 +93,9 @@
                         <label>Sinyal</label>
                         <select name="signal" class="form-control select2" data-placeholder="-- Semua --">
                             <option value="">-- Semua --</option>
-                            <option value="good" {{ request('signal') == 'good' ? 'selected' : '' }}>Bagus (> -25dBm)</option>
-                            <option value="warning" {{ request('signal') == 'warning' ? 'selected' : '' }}>Peringatan (-25 ~ -27dBm)</option>
-                            <option value="bad" {{ request('signal') == 'bad' ? 'selected' : '' }}>Buruk (< -27dBm)</option>
+                            <option value="good" <?php echo e(request('signal') == 'good' ? 'selected' : ''); ?>>Bagus (> -25dBm)</option>
+                            <option value="warning" <?php echo e(request('signal') == 'warning' ? 'selected' : ''); ?>>Peringatan (-25 ~ -27dBm)</option>
+                            <option value="bad" <?php echo e(request('signal') == 'bad' ? 'selected' : ''); ?>>Buruk (< -27dBm)</option>
                         </select>
                     </div>
                 </div>
@@ -102,7 +103,7 @@
                     <div class="form-group">
                         <label>Pencarian</label>
                         <input type="text" name="search" class="form-control" 
-                               placeholder="SN, Nama, Pelanggan..." value="{{ request('search') }}">
+                               placeholder="SN, Nama, Pelanggan..." value="<?php echo e(request('search')); ?>">
                     </div>
                 </div>
                 <div class="col-md-2">
@@ -112,7 +113,7 @@
                             <button type="submit" class="btn btn-primary">
                                 <i class="fas fa-search"></i> Filter
                             </button>
-                            <a href="{{ route('admin.onus.index') }}" class="btn btn-secondary">
+                            <a href="<?php echo e(route('admin.onus.index')); ?>" class="btn btn-secondary">
                                 <i class="fas fa-undo"></i>
                             </a>
                         </div>
@@ -156,104 +157,110 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @forelse($onus as $onu)
+                    <?php $__empty_1 = true; $__currentLoopData = $onus; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $onu): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                     <tr>
-                        <td>{{ $loop->iteration + ($onus->currentPage() - 1) * $onus->perPage() }}</td>
+                        <td><?php echo e($loop->iteration + ($onus->currentPage() - 1) * $onus->perPage()); ?></td>
                         <td>
-                            <a href="{{ route('admin.onus.show', $onu) }}">
-                                @if($onu->customer)
-                                    <strong>{{ $onu->customer->name }}</strong>
-                                @elseif($onu->description)
-                                    {{ $onu->description }}
-                                @elseif($onu->name)
-                                    {{ $onu->name }}
-                                @else
-                                    <span class="text-muted">{{ $onu->serial_number }}</span>
-                                @endif
+                            <a href="<?php echo e(route('admin.onus.show', $onu)); ?>">
+                                <?php if($onu->customer): ?>
+                                    <strong><?php echo e($onu->customer->name); ?></strong>
+                                <?php elseif($onu->description): ?>
+                                    <?php echo e($onu->description); ?>
+
+                                <?php elseif($onu->name): ?>
+                                    <?php echo e($onu->name); ?>
+
+                                <?php else: ?>
+                                    <span class="text-muted"><?php echo e($onu->serial_number); ?></span>
+                                <?php endif; ?>
                             </a>
                         </td>
-                        <td><code>{{ $onu->serial_number }}</code></td>
-                        <td><strong>{{ $onu->port }}/{{ $onu->onu_id }}</strong></td>
+                        <td><code><?php echo e($onu->serial_number); ?></code></td>
+                        <td><strong><?php echo e($onu->port); ?>/<?php echo e($onu->onu_id); ?></strong></td>
                         <td>
-                            <a href="{{ route('admin.olts.show', $onu->olt) }}">
-                                {{ $onu->olt->name }}
+                            <a href="<?php echo e(route('admin.olts.show', $onu->olt)); ?>">
+                                <?php echo e($onu->olt->name); ?>
+
                             </a>
                         </td>
                         <td>
-                            @if($onu->status == 'online')
+                            <?php if($onu->status == 'online'): ?>
                                 <span class="badge badge-success"><i class="fas fa-check-circle mr-1"></i>Online</span>
-                            @elseif($onu->status == 'offline')
+                            <?php elseif($onu->status == 'offline'): ?>
                                 <span class="badge badge-danger"><i class="fas fa-times-circle mr-1"></i>Offline</span>
-                            @elseif($onu->status == 'los')
+                            <?php elseif($onu->status == 'los'): ?>
                                 <span class="badge badge-warning"><i class="fas fa-exclamation-triangle mr-1"></i>LOS</span>
-                            @else
-                                <span class="badge badge-secondary">{{ ucfirst($onu->status) }}</span>
-                            @endif
+                            <?php else: ?>
+                                <span class="badge badge-secondary"><?php echo e(ucfirst($onu->status)); ?></span>
+                            <?php endif; ?>
                         </td>
                         <td>
-                            @php
+                            <?php
                                 $rx = $onu->rx_power;
                                 $rxClass = 'success';
                                 if ($rx === null) $rxClass = 'secondary';
                                 elseif ($rx < -27) $rxClass = 'danger';
                                 elseif ($rx < -25) $rxClass = 'warning';
-                            @endphp
-                            <span class="badge badge-{{ $rxClass }}">
-                                {{ $rx !== null ? number_format($rx, 2) . ' dBm' : '-' }}
+                            ?>
+                            <span class="badge badge-<?php echo e($rxClass); ?>">
+                                <?php echo e($rx !== null ? number_format($rx, 2) . ' dBm' : '-'); ?>
+
                             </span>
                         </td>
                         <td>
-                            @php
+                            <?php
                                 $tx = $onu->tx_power;
-                            @endphp
-                            <span class="badge badge-{{ $tx !== null ? 'info' : 'secondary' }}">
-                                {{ $tx !== null ? number_format($tx, 2) . ' dBm' : '-' }}
+                            ?>
+                            <span class="badge badge-<?php echo e($tx !== null ? 'info' : 'secondary'); ?>">
+                                <?php echo e($tx !== null ? number_format($tx, 2) . ' dBm' : '-'); ?>
+
                             </span>
                         </td>
                         <td>
-                            <small class="text-muted">{{ $onu->distance ? number_format($onu->distance, 0) . 'm' : '-' }}</small>
+                            <small class="text-muted"><?php echo e($onu->distance ? number_format($onu->distance, 0) . 'm' : '-'); ?></small>
                         </td>
                         <td>
                             <div class="btn-group">
-                                <a href="{{ route('admin.onus.show', $onu) }}" class="btn btn-xs btn-info" title="Detail">
+                                <a href="<?php echo e(route('admin.onus.show', $onu)); ?>" class="btn btn-xs btn-info" title="Detail">
                                     <i class="fas fa-eye"></i>
                                 </a>
-                                @can('onu.reboot')
+                                <?php if (app(\Illuminate\Contracts\Auth\Access\Gate::class)->check('onu.reboot')): ?>
                                 <button type="button" class="btn btn-xs btn-warning btn-reboot-onu" 
-                                        data-id="{{ $onu->id }}" title="Reboot">
+                                        data-id="<?php echo e($onu->id); ?>" title="Reboot">
                                     <i class="fas fa-sync"></i>
                                 </button>
-                                @endcan
-                                @can('onu.unregister')
+                                <?php endif; ?>
+                                <?php if (app(\Illuminate\Contracts\Auth\Access\Gate::class)->check('onu.unregister')): ?>
                                 <button type="button" class="btn btn-xs btn-danger btn-unregister-onu" 
-                                        data-id="{{ $onu->id }}" data-sn="{{ $onu->serial_number }}" title="Unregister">
+                                        data-id="<?php echo e($onu->id); ?>" data-sn="<?php echo e($onu->serial_number); ?>" title="Unregister">
                                     <i class="fas fa-trash"></i>
                                 </button>
-                                @endcan
+                                <?php endif; ?>
                             </div>
                         </td>
                     </tr>
-                    @empty
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                     <tr>
                         <td colspan="10" class="text-center text-muted py-4">
                             <i class="fas fa-inbox fa-3x mb-3"></i>
                             <p>Tidak ada data ONU</p>
                         </td>
                     </tr>
-                    @endforelse
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>
     </div>
-    @if($onus->hasPages())
+    <?php if($onus->hasPages()): ?>
     <div class="card-footer">
-        {{ $onus->withQueryString()->links() }}
-    </div>
-    @endif
-</div>
-@endsection
+        <?php echo e($onus->withQueryString()->links()); ?>
 
-@push('js')
+    </div>
+    <?php endif; ?>
+</div>
+<?php $__env->stopSection(); ?>
+
+<?php $__env->startPush('js'); ?>
 <script>
 $(function() {
     // Initialize select2 with bootstrap-5 theme (sesuai layout)
@@ -290,7 +297,7 @@ $(function() {
         }).then((result) => {
             if (result.isConfirmed) {
                 btn.prop('disabled', true);
-                $.post('/admin/onus/' + id + '/reboot', { _token: '{{ csrf_token() }}' })
+                $.post('/admin/onus/' + id + '/reboot', { _token: '<?php echo e(csrf_token()); ?>' })
                     .done(function(res) {
                         Swal.fire('Berhasil', res.message || 'ONU sedang di-reboot', 'success');
                     })
@@ -321,7 +328,7 @@ $(function() {
                 $.ajax({
                     url: '/admin/onus/' + id + '/unregister',
                     method: 'POST',
-                    data: { _token: '{{ csrf_token() }}' },
+                    data: { _token: '<?php echo e(csrf_token()); ?>' },
                     success: function(res) {
                         Swal.fire('Berhasil', res.message || 'ONU berhasil dihapus', 'success')
                             .then(() => location.reload());
@@ -367,7 +374,7 @@ $(function() {
                     }
                 }, 1500);
                 
-                $.post('/admin/onus/bulk-sync', { _token: '{{ csrf_token() }}' })
+                $.post('/admin/onus/bulk-sync', { _token: '<?php echo e(csrf_token()); ?>' })
                     .done(function(res) {
                         clearInterval(progressInterval);
                         statusSpan.html('<i class="fas fa-check text-success mr-1"></i>' + (res.message || 'Selesai'));
@@ -392,4 +399,6 @@ $(function() {
     });
 });
 </script>
-@endpush
+<?php $__env->stopPush(); ?>
+
+<?php echo $__env->make('layouts.admin', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH D:\projek\internet35\resources\views/admin/onus/index.blade.php ENDPATH**/ ?>

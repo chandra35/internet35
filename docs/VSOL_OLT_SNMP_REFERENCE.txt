@@ -124,15 +124,14 @@ Full OIDs:
 Index Format: .{column}.{authInfoIndex}  (authInfoIndex = 0, 1, 2, 3...)
 
 Sample Data (Verified 2026-02-02):
-  PON 1 / ONU 1 => "Rahmat" (dist: 90m)
-  PON 1 / ONU 2 => "Agus-Gendon" (dist: 42m)
-  PON 1 / ONU 3 => "Rt-Kenthi" (dist: 45m)
+  PON 1 / ONU 1 => "Rahmat" (dist: 901m)
+  PON 1 / ONU 2 => "Agus-Gendon" (dist: 423m)
+  PON 1 / ONU 3 => "Rt-Kenthi" (dist: 449m)
   Total: 239 entries with description
 
 CATATAN RTT → Distance:
-  - RTT dalam nanoseconds
-  - Approximate: distance_meters = RTT / 10 (karena speed of light roundtrip)
-  - Contoh: RTT 900 → ~90 meter
+  - Nilai RTT langsung dalam meter
+  - Contoh: RTT 630 → 630 meter
 
 ================================================================================
                     ONU OPTICAL POWER TABLE ★ RX/TX POWER!

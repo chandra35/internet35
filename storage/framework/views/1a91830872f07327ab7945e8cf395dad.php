@@ -1,27 +1,27 @@
-@extends('layouts.admin')
 
-@section('title', 'Detail ONU - ' . ($onu->description ?? $onu->name ?? $onu->serial_number))
 
-@section('page-title', 'Detail ONU: ' . ($onu->description ?? $onu->name ?? $onu->serial_number))
+<?php $__env->startSection('title', 'Detail ONU - ' . ($onu->description ?? $onu->name ?? $onu->serial_number)); ?>
 
-@section('breadcrumb')
-    <li class="breadcrumb-item"><a href="{{ route('admin.dashboard') }}">Dashboard</a></li>
-    <li class="breadcrumb-item"><a href="{{ route('admin.onus.index') }}">ONU</a></li>
-    <li class="breadcrumb-item active">{{ $onu->description ?? $onu->name ?? $onu->serial_number }}</li>
-@endsection
+<?php $__env->startSection('page-title', 'Detail ONU: ' . ($onu->description ?? $onu->name ?? $onu->serial_number)); ?>
 
-@section('content')
+<?php $__env->startSection('breadcrumb'); ?>
+    <li class="breadcrumb-item"><a href="<?php echo e(route('admin.dashboard')); ?>">Dashboard</a></li>
+    <li class="breadcrumb-item"><a href="<?php echo e(route('admin.onus.index')); ?>">ONU</a></li>
+    <li class="breadcrumb-item active"><?php echo e($onu->description ?? $onu->name ?? $onu->serial_number); ?></li>
+<?php $__env->stopSection(); ?>
+
+<?php $__env->startSection('content'); ?>
 <div class="row">
     <!-- ONU Info -->
     <div class="col-lg-4">
         <!-- Status Card -->
         <div class="card card-widget widget-user-2 shadow">
-            <div class="widget-user-header bg-{{ $onu->status == 'online' ? 'success' : ($onu->status == 'los' ? 'warning' : 'danger') }}">
+            <div class="widget-user-header bg-<?php echo e($onu->status == 'online' ? 'success' : ($onu->status == 'los' ? 'warning' : 'danger')); ?>">
                 <div class="widget-user-image">
                     <i class="fas fa-hdd fa-3x"></i>
                 </div>
-                <h3 class="widget-user-username">{{ $onu->description ?? $onu->name ?? 'ONU' }}</h3>
-                <h5 class="widget-user-desc">{{ $onu->serial_number }}</h5>
+                <h3 class="widget-user-username"><?php echo e($onu->description ?? $onu->name ?? 'ONU'); ?></h3>
+                <h5 class="widget-user-desc"><?php echo e($onu->serial_number); ?></h5>
             </div>
             <div class="card-footer p-0">
                 <ul class="nav flex-column">
@@ -29,38 +29,40 @@
                         <span class="nav-link">
                             Status
                             <span class="float-right">
-                                @if($onu->status == 'online')
+                                <?php if($onu->status == 'online'): ?>
                                     <span class="badge badge-success">Online</span>
-                                @elseif($onu->status == 'offline')
+                                <?php elseif($onu->status == 'offline'): ?>
                                     <span class="badge badge-danger">Offline</span>
-                                @elseif($onu->status == 'los')
+                                <?php elseif($onu->status == 'los'): ?>
                                     <span class="badge badge-warning">LOS</span>
-                                @else
-                                    <span class="badge badge-secondary">{{ ucfirst($onu->status) }}</span>
-                                @endif
+                                <?php else: ?>
+                                    <span class="badge badge-secondary"><?php echo e(ucfirst($onu->status)); ?></span>
+                                <?php endif; ?>
                             </span>
                         </span>
                     </li>
                     <li class="nav-item">
                         <span class="nav-link">
                             RX Power
-                            @php
+                            <?php
                                 $rx = $onu->rx_power;
                                 $rxClass = 'success';
                                 if ($rx === null) $rxClass = 'secondary';
                                 elseif ($rx < -27) $rxClass = 'danger';
                                 elseif ($rx < -25) $rxClass = 'warning';
-                            @endphp
-                            <span class="float-right badge badge-{{ $rxClass }}">
-                                {{ $rx !== null ? number_format($rx, 2) . ' dBm' : '-' }}
+                            ?>
+                            <span class="float-right badge badge-<?php echo e($rxClass); ?>">
+                                <?php echo e($rx !== null ? number_format($rx, 2) . ' dBm' : '-'); ?>
+
                             </span>
                         </span>
                     </li>
                     <li class="nav-item">
                         <span class="nav-link">
                             TX Power
-                            <span class="float-right badge badge-{{ $onu->tx_power !== null ? 'info' : 'secondary' }}">
-                                {{ $onu->tx_power !== null ? number_format($onu->tx_power, 2) . ' dBm' : '-' }}
+                            <span class="float-right badge badge-<?php echo e($onu->tx_power !== null ? 'info' : 'secondary'); ?>">
+                                <?php echo e($onu->tx_power !== null ? number_format($onu->tx_power, 2) . ' dBm' : '-'); ?>
+
                             </span>
                         </span>
                     </li>
@@ -68,7 +70,8 @@
                         <span class="nav-link">
                             Distance
                             <span class="float-right">
-                                {{ $onu->distance ? number_format($onu->distance, 0) . 'm' : '-' }}
+                                <?php echo e($onu->distance ? number_format($onu->distance, 0) . 'm' : '-'); ?>
+
                             </span>
                         </span>
                     </li>
@@ -86,90 +89,92 @@
                     <tr>
                         <td width="40%"><strong>OLT</strong></td>
                         <td>
-                            <a href="{{ route('admin.olts.show', $onu->olt) }}">
-                                {{ $onu->olt->name }}
+                            <a href="<?php echo e(route('admin.olts.show', $onu->olt)); ?>">
+                                <?php echo e($onu->olt->name); ?>
+
                             </a>
                         </td>
                     </tr>
                     <tr>
                         <td><strong>PON Port</strong></td>
-                        <td>{{ $onu->port ?? '-' }}</td>
+                        <td><?php echo e($onu->port ?? '-'); ?></td>
                     </tr>
                     <tr>
                         <td><strong>ONU ID</strong></td>
-                        <td>{{ $onu->onu_id ?? '-' }}</td>
+                        <td><?php echo e($onu->onu_id ?? '-'); ?></td>
                     </tr>
                     <tr>
                         <td><strong>Serial Number</strong></td>
-                        <td><code>{{ $onu->serial_number }}</code></td>
+                        <td><code><?php echo e($onu->serial_number); ?></code></td>
                     </tr>
                     <tr>
                         <td><strong>ONU Type</strong></td>
-                        <td>{{ $onu->onu_type ?? '-' }}</td>
+                        <td><?php echo e($onu->onu_type ?? '-'); ?></td>
                     </tr>
                     <tr>
                         <td><strong>Deskripsi (OLT)</strong></td>
-                        <td>{{ $onu->description ?? '-' }}</td>
+                        <td><?php echo e($onu->description ?? '-'); ?></td>
                     </tr>
                     <tr>
                         <td><strong>Profile</strong></td>
-                        <td>{{ $onu->profile->name ?? '-' }}</td>
+                        <td><?php echo e($onu->profile->name ?? '-'); ?></td>
                     </tr>
                     <tr>
                         <td><strong>Pelanggan</strong></td>
                         <td>
-                            @if($onu->customer)
-                                <a href="{{ route('admin.customers.show', $onu->customer) }}">
-                                    {{ $onu->customer->name }}
+                            <?php if($onu->customer): ?>
+                                <a href="<?php echo e(route('admin.customers.show', $onu->customer)); ?>">
+                                    <?php echo e($onu->customer->name); ?>
+
                                 </a>
-                            @else
+                            <?php else: ?>
                                 <span class="text-muted">Belum dipasangkan</span>
-                            @endif
+                            <?php endif; ?>
                         </td>
                     </tr>
-                    @if($onu->vlan_id)
+                    <?php if($onu->vlan_id): ?>
                     <tr>
                         <td><strong>VLAN ID</strong></td>
-                        <td>{{ $onu->vlan_id }}</td>
+                        <td><?php echo e($onu->vlan_id); ?></td>
                     </tr>
-                    @endif
+                    <?php endif; ?>
                     <tr>
                         <td><strong>Last Online</strong></td>
-                        <td>{{ $onu->last_online_at ? $onu->last_online_at->diffForHumans() : '-' }}</td>
+                        <td><?php echo e($onu->last_online_at ? $onu->last_online_at->diffForHumans() : '-'); ?></td>
                     </tr>
                     <tr>
                         <td><strong>Last Sync</strong></td>
-                        <td>{{ $onu->last_sync_at ? $onu->last_sync_at->diffForHumans() : '-' }}</td>
+                        <td><?php echo e($onu->last_sync_at ? $onu->last_sync_at->diffForHumans() : '-'); ?></td>
                     </tr>
                 </table>
             </div>
             <div class="card-footer">
-                @can('onu.reboot')
-                <button type="button" class="btn btn-warning btn-sm btn-reboot-onu" data-id="{{ $onu->id }}">
+                <?php if (app(\Illuminate\Contracts\Auth\Access\Gate::class)->check('onu.reboot')): ?>
+                <button type="button" class="btn btn-warning btn-sm btn-reboot-onu" data-id="<?php echo e($onu->id); ?>">
                     <i class="fas fa-sync"></i> Reboot
                 </button>
-                @endcan
-                <button type="button" class="btn btn-info btn-sm btn-refresh-signal" data-id="{{ $onu->id }}">
+                <?php endif; ?>
+                <button type="button" class="btn btn-info btn-sm btn-refresh-signal" data-id="<?php echo e($onu->id); ?>">
                     <i class="fas fa-signal"></i> Refresh Signal
                 </button>
-                @can('onu.unregister')
+                <?php if (app(\Illuminate\Contracts\Auth\Access\Gate::class)->check('onu.unregister')): ?>
                 <button type="button" class="btn btn-danger btn-sm btn-unregister-onu" 
-                        data-id="{{ $onu->id }}" data-sn="{{ $onu->serial_number }}">
+                        data-id="<?php echo e($onu->id); ?>" data-sn="<?php echo e($onu->serial_number); ?>">
                     <i class="fas fa-trash"></i> Unregister
                 </button>
-                @endcan
+                <?php endif; ?>
             </div>
         </div>
 
         <!-- Assign Customer -->
-        @if(!$onu->customer)
+        <?php if(!$onu->customer): ?>
         <div class="card card-outline card-primary">
             <div class="card-header">
                 <h3 class="card-title"><i class="fas fa-user-plus mr-2"></i>Assign ke Pelanggan</h3>
             </div>
             <div class="card-body">
-                <form action="{{ route('admin.onus.assign-customer', $onu) }}" method="POST">
-                    @csrf
+                <form action="<?php echo e(route('admin.onus.assign-customer', $onu)); ?>" method="POST">
+                    <?php echo csrf_field(); ?>
                     <div class="form-group">
                         <label>Pilih Pelanggan</label>
                         <select name="customer_id" class="form-control select2-customer" style="width:100%" required>
@@ -182,7 +187,7 @@
                 </form>
             </div>
         </div>
-        @endif
+        <?php endif; ?>
     </div>
 
     <!-- Signal Chart & Details -->
@@ -213,28 +218,28 @@
                 <div class="row">
                     <div class="col-md-6">
                         <div class="info-box mb-3">
-                            <span class="info-box-icon bg-{{ $rxClass }} elevation-1">
+                            <span class="info-box-icon bg-<?php echo e($rxClass); ?> elevation-1">
                                 <i class="fas fa-arrow-down"></i>
                             </span>
                             <div class="info-box-content">
                                 <span class="info-box-text">RX Power (Downstream)</span>
-                                <span class="info-box-number">{{ $rx !== null ? number_format($rx, 2) . ' dBm' : '-' }}</span>
+                                <span class="info-box-number"><?php echo e($rx !== null ? number_format($rx, 2) . ' dBm' : '-'); ?></span>
                                 <div class="progress">
-                                    @php
+                                    <?php
                                         $rxPercent = $rx !== null ? min(100, max(0, (($rx + 40) / 25) * 100)) : 0;
-                                    @endphp
-                                    <div class="progress-bar bg-{{ $rxClass }}" style="width: {{ $rxPercent }}%"></div>
+                                    ?>
+                                    <div class="progress-bar bg-<?php echo e($rxClass); ?>" style="width: <?php echo e($rxPercent); ?>%"></div>
                                 </div>
                                 <span class="progress-description">
-                                    @if($rx === null)
+                                    <?php if($rx === null): ?>
                                         Tidak tersedia
-                                    @elseif($rx >= -25)
+                                    <?php elseif($rx >= -25): ?>
                                         <i class="fas fa-check-circle text-success"></i> Excellent
-                                    @elseif($rx >= -27)
+                                    <?php elseif($rx >= -27): ?>
                                         <i class="fas fa-exclamation-circle text-warning"></i> Good, perlu monitoring
-                                    @else
+                                    <?php else: ?>
                                         <i class="fas fa-times-circle text-danger"></i> Poor, perlu perbaikan
-                                    @endif
+                                    <?php endif; ?>
                                 </span>
                             </div>
                         </div>
@@ -246,20 +251,20 @@
                             </span>
                             <div class="info-box-content">
                                 <span class="info-box-text">TX Power (Upstream)</span>
-                                <span class="info-box-number">{{ $onu->tx_power !== null ? number_format($onu->tx_power, 2) . ' dBm' : '-' }}</span>
+                                <span class="info-box-number"><?php echo e($onu->tx_power !== null ? number_format($onu->tx_power, 2) . ' dBm' : '-'); ?></span>
                                 <div class="progress">
-                                    @php
+                                    <?php
                                         $tx = $onu->tx_power;
                                         $txPercent = $tx !== null ? min(100, max(0, (($tx + 10) / 15) * 100)) : 0;
-                                    @endphp
-                                    <div class="progress-bar bg-info" style="width: {{ $txPercent }}%"></div>
+                                    ?>
+                                    <div class="progress-bar bg-info" style="width: <?php echo e($txPercent); ?>%"></div>
                                 </div>
                                 <span class="progress-description">
-                                    @if($tx === null)
+                                    <?php if($tx === null): ?>
                                         Tidak tersedia
-                                    @else
+                                    <?php else: ?>
                                         Range normal: 0.5 ~ 5 dBm
-                                    @endif
+                                    <?php endif; ?>
                                 </span>
                             </div>
                         </div>
@@ -336,21 +341,21 @@
         </div>
 
         <!-- Description & Notes -->
-        @if($onu->description || $onu->notes)
+        <?php if($onu->description || $onu->notes): ?>
         <div class="card">
             <div class="card-header">
                 <h3 class="card-title"><i class="fas fa-sticky-note mr-2"></i>Catatan</h3>
             </div>
             <div class="card-body">
-                @if($onu->description)
-                <p><strong>Deskripsi:</strong> {{ $onu->description }}</p>
-                @endif
-                @if($onu->notes)
-                <p><strong>Catatan:</strong> {{ $onu->notes }}</p>
-                @endif
+                <?php if($onu->description): ?>
+                <p><strong>Deskripsi:</strong> <?php echo e($onu->description); ?></p>
+                <?php endif; ?>
+                <?php if($onu->notes): ?>
+                <p><strong>Catatan:</strong> <?php echo e($onu->notes); ?></p>
+                <?php endif; ?>
             </div>
         </div>
-        @endif
+        <?php endif; ?>
 
         <!-- Recent Signal History -->
         <div class="card">
@@ -370,39 +375,40 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @forelse($signalHistory as $history)
+                            <?php $__empty_1 = true; $__currentLoopData = $signalHistory; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $history): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                             <tr>
-                                <td>{{ $history->recorded_at->format('d/m/Y H:i') }}</td>
+                                <td><?php echo e($history->recorded_at->format('d/m/Y H:i')); ?></td>
                                 <td>
-                                    @php
+                                    <?php
                                         $histRx = $history->rx_power;
                                         $histRxClass = $histRx >= -25 ? 'success' : ($histRx >= -27 ? 'warning' : 'danger');
-                                    @endphp
-                                    <span class="badge badge-{{ $histRxClass }}">
-                                        {{ number_format($histRx, 2) }} dBm
+                                    ?>
+                                    <span class="badge badge-<?php echo e($histRxClass); ?>">
+                                        <?php echo e(number_format($histRx, 2)); ?> dBm
                                     </span>
                                 </td>
                                 <td>
                                     <span class="badge badge-info">
-                                        {{ $history->tx_power ? number_format($history->tx_power, 2) . ' dBm' : '-' }}
+                                        <?php echo e($history->tx_power ? number_format($history->tx_power, 2) . ' dBm' : '-'); ?>
+
                                     </span>
                                 </td>
                                 <td>
-                                    @if($history->status == 'online')
+                                    <?php if($history->status == 'online'): ?>
                                         <span class="badge badge-success">Online</span>
-                                    @elseif($history->status == 'offline')
+                                    <?php elseif($history->status == 'offline'): ?>
                                         <span class="badge badge-danger">Offline</span>
-                                    @else
-                                        <span class="badge badge-secondary">{{ ucfirst($history->status) }}</span>
-                                    @endif
+                                    <?php else: ?>
+                                        <span class="badge badge-secondary"><?php echo e(ucfirst($history->status)); ?></span>
+                                    <?php endif; ?>
                                 </td>
-                                <td>{{ $history->distance ? number_format($history->distance, 2) . ' km' : '-' }}</td>
+                                <td><?php echo e($history->distance ? number_format($history->distance, 2) . ' km' : '-'); ?></td>
                             </tr>
-                            @empty
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                             <tr>
                                 <td colspan="5" class="text-center text-muted">Belum ada data histori</td>
                             </tr>
-                            @endforelse
+                            <?php endif; ?>
                         </tbody>
                     </table>
                 </div>
@@ -410,9 +416,9 @@
         </div>
     </div>
 </div>
-@endsection
+<?php $__env->stopSection(); ?>
 
-@push('js')
+<?php $__env->startPush('js'); ?>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 $(function() {
@@ -420,7 +426,7 @@ $(function() {
     $('.select2-customer').select2({
         theme: 'bootstrap4',
         ajax: {
-            url: '{{ route("admin.customers.search") }}',
+            url: '<?php echo e(route("admin.customers.search")); ?>',
             dataType: 'json',
             delay: 250,
             data: function(params) {
@@ -441,17 +447,17 @@ $(function() {
     var signalChart = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: {!! json_encode($chartLabels ?? []) !!},
+            labels: <?php echo json_encode($chartLabels ?? []); ?>,
             datasets: [{
                 label: 'RX Power (dBm)',
-                data: {!! json_encode($chartRxData ?? []) !!},
+                data: <?php echo json_encode($chartRxData ?? []); ?>,
                 borderColor: 'rgb(75, 192, 192)',
                 backgroundColor: 'rgba(75, 192, 192, 0.1)',
                 tension: 0.3,
                 fill: true
             }, {
                 label: 'TX Power (dBm)',
-                data: {!! json_encode($chartTxData ?? []) !!},
+                data: <?php echo json_encode($chartTxData ?? []); ?>,
                 borderColor: 'rgb(54, 162, 235)',
                 backgroundColor: 'rgba(54, 162, 235, 0.1)',
                 tension: 0.3,
@@ -505,7 +511,7 @@ $(function() {
     // Period change
     $('#chart-period').change(function() {
         var period = $(this).val();
-        $.get('{{ route("admin.onus.signal-history", $onu) }}', { period: period }, function(res) {
+        $.get('<?php echo e(route("admin.onus.signal-history", $onu)); ?>', { period: period }, function(res) {
             signalChart.data.labels = res.labels;
             signalChart.data.datasets[0].data = res.rx_data;
             signalChart.data.datasets[1].data = res.tx_data;
@@ -520,7 +526,7 @@ $(function() {
 
     // Refresh Traffic function
     function refreshTraffic() {
-        $.post('/admin/onus/{{ $onu->id }}/refresh-signal', { _token: '{{ csrf_token() }}' })
+        $.post('/admin/onus/<?php echo e($onu->id); ?>/refresh-signal', { _token: '<?php echo e(csrf_token()); ?>' })
             .done(function(res) {
                 if (res.success && res.data) {
                     var now = new Date();
@@ -585,7 +591,7 @@ $(function() {
         var btn = $(this);
         btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
         
-        $.post('/admin/onus/' + id + '/refresh-signal', { _token: '{{ csrf_token() }}' })
+        $.post('/admin/onus/' + id + '/refresh-signal', { _token: '<?php echo e(csrf_token()); ?>' })
             .done(function(res) {
                 Swal.fire('Berhasil', res.message || 'Signal berhasil di-refresh', 'success')
                     .then(() => location.reload());
@@ -613,7 +619,7 @@ $(function() {
         }).then((result) => {
             if (result.isConfirmed) {
                 btn.prop('disabled', true);
-                $.post('/admin/onus/' + id + '/reboot', { _token: '{{ csrf_token() }}' })
+                $.post('/admin/onus/' + id + '/reboot', { _token: '<?php echo e(csrf_token()); ?>' })
                     .done(function(res) {
                         Swal.fire('Berhasil', res.message || 'ONU sedang di-reboot', 'success');
                     })
@@ -644,10 +650,10 @@ $(function() {
                 $.ajax({
                     url: '/admin/onus/' + id + '/unregister',
                     method: 'POST',
-                    data: { _token: '{{ csrf_token() }}' },
+                    data: { _token: '<?php echo e(csrf_token()); ?>' },
                     success: function(res) {
                         Swal.fire('Berhasil', res.message || 'ONU berhasil dihapus', 'success')
-                            .then(() => window.location.href = '{{ route("admin.onus.index") }}');
+                            .then(() => window.location.href = '<?php echo e(route("admin.onus.index")); ?>');
                     },
                     error: function(xhr) {
                         Swal.fire('Gagal', xhr.responseJSON?.message || 'Gagal menghapus ONU', 'error');
@@ -658,4 +664,6 @@ $(function() {
     });
 });
 </script>
-@endpush
+<?php $__env->stopPush(); ?>
+
+<?php echo $__env->make('layouts.admin', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH D:\projek\internet35\resources\views/admin/onus/show.blade.php ENDPATH**/ ?>
