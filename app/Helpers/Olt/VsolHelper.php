@@ -56,6 +56,13 @@ class VsolHelper extends BaseOltHelper
         'onuDescription' => '1.3.6.1.4.1.37950.1.1.5.12.1.9.1.6', // Description (if available)
         'onuDistance' => '1.3.6.1.4.1.37950.1.1.5.12.1.9.1.7',    // Distance (if available)
         
+        // ============ ONU AUTH INFO TABLE (onuAuthInfoTable) ============
+        // .1.3.6.1.4.1.37950.1.1.5.12.1.12.1.x - CONTAINS CUSTOMER NAMES!
+        'authInfoPonNo' => '1.3.6.1.4.1.37950.1.1.5.12.1.12.1.2',       // PON port number
+        'authInfoOnuNo' => '1.3.6.1.4.1.37950.1.1.5.12.1.12.1.3',       // ONU ID
+        'authInfoDescription' => '1.3.6.1.4.1.37950.1.1.5.12.1.12.1.10', // Customer name/description
+        'authInfoRtt' => '1.3.6.1.4.1.37950.1.1.5.12.1.12.1.13',        // RTT for distance calculation
+        
         // ONU Statistics (onuStatisticsTable) - .1.3.6.1.4.1.37950.1.1.5.12.1.20.1.x
         'onuStatIndex' => '1.3.6.1.4.1.37950.1.1.5.12.1.20.1.1',
         
@@ -960,43 +967,135 @@ class VsolHelper extends BaseOltHelper
     /**
      * Get ONU optical info
      */
+    /**
+     * Get ONU descriptions and distance from onuAuthInfoTable
+     * Returns mapping: [ponPort][onuId] => ['description' => '...', 'distance' => '...']
+     */
+    public function getOnuAuthInfoMap(): array
+    {
+        $map = [];
+
+        try {
+            // Walk all three OIDs
+            $ponPorts = $this->snmpWalk($this->vsolOids['authInfoPonNo']);
+            $onuIds = $this->snmpWalk($this->vsolOids['authInfoOnuNo']);
+            $descriptions = $this->snmpWalk($this->vsolOids['authInfoDescription']);
+            $rtts = $this->snmpWalk($this->vsolOids['authInfoRtt']);
+
+            // Re-index by last OID component (auth info index)
+            $ponByIndex = [];
+            foreach ($ponPorts as $oid => $val) {
+                if (preg_match('/\.(\d+)$/', $oid, $m)) {
+                    $ponByIndex[$m[1]] = (int) preg_replace('/[^0-9]/', '', $val);
+                }
+            }
+
+            $onuByIndex = [];
+            foreach ($onuIds as $oid => $val) {
+                if (preg_match('/\.(\d+)$/', $oid, $m)) {
+                    $onuByIndex[$m[1]] = (int) preg_replace('/[^0-9]/', '', $val);
+                }
+            }
+
+            $descByIndex = [];
+            foreach ($descriptions as $oid => $val) {
+                if (preg_match('/\.(\d+)$/', $oid, $m)) {
+                    $descByIndex[$m[1]] = trim(preg_replace('/^STRING:\s*/i', '', $val), '" \'');
+                }
+            }
+
+            $rttByIndex = [];
+            foreach ($rtts as $oid => $val) {
+                if (preg_match('/\.(\d+)$/', $oid, $m)) {
+                    // RTT in nanoseconds, convert to meters (light speed ~5 ns per meter round trip)
+                    $rttNs = (int) preg_replace('/[^0-9]/', '', $val);
+                    $distanceMeters = $rttNs > 0 ? round($rttNs / 10, 0) : null; // Approximate
+                    $rttByIndex[$m[1]] = $distanceMeters;
+                }
+            }
+
+            // Build map keyed by "port.onuId"
+            foreach ($ponByIndex as $index => $port) {
+                $onuId = $onuByIndex[$index] ?? null;
+                if ($port && $onuId) {
+                    $map["$port.$onuId"] = [
+                        'description' => $descByIndex[$index] ?? '',
+                        'distance' => $rttByIndex[$index] ?? null,
+                    ];
+                }
+            }
+
+            Log::info("VSOL getOnuAuthInfoMap: Found " . count($map) . " entries");
+
+        } catch (Exception $e) {
+            Log::error("VSOL getOnuAuthInfoMap error: " . $e->getMessage());
+        }
+
+        return $map;
+    }
+
     public function getOnuOpticalInfo(int $slot, int $port, int $onuId): array
     {
-        // For V1600D4, index is single number
-        $index = $onuId;
 
-        $rxPower = $this->snmpGet($this->vsolOids['onuRxPower'] . ".{$index}");
-        $txPower = $this->snmpGet($this->vsolOids['onuTxPower'] . ".{$index}");
-        $oltRx = $this->snmpGet($this->vsolOids['onuOltRxPower'] . ".{$index}");
-        $temp = $this->snmpGet($this->vsolOids['onuTemperature'] . ".{$index}");
-        $volt = $this->snmpGet($this->vsolOids['onuVoltage'] . ".{$index}");
+        // VSOL V1600D RX/TX Power: OID .12.2.1.8.1.6 (TX), .12.2.1.8.1.7 (RX)
+        // Index: .{ponId}.{onuId}
+        $ponId = $port;
+        $onuIdx = $onuId;
+        $rxPower = $this->snmpGet("1.3.6.1.4.1.37950.1.1.5.12.2.1.8.1.7.$ponId.$onuIdx");
+        $txPower = $this->snmpGet("1.3.6.1.4.1.37950.1.1.5.12.2.1.8.1.6.$ponId.$onuIdx");
 
+        // OLT RX Power = RX Power (same as above)
+        $oltRx = $rxPower;
+
+        // VSOL tidak expose temperature/voltage di OID ini
         return [
             'rx_power' => $this->parseVsolOpticalPower($rxPower),
             'tx_power' => $this->parseVsolOpticalPower($txPower),
             'olt_rx_power' => $this->parseVsolOpticalPower($oltRx),
-            'temperature' => $temp ? ((float)$temp / 256) : null,
-            'voltage' => $volt ? ((float)$volt / 10000) : null,
+            'temperature' => null,
+            'voltage' => null,
         ];
     }
 
     /**
-     * Parse VSOL optical power (returns in 0.01 dBm)
+     * Parse VSOL optical power
+     * Handles formats:
+     * - String: "0.01 mW (-20.92 dBm)" -> extracts dBm value
+     * - Integer: 0.01 dBm format (legacy)
      */
     protected function parseVsolOpticalPower(mixed $value): ?float
     {
-        if (is_null($value) || $value === '' || $value == -32768 || $value == 0x8000) {
+        if (is_null($value) || $value === '' || $value === false) {
             return null;
         }
 
-        $power = (int) $value;
+        // Format: "0.01 mW (-20.92 dBm)" - extract dBm from parentheses
+        if (is_string($value) && preg_match('/\(([+-]?[\d.]+)\s*dBm\)/i', $value, $matches)) {
+            return round((float) $matches[1], 2);
+        }
         
-        // VSOL returns signed integer in 0.01 dBm
-        if ($power > 32767) {
-            $power = $power - 65536;
+        // Format: "X.XX dBm" without parentheses
+        if (is_string($value) && preg_match('/([+-]?[\d.]+)\s*dBm/i', $value, $matches)) {
+            return round((float) $matches[1], 2);
         }
 
-        return round($power / 100, 2);
+        // Legacy integer format (0.01 dBm units)
+        if (is_numeric($value)) {
+            $power = (int) $value;
+            
+            if ($power == -32768 || $power == 0x8000) {
+                return null;
+            }
+            
+            // VSOL returns signed integer in 0.01 dBm
+            if ($power > 32767) {
+                $power = $power - 65536;
+            }
+
+            return round($power / 100, 2);
+        }
+
+        return null;
     }
 
     /**
@@ -1186,11 +1285,22 @@ class VsolHelper extends BaseOltHelper
      */
     public function getOnuTraffic(int $slot, int $port, int $onuId): array
     {
+        // VSOL V1600D onuStatisticsTable
+        // Base OID: 1.3.6.1.4.1.37950.1.1.5.12.1.20.1
+        // Index: {ponId}.{onuId}
+        $ponId = $port;
+        $onuIdx = $onuId;
+        
+        $rxOctets = $this->snmpGet("1.3.6.1.4.1.37950.1.1.5.12.1.20.1.3.$ponId.$onuIdx");
+        $txOctets = $this->snmpGet("1.3.6.1.4.1.37950.1.1.5.12.1.20.1.10.$ponId.$onuIdx");
+        $rxPackets = $this->snmpGet("1.3.6.1.4.1.37950.1.1.5.12.1.20.1.4.$ponId.$onuIdx");
+        $txPackets = $this->snmpGet("1.3.6.1.4.1.37950.1.1.5.12.1.20.1.11.$ponId.$onuIdx");
+        
         return [
-            'in_octets' => 0,
-            'out_octets' => 0,
-            'in_packets' => 0,
-            'out_packets' => 0,
+            'in_octets' => is_numeric($rxOctets) ? (int)$rxOctets : 0,
+            'out_octets' => is_numeric($txOctets) ? (int)$txOctets : 0,
+            'in_packets' => is_numeric($rxPackets) ? (int)$rxPackets : 0,
+            'out_packets' => is_numeric($txPackets) ? (int)$txPackets : 0,
         ];
     }
 
@@ -1245,6 +1355,10 @@ class VsolHelper extends BaseOltHelper
             $allOnus = $this->getAllOnus();
             Log::info("VSOL syncAll: Found " . count($allOnus) . " ONUs to sync for OLT: {$this->olt->name}");
 
+            // Get description and distance mapping from onuAuthInfoTable
+            $authInfoMap = $this->getOnuAuthInfoMap();
+            Log::info("VSOL syncAll: Loaded " . count($authInfoMap) . " ONU descriptions from OLT");
+
             foreach ($allOnus as $onuData) {
                 try {
                     // For VSOL V1600D, getAllOnus() already returns all needed data
@@ -1256,6 +1370,17 @@ class VsolHelper extends BaseOltHelper
                         $serialNumber = "VSOL-P{$onuData['port']}-ONU{$onuData['onu_id']}";
                     }
                     
+                    // Get optical power info
+                    $opticalInfo = $this->getOnuOpticalInfo(
+                        $onuData['slot'] ?? 0,
+                        $onuData['port'],
+                        $onuData['onu_id']
+                    );
+                    
+                    // Get description and distance from authInfoMap
+                    $authKey = "{$onuData['port']}.{$onuData['onu_id']}";
+                    $authInfo = $authInfoMap[$authKey] ?? ['description' => '', 'distance' => null];
+                    
                     // Prepare full info from getAllOnus data
                     $fullInfo = [
                         'slot' => $onuData['slot'] ?? 0,
@@ -1264,13 +1389,13 @@ class VsolHelper extends BaseOltHelper
                         'serial_number' => $serialNumber,
                         'mac_address' => $onuData['mac_address'] ?? null,
                         'status' => $onuData['status'] ?? 'online',
-                        'description' => $onuData['description'] ?? null,
-                        'distance' => null,
-                        'rx_power' => null,
-                        'tx_power' => null,
-                        'olt_rx_power' => null,
-                        'temperature' => null,
-                        'voltage' => null,
+                        'description' => $authInfo['description'] ?: ($onuData['description'] ?? null),
+                        'distance' => $authInfo['distance'],
+                        'rx_power' => $opticalInfo['rx_power'] ?? null,
+                        'tx_power' => $opticalInfo['tx_power'] ?? null,
+                        'olt_rx_power' => $opticalInfo['olt_rx_power'] ?? null,
+                        'temperature' => $opticalInfo['temperature'] ?? null,
+                        'voltage' => $opticalInfo['voltage'] ?? null,
                     ];
 
                     $onu = $this->saveOnuToDatabase(array_merge($fullInfo, [

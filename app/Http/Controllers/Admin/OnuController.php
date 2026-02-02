@@ -61,10 +61,12 @@ class OnuController extends Controller implements HasMiddleware
             ->when($request->olt_id, fn($q, $o) => $q->where('olt_id', $o))
             ->when($request->status, fn($q, $s) => $q->where('status', $s))
             ->when($request->signal, function($q, $s) {
-                if ($s === 'weak') {
-                    $q->where('olt_rx_power', '<', -26);
-                } elseif ($s === 'critical') {
-                    $q->where('olt_rx_power', '<', -28);
+                if ($s === 'good') {
+                    $q->where('rx_power', '>=', -25);
+                } elseif ($s === 'warning') {
+                    $q->whereBetween('rx_power', [-27, -25]);
+                } elseif ($s === 'bad') {
+                    $q->where('rx_power', '<', -27);
                 }
             })
             ->when($request->unassigned, fn($q) => $q->whereNull('customer_id'))
@@ -87,11 +89,16 @@ class OnuController extends Controller implements HasMiddleware
             ->get();
         
         // Statistics
+        $baseQuery = Onu::query();
+        if ($popId) {
+            $baseQuery->whereHas('olt', fn($q) => $q->where('pop_id', $popId));
+        }
+        
         $stats = [
-            'total' => Onu::count(),
-            'online' => Onu::where('status', 'online')->count(),
-            'offline' => Onu::whereIn('status', ['offline', 'los'])->count(),
-            'weak_signal' => Onu::where('olt_rx_power', '<', -26)->count(),
+            'total' => (clone $baseQuery)->count(),
+            'online' => (clone $baseQuery)->where('status', 'online')->count(),
+            'offline' => (clone $baseQuery)->where('status', 'offline')->count(),
+            'los' => (clone $baseQuery)->where('status', 'los')->count(),
         ];
         
         return view('admin.onus.index', compact('onus', 'olts', 'stats', 'popId'));
@@ -110,13 +117,18 @@ class OnuController extends Controller implements HasMiddleware
             ->orderBy('recorded_at')
             ->get();
         
+        // Prepare chart data
+        $chartLabels = $signalHistory->pluck('recorded_at')->map(fn($d) => $d->format('d/m H:i'))->toArray();
+        $chartRxData = $signalHistory->pluck('rx_power')->toArray();
+        $chartTxData = $signalHistory->pluck('tx_power')->toArray();
+        
         // Get customers for assignment modal
         $customers = Customer::where('pop_id', $onu->olt->pop_id)
             ->whereDoesntHave('onu')
             ->orderBy('name')
             ->get();
         
-        return view('admin.onus.show', compact('onu', 'signalHistory', 'customers'));
+        return view('admin.onus.show', compact('onu', 'signalHistory', 'customers', 'chartLabels', 'chartRxData', 'chartTxData'));
     }
 
     /**
@@ -360,14 +372,82 @@ class OnuController extends Controller implements HasMiddleware
      */
     public function signalHistory(Onu $onu, Request $request)
     {
-        $hours = $request->hours ?? 24;
+        $period = $request->period ?? '7d';
+        
+        // Parse period
+        $hours = match($period) {
+            '24h' => 24,
+            '7d' => 24 * 7,
+            '30d' => 24 * 30,
+            default => 24 * 7,
+        };
         
         $history = $onu->signalHistories()
             ->where('recorded_at', '>=', now()->subHours($hours))
             ->orderBy('recorded_at')
             ->get();
         
-        return response()->json($history);
+        return response()->json([
+            'labels' => $history->pluck('recorded_at')->map(fn($d) => $d->format('d/m H:i'))->toArray(),
+            'rx_data' => $history->pluck('rx_power')->toArray(),
+            'tx_data' => $history->pluck('tx_power')->toArray(),
+        ]);
+    }
+
+    /**
+     * Refresh ONU signal/optical power via AJAX (realtime)
+     */
+    public function refreshSignal(Onu $onu)
+    {
+        try {
+            $helper = OltFactory::make($onu->olt);
+            
+            // Get optical info only (faster than full refresh)
+            $opticalInfo = $helper->getOnuOpticalInfo($onu->slot ?? 0, $onu->port, $onu->onu_id);
+            
+            // Get traffic info
+            $trafficInfo = $helper->getOnuTraffic($onu->slot ?? 0, $onu->port, $onu->onu_id);
+            
+            // Update ONU
+            $onu->update([
+                'rx_power' => $opticalInfo['rx_power'] ?? null,
+                'tx_power' => $opticalInfo['tx_power'] ?? null,
+                'olt_rx_power' => $opticalInfo['olt_rx_power'] ?? null,
+            ]);
+            
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'rx_power' => $opticalInfo['rx_power'],
+                    'tx_power' => $opticalInfo['tx_power'],
+                    'olt_rx_power' => $opticalInfo['olt_rx_power'],
+                    'in_octets' => $trafficInfo['in_octets'],
+                    'out_octets' => $trafficInfo['out_octets'],
+                    'in_octets_formatted' => $this->formatBytes($trafficInfo['in_octets']),
+                    'out_octets_formatted' => $this->formatBytes($trafficInfo['out_octets']),
+                ],
+                'message' => 'Signal refreshed',
+            ]);
+            
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Format bytes to human readable
+     */
+    protected function formatBytes($bytes, $precision = 2): string
+    {
+        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        $bytes = max($bytes, 0);
+        $pow = floor(($bytes ? log($bytes) : 0) / log(1024));
+        $pow = min($pow, count($units) - 1);
+        $bytes /= pow(1024, $pow);
+        return round($bytes, $precision) . ' ' . $units[$pow];
     }
 
     /**
@@ -386,6 +466,47 @@ class OnuController extends Controller implements HasMiddleware
                 'success' => false,
                 'message' => $e->getMessage(),
             ]);
+        }
+    }
+
+    /**
+     * Bulk sync all ONUs from all OLTs
+     */
+    public function bulkSync(Request $request)
+    {
+        try {
+            $olts = \App\Models\Olt::where('status', 'active')->get();
+            $totalSynced = 0;
+            $errors = [];
+
+            foreach ($olts as $olt) {
+                try {
+                    $helper = OltFactory::make($olt);
+                    $result = $helper->syncAll();
+                    if (isset($result['onus_synced'])) {
+                        $totalSynced += $result['onus_synced'];
+                    }
+                } catch (Exception $e) {
+                    $errors[] = "{$olt->name}: {$e->getMessage()}";
+                }
+            }
+
+            $message = "Berhasil sync {$totalSynced} ONU dari {$olts->count()} OLT";
+            if (!empty($errors)) {
+                $message .= ". Errors: " . implode('; ', $errors);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'synced' => $totalSynced,
+            ]);
+
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
         }
     }
 }

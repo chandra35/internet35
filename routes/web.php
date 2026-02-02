@@ -288,9 +288,11 @@ Route::prefix('admin')->middleware(['auth'])->name('admin.')->group(function () 
         Route::get('/{onu}', [\App\Http\Controllers\Admin\OnuController::class, 'show'])->name('show');
         Route::get('/{onu}/signal-history', [\App\Http\Controllers\Admin\OnuController::class, 'signalHistory'])->name('signal-history');
         Route::post('/register', [\App\Http\Controllers\Admin\OnuController::class, 'register'])->name('register');
+        Route::post('/bulk-sync', [\App\Http\Controllers\Admin\OnuController::class, 'bulkSync'])->name('bulk-sync');
         Route::post('/{onu}/unregister', [\App\Http\Controllers\Admin\OnuController::class, 'unregister'])->name('unregister');
         Route::post('/{onu}/reboot', [\App\Http\Controllers\Admin\OnuController::class, 'reboot'])->name('reboot');
         Route::post('/{onu}/refresh', [\App\Http\Controllers\Admin\OnuController::class, 'refresh'])->name('refresh');
+        Route::post('/{onu}/refresh-signal', [\App\Http\Controllers\Admin\OnuController::class, 'refreshSignal'])->name('refresh-signal');
         Route::post('/{onu}/assign-customer', [\App\Http\Controllers\Admin\OnuController::class, 'assignCustomer'])->name('assign-customer');
     });
 

@@ -1,13 +1,13 @@
 @extends('layouts.admin')
 
-@section('title', 'Detail ONU - ' . ($onu->name ?? $onu->serial_number))
+@section('title', 'Detail ONU - ' . ($onu->description ?? $onu->name ?? $onu->serial_number))
 
-@section('page-title', 'Detail ONU: ' . ($onu->name ?? $onu->serial_number))
+@section('page-title', 'Detail ONU: ' . ($onu->description ?? $onu->name ?? $onu->serial_number))
 
 @section('breadcrumb')
     <li class="breadcrumb-item"><a href="{{ route('admin.dashboard') }}">Dashboard</a></li>
     <li class="breadcrumb-item"><a href="{{ route('admin.onus.index') }}">ONU</a></li>
-    <li class="breadcrumb-item active">{{ $onu->name ?? $onu->serial_number }}</li>
+    <li class="breadcrumb-item active">{{ $onu->description ?? $onu->name ?? $onu->serial_number }}</li>
 @endsection
 
 @section('content')
@@ -20,7 +20,7 @@
                 <div class="widget-user-image">
                     <i class="fas fa-hdd fa-3x"></i>
                 </div>
-                <h3 class="widget-user-username">{{ $onu->name ?? 'ONU' }}</h3>
+                <h3 class="widget-user-username">{{ $onu->description ?? $onu->name ?? 'ONU' }}</h3>
                 <h5 class="widget-user-desc">{{ $onu->serial_number }}</h5>
             </div>
             <div class="card-footer p-0">
@@ -68,7 +68,7 @@
                         <span class="nav-link">
                             Distance
                             <span class="float-right">
-                                {{ $onu->distance ? number_format($onu->distance, 2) . ' km' : '-' }}
+                                {{ $onu->distance ? number_format($onu->distance, 0) . ' m' : '-' }}
                             </span>
                         </span>
                     </li>
@@ -93,11 +93,11 @@
                     </tr>
                     <tr>
                         <td><strong>PON Port</strong></td>
-                        <td>{{ $onu->pon_port }}</td>
+                        <td>{{ $onu->port ?? '-' }}</td>
                     </tr>
                     <tr>
-                        <td><strong>ONU Number</strong></td>
-                        <td>{{ $onu->onu_number }}</td>
+                        <td><strong>ONU ID</strong></td>
+                        <td>{{ $onu->onu_id ?? '-' }}</td>
                     </tr>
                     <tr>
                         <td><strong>Serial Number</strong></td>
@@ -106,6 +106,10 @@
                     <tr>
                         <td><strong>ONU Type</strong></td>
                         <td>{{ $onu->onu_type ?? '-' }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Deskripsi (OLT)</strong></td>
+                        <td>{{ $onu->description ?? '-' }}</td>
                     </tr>
                     <tr>
                         <td><strong>Profile</strong></td>
@@ -286,6 +290,51 @@
             </div>
         </div>
 
+        <!-- Traffic Realtime -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title"><i class="fas fa-tachometer-alt mr-2"></i>Traffic Realtime</h3>
+                <div class="card-tools">
+                    <button type="button" class="btn btn-tool btn-refresh-traffic" title="Refresh Traffic">
+                        <i class="fas fa-sync"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="info-box bg-gradient-success">
+                            <span class="info-box-icon"><i class="fas fa-arrow-down"></i></span>
+                            <div class="info-box-content">
+                                <span class="info-box-text">Download (RX)</span>
+                                <span class="info-box-number" id="traffic-rx">-</span>
+                                <div class="progress">
+                                    <div class="progress-bar" id="traffic-rx-bar" style="width: 0%"></div>
+                                </div>
+                                <span class="progress-description" id="traffic-rx-rate">Memuat...</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="info-box bg-gradient-info">
+                            <span class="info-box-icon"><i class="fas fa-arrow-up"></i></span>
+                            <div class="info-box-content">
+                                <span class="info-box-text">Upload (TX)</span>
+                                <span class="info-box-number" id="traffic-tx">-</span>
+                                <div class="progress">
+                                    <div class="progress-bar" id="traffic-tx-bar" style="width: 0%"></div>
+                                </div>
+                                <span class="progress-description" id="traffic-tx-rate">Memuat...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="text-muted small text-center" id="traffic-updated">
+                    <i class="fas fa-clock mr-1"></i>Terakhir update: -
+                </div>
+            </div>
+        </div>
+
         <!-- Description & Notes -->
         @if($onu->description || $onu->notes)
         <div class="card">
@@ -462,6 +511,72 @@ $(function() {
             signalChart.data.datasets[1].data = res.tx_data;
             signalChart.update();
         });
+    });
+
+    // Traffic variables for rate calculation
+    var lastTrafficRx = null;
+    var lastTrafficTx = null;
+    var lastTrafficTime = null;
+
+    // Refresh Traffic function
+    function refreshTraffic() {
+        $.post('/admin/onus/{{ $onu->id }}/refresh-signal', { _token: '{{ csrf_token() }}' })
+            .done(function(res) {
+                if (res.success && res.data) {
+                    var now = new Date();
+                    
+                    // Update total traffic display
+                    $('#traffic-rx').text(res.data.in_octets_formatted || '-');
+                    $('#traffic-tx').text(res.data.out_octets_formatted || '-');
+                    
+                    // Calculate rate if we have previous data
+                    if (lastTrafficTime !== null && lastTrafficRx !== null) {
+                        var timeDiff = (now - lastTrafficTime) / 1000; // seconds
+                        if (timeDiff > 0) {
+                            var rxRate = ((res.data.in_octets - lastTrafficRx) * 8 / timeDiff / 1000000).toFixed(2);
+                            var txRate = ((res.data.out_octets - lastTrafficTx) * 8 / timeDiff / 1000000).toFixed(2);
+                            
+                            // Prevent negative rates (counter reset)
+                            rxRate = Math.max(0, rxRate);
+                            txRate = Math.max(0, txRate);
+                            
+                            $('#traffic-rx-rate').html('<i class="fas fa-tachometer-alt mr-1"></i>' + rxRate + ' Mbps');
+                            $('#traffic-tx-rate').html('<i class="fas fa-tachometer-alt mr-1"></i>' + txRate + ' Mbps');
+                            
+                            // Update progress bars (max 100 Mbps scale)
+                            $('#traffic-rx-bar').css('width', Math.min(100, rxRate) + '%');
+                            $('#traffic-tx-bar').css('width', Math.min(100, txRate) + '%');
+                        }
+                    } else {
+                        $('#traffic-rx-rate').html('<i class="fas fa-clock mr-1"></i>Menghitung...');
+                        $('#traffic-tx-rate').html('<i class="fas fa-clock mr-1"></i>Menghitung...');
+                    }
+                    
+                    // Save for next calculation
+                    lastTrafficRx = res.data.in_octets;
+                    lastTrafficTx = res.data.out_octets;
+                    lastTrafficTime = now;
+                    
+                    // Update timestamp
+                    $('#traffic-updated').html('<i class="fas fa-clock mr-1"></i>Terakhir update: ' + now.toLocaleTimeString());
+                }
+            })
+            .fail(function(xhr) {
+                $('#traffic-rx-rate').html('<span class="text-danger">Error</span>');
+                $('#traffic-tx-rate').html('<span class="text-danger">Error</span>');
+            });
+    }
+
+    // Initial load and auto-refresh every 5 seconds
+    refreshTraffic();
+    var trafficInterval = setInterval(refreshTraffic, 5000);
+
+    // Manual refresh button
+    $('.btn-refresh-traffic').click(function() {
+        var btn = $(this);
+        btn.find('i').addClass('fa-spin');
+        refreshTraffic();
+        setTimeout(function() { btn.find('i').removeClass('fa-spin'); }, 500);
     });
 
     // Refresh Signal

@@ -66,7 +66,7 @@
                 <div class="col-md-3">
                     <div class="form-group">
                         <label>OLT</label>
-                        <select name="olt_id" class="form-control select2">
+                        <select name="olt_id" class="form-control select2" data-placeholder="-- Semua OLT --">
                             <option value="">-- Semua OLT --</option>
                             @foreach($olts as $olt)
                             <option value="{{ $olt->id }}" {{ request('olt_id') == $olt->id ? 'selected' : '' }}>
@@ -79,7 +79,7 @@
                 <div class="col-md-2">
                     <div class="form-group">
                         <label>Status</label>
-                        <select name="status" class="form-control">
+                        <select name="status" class="form-control select2" data-placeholder="-- Semua --">
                             <option value="">-- Semua --</option>
                             <option value="online" {{ request('status') == 'online' ? 'selected' : '' }}>Online</option>
                             <option value="offline" {{ request('status') == 'offline' ? 'selected' : '' }}>Offline</option>
@@ -90,7 +90,7 @@
                 <div class="col-md-2">
                     <div class="form-group">
                         <label>Sinyal</label>
-                        <select name="signal" class="form-control">
+                        <select name="signal" class="form-control select2" data-placeholder="-- Semua --">
                             <option value="">-- Semua --</option>
                             <option value="good" {{ request('signal') == 'good' ? 'selected' : '' }}>Bagus (> -25dBm)</option>
                             <option value="warning" {{ request('signal') == 'warning' ? 'selected' : '' }}>Peringatan (-25 ~ -27dBm)</option>
@@ -131,6 +131,11 @@
             <button type="button" class="btn btn-success btn-sm btn-bulk-sync" title="Sync All">
                 <i class="fas fa-sync"></i> Bulk Sync
             </button>
+            <!-- Streaming Progress -->
+            <div id="sync-progress" class="d-none mt-1" style="opacity: 0.6; font-size: 11px;">
+                <i class="fas fa-circle-notch fa-spin mr-1"></i>
+                <span id="sync-status">Memulai sinkronisasi...</span>
+            </div>
         </div>
     </div>
     <div class="card-body p-0">
@@ -139,39 +144,40 @@
                 <thead class="thead-dark">
                     <tr>
                         <th width="5%">#</th>
-                        <th>OLT</th>
-                        <th>PON/ONU</th>
+                        <th>Nama Pelanggan</th>
                         <th>Serial Number</th>
-                        <th>Nama</th>
-                        <th>Pelanggan</th>
+                        <th>PON/ONU</th>
+                        <th>OLT</th>
                         <th>Status</th>
                         <th>RX Power</th>
                         <th>TX Power</th>
-                        <th width="10%">Aksi</th>
+                        <th>Distance</th>
+                        <th width="8%">Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($onus as $onu)
                     <tr>
-                        <td>{{ $loop->iteration }}</td>
+                        <td>{{ $loop->iteration + ($onus->currentPage() - 1) * $onus->perPage() }}</td>
+                        <td>
+                            @if($onu->customer)
+                                <a href="{{ route('admin.customers.show', $onu->customer) }}">
+                                    <strong>{{ $onu->customer->name }}</strong>
+                                </a>
+                            @elseif($onu->description)
+                                {{ $onu->description }}
+                            @elseif($onu->name)
+                                {{ $onu->name }}
+                            @else
+                                <span class="text-muted">-</span>
+                            @endif
+                        </td>
+                        <td><code>{{ $onu->serial_number }}</code></td>
+                        <td><strong>{{ $onu->port }}/{{ $onu->onu_id }}</strong></td>
                         <td>
                             <a href="{{ route('admin.olts.show', $onu->olt) }}">
                                 {{ $onu->olt->name }}
                             </a>
-                        </td>
-                        <td>
-                            <strong>{{ $onu->pon_port }}/{{ $onu->onu_number }}</strong>
-                        </td>
-                        <td><code>{{ $onu->serial_number }}</code></td>
-                        <td>{{ $onu->name ?? '-' }}</td>
-                        <td>
-                            @if($onu->customer)
-                                <a href="{{ route('admin.customers.show', $onu->customer) }}">
-                                    {{ $onu->customer->name }}
-                                </a>
-                            @else
-                                <span class="text-muted">-</span>
-                            @endif
                         </td>
                         <td>
                             @if($onu->status == 'online')
@@ -203,6 +209,9 @@
                             <span class="badge badge-{{ $tx !== null ? 'info' : 'secondary' }}">
                                 {{ $tx !== null ? number_format($tx, 2) . ' dBm' : '-' }}
                             </span>
+                        </td>
+                        <td>
+                            <small>{{ $onu->distance ? number_format($onu->distance, 0) . ' m' : '-' }}</small>
                         </td>
                         <td>
                             <div class="btn-group">
@@ -247,7 +256,24 @@
 @push('js')
 <script>
 $(function() {
-    $('.select2').select2({ theme: 'bootstrap4', width: '100%' });
+    // Initialize select2 with bootstrap-5 theme (sesuai layout)
+    $('.select2').select2({ 
+        theme: 'bootstrap-5', 
+        width: '100%',
+        allowClear: true
+    });
+
+    // Auto-submit when filter changes (select2 uses select2:select event)
+    $('select[name="olt_id"], select[name="status"], select[name="signal"]').on('change select2:select select2:clear', function() {
+        $(this).closest('form').submit();
+    });
+
+    // Submit on Enter key in search field
+    $('input[name="search"]').on('keypress', function(e) {
+        if (e.which === 13) {
+            $(this).closest('form').submit();
+        }
+    });
 
     // Reboot ONU
     $(document).on('click', '.btn-reboot-onu', function() {
@@ -311,6 +337,9 @@ $(function() {
     // Bulk Sync
     $('.btn-bulk-sync').click(function() {
         var btn = $(this);
+        var progressDiv = $('#sync-progress');
+        var statusSpan = $('#sync-status');
+        
         Swal.fire({
             title: 'Bulk Sync ONU',
             text: 'Ini akan menyinkronkan semua ONU dari semua OLT. Proses ini mungkin memakan waktu.',
@@ -320,12 +349,39 @@ $(function() {
         }).then((result) => {
             if (result.isConfirmed) {
                 btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Syncing...');
+                progressDiv.removeClass('d-none');
+                statusSpan.text('Menghubungi OLT...');
+                
+                // Simulasi streaming progress
+                var steps = [
+                    'Mengambil daftar OLT aktif...',
+                    'Membaca data ONU dari OLT...',
+                    'Menyinkronkan ke database...',
+                    'Memperbarui status ONU...'
+                ];
+                var stepIndex = 0;
+                var progressInterval = setInterval(function() {
+                    if (stepIndex < steps.length) {
+                        statusSpan.text(steps[stepIndex]);
+                        stepIndex++;
+                    }
+                }, 1500);
+                
                 $.post('/admin/onus/bulk-sync', { _token: '{{ csrf_token() }}' })
                     .done(function(res) {
-                        Swal.fire('Berhasil', res.message || 'Semua ONU berhasil disinkronkan', 'success')
-                            .then(() => location.reload());
+                        clearInterval(progressInterval);
+                        statusSpan.html('<i class="fas fa-check text-success mr-1"></i>' + (res.message || 'Selesai'));
+                        setTimeout(function() {
+                            progressDiv.addClass('d-none');
+                            location.reload();
+                        }, 2000);
                     })
                     .fail(function(xhr) {
+                        clearInterval(progressInterval);
+                        statusSpan.html('<i class="fas fa-times text-danger mr-1"></i>' + (xhr.responseJSON?.message || 'Gagal'));
+                        setTimeout(function() {
+                            progressDiv.addClass('d-none');
+                        }, 3000);
                         Swal.fire('Gagal', xhr.responseJSON?.message || 'Gagal sinkronisasi', 'error');
                     })
                     .always(function() {
