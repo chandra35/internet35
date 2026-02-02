@@ -120,9 +120,26 @@ class HiosoHelper extends BaseOltHelper
                 $enterpriseId = $matches[1];
             }
 
-            // Get model from sysDescr
+            // Get model from sysDescr - try multiple patterns
             if (preg_match('/HA\d{4}/i', $sysDescr, $matches)) {
+                // Standard Hioso model: HA7302, HA7304, HA7308
                 $result['model'] = strtoupper($matches[0]);
+            } elseif (preg_match('/([A-Z]{2,}\d{3,}[A-Z]*)/i', $sysDescr, $matches)) {
+                // Generic model pattern: letters + numbers
+                $result['model'] = strtoupper($matches[1]);
+            } else {
+                // Use cleaned sysDescr as model (remove quotes, trim)
+                $cleanDescr = trim(str_replace(['"', "'"], '', $sysDescr));
+                if (!empty($cleanDescr) && strlen($cleanDescr) <= 30) {
+                    $result['model'] = $cleanDescr;
+                } else {
+                    // Derive from enterprise ID
+                    $result['model'] = match($enterpriseId) {
+                        '17409' => 'Hioso EPON',
+                        '25355' => 'Haishuo EPON',
+                        default => 'EPON OLT',
+                    };
+                }
             }
 
             // Try to count PON ports from PON port table
