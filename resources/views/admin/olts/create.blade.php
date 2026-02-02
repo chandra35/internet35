@@ -16,8 +16,6 @@
     
     <!-- Hidden fields for identified data -->
     <input type="hidden" name="brand" id="input_brand" value="{{ old('brand') }}">
-    <input type="hidden" name="model" id="input_model" value="{{ old('model') }}">
-    <input type="hidden" name="total_pon_ports" id="input_pon_ports" value="{{ old('total_pon_ports') }}">
     <input type="hidden" name="total_uplink_ports" id="input_uplink_ports" value="{{ old('total_uplink_ports') }}">
     
     <div class="row">
@@ -173,6 +171,23 @@
                     <h3 class="card-title"><i class="fas fa-map-marker-alt mr-2"></i>Lokasi</h3>
                 </div>
                 <div class="card-body">
+                    <!-- Search Location -->
+                    <div class="form-group">
+                        <label>Cari Lokasi</label>
+                        <div class="input-group">
+                            <input type="text" id="location_search" class="form-control" 
+                                   placeholder="Ketik nama daerah, jalan, atau alamat...">
+                            <div class="input-group-append">
+                                <button type="button" class="btn btn-primary" id="btn-search-location">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                                <button type="button" class="btn btn-success" id="btn-current-location" title="Gunakan lokasi saat ini">
+                                    <i class="fas fa-crosshairs"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div id="search-results" class="list-group mt-1" style="display:none; position:absolute; z-index:1000; width:calc(100% - 30px);"></div>
+                    </div>
                     <div class="row">
                         <div class="col-md-6">
                             <div class="form-group">
@@ -189,8 +204,8 @@
                             </div>
                         </div>
                     </div>
-                    <div id="map" style="height: 200px; border-radius: 5px;"></div>
-                    <small class="text-muted">Klik pada peta untuk menentukan lokasi</small>
+                    <div id="map" style="height: 250px; border-radius: 5px;"></div>
+                    <small class="text-muted">Klik pada peta untuk menentukan lokasi, atau gunakan tombol <i class="fas fa-crosshairs"></i> untuk lokasi saat ini</small>
                 </div>
             </div>
         </div>
@@ -312,6 +327,23 @@
                         @error('name')
                         <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Model OLT <small class="text-muted">(bisa diedit jika salah)</small></label>
+                                <input type="text" name="model" id="input_model" class="form-control" 
+                                       value="{{ old('model') }}" placeholder="Contoh: HA7304">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Jumlah PON Ports <small class="text-muted">(bisa diedit)</small></label>
+                                <input type="number" name="total_pon_ports" id="input_pon_ports" class="form-control" 
+                                       value="{{ old('total_pon_ports', 0) }}" min="0" max="64">
+                            </div>
+                        </div>
                     </div>
 
                     <div class="form-group">
@@ -462,14 +494,129 @@ $(function() {
         }
 
         map.on('click', function(e) {
-            if (marker) {
-                map.removeLayer(marker);
-            }
-            marker = L.marker(e.latlng).addTo(map);
-            $('#latitude').val(e.latlng.lat.toFixed(8));
-            $('#longitude').val(e.latlng.lng.toFixed(8));
+            setMarker(e.latlng.lat, e.latlng.lng);
         });
     }
+
+    // Set marker on map
+    function setMarker(lat, lng, zoom) {
+        if (!map) return;
+        if (marker) {
+            map.removeLayer(marker);
+        }
+        marker = L.marker([lat, lng]).addTo(map);
+        $('#latitude').val(parseFloat(lat).toFixed(8));
+        $('#longitude').val(parseFloat(lng).toFixed(8));
+        map.setView([lat, lng], zoom || 16);
+    }
+
+    // Get current location
+    $('#btn-current-location').click(function() {
+        var btn = $(this);
+        if (!navigator.geolocation) {
+            Swal.fire('Error', 'Browser tidak mendukung geolocation', 'error');
+            return;
+        }
+        
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+        
+        navigator.geolocation.getCurrentPosition(
+            function(position) {
+                var lat = position.coords.latitude;
+                var lng = position.coords.longitude;
+                setMarker(lat, lng, 17);
+                btn.prop('disabled', false).html('<i class="fas fa-crosshairs"></i>');
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Lokasi Ditemukan',
+                    text: 'Lat: ' + lat.toFixed(6) + ', Lng: ' + lng.toFixed(6),
+                    timer: 2000
+                });
+            },
+            function(error) {
+                btn.prop('disabled', false).html('<i class="fas fa-crosshairs"></i>');
+                var msg = 'Gagal mendapatkan lokasi';
+                if (error.code === 1) msg = 'Izin lokasi ditolak';
+                else if (error.code === 2) msg = 'Lokasi tidak tersedia';
+                else if (error.code === 3) msg = 'Timeout mendapatkan lokasi';
+                Swal.fire('Error', msg, 'error');
+            },
+            { enableHighAccuracy: true, timeout: 10000 }
+        );
+    });
+
+    // Search location using Nominatim
+    var searchTimeout = null;
+    $('#location_search').on('input', function() {
+        var query = $(this).val();
+        clearTimeout(searchTimeout);
+        
+        if (query.length < 3) {
+            $('#search-results').hide().empty();
+            return;
+        }
+        
+        searchTimeout = setTimeout(function() {
+            searchLocation(query);
+        }, 500);
+    });
+
+    $('#btn-search-location').click(function() {
+        var query = $('#location_search').val();
+        if (query.length >= 3) {
+            searchLocation(query);
+        }
+    });
+
+    function searchLocation(query) {
+        $('#search-results').html('<div class="list-group-item">Mencari...</div>').show();
+        
+        $.ajax({
+            url: 'https://nominatim.openstreetmap.org/search',
+            data: {
+                q: query,
+                format: 'json',
+                addressdetails: 1,
+                limit: 5,
+                countrycodes: 'id'
+            },
+            headers: { 'Accept-Language': 'id' },
+            success: function(results) {
+                var html = '';
+                if (results.length === 0) {
+                    html = '<div class="list-group-item text-muted">Tidak ditemukan</div>';
+                } else {
+                    results.forEach(function(r) {
+                        html += '<a href="#" class="list-group-item list-group-item-action search-result-item" ' +
+                                'data-lat="' + r.lat + '" data-lng="' + r.lon + '">' +
+                                '<i class="fas fa-map-marker-alt mr-2 text-danger"></i>' + r.display_name +
+                                '</a>';
+                    });
+                }
+                $('#search-results').html(html).show();
+            },
+            error: function() {
+                $('#search-results').html('<div class="list-group-item text-danger">Gagal mencari</div>').show();
+            }
+        });
+    }
+
+    // Click on search result
+    $(document).on('click', '.search-result-item', function(e) {
+        e.preventDefault();
+        var lat = $(this).data('lat');
+        var lng = $(this).data('lng');
+        setMarker(lat, lng, 16);
+        $('#location_search').val($(this).text().trim());
+        $('#search-results').hide().empty();
+    });
+
+    // Hide search results on click outside
+    $(document).click(function(e) {
+        if (!$(e.target).closest('#location_search, #search-results, #btn-search-location').length) {
+            $('#search-results').hide();
+        }
+    });
 
     // Identify OLT
     $('#btn-identify').click(function() {

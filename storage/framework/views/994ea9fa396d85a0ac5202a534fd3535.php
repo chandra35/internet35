@@ -232,9 +232,9 @@ unset($__errorArgs, $__bag); ?>
                     <h3 class="card-title"><i class="fas fa-check-circle mr-2"></i>Step 2: Hasil Identifikasi</h3>
                 </div>
                 <div class="card-body">
-                    <!-- Brand & Model -->
+                    <!-- Brand & Model & Type -->
                     <div class="row">
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <div class="info-box bg-primary mb-3">
                                 <span class="info-box-icon"><i class="fas fa-industry"></i></span>
                                 <div class="info-box-content">
@@ -243,12 +243,21 @@ unset($__errorArgs, $__bag); ?>
                                 </div>
                             </div>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <div class="info-box bg-info mb-3">
                                 <span class="info-box-icon"><i class="fas fa-microchip"></i></span>
                                 <div class="info-box-content">
                                     <span class="info-box-text">Model</span>
                                     <span class="info-box-number" id="result_model">-</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="info-box bg-purple mb-3">
+                                <span class="info-box-icon"><i class="fas fa-broadcast-tower"></i></span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">Tipe</span>
+                                    <span class="info-box-number" id="result_olt_type">-</span>
                                 </div>
                             </div>
                         </div>
@@ -585,6 +594,7 @@ $(function() {
                     // Show result
                     $('#result_brand').text(res.brand_label || res.brand?.toUpperCase() || '-');
                     $('#result_model').text(res.model || '-');
+                    $('#result_olt_type').text(res.olt_type || '-');
                     $('#result_pon_ports').text(res.total_pon_ports || '-');
                     $('#result_uplink_ports').text(res.total_uplink_ports || '-');
                     $('#result_description').text(res.description || '-');
