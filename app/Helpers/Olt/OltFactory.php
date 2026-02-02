@@ -169,6 +169,7 @@ class OltFactory
                 '3902' => Olt::BRAND_ZTE,      // ZTE
                 '2011' => Olt::BRAND_HUAWEI,   // Huawei
                 '17409' => Olt::BRAND_HIOSO,   // Hioso
+                '25355' => Olt::BRAND_HIOSO,   // Haishuo/Hioso variant (Shenzhen Haishuo Technologies)
                 '37950' => Olt::BRAND_VSOL,    // VSOL
             ];
 

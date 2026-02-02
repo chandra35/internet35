@@ -59,6 +59,31 @@ class HiosoHelper extends BaseOltHelper
     ];
 
     /**
+     * Hioso Enterprise IDs
+     */
+    protected const ENTERPRISE_HIOSO = '17409';
+    protected const ENTERPRISE_HAISHUO = '25355';
+
+    /**
+     * OID sets for different enterprise IDs
+     */
+    protected static array $oidSets = [
+        '17409' => [
+            'ponPortAdmin' => '1.3.6.1.4.1.17409.2.3.4.1.1.1.1.2',
+            'onuSerial' => '1.3.6.1.4.1.17409.2.3.5.1.1.1.1.2',
+            'onuStatus' => '1.3.6.1.4.1.17409.2.3.5.1.1.1.1.4',
+            'onuRxPower' => '1.3.6.1.4.1.17409.2.3.5.1.4.1.1.3',
+        ],
+        '25355' => [
+            // Haishuo/alternate OIDs - needs discovery
+            'ponPortAdmin' => '1.3.6.1.4.1.25355.2.3.4.1.1.1.1.2',
+            'onuSerial' => '1.3.6.1.4.1.25355.2.3.5.1.1.1.1.2',
+            'onuStatus' => '1.3.6.1.4.1.25355.2.3.5.1.1.1.1.4',
+            'onuRxPower' => '1.3.6.1.4.1.25355.2.3.5.1.4.1.1.3',
+        ],
+    ];
+
+    /**
      * Identify Hioso OLT
      */
     public static function identify(string $ipAddress, int $snmpPort, string $snmpCommunity, array $credentials = []): array
@@ -88,32 +113,81 @@ class HiosoHelper extends BaseOltHelper
 
             $result['description'] = $sysDescr;
 
+            // Get sysObjectID to detect enterprise ID
+            $sysObjectId = @snmpget($ipAddress, $snmpCommunity, '1.3.6.1.2.1.1.2.0', 5000000, 2);
+            $enterpriseId = null;
+            if ($sysObjectId && preg_match('/(?:iso|\.?1)\.3\.6\.1\.4\.1\.(\d+)/', $sysObjectId, $matches)) {
+                $enterpriseId = $matches[1];
+            }
+
             // Get model from sysDescr
             if (preg_match('/HA\d{4}/i', $sysDescr, $matches)) {
                 $result['model'] = strtoupper($matches[0]);
             }
 
-            // Count PON ports by walking PON port table
-            $ponPorts = @snmpwalkoid($ipAddress, $snmpCommunity, '1.3.6.1.4.1.17409.2.3.4.1.1.1.1.2', 5000000, 2);
-            $totalPonPorts = $ponPorts ? count($ponPorts) : 0;
-
-            // Default for common models
+            // Try to count PON ports from PON port table
+            $totalPonPorts = 0;
+            
+            // Try enterprise-specific OID first
+            if ($enterpriseId && isset(self::$oidSets[$enterpriseId])) {
+                $ponOid = self::$oidSets[$enterpriseId]['ponPortAdmin'];
+                $ponPorts = @snmpwalkoid($ipAddress, $snmpCommunity, $ponOid, 5000000, 2);
+                if ($ponPorts) {
+                    $totalPonPorts = count($ponPorts);
+                }
+            }
+            
+            // Fallback: try Hioso standard OID (17409)
             if ($totalPonPorts == 0) {
+                $ponPorts = @snmpwalkoid($ipAddress, $snmpCommunity, '1.3.6.1.4.1.17409.2.3.4.1.1.1.1.2', 5000000, 2);
+                if ($ponPorts) {
+                    $totalPonPorts = count($ponPorts);
+                }
+            }
+            
+            // Fallback: count PON ports from ifDescr (look for "PON" or "EPON" or "GPON")
+            // Also count uplink ports (GE, G1-Gx, Ethernet, etc.)
+            $totalUplinkPorts = 0;
+            if ($totalPonPorts == 0) {
+                $ifDescrs = @snmpwalkoid($ipAddress, $snmpCommunity, '1.3.6.1.2.1.2.2.1.2', 5000000, 2);
+                if ($ifDescrs) {
+                    foreach ($ifDescrs as $oid => $val) {
+                        $valLower = strtolower($val);
+                        if (strpos($valLower, 'pon') !== false || 
+                            strpos($valLower, 'epon') !== false || 
+                            strpos($valLower, 'gpon') !== false) {
+                            $totalPonPorts++;
+                        } elseif (preg_match('/^g\d+$/i', trim($val)) || 
+                                  preg_match('/^ge\d*/i', trim($val)) ||
+                                  strpos($valLower, 'uplink') !== false ||
+                                  strpos($valLower, 'ethernet') !== false) {
+                            $totalUplinkPorts++;
+                        }
+                    }
+                }
+            }
+
+            // Default for known models (only if still 0)
+            if ($totalPonPorts == 0 && $result['model']) {
                 if (stripos($result['model'], 'HA7308') !== false) {
                     $totalPonPorts = 8;
                 } elseif (stripos($result['model'], 'HA7304') !== false) {
                     $totalPonPorts = 4;
                 } elseif (stripos($result['model'], 'HA7302') !== false) {
                     $totalPonPorts = 2;
-                } else {
-                    $totalPonPorts = 8; // Default
                 }
             }
-
+            
+            // If still 0, don't guess - leave as 0 for user to configure
             $result['total_pon_ports'] = $totalPonPorts;
-            $result['total_uplink_ports'] = 2; // Default for Hioso
+            $result['total_uplink_ports'] = $totalUplinkPorts > 0 ? $totalUplinkPorts : ($totalPonPorts > 0 ? 2 : 0);
             $result['success'] = true;
-            $result['message'] = 'OLT berhasil diidentifikasi';
+            
+            if ($totalPonPorts > 0) {
+                $result['message'] = 'OLT berhasil diidentifikasi';
+            } else {
+                $result['message'] = 'OLT teridentifikasi. PON ports tidak terdeteksi via SNMP, silakan isi manual.';
+            }
 
         } catch (\Exception $e) {
             $result['message'] = 'Error: ' . $e->getMessage();
