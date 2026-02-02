@@ -65,23 +65,89 @@ class HiosoHelper extends BaseOltHelper
     protected const ENTERPRISE_HAISHUO = '25355';
 
     /**
+     * Detected enterprise ID for this OLT instance
+     */
+    protected ?string $enterpriseId = null;
+
+    /**
      * OID sets for different enterprise IDs
+     * OIDs are the same structure, just different enterprise prefix
      */
     protected static array $oidSets = [
         '17409' => [
+            'prefix' => '1.3.6.1.4.1.17409',
             'ponPortAdmin' => '1.3.6.1.4.1.17409.2.3.4.1.1.1.1.2',
+            'ponPortOper' => '1.3.6.1.4.1.17409.2.3.4.1.1.1.1.3',
             'onuSerial' => '1.3.6.1.4.1.17409.2.3.5.1.1.1.1.2',
+            'onuMac' => '1.3.6.1.4.1.17409.2.3.5.1.1.1.1.3',
             'onuStatus' => '1.3.6.1.4.1.17409.2.3.5.1.1.1.1.4',
+            'onuDistance' => '1.3.6.1.4.1.17409.2.3.5.1.1.1.1.7',
             'onuRxPower' => '1.3.6.1.4.1.17409.2.3.5.1.4.1.1.3',
+            'onuTxPower' => '1.3.6.1.4.1.17409.2.3.5.1.4.1.1.4',
+            'onuOltRxPower' => '1.3.6.1.4.1.17409.2.3.5.1.4.1.1.5',
+            'onuTemperature' => '1.3.6.1.4.1.17409.2.3.5.1.4.1.1.6',
+            'onuVoltage' => '1.3.6.1.4.1.17409.2.3.5.1.4.1.1.7',
+            'uncfgOnuSerial' => '1.3.6.1.4.1.17409.2.3.5.1.3.1.1.2',
+            'onuAuthAction' => '1.3.6.1.4.1.17409.2.3.5.1.2.1.1.2',
         ],
         '25355' => [
-            // Haishuo/alternate OIDs - needs discovery
+            'prefix' => '1.3.6.1.4.1.25355',
             'ponPortAdmin' => '1.3.6.1.4.1.25355.2.3.4.1.1.1.1.2',
+            'ponPortOper' => '1.3.6.1.4.1.25355.2.3.4.1.1.1.1.3',
             'onuSerial' => '1.3.6.1.4.1.25355.2.3.5.1.1.1.1.2',
+            'onuMac' => '1.3.6.1.4.1.25355.2.3.5.1.1.1.1.3',
             'onuStatus' => '1.3.6.1.4.1.25355.2.3.5.1.1.1.1.4',
+            'onuDistance' => '1.3.6.1.4.1.25355.2.3.5.1.1.1.1.7',
             'onuRxPower' => '1.3.6.1.4.1.25355.2.3.5.1.4.1.1.3',
+            'onuTxPower' => '1.3.6.1.4.1.25355.2.3.5.1.4.1.1.4',
+            'onuOltRxPower' => '1.3.6.1.4.1.25355.2.3.5.1.4.1.1.5',
+            'onuTemperature' => '1.3.6.1.4.1.25355.2.3.5.1.4.1.1.6',
+            'onuVoltage' => '1.3.6.1.4.1.25355.2.3.5.1.4.1.1.7',
+            'uncfgOnuSerial' => '1.3.6.1.4.1.25355.2.3.5.1.3.1.1.2',
+            'onuAuthAction' => '1.3.6.1.4.1.25355.2.3.5.1.2.1.1.2',
         ],
     ];
+
+    /**
+     * Get OID for this OLT's enterprise
+     */
+    protected function getOid(string $key): string
+    {
+        $enterpriseId = $this->getEnterpriseId();
+        
+        if (isset(self::$oidSets[$enterpriseId][$key])) {
+            return self::$oidSets[$enterpriseId][$key];
+        }
+        
+        // Fallback to standard Hioso
+        return self::$oidSets['17409'][$key] ?? $this->hiosoOids[$key] ?? '';
+    }
+
+    /**
+     * Get enterprise ID for this OLT
+     */
+    protected function getEnterpriseId(): string
+    {
+        if ($this->enterpriseId !== null) {
+            return $this->enterpriseId;
+        }
+
+        // Detect from sysObjectID
+        try {
+            $sysObjectId = $this->snmpGet($this->commonOids['sysObjectID']);
+            if ($sysObjectId && preg_match('/(?:iso|\.?1)\.3\.6\.1\.4\.1\.(\d+)/', $sysObjectId, $matches)) {
+                $this->enterpriseId = $matches[1];
+                Log::info("Hioso OLT {$this->olt->name} detected enterprise ID: {$this->enterpriseId}");
+                return $this->enterpriseId;
+            }
+        } catch (\Exception $e) {
+            Log::warning("Failed to detect enterprise ID: " . $e->getMessage());
+        }
+
+        // Default to standard Hioso
+        $this->enterpriseId = self::ENTERPRISE_HIOSO;
+        return $this->enterpriseId;
+    }
 
     /**
      * Identify Hioso OLT
@@ -239,8 +305,8 @@ class HiosoHelper extends BaseOltHelper
         $ports = [];
 
         try {
-            $adminStatuses = $this->snmpWalk($this->hiosoOids['ponPortAdminStatus']);
-            $operStatuses = $this->snmpWalk($this->hiosoOids['ponPortOperStatus']);
+            $adminStatuses = $this->snmpWalk($this->getOid('ponPortAdmin'));
+            $operStatuses = $this->snmpWalk($this->getOid('ponPortOper'));
 
             foreach ($adminStatuses as $oid => $adminStatus) {
                 preg_match('/\.(\d+)\.(\d+)$/', $oid, $matches);
@@ -254,7 +320,7 @@ class HiosoHelper extends BaseOltHelper
                     'slot' => $slot,
                     'port' => $port,
                     'admin_status' => $adminStatus == 1 ? 'enabled' : 'disabled',
-                    'status' => ($operStatuses[$this->hiosoOids['ponPortOperStatus'] . ".{$index}"] ?? 0) == 1 ? 'up' : 'down',
+                    'status' => ($operStatuses[$this->getOid('ponPortOper') . ".{$index}"] ?? 0) == 1 ? 'up' : 'down',
                 ];
 
                 $this->updatePonPort($slot, $port, end($ports));
@@ -277,8 +343,8 @@ class HiosoHelper extends BaseOltHelper
         return [
             'slot' => $slot,
             'port' => $port,
-            'admin_status' => $this->snmpGet($this->hiosoOids['ponPortAdminStatus'] . ".{$index}"),
-            'oper_status' => $this->snmpGet($this->hiosoOids['ponPortOperStatus'] . ".{$index}"),
+            'admin_status' => $this->snmpGet($this->getOid('ponPortAdmin') . ".{$index}"),
+            'oper_status' => $this->snmpGet($this->getOid('ponPortOper') . ".{$index}"),
         ];
     }
 
@@ -290,9 +356,9 @@ class HiosoHelper extends BaseOltHelper
         $onus = [];
 
         try {
-            $serialNumbers = $this->snmpWalk($this->hiosoOids['onuSerialNumber']);
-            $statuses = $this->snmpWalk($this->hiosoOids['onuStatus']);
-            $distances = $this->snmpWalk($this->hiosoOids['onuDistance']);
+            $serialNumbers = $this->snmpWalk($this->getOid('onuSerial'));
+            $statuses = $this->snmpWalk($this->getOid('onuStatus'));
+            $distances = $this->snmpWalk($this->getOid('onuDistance'));
 
             foreach ($serialNumbers as $oid => $serialRaw) {
                 // Parse slot.port.onuid
@@ -304,7 +370,7 @@ class HiosoHelper extends BaseOltHelper
                 $onuId = (int) $matches[3];
                 $index = "{$slot}.{$port}.{$onuId}";
 
-                $status = $statuses[$this->hiosoOids['onuStatus'] . ".{$index}"] ?? 0;
+                $status = $statuses[$this->getOid('onuStatus') . ".{$index}"] ?? 0;
 
                 $onus[] = [
                     'slot' => $slot,
@@ -312,7 +378,7 @@ class HiosoHelper extends BaseOltHelper
                     'onu_id' => $onuId,
                     'serial_number' => $this->parseSerialNumber($serialRaw),
                     'status' => $this->statusMap[$status] ?? 'unknown',
-                    'distance' => $this->parseDistance($distances[$this->hiosoOids['onuDistance'] . ".{$index}"] ?? null),
+                    'distance' => $this->parseDistance($distances[$this->getOid('onuDistance') . ".{$index}"] ?? null),
                 ];
             }
 
@@ -345,11 +411,11 @@ class HiosoHelper extends BaseOltHelper
             'port' => $port,
             'onu_id' => $onuId,
             'serial_number' => $this->parseSerialNumber(
-                $this->snmpGet($this->hiosoOids['onuSerialNumber'] . ".{$index}") ?? ''
+                $this->snmpGet($this->getOid('onuSerial') . ".{$index}") ?? ''
             ),
-            'mac_address' => $this->snmpGet($this->hiosoOids['onuMacAddress'] . ".{$index}"),
-            'status' => $this->statusMap[$this->snmpGet($this->hiosoOids['onuStatus'] . ".{$index}")] ?? 'unknown',
-            'distance' => $this->parseDistance($this->snmpGet($this->hiosoOids['onuDistance'] . ".{$index}")),
+            'mac_address' => $this->snmpGet($this->getOid('onuMac') . ".{$index}"),
+            'status' => $this->statusMap[$this->snmpGet($this->getOid('onuStatus') . ".{$index}")] ?? 'unknown',
+            'distance' => $this->parseDistance($this->snmpGet($this->getOid('onuDistance') . ".{$index}")),
         ];
 
         return array_merge($info, $this->getOnuOpticalInfo($slot, $port, $onuId));
@@ -362,11 +428,11 @@ class HiosoHelper extends BaseOltHelper
     {
         $index = "{$slot}.{$port}.{$onuId}";
 
-        $rxPower = $this->snmpGet($this->hiosoOids['onuRxPower'] . ".{$index}");
-        $txPower = $this->snmpGet($this->hiosoOids['onuTxPower'] . ".{$index}");
-        $oltRx = $this->snmpGet($this->hiosoOids['onuOltRxPower'] . ".{$index}");
-        $temp = $this->snmpGet($this->hiosoOids['onuTemperature'] . ".{$index}");
-        $volt = $this->snmpGet($this->hiosoOids['onuVoltage'] . ".{$index}");
+        $rxPower = $this->snmpGet($this->getOid('onuRxPower') . ".{$index}");
+        $txPower = $this->snmpGet($this->getOid('onuTxPower') . ".{$index}");
+        $oltRx = $this->snmpGet($this->getOid('onuOltRxPower') . ".{$index}");
+        $temp = $this->snmpGet($this->getOid('onuTemperature') . ".{$index}");
+        $volt = $this->snmpGet($this->getOid('onuVoltage') . ".{$index}");
 
         return [
             'rx_power' => $this->parseHiosoOpticalPower($rxPower),
@@ -421,7 +487,7 @@ class HiosoHelper extends BaseOltHelper
         $unregistered = [];
 
         try {
-            $uncfgSerials = $this->snmpWalk($this->hiosoOids['uncfgOnuSerial']);
+            $uncfgSerials = $this->snmpWalk($this->getOid('uncfgOnuSerial'));
 
             foreach ($uncfgSerials as $oid => $serial) {
                 preg_match('/\.(\d+)\.(\d+)$/', $oid, $matches);
@@ -463,21 +529,21 @@ class HiosoHelper extends BaseOltHelper
 
             // Set serial number
             $this->snmpSet(
-                $this->hiosoOids['onuSerialNumber'] . ".{$index}",
+                $this->getOid('onuSerial') . ".{$index}",
                 's',
                 $serial
             );
 
             // Authorize ONU
             $this->snmpSet(
-                $this->hiosoOids['onuAuthAction'] . ".{$index}",
+                $this->getOid('onuAuthAction') . ".{$index}",
                 'i',
                 1 // 1 = add/authorize
             );
 
             // Verify registration
             sleep(2);
-            $verifySerial = $this->snmpGet($this->hiosoOids['onuSerialNumber'] . ".{$index}");
+            $verifySerial = $this->snmpGet($this->getOid('onuSerial') . ".{$index}");
 
             if ($verifySerial && strtoupper($this->parseSerialNumber($verifySerial)) === $serial) {
                 $result['success'] = true;
@@ -510,7 +576,7 @@ class HiosoHelper extends BaseOltHelper
 
             // Delete ONU authorization
             $this->snmpSet(
-                $this->hiosoOids['onuAuthAction'] . ".{$index}",
+                $this->getOid('onuAuthAction') . ".{$index}",
                 'i',
                 2 // 2 = delete
             );
