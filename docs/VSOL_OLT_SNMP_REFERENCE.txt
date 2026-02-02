@@ -1,0 +1,219 @@
+================================================================================
+                    VSOL V1600D OLT - SNMP OID REFERENCE
+================================================================================
+
+Tanggal: 2 Februari 2026
+Device: VSOL V1600D EPON OLT
+Enterprise ID: 37950
+IP Test: 172.16.16.3
+SNMP Community: private (read/write)
+
+================================================================================
+                              REFERENSI WEB
+================================================================================
+
+1. OID Repository (oid-base.com)
+   - Base: https://oid-base.com/get/1.3.6.1.4.1.37950
+   - v1600d: https://oid-base.com/get/1.3.6.1.4.1.37950.1.1.5
+   - v1600dOnuMgmt: https://oid-base.com/get/1.3.6.1.4.1.37950.1.1.5.12
+   - onuAuth: https://oid-base.com/get/1.3.6.1.4.1.37950.1.1.5.12.1
+   - onuListTable: https://oid-base.com/get/1.3.6.1.4.1.37950.1.1.5.12.1.9
+   - onuListEntry: https://oid-base.com/get/1.3.6.1.4.1.37950.1.1.5.12.1.9.1
+
+2. Tree Display
+   - https://oid-base.com/cgi-bin/display?tree=1.3.6.1.4.1.37950.1.1.5.12.1
+
+================================================================================
+                           STRUKTUR OID VSOL
+================================================================================
+
+Enterprise OID: 1.3.6.1.4.1.37950
+  └── business(1)
+      └── devices(1)
+          └── v1600d(5)
+              ├── v1600dPonPortMgmt(11) - PON Port Management
+              │   └── vsolEponPortTable(1)
+              │       └── vsolEponPortEntry(1)
+              │           ├── .1 = ponPortIndex
+              │           ├── .2 = ponPortDesc
+              │           └── .3 = ponPortStatus
+              │
+              └── v1600dOnuMgmt(12) - ONU Management
+                  └── onuAuth(1)
+                      ├── authModeTable(1)
+                      ├── whiteMaclistCfg(2)
+                      ├── onuListTable(9) ★ PRIMARY TABLE
+                      ├── onuTypeCfg(10)
+                      ├── onuAuthInfoTable(21)
+                      ├── onuMacAddrLimit(30)
+                      ├── onuAuthInfo3Table(31)
+                      ├── onlineOnuAuthInfo3Table(32)
+                      └── manualConfirmOnu(33)
+
+================================================================================
+                    ONU LIST TABLE (PRIMARY) - VERIFIED WORKING!
+================================================================================
+
+Base OID: 1.3.6.1.4.1.37950.1.1.5.12.1.9.1
+
+Columns (onuListEntry):
+┌─────────┬──────────────┬─────────────────────────────────────────────────┐
+│ Column  │ Name         │ Description                                     │
+├─────────┼──────────────┼─────────────────────────────────────────────────┤
+│ .1      │ onuIndex     │ Global sequential index (0, 1, 2, 3...)         │
+│ .2      │ ponId        │ PON port number (1, 2, 3, 4)                    │
+│ .3      │ llid         │ ONU ID within PON port (0, 1, 2...)             │
+│ .4      │ status       │ Status string ("auth success", "auth fail")    │
+│ .5      │ macAddress   │ MAC address format "xx:xx:xx:xx:xx:xx"          │
+│ .6+     │ -            │ NOT AVAILABLE (no description via SNMP)        │
+└─────────┴──────────────┴─────────────────────────────────────────────────┘
+
+Full OIDs:
+  onuIndex:     1.3.6.1.4.1.37950.1.1.5.12.1.9.1.1
+  ponId:        1.3.6.1.4.1.37950.1.1.5.12.1.9.1.2
+  llid:         1.3.6.1.4.1.37950.1.1.5.12.1.9.1.3
+  status:       1.3.6.1.4.1.37950.1.1.5.12.1.9.1.4
+  macAddress:   1.3.6.1.4.1.37950.1.1.5.12.1.9.1.5
+
+Index Format: .{column}.{globalIndex}
+Example: .1.3.6.1.4.1.37950.1.1.5.12.1.9.1.5.0 = MAC of first ONU
+
+================================================================================
+                         AUTH MODE TABLE
+================================================================================
+
+Base OID: 1.3.6.1.4.1.37950.1.1.5.12.1.1.1
+
+Columns (authModeEntry):
+┌─────────┬──────────────┬─────────────────────────────────────────────────┐
+│ Column  │ Name         │ Description                                     │
+├─────────┼──────────────┼─────────────────────────────────────────────────┤
+│ .1      │ ponPortIndex │ PON port number (1, 2, 3, 4)                    │
+│ .2      │ authMode     │ Authentication mode (0 = MAC auth)             │
+└─────────┴──────────────┴─────────────────────────────────────────────────┘
+
+================================================================================
+                         PON PORT TABLE
+================================================================================
+
+Base OID: 1.3.6.1.4.1.37950.1.1.5.11.1.1.1
+
+Columns (vsolEponPortEntry):
+┌─────────┬──────────────┬─────────────────────────────────────────────────┐
+│ Column  │ Name         │ Description                                     │
+├─────────┼──────────────┼─────────────────────────────────────────────────┤
+│ .1      │ ponPortIndex │ PON port index                                  │
+│ .2      │ ponPortDesc  │ PON port description                            │
+│ .3      │ ponPortStatus│ Port status                                     │
+└─────────┴──────────────┴─────────────────────────────────────────────────┘
+
+================================================================================
+                    ONU AUTH INFO 3 TABLE
+================================================================================
+
+Base OID: 1.3.6.1.4.1.37950.1.1.5.12.1.31.1
+
+Columns (onuAuthInfo3Entry):
+┌─────────┬────────────────────┬───────────────────────────────────────────┐
+│ Column  │ Name               │ Description                               │
+├─────────┼────────────────────┼───────────────────────────────────────────┤
+│ .1      │ authInfoPonNo3     │ PON port number                           │
+│ .2      │ authInfoOnuNo3     │ ONU number                                │
+│ .3      │ onuAuthInfo3Details│ Detail info (possibly description?)       │
+└─────────┴────────────────────┴───────────────────────────────────────────┘
+
+Index Format: .{column}.{ponId}.{onuId}
+
+================================================================================
+                         SAMPLE DATA (Verified)
+================================================================================
+
+Total ONUs found: 180
+Distribution:
+  - PON Port 1: 55 ONUs
+  - PON Port 2: 40 ONUs
+  - PON Port 3: 40 ONUs
+  - PON Port 4: 45 ONUs
+
+Sample SNMP Walk Results:
+┌───────┬─────────┬──────┬──────────────┬───────────────────┐
+│ Index │ ponId   │ llid │ status       │ macAddress        │
+├───────┼─────────┼──────┼──────────────┼───────────────────┤
+│ 0     │ 2       │ 0    │ auth success │ a8:2b:cd:aa:e5:53 │
+│ 1     │ 2       │ 1    │ auth success │ 74:b5:7e:0c:63:1f │
+│ 2     │ 2       │ 4    │ auth success │ 50:5d:7a:29:fb:6b │
+│ ...   │ ...     │ ... │ ...          │ ...               │
+└───────┴─────────┴──────┴──────────────┴───────────────────┘
+
+================================================================================
+                    CATATAN PENTING
+================================================================================
+
+1. DESCRIPTION TIDAK TERSEDIA VIA SNMP
+   - onuListTable hanya memiliki 5 kolom (tidak ada description)
+   - Column 6+ tidak mengembalikan data
+   - Description yang terlihat di Web GUI disimpan internal OLT
+   - Perlu akses CLI/Telnet untuk mendapatkan description
+
+2. INDEX MAPPING
+   - Data di-index berdasarkan globalIndex, BUKAN ponId.llid
+   - Untuk mapping ke ONU spesifik, perlu re-index data
+
+3. MAC ADDRESS FORMAT
+   - SNMP mengembalikan format "xx:xx:xx:xx:xx:xx" (lowercase, colon-separated)
+   - Siap digunakan tanpa konversi
+
+4. STATUS VALUES
+   - "auth success" = ONU online dan authenticated
+   - "auth fail" = ONU gagal autentikasi
+   - Status adalah string, bukan integer
+
+================================================================================
+                         PHP SNMP USAGE
+================================================================================
+
+// Contoh mengambil semua ONU
+$oltIp = '172.16.16.3';
+$community = 'private';
+
+snmp_set_quick_print(true);
+snmp_set_valueretrieval(SNMP_VALUE_PLAIN);
+
+// Walk onuListTable
+$onuIndex = snmpwalkoid($oltIp, $community, '1.3.6.1.4.1.37950.1.1.5.12.1.9.1.1');
+$ponId = snmpwalkoid($oltIp, $community, '1.3.6.1.4.1.37950.1.1.5.12.1.9.1.2');
+$llid = snmpwalkoid($oltIp, $community, '1.3.6.1.4.1.37950.1.1.5.12.1.9.1.3');
+$status = snmpwalkoid($oltIp, $community, '1.3.6.1.4.1.37950.1.1.5.12.1.9.1.4');
+$macAddress = snmpwalkoid($oltIp, $community, '1.3.6.1.4.1.37950.1.1.5.12.1.9.1.5');
+
+// Re-index untuk akses mudah
+$onus = [];
+foreach ($onuIndex as $oid => $idx) {
+    $key = preg_replace('/^.*\.(\d+)$/', '$1', $oid);
+    $onus[$key] = [
+        'index' => $idx,
+        'pon_port' => $ponId[str_replace('.1.', '.2.', $oid)] ?? null,
+        'onu_id' => $llid[str_replace('.1.', '.3.', $oid)] ?? null,
+        'status' => $status[str_replace('.1.', '.4.', $oid)] ?? null,
+        'mac' => $macAddress[str_replace('.1.', '.5.', $oid)] ?? null,
+    ];
+}
+
+================================================================================
+                         FILE TERKAIT
+================================================================================
+
+- app/Helpers/Olt/VsolHelper.php - Main VSOL OLT helper class
+- test_onu_list_table.php - Test script untuk onuListTable
+- sync_onus_to_db.php - Script sync ONU ke database
+- discover_onu_oids.php - OID discovery script
+
+================================================================================
+                         LAST UPDATED
+================================================================================
+
+Date: 2026-02-02
+Author: chandra35
+Verified on: VSOL V1600D at 172.16.16.3
+
+================================================================================
