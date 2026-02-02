@@ -23,6 +23,11 @@ SNMP Community: private (read/write)
 2. Tree Display
    - https://oid-base.com/cgi-bin/display?tree=1.3.6.1.4.1.37950.1.1.5.12.1
 
+3. LibreNMS MIB File (OFFICIAL)
+   - https://github.com/librenms/librenms/blob/master/mibs/vsolution/V1600D
+   - Source: Raw MIB definition langsung dari LibreNMS
+   - KONFIRMASI: onuListTable HANYA 5 kolom (tanpa description)
+
 ================================================================================
                            STRUKTUR OID VSOL
 ================================================================================
@@ -149,13 +154,26 @@ Sample SNMP Walk Results:
                     CATATAN PENTING
 ================================================================================
 
-1. DESCRIPTION TIDAK TERSEDIA VIA SNMP
-   - onuListTable hanya memiliki 5 kolom (tidak ada description)
-   - Column 6+ tidak mengembalikan data
-   - Description yang terlihat di Web GUI disimpan internal OLT
-   - Perlu akses CLI/Telnet untuk mendapatkan description
+1. DESCRIPTION TIDAK TERSEDIA VIA SNMP (DIKONFIRMASI OLEH MIB RESMI)
+   - LibreNMS MIB file JUGA hanya mendefinisikan 5 kolom di onuListTable:
+     .1 = onuIndex
+     .2 = ponId
+     .3 = llid
+     .4 = status
+     .5 = macAddress
+   - TIDAK ADA kolom .6 (description) di spesifikasi MIB!
+   - Description yang terlihat di Web GUI disimpan internal OLT (bukan via SNMP)
+   - Alternatif: Akses CLI/Telnet atau export dari Web GUI
 
-2. INDEX MAPPING
+2. onuAuthInfo3Table (1.3.6.1.4.1.37950.1.1.5.12.1.31)
+   - MIB mendefinisikan 3 kolom:
+     .1 = authInfoPonNo3 (Integer32)
+     .2 = authInfoOnuNo3 (Integer32)
+     .3 = onuAuthInfo3Details (OCTET STRING)
+   - Test mengembalikan data berupa: "MAC + password/key"
+   - TIDAK MENGANDUNG description/nama ONU
+
+3. INDEX MAPPING
    - Data di-index berdasarkan globalIndex, BUKAN ponId.llid
    - Untuk mapping ke ONU spesifik, perlu re-index data
 
