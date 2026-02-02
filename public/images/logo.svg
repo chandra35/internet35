@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60" width="200" height="60">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <circle cx="25" cy="30" r="15" fill="url(#grad)"/>
+  <path d="M16 30 L22 25 L22 35 Z M25 22 L34 30 L25 38 Z" fill="white"/>
+  <text x="50" y="38" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="url(#grad)">Internet35</text>
+</svg>
