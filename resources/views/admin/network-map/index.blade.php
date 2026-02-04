@@ -214,6 +214,14 @@
                             <span>ODC → ODP</span>
                         </div>
                         <div class="legend-item">
+                            <div class="legend-color" style="background: #17a2b8;"></div>
+                            <span>OLT → ODP (Direct)</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: #ffc107;"></div>
+                            <span>ODP → ODP (Cascade)</span>
+                        </div>
+                        <div class="legend-item">
                             <div class="legend-color" style="background: #fd7e14;"></div>
                             <span>ODP → Pelanggan</span>
                         </div>

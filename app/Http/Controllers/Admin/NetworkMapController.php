@@ -160,12 +160,14 @@ class NetworkMapController extends Controller implements HasMiddleware
         $odps = Odp::where('pop_id', $popId)
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
-            ->with('odc')
+            ->with(['odc', 'olt', 'parentOdp'])
             ->get()
             ->map(function($odp) {
                 return [
                     'id' => $odp->id,
                     'odc_id' => $odp->odc_id,
+                    'olt_id' => $odp->olt_id,
+                    'parent_odp_id' => $odp->parent_odp_id,
                     'name' => $odp->name,
                     'code' => $odp->code,
                     'lat' => (float) $odp->latitude,
@@ -215,15 +217,42 @@ class NetworkMapController extends Controller implements HasMiddleware
         
         // ODC to ODP lines (green)
         foreach ($odps as $odp) {
-            $odc = $odcs->firstWhere('id', $odp['odc_id']);
-            if ($odc) {
-                $lines[] = [
-                    'from' => ['lat' => $odc['lat'], 'lng' => $odc['lng']],
-                    'to' => ['lat' => $odp['lat'], 'lng' => $odp['lng']],
-                    'type' => 'odc-odp',
-                    'color' => '#28a745', // Green
-                    'weight' => 2,
-                ];
+            if ($odp['odc_id']) {
+                // ODP connected via ODC
+                $odc = $odcs->firstWhere('id', $odp['odc_id']);
+                if ($odc) {
+                    $lines[] = [
+                        'from' => ['lat' => $odc['lat'], 'lng' => $odc['lng']],
+                        'to' => ['lat' => $odp['lat'], 'lng' => $odp['lng']],
+                        'type' => 'odc-odp',
+                        'color' => '#28a745', // Green
+                        'weight' => 2,
+                    ];
+                }
+            } elseif ($odp['olt_id']) {
+                // ODP connected directly to OLT (no ODC)
+                $olt = $olts->firstWhere('id', $odp['olt_id']);
+                if ($olt) {
+                    $lines[] = [
+                        'from' => ['lat' => $olt['lat'], 'lng' => $olt['lng']],
+                        'to' => ['lat' => $odp['lat'], 'lng' => $odp['lng']],
+                        'type' => 'olt-odp',
+                        'color' => '#17a2b8', // Cyan/teal for direct OLT-ODP
+                        'weight' => 2,
+                    ];
+                }
+            } elseif ($odp['parent_odp_id']) {
+                // ODP connected via parent ODP (cascade)
+                $parentOdp = $odps->firstWhere('id', $odp['parent_odp_id']);
+                if ($parentOdp) {
+                    $lines[] = [
+                        'from' => ['lat' => $parentOdp['lat'], 'lng' => $parentOdp['lng']],
+                        'to' => ['lat' => $odp['lat'], 'lng' => $odp['lng']],
+                        'type' => 'odp-odp',
+                        'color' => '#ffc107', // Yellow for cascade
+                        'weight' => 2,
+                    ];
+                }
             }
         }
         
