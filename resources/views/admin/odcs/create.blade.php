@@ -10,13 +10,6 @@
     <li class="breadcrumb-item active">Tambah</li>
 @endsection
 
-@section('styles')
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<style>
-    #map { height: 300px; border-radius: 5px; }
-</style>
-@endsection
-
 @section('content')
 <form action="{{ route('admin.odcs.store') }}" method="POST">
     @csrf
@@ -39,7 +32,7 @@
                                 @error('code')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
-                                <small class="text-muted">Kode otomatis, bisa diubah manual</small>
+                                <small class="text-muted">Kode otomatis, double-click untuk edit manual</small>
                             </div>
                         </div>
                         <div class="col-md-6">
@@ -57,21 +50,45 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="form-group">
-                                <label for="router_id">Router <span class="text-danger">*</span></label>
-                                <select class="form-control select2 @error('router_id') is-invalid @enderror" 
-                                        id="router_id" name="router_id" required style="width: 100%;">
-                                    <option value="">-- Pilih Router --</option>
-                                    @foreach($routers as $router)
-                                        <option value="{{ $router->id }}" {{ old('router_id') == $router->id ? 'selected' : '' }}>
-                                            {{ $router->name }} ({{ $router->host }})
+                                <label for="olt_id">OLT <span class="text-danger">*</span></label>
+                                <select class="form-control select2 @error('olt_id') is-invalid @enderror" 
+                                        id="olt_id" name="olt_id" required style="width: 100%;">
+                                    <option value="">-- Pilih OLT --</option>
+                                    @foreach($olts as $olt)
+                                        <option value="{{ $olt->id }}" {{ old('olt_id') == $olt->id ? 'selected' : '' }}>
+                                            {{ $olt->name }} ({{ $olt->ip_address }})
                                         </option>
                                     @endforeach
                                 </select>
-                                @error('router_id')
+                                @error('olt_id')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
                             </div>
                         </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="olt_slot">Slot</label>
+                                <input type="number" class="form-control @error('olt_slot') is-invalid @enderror" 
+                                       id="olt_slot" name="olt_slot" value="{{ old('olt_slot', 0) }}" min="0">
+                                @error('olt_slot')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="olt_pon_port">PON Port</label>
+                                <input type="number" class="form-control @error('olt_pon_port') is-invalid @enderror" 
+                                       id="olt_pon_port" name="olt_pon_port" value="{{ old('olt_pon_port', 1) }}" min="1" max="16">
+                                @error('olt_pon_port')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                                <small class="text-muted">1-16</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label for="status">Status <span class="text-danger">*</span></label>
@@ -105,13 +122,30 @@
                     <h3 class="card-title"><i class="fas fa-map-marker-alt mr-2"></i>Lokasi</h3>
                 </div>
                 <div class="card-body">
-                    <div id="map"></div>
+                    <div class="row mb-2">
+                        <div class="col-md-10">
+                            <div class="input-group">
+                                <input type="text" id="searchAddress" class="form-control" placeholder="Cari alamat atau lokasi...">
+                                <div class="input-group-append">
+                                    <button type="button" class="btn btn-primary" id="btnSearch">
+                                        <i class="fas fa-search"></i> Cari
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <button type="button" class="btn btn-success btn-block" id="btnMyLocation">
+                                <i class="fas fa-crosshairs"></i> Lokasi Saya
+                            </button>
+                        </div>
+                    </div>
+                    <div id="map" style="height: 350px; border-radius: 5px;"></div>
                     <div class="row mt-3">
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label for="latitude">Latitude</label>
                                 <input type="text" class="form-control @error('latitude') is-invalid @enderror" 
-                                       id="latitude" name="latitude" value="{{ old('latitude') }}" step="any">
+                                       id="latitude" name="latitude" value="{{ old('latitude') }}">
                                 @error('latitude')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
@@ -121,14 +155,14 @@
                             <div class="form-group">
                                 <label for="longitude">Longitude</label>
                                 <input type="text" class="form-control @error('longitude') is-invalid @enderror" 
-                                       id="longitude" name="longitude" value="{{ old('longitude') }}" step="any">
+                                       id="longitude" name="longitude" value="{{ old('longitude') }}">
                                 @error('longitude')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
                             </div>
                         </div>
                     </div>
-                    <small class="text-muted">Klik pada peta untuk menentukan lokasi atau masukkan koordinat manual</small>
+                    <small class="text-muted">Klik pada peta untuk menentukan lokasi</small>
                 </div>
             </div>
         </div>
@@ -160,8 +194,8 @@
                     <div class="form-group">
                         <label for="cabinet_type">Tipe Cabinet</label>
                         <input type="text" class="form-control @error('cabinet_type') is-invalid @enderror" 
-                               id="cabinet_type" name="cabinet_type" value="{{ old('cabinet_type') }}" 
-                               placeholder="Contoh: Outdoor 144 Core">
+                               id="cabinet_type" name="cabinet_type" value="{{ old('cabinet_type') }}"
+                               placeholder="Contoh: Outdoor Cabinet">
                         @error('cabinet_type')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
@@ -229,64 +263,179 @@
 </form>
 @endsection
 
-@section('scripts')
+@push('js')
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 $(function() {
-    // Initialize map
-    const defaultLat = {{ old('latitude', -6.2088) }};
-    const defaultLng = {{ old('longitude', 106.8456) }};
-    
-    const map = L.map('map').setView([defaultLat, defaultLng], 13);
-    
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
-    }).addTo(map);
-    
-    let marker = null;
-    
-    // Add marker if coordinates exist
-    if ($('#latitude').val() && $('#longitude').val()) {
-        const lat = parseFloat($('#latitude').val());
-        const lng = parseFloat($('#longitude').val());
-        marker = L.marker([lat, lng]).addTo(map);
-        map.setView([lat, lng], 15);
-    }
-    
-    // Click on map to set location
-    map.on('click', function(e) {
-        const lat = e.latlng.lat.toFixed(8);
-        const lng = e.latlng.lng.toFixed(8);
-        
-        $('#latitude').val(lat);
-        $('#longitude').val(lng);
-        
-        if (marker) {
-            marker.setLatLng(e.latlng);
-        } else {
-            marker = L.marker(e.latlng).addTo(map);
-        }
-    });
-    
-    // Update marker when coordinates change manually
-    $('#latitude, #longitude').on('change', function() {
-        const lat = parseFloat($('#latitude').val());
-        const lng = parseFloat($('#longitude').val());
-        
-        if (!isNaN(lat) && !isNaN(lng)) {
-            if (marker) {
-                marker.setLatLng([lat, lng]);
-            } else {
-                marker = L.marker([lat, lng]).addTo(map);
-            }
-            map.setView([lat, lng], 15);
-        }
-    });
-    
     // Enable code editing
     $('#code').on('dblclick', function() {
         $(this).prop('readonly', false).focus();
     });
+    
+    // Initialize map
+    var defaultLat = {{ old('latitude') ?: -7.9666 }};
+    var defaultLng = {{ old('longitude') ?: 110.6283 }};
+    
+    var map = L.map('map').setView([defaultLat, defaultLng], 16);
+    
+    // Define base layers
+    var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap'
+    });
+    
+    var satelliteLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+        maxZoom: 20,
+        attribution: '© Google'
+    });
+    
+    var hybridLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+        maxZoom: 20,
+        attribution: '© Google'
+    });
+    
+    // Add default layer
+    satelliteLayer.addTo(map);
+    
+    // Layer control
+    var baseLayers = {
+        "Satelit": satelliteLayer,
+        "Peta": osmLayer,
+        "Hybrid": hybridLayer
+    };
+    L.control.layers(baseLayers, null, { position: 'topright' }).addTo(map);
+    
+    var marker = null;
+    
+    // Add marker if coordinates exist
+    var initLat = $('#latitude').val();
+    var initLng = $('#longitude').val();
+    if (initLat && initLng) {
+        marker = L.marker([parseFloat(initLat), parseFloat(initLng)], { draggable: true }).addTo(map);
+        map.setView([parseFloat(initLat), parseFloat(initLng)], 17);
+        
+        marker.on('dragend', function(e) {
+            var ll = e.target.getLatLng();
+            $('#latitude').val(ll.lat.toFixed(8));
+            $('#longitude').val(ll.lng.toFixed(8));
+        });
+    }
+    
+    // Function to set marker
+    function setMarker(lat, lng) {
+        $('#latitude').val(lat.toFixed(8));
+        $('#longitude').val(lng.toFixed(8));
+        
+        if (marker) {
+            marker.setLatLng([lat, lng]);
+        } else {
+            marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+            marker.on('dragend', function(ev) {
+                var ll = ev.target.getLatLng();
+                $('#latitude').val(ll.lat.toFixed(8));
+                $('#longitude').val(ll.lng.toFixed(8));
+            });
+        }
+    }
+    
+    // Click on map to set location
+    map.on('click', function(e) {
+        setMarker(e.latlng.lat, e.latlng.lng);
+    });
+    
+    // Update marker when coordinates change manually
+    $('#latitude, #longitude').on('change', function() {
+        var lat = parseFloat($('#latitude').val());
+        var lng = parseFloat($('#longitude').val());
+        
+        if (!isNaN(lat) && !isNaN(lng)) {
+            setMarker(lat, lng);
+            map.setView([lat, lng], 17);
+        }
+    });
+    
+    // Search address using Nominatim
+    function searchAddress() {
+        var query = $('#searchAddress').val().trim();
+        if (!query) return;
+        
+        $('#btnSearch').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+        
+        $.ajax({
+            url: 'https://nominatim.openstreetmap.org/search',
+            data: {
+                q: query,
+                format: 'json',
+                limit: 1,
+                countrycodes: 'id'
+            },
+            success: function(data) {
+                if (data && data.length > 0) {
+                    var lat = parseFloat(data[0].lat);
+                    var lng = parseFloat(data[0].lon);
+                    setMarker(lat, lng);
+                    map.setView([lat, lng], 17);
+                    
+                    // Fill address if empty
+                    if (!$('#address').val()) {
+                        $('#address').val(data[0].display_name);
+                    }
+                } else {
+                    alert('Lokasi tidak ditemukan');
+                }
+            },
+            error: function() {
+                alert('Gagal mencari lokasi');
+            },
+            complete: function() {
+                $('#btnSearch').prop('disabled', false).html('<i class="fas fa-search"></i> Cari');
+            }
+        });
+    }
+    
+    $('#btnSearch').on('click', searchAddress);
+    $('#searchAddress').on('keypress', function(e) {
+        if (e.which === 13) {
+            e.preventDefault();
+            searchAddress();
+        }
+    });
+    
+    // My location button
+    $('#btnMyLocation').on('click', function() {
+        if (!navigator.geolocation) {
+            alert('Browser tidak mendukung geolocation');
+            return;
+        }
+        
+        var btn = $(this);
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+        
+        navigator.geolocation.getCurrentPosition(
+            function(position) {
+                var lat = position.coords.latitude;
+                var lng = position.coords.longitude;
+                setMarker(lat, lng);
+                map.setView([lat, lng], 17);
+                btn.prop('disabled', false).html('<i class="fas fa-crosshairs"></i> Lokasi Saya');
+            },
+            function(error) {
+                var msg = 'Gagal mendapatkan lokasi';
+                if (error.code === 1) msg = 'Izin lokasi ditolak';
+                else if (error.code === 2) msg = 'Lokasi tidak tersedia';
+                else if (error.code === 3) msg = 'Timeout mendapatkan lokasi';
+                alert(msg);
+                btn.prop('disabled', false).html('<i class="fas fa-crosshairs"></i> Lokasi Saya');
+            },
+            { enableHighAccuracy: true, timeout: 10000 }
+        );
+    });
+    
+    // Invalidate size after short delay
+    setTimeout(function() {
+        map.invalidateSize();
+    }, 200);
 });
 </script>
-@endsection
+@endpush

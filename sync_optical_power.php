@@ -1,70 +1,52 @@
 <?php
-/**
- * Sync optical power untuk semua ONU
- */
-require_once __DIR__ . '/vendor/autoload.php';
-$app = require_once __DIR__ . '/bootstrap/app.php';
-$app->make('Illuminate\Contracts\Console\Kernel')->bootstrap();
+// Quick test optical-ddm command
 
-error_reporting(0);
-snmp_set_quick_print(true);
-snmp_set_valueretrieval(SNMP_VALUE_PLAIN);
+$host = '172.16.16.4';
+$username = 'admin';
+$password = 'admin';
 
-$olt = App\Models\Olt::first();
-echo "Syncing optical power for OLT: {$olt->name}\n";
+$sock = @fsockopen($host, 23, $errno, $errstr, 5);
+if (!$sock) die("Connection failed\n");
 
-$ip = $olt->ip_address;
-$community = $olt->snmp_community;
+stream_set_timeout($sock, 10);
 
-// Get all ONUs
-$onus = App\Models\Onu::where('olt_id', $olt->id)->get();
-echo "Found " . count($onus) . " ONUs\n\n";
+// Login fast
+$buf = ''; $end = time() + 5;
+while (time() < $end) { $c = @fread($sock, 1024); if ($c) $buf .= $c; if (stripos($buf, 'login') !== false || stripos($buf, 'username') !== false) break; usleep(100000); }
+fwrite($sock, "$username\r\n"); usleep(500000);
+$buf = ''; $end = time() + 3;
+while (time() < $end) { $c = @fread($sock, 1024); if ($c) $buf .= $c; if (stripos($buf, 'password') !== false) break; usleep(100000); }
+fwrite($sock, "$password\r\n"); usleep(500000);
+$buf = ''; $end = time() + 3;
+while (time() < $end) { $c = @fread($sock, 1024); if ($c) $buf .= $c; if (strpos($buf, '>') !== false) break; usleep(100000); }
+fwrite($sock, "enable\r\n"); usleep(500000);
+$buf = ''; $end = time() + 2;
+while (time() < $end) { $c = @fread($sock, 1024); if ($c) $buf .= $c; if (strpos($buf, '#') !== false) break; usleep(100000); }
 
-$updated = 0;
-$errors = 0;
+echo "Logged in.\n\n";
 
-foreach ($onus as $onu) {
-    $port = $onu->port ?? $onu->pon_port ?? 1;
-    $onuId = $onu->onu_id ?? $onu->onu_number ?? 0;
-    
-    // Skip if ONU ID is 0 (invalid)
-    if ($onuId == 0) {
-        continue;
-    }
-    
-    // Get optical power
-    $rxOid = "1.3.6.1.4.1.37950.1.1.5.12.2.1.8.1.7.$port.$onuId";
-    $txOid = "1.3.6.1.4.1.37950.1.1.5.12.2.1.8.1.6.$port.$onuId";
-    
-    $rxRaw = @snmpget($ip, $community, $rxOid, 1000000, 1);
-    $txRaw = @snmpget($ip, $community, $txOid, 1000000, 1);
-    
-    $rxPower = null;
-    $txPower = null;
-    
-    // Parse dBm from string "0.02 mW (-17.21 dBm)"
-    if ($rxRaw && preg_match('/\(([+-]?[\d.]+)\s*dBm\)/i', $rxRaw, $m)) {
-        $rxPower = round((float) $m[1], 2);
-    }
-    if ($txRaw && preg_match('/\(([+-]?[\d.]+)\s*dBm\)/i', $txRaw, $m)) {
-        $txPower = round((float) $m[1], 2);
-    }
-    
-    // Update database
-    if ($rxPower !== null || $txPower !== null) {
-        $onu->rx_power = $rxPower;
-        $onu->tx_power = $txPower;
-        $onu->olt_rx_power = $rxPower; // OLT RX = same as RX
-        $onu->save();
-        $updated++;
-        
-        echo ".";
-        if ($updated % 50 == 0) {
-            echo " $updated\n";
+// Run command - per ONU
+fwrite($sock, "show onu optical-ddm epon 0/1 3\r\n");
+usleep(500000);
+
+$out = '';
+$end = time() + 15;
+while (time() < $end) {
+    $c = @fread($sock, 4096);
+    if ($c) {
+        $out .= $c;
+        if (strpos($out, '--More--') !== false || strpos($out, '--- Enter Key') !== false) {
+            fwrite($sock, " ");
+            $out = preg_replace('/--More--|--- Enter Key.*----/', '', $out);
         }
-    } else {
-        $errors++;
+        if (preg_match('/EPON#\s*$/', $out)) break;
     }
+    usleep(100000);
 }
 
-echo "\n\nDone! Updated: $updated, Skipped/Errors: $errors\n";
+fwrite($sock, "exit\r\n");
+fclose($sock);
+
+echo "=== Raw Output ===\n";
+echo str_replace("\r", "", $out);
+echo "\n";

@@ -124,7 +124,7 @@ class NetworkMapController extends Controller implements HasMiddleware
             ->map(function($odc) {
                 return [
                     'id' => $odc->id,
-                    'router_id' => $odc->router_id,
+                    'olt_id' => $odc->olt_id,
                     'name' => $odc->name,
                     'code' => $odc->code,
                     'lat' => (float) $odc->latitude,

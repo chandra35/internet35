@@ -8,6 +8,7 @@ use App\Models\OltPonPort;
 use App\Models\OnuSignalHistory;
 use Exception;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Base class for OLT helpers
@@ -20,8 +21,8 @@ abstract class BaseOltHelper implements OltInterface
     protected ?object $telnetConnection = null;
     protected ?object $sshConnection = null;
 
-    protected int $snmpTimeout = 3;
-    protected int $snmpRetries = 1;
+    protected int $snmpTimeout = 2;
+    protected int $snmpRetries = 0;
     protected int $telnetTimeout = 10;
     protected int $sshTimeout = 10;
 
@@ -393,14 +394,30 @@ abstract class BaseOltHelper implements OltInterface
 
     /**
      * Save ONU data to database
+     * Uses olt_id + slot + port + onu_id as unique key (matches DB constraint)
+     * Falls back to serial_number if slot/port/onu_id not available
      */
     protected function saveOnuToDatabase(array $onuData): Onu
     {
-        return Onu::updateOrCreate(
-            [
+        // Determine unique key based on available data
+        // Prefer slot/port/onu_id (matches database unique constraint)
+        if (isset($onuData['slot']) && isset($onuData['port']) && isset($onuData['onu_id'])) {
+            $uniqueKey = [
+                'olt_id' => $this->olt->id,
+                'slot' => $onuData['slot'],
+                'port' => $onuData['port'],
+                'onu_id' => $onuData['onu_id'],
+            ];
+        } else {
+            // Fallback to serial_number for OLTs without slot/port/onu_id
+            $uniqueKey = [
                 'olt_id' => $this->olt->id,
                 'serial_number' => $onuData['serial_number'],
-            ],
+            ];
+        }
+
+        return Onu::updateOrCreate(
+            $uniqueKey,
             array_merge($onuData, [
                 'last_sync_at' => now(),
             ])
@@ -557,6 +574,303 @@ abstract class BaseOltHelper implements OltInterface
         ];
 
         return $statusMap[$status] ?? 'unknown';
+    }
+
+    /**
+     * Get interface traffic statistics via SNMP (MIB-II standard)
+     * This works on most SNMP-enabled OLTs using standard MIB-II OIDs
+     * Individual helpers can override this for brand-specific implementation
+     */
+    public function getInterfaceStats(): array
+    {
+        $interfaces = [];
+        
+        try {
+            $timeout = 3000000; // 3 seconds
+            $retries = 1;
+            
+            // Get interface descriptions
+            $ifDescr = @snmpwalkoid(
+                $this->olt->ip_address,
+                $this->olt->snmp_community ?? 'public',
+                '1.3.6.1.2.1.2.2.1.2',
+                $timeout,
+                $retries
+            );
+            
+            if (!$ifDescr) {
+                return [];
+            }
+            
+            // Get interface operational status
+            $ifOperStatus = @snmpwalkoid(
+                $this->olt->ip_address,
+                $this->olt->snmp_community ?? 'public',
+                '1.3.6.1.2.1.2.2.1.8',
+                $timeout,
+                $retries
+            ) ?: [];
+            
+            // Get interface speed
+            $ifSpeed = @snmpwalkoid(
+                $this->olt->ip_address,
+                $this->olt->snmp_community ?? 'public',
+                '1.3.6.1.2.1.2.2.1.5',
+                $timeout,
+                $retries
+            ) ?: [];
+            
+            // Get incoming octets
+            $ifInOctets = @snmpwalkoid(
+                $this->olt->ip_address,
+                $this->olt->snmp_community ?? 'public',
+                '1.3.6.1.2.1.2.2.1.10',
+                $timeout,
+                $retries
+            ) ?: [];
+            
+            // Get outgoing octets
+            $ifOutOctets = @snmpwalkoid(
+                $this->olt->ip_address,
+                $this->olt->snmp_community ?? 'public',
+                '1.3.6.1.2.1.2.2.1.16',
+                $timeout,
+                $retries
+            ) ?: [];
+            
+            // Get input errors
+            $ifInErrors = @snmpwalkoid(
+                $this->olt->ip_address,
+                $this->olt->snmp_community ?? 'public',
+                '1.3.6.1.2.1.2.2.1.14',
+                $timeout,
+                $retries
+            ) ?: [];
+            
+            // Get output errors
+            $ifOutErrors = @snmpwalkoid(
+                $this->olt->ip_address,
+                $this->olt->snmp_community ?? 'public',
+                '1.3.6.1.2.1.2.2.1.20',
+                $timeout,
+                $retries
+            ) ?: [];
+            
+            foreach ($ifDescr as $oid => $name) {
+                // Extract interface index from OID
+                preg_match('/\.(\d+)$/', $oid, $matches);
+                $ifIndex = $matches[1] ?? null;
+                
+                if (!$ifIndex) continue;
+                
+                // Clean name
+                $name = trim(str_replace(['"', "'"], '', $name));
+                
+                // Skip loopback and internal interfaces
+                if (preg_match('/^(lo|Loopback|Null|Internal)/i', $name)) {
+                    continue;
+                }
+                
+                // Determine interface type
+                $type = 'other';
+                if (preg_match('/pon|epon|gpon/i', $name)) {
+                    $type = 'pon';
+                } elseif (preg_match('/^(G|GE|ETH|Ethernet|Uplink|Trunk|SFP)/i', $name)) {
+                    $type = 'uplink';
+                }
+                
+                // Get status
+                $statusOid = "1.3.6.1.2.1.2.2.1.8.{$ifIndex}";
+                $statusValue = $ifOperStatus[$statusOid] ?? null;
+                $status = ($statusValue == 1) ? 'up' : 'down';
+                
+                // Get speed
+                $speedOid = "1.3.6.1.2.1.2.2.1.5.{$ifIndex}";
+                $speedValue = (int)($ifSpeed[$speedOid] ?? 0);
+                $speedMbps = $speedValue / 1000000;
+                
+                // Get traffic counters
+                $inOctets = (int)($ifInOctets["1.3.6.1.2.1.2.2.1.10.{$ifIndex}"] ?? 0);
+                $outOctets = (int)($ifOutOctets["1.3.6.1.2.1.2.2.1.16.{$ifIndex}"] ?? 0);
+                $inErrors = (int)($ifInErrors["1.3.6.1.2.1.2.2.1.14.{$ifIndex}"] ?? 0);
+                $outErrors = (int)($ifOutErrors["1.3.6.1.2.1.2.2.1.20.{$ifIndex}"] ?? 0);
+                
+                $interfaces[] = [
+                    'index' => $ifIndex,
+                    'name' => $name,
+                    'type' => $type,
+                    'status' => $status,
+                    'speed_bps' => $speedValue,
+                    'speed_mbps' => $speedMbps,
+                    'in_octets' => $inOctets,
+                    'out_octets' => $outOctets,
+                    'in_bytes_formatted' => $this->formatBytes($inOctets),
+                    'out_bytes_formatted' => $this->formatBytes($outOctets),
+                    'in_errors' => $inErrors,
+                    'out_errors' => $outErrors,
+                ];
+            }
+            
+        } catch (\Exception $e) {
+            Log::error("Failed to get interface stats: " . $e->getMessage());
+        }
+        
+        return $interfaces;
+    }
+    
+    /**
+     * Get PON port traffic only
+     */
+    public function getPonTrafficStats(): array
+    {
+        return array_filter(
+            $this->getInterfaceStats(),
+            fn($iface) => $iface['type'] === 'pon'
+        );
+    }
+    
+    /**
+     * Get Uplink port traffic only
+     */
+    public function getUplinkTrafficStats(): array
+    {
+        return array_filter(
+            $this->getInterfaceStats(),
+            fn($iface) => $iface['type'] === 'uplink'
+        );
+    }
+    
+    /**
+     * Get traffic summary for dashboard
+     */
+    public function getTrafficSummary(): array
+    {
+        // Cache traffic data for 30 seconds to avoid repeated slow SNMP queries
+        $cacheKey = "olt_traffic_{$this->olt->id}";
+        $cacheTtl = 30; // seconds
+        
+        return Cache::remember($cacheKey, $cacheTtl, function () {
+            $stats = $this->getInterfaceStats();
+            
+            $ponPorts = array_filter($stats, fn($s) => $s['type'] === 'pon');
+            $uplinkPorts = array_filter($stats, fn($s) => $s['type'] === 'uplink');
+            
+            $ponIn = array_sum(array_column($ponPorts, 'in_octets'));
+            $ponOut = array_sum(array_column($ponPorts, 'out_octets'));
+            $uplinkIn = array_sum(array_column($uplinkPorts, 'in_octets'));
+            $uplinkOut = array_sum(array_column($uplinkPorts, 'out_octets'));
+            
+            // Get optical power data
+            $opticalData = $this->getOpticalPowerSummary();
+            
+            // Add port index for frontend mapping
+            $ponPortsWithIndex = array_values(array_map(function($p) {
+                // Ensure index is set for mapping optical data
+                if (!isset($p['index'])) {
+                    // Try to extract port number from name
+                    if (preg_match('/(\d+)$/', $p['name'] ?? '', $m)) {
+                        $p['index'] = (int)$m[1];
+                    }
+                }
+                return $p;
+            }, $ponPorts));
+            
+            return [
+                'pon_ports' => [
+                    'total' => count($ponPorts),
+                    'up' => count(array_filter($ponPorts, fn($p) => $p['status'] === 'up')),
+                    'down' => count(array_filter($ponPorts, fn($p) => $p['status'] === 'down')),
+                    'in_octets' => $ponIn,
+                    'out_octets' => $ponOut,
+                    'in_formatted' => $this->formatBytes($ponIn),
+                    'out_formatted' => $this->formatBytes($ponOut),
+                    'ports' => $ponPortsWithIndex,
+                ],
+                'uplink_ports' => [
+                    'total' => count($uplinkPorts),
+                    'up' => count(array_filter($uplinkPorts, fn($p) => $p['status'] === 'up')),
+                    'down' => count(array_filter($uplinkPorts, fn($p) => $p['status'] === 'down')),
+                    'in_octets' => $uplinkIn,
+                    'out_octets' => $uplinkOut,
+                    'in_formatted' => $this->formatBytes($uplinkIn),
+                    'out_formatted' => $this->formatBytes($uplinkOut),
+                    'ports' => array_values($uplinkPorts),
+                ],
+                'optical_power' => $opticalData,
+                'collected_at' => now()->toIso8601String(),
+            ];
+        });
+    }
+    
+    /**
+     * Format bytes to human readable
+     */
+    protected function formatBytes(int $bytes, int $precision = 2): string
+    {
+        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        
+        $bytes = max($bytes, 0);
+        $pow = floor(($bytes ? log($bytes) : 0) / log(1024));
+        $pow = min($pow, count($units) - 1);
+        
+        return round($bytes / pow(1024, $pow), $precision) . ' ' . $units[$pow];
+    }
+
+    /**
+     * Get PON port optical power statistics from OLT SFP transceivers
+     * This is the TX power (output power) of the OLT's PON port modules
+     * 
+     * Note: This base implementation returns empty array.
+     * Each OLT brand should override this to implement actual data collection.
+     * 
+     * @return array Array of PON ports with optical power data (tx_power, temperature, etc.)
+     */
+    public function getPonOpticalPower(): array
+    {
+        // Base implementation returns empty - override in brand-specific helpers
+        return [];
+    }
+    
+    /**
+     * Get optical power summary for all PON ports
+     * Includes overall OLT optical health
+     */
+    public function getOpticalPowerSummary(): array
+    {
+        $ponPorts = $this->getPonOpticalPower();
+        
+        // Calculate overall TX power stats
+        $allTxPowers = array_filter(array_column($ponPorts, 'tx_power'));
+        $overallTxAvg = !empty($allTxPowers) ? round(array_sum($allTxPowers) / count($allTxPowers), 2) : null;
+        $overallTxMin = !empty($allTxPowers) ? min($allTxPowers) : null;
+        $overallTxMax = !empty($allTxPowers) ? max($allTxPowers) : null;
+        
+        // Count by signal quality
+        $qualityCounts = [
+            'excellent' => 0,
+            'good' => 0,
+            'acceptable' => 0,
+            'warning' => 0,
+            'unknown' => 0,
+        ];
+        foreach ($ponPorts as $port) {
+            $quality = $port['signal_quality'] ?? 'unknown';
+            $qualityCounts[$quality] = ($qualityCounts[$quality] ?? 0) + 1;
+        }
+        
+        return [
+            'pon_ports' => $ponPorts,
+            'summary' => [
+                'total_pon_ports' => count($ponPorts),
+                'ports_with_data' => count($allTxPowers),
+                'overall_tx_power_avg' => $overallTxAvg,
+                'overall_tx_power_min' => $overallTxMin,
+                'overall_tx_power_max' => $overallTxMax,
+                'overall_tx_power_formatted' => $overallTxAvg !== null ? $overallTxAvg . ' dBm' : '-',
+                'signal_quality_counts' => $qualityCounts,
+            ],
+            'collected_at' => now()->toIso8601String(),
+        ];
     }
 
     /**

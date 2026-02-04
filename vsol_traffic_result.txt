@@ -1,0 +1,27 @@
+=== Test VSOL Interface Traffic Stats ===
+OLT: OLT-VSOL-V1600D (172.16.16.3)
+
+=== Traffic Summary ===
+PON Ports:
+  Total: 4 (0 up, 4 down)
+  Traffic In:  0 B
+  Traffic Out: 0 B
+  Ports:
+    - EPON1: down, In=0 B, Out=0 B
+    - EPON2: down, In=0 B, Out=0 B
+    - EPON3: down, In=0 B, Out=0 B
+    - EPON4: down, In=0 B, Out=0 B
+
+Uplink Ports:
+  Total: 4 (0 up, 4 down)
+  Traffic In:  0 B
+  Traffic Out: 0 B
+  Ports:
+    - GE1: down, In=0 B, Out=0 B
+    - GE2: down, In=0 B, Out=0 B
+    - GE3: down, In=0 B, Out=0 B
+    - GE4: down, In=0 B, Out=0 B
+
+Collected at: 2026-02-04T02:15:34+00:00
+
+=== DONE ===

@@ -41,6 +41,105 @@
     </div>
 </div>
 
+<!-- Port Traffic Stats -->
+<div class="row" id="traffic-stats-section">
+    <!-- PON Ports Traffic with TX Power -->
+    <div class="col-lg-7">
+        <div class="card card-outline card-primary">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="fas fa-project-diagram mr-2"></i>PON Ports Traffic
+                </h3>
+                <div class="card-tools">
+                    <span class="text-muted text-sm mr-2" id="pon-timestamp"></span>
+                    <span class="badge badge-secondary mr-2" id="pon-cached-badge" style="display:none;" title="Data dari cache">cached</span>
+                    <button type="button" class="btn btn-tool" id="btn-force-refresh" title="Force Refresh (bypass cache)">
+                        <i class="fas fa-redo-alt"></i>
+                    </button>
+                    <button type="button" class="btn btn-tool" id="btn-refresh-traffic" title="Refresh">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div id="pon-loading" class="text-center p-4">
+                    <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+                    <p class="text-muted mt-2">Loading traffic data...</p>
+                </div>
+                <table class="table table-sm table-striped mb-0" id="table-pon-traffic" style="display: none;">
+                    <thead class="thead-light">
+                        <tr>
+                            <th>Port</th>
+                            <th>Status</th>
+                            <th class="text-right">Download</th>
+                            <th class="text-right">Upload</th>
+                            <th class="text-right" title="TX Power (dBm)">TX Power</th>
+                            <th class="text-right" title="Temperature">Temp</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pon-traffic-body">
+                    </tbody>
+                    <tfoot class="table-primary">
+                        <tr>
+                            <td colspan="2"><strong>Total</strong></td>
+                            <td class="text-right"><strong id="pon-total-in">-</strong></td>
+                            <td class="text-right"><strong id="pon-total-out">-</strong></td>
+                            <td colspan="2" class="text-right text-muted" id="pon-optical-avg">-</td>
+                        </tr>
+                    </tfoot>
+                </table>
+                <div id="pon-error" class="text-center p-4 text-danger" style="display: none;">
+                    <i class="fas fa-exclamation-triangle fa-2x"></i>
+                    <p class="mt-2">Failed to load traffic data</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Uplink Ports -->
+    <div class="col-lg-5">
+        <div class="card card-outline card-success">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="fas fa-network-wired mr-2"></i>Uplink Ports Traffic
+                </h3>
+                <div class="card-tools">
+                    <span class="text-muted text-sm" id="traffic-timestamp"></span>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div id="uplink-loading" class="text-center p-4">
+                    <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+                    <p class="text-muted mt-2">Loading traffic data...</p>
+                </div>
+                <table class="table table-sm table-striped mb-0" id="table-uplink-traffic" style="display: none;">
+                    <thead class="thead-light">
+                        <tr>
+                            <th>Port</th>
+                            <th>Status</th>
+                            <th class="text-right">Download</th>
+                            <th class="text-right">Upload</th>
+                        </tr>
+                    </thead>
+                    <tbody id="uplink-traffic-body">
+                    </tbody>
+                    <tfoot class="table-success">
+                        <tr>
+                            <td colspan="2"><strong>Total</strong></td>
+                            <td class="text-right"><strong id="uplink-total-in">-</strong></td>
+                            <td class="text-right"><strong id="uplink-total-out">-</strong></td>
+                        </tr>
+                    </tfoot>
+                </table>
+                <div id="uplink-error" class="text-center p-4 text-danger" style="display: none;">
+                    <i class="fas fa-exclamation-triangle fa-2x"></i>
+                    <p class="mt-2">Failed to load traffic data</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="row">
     <!-- OLT Info -->
     <div class="col-lg-4">
@@ -201,8 +300,8 @@
                         <thead>
                             <tr>
                                 <th>PON/ONU</th>
-                                <th>SN</th>
                                 <th>Pelanggan</th>
+                                <th>SN</th>
                                 <th>Status</th>
                                 <th>Signal</th>
                                 <th>Aksi</th>
@@ -213,20 +312,24 @@
                             <tr>
                                 <td>
                                     <strong>{{ $onu->slot }}/{{ $onu->port }}/{{ $onu->onu_id }}</strong>
-                                    @if($onu->name)
-                                    <br><small class="text-muted">{{ $onu->name }}</small>
+                                    @if($onu->name || $onu->description)
+                                    <br><small class="text-muted">{{ $onu->name ?: $onu->description }}</small>
                                     @endif
                                 </td>
-                                <td><code>{{ $onu->serial_number }}</code></td>
                                 <td>
                                     @if($onu->customer)
                                         <a href="{{ route('admin.customers.show', $onu->customer) }}">
                                             {{ $onu->customer->name }}
                                         </a>
+                                    @elseif($onu->description)
+                                        {{ $onu->description }}
+                                    @elseif($onu->name)
+                                        {{ $onu->name }}
                                     @else
                                         <span class="text-muted">-</span>
                                     @endif
                                 </td>
+                                <td><code>{{ $onu->serial_number }}</code></td>
                                 <td>
                                     @if($onu->status == 'online')
                                         <span class="badge badge-success">Online</span>
@@ -475,7 +578,33 @@ $(function() {
     // Map
     @if($olt->latitude && $olt->longitude)
     var map = L.map('map').setView([{{ $olt->latitude }}, {{ $olt->longitude }}], 15);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    
+    // Define base layers - Google Satellite
+    var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap'
+    });
+    
+    var satelliteLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+        maxZoom: 20,
+        attribution: '© Google'
+    });
+    
+    var hybridLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+        maxZoom: 20,
+        attribution: '© Google'
+    });
+    
+    // Add default layer
+    satelliteLayer.addTo(map);
+    
+    // Layer control
+    L.control.layers({
+        "Satelit": satelliteLayer,
+        "Peta": osmLayer,
+        "Hybrid": hybridLayer
+    }, null, { position: 'topright' }).addTo(map);
+    
     L.marker([{{ $olt->latitude }}, {{ $olt->longitude }}])
         .addTo(map)
         .bindPopup('<strong>{{ $olt->name }}</strong>');
@@ -791,6 +920,179 @@ $(function() {
             }
         });
     });
+
+    // Load traffic stats - optimized for partial update
+    var trafficInitialized = false;
+    var oltBrand = '{{ $olt->brand }}';
+    
+    function loadTrafficStats(isRefresh = false, forceRefresh = false) {
+        var oltId = '{{ $olt->id }}';
+        var url = '/admin/olts/' + oltId + '/traffic-stats';
+        if (forceRefresh) {
+            url += '?refresh=1';
+        }
+        
+        // Only show loading on first load, not on refresh
+        if (!trafficInitialized) {
+            $('#pon-loading, #uplink-loading').show();
+            $('#table-pon-traffic, #table-uplink-traffic').hide();
+        }
+        $('#pon-error, #uplink-error').hide();
+        
+        $.get(url)
+            .done(function(res) {
+                if (res.success && res.data) {
+                    var data = res.data;
+                    
+                    // Build optical data map by port index for easy lookup
+                    var opticalMap = {};
+                    if (data.optical_power && data.optical_power.pon_ports) {
+                        data.optical_power.pon_ports.forEach(function(opt) {
+                            opticalMap[opt.port] = opt;
+                        });
+                    }
+                    
+                    // Render PON ports with optical data
+                    if (data.pon_ports && data.pon_ports.ports && data.pon_ports.ports.length > 0) {
+                        data.pon_ports.ports.forEach(function(port, idx) {
+                            var rowId = 'pon-row-' + port.index;
+                            var $row = $('#' + rowId);
+                            
+                            var statusBadge = port.status === 'up' 
+                                ? '<span class="badge badge-success">UP</span>'
+                                : '<span class="badge badge-danger">DOWN</span>';
+                            
+                            // Get optical data for this port
+                            var optical = opticalMap[port.index] || {};
+                            var txPower = optical.tx_power_formatted || '-';
+                            var temp = optical.temperature_formatted || '-';
+                            var txClass = '';
+                            if (optical.signal_quality === 'excellent') txClass = 'text-success';
+                            else if (optical.signal_quality === 'good') txClass = 'text-info';
+                            else if (optical.signal_quality === 'acceptable') txClass = 'text-warning';
+                            else if (optical.signal_quality === 'warning') txClass = 'text-danger';
+                            
+                            if ($row.length) {
+                                // Update existing row (partial update - no flicker)
+                                $row.find('.col-status').html(statusBadge);
+                                $row.find('.col-download').text(port.in_bytes_formatted);
+                                $row.find('.col-upload').text(port.out_bytes_formatted);
+                                $row.find('.col-txpower').html('<span class="' + txClass + '">' + txPower + '</span>');
+                                $row.find('.col-temp').text(temp);
+                            } else {
+                                // Create new row
+                                var rowHtml = '<tr id="' + rowId + '">';
+                                rowHtml += '<td><strong>' + port.name + '</strong></td>';
+                                rowHtml += '<td class="col-status">' + statusBadge + '</td>';
+                                rowHtml += '<td class="text-right text-info col-download">' + port.in_bytes_formatted + '</td>';
+                                rowHtml += '<td class="text-right text-success col-upload">' + port.out_bytes_formatted + '</td>';
+                                rowHtml += '<td class="text-right col-txpower"><span class="' + txClass + '">' + txPower + '</span></td>';
+                                rowHtml += '<td class="text-right col-temp">' + temp + '</td>';
+                                rowHtml += '</tr>';
+                                $('#pon-traffic-body').append(rowHtml);
+                            }
+                        });
+                        
+                        $('#pon-total-in').text(data.pon_ports.in_formatted || '0 B');
+                        $('#pon-total-out').text(data.pon_ports.out_formatted || '0 B');
+                        
+                        // Optical summary
+                        if (data.optical_power && data.optical_power.summary) {
+                            $('#pon-optical-avg').text('Avg TX: ' + data.optical_power.summary.overall_tx_power_formatted);
+                        }
+                        
+                        $('#pon-loading').hide();
+                        $('#table-pon-traffic').show();
+                    } else if (!trafficInitialized) {
+                        $('#pon-loading').hide();
+                        $('#pon-error').html('<div class="text-center p-3 text-muted"><i class="fas fa-info-circle mr-2"></i>Traffic data tidak tersedia</div>').show();
+                    }
+                    
+                    // Render Uplink ports
+                    if (data.uplink_ports && data.uplink_ports.ports && data.uplink_ports.ports.length > 0) {
+                        data.uplink_ports.ports.forEach(function(port) {
+                            var rowId = 'uplink-row-' + port.index;
+                            var $row = $('#' + rowId);
+                            
+                            var statusBadge = port.status === 'up' 
+                                ? '<span class="badge badge-success">UP</span>'
+                                : '<span class="badge badge-danger">DOWN</span>';
+                            
+                            if ($row.length) {
+                                // Update existing row
+                                $row.find('.col-status').html(statusBadge);
+                                $row.find('.col-download').text(port.in_bytes_formatted);
+                                $row.find('.col-upload').text(port.out_bytes_formatted);
+                            } else {
+                                // Create new row
+                                var rowHtml = '<tr id="' + rowId + '">';
+                                rowHtml += '<td><strong>' + port.name + '</strong></td>';
+                                rowHtml += '<td class="col-status">' + statusBadge + '</td>';
+                                rowHtml += '<td class="text-right text-info col-download">' + port.in_bytes_formatted + '</td>';
+                                rowHtml += '<td class="text-right text-success col-upload">' + port.out_bytes_formatted + '</td>';
+                                rowHtml += '</tr>';
+                                $('#uplink-traffic-body').append(rowHtml);
+                            }
+                        });
+                        
+                        $('#uplink-total-in').text(data.uplink_ports.in_formatted || '0 B');
+                        $('#uplink-total-out').text(data.uplink_ports.out_formatted || '0 B');
+                        $('#uplink-loading').hide();
+                        $('#table-uplink-traffic').show();
+                    } else if (!trafficInitialized) {
+                        $('#uplink-loading').hide();
+                    }
+                    
+                    // Update timestamp
+                    if (data.collected_at) {
+                        var dt = new Date(data.collected_at);
+                        var timeStr = dt.toLocaleTimeString();
+                        $('#pon-timestamp').text(timeStr);
+                        $('#traffic-timestamp').text(timeStr);
+                    }
+                    
+                    trafficInitialized = true;
+                } else {
+                    throw new Error('Invalid response');
+                }
+            })
+            .fail(function(xhr) {
+                console.error('Traffic stats error:', xhr);
+                if (!trafficInitialized) {
+                    $('#pon-loading, #uplink-loading').hide();
+                    $('#pon-error, #uplink-error').show();
+                }
+            });
+    }
+    
+    // Load traffic stats on page load
+    loadTrafficStats();
+    
+    // Refresh traffic button
+    $('#btn-refresh-traffic').click(function() {
+        var btn = $(this);
+        btn.find('i').addClass('fa-spin');
+        loadTrafficStats(true, false);
+        setTimeout(function() {
+            btn.find('i').removeClass('fa-spin');
+        }, 1000);
+    });
+    
+    // Force refresh button (bypass cache)
+    $('#btn-force-refresh').click(function() {
+        var btn = $(this);
+        btn.find('i').addClass('fa-spin');
+        loadTrafficStats(true, true);
+        setTimeout(function() {
+            btn.find('i').removeClass('fa-spin');
+        }, 2000);
+    });
+    
+    // Auto refresh - shorter interval for SNMP (real-time), longer for telnet
+    var refreshInterval = (oltBrand === 'hioso') ? 15000 : 10000; // 15s for telnet, 10s for SNMP
+    setInterval(function() {
+        loadTrafficStats(true);
+    }, refreshInterval);
 });
 </script>
 @endpush

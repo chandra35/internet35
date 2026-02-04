@@ -4,20 +4,41 @@
 
 Tanggal: Februari 2026
 Device: Hioso EPON/GPON OLT
-Models: HA7302, HA7304, HA7308
-Enterprise ID: 17409
+Models: HA7302, HA7304, HA7308, V1600D, dan lainnya
+Enterprise ID: 17409 atau 25355 (tergantung model)
 SNMP Version: SNMPv2c (default)
 
 ================================================================================
                               REFERENSI WEB
 ================================================================================
 
-1. OID Repository
+1. OID Repository - Enterprise 17409 (Hioso/Hitech)
    - Base: https://oid-base.com/get/1.3.6.1.4.1.17409
+   
+2. OID Repository - Enterprise 25355 (Haishuo/Hioso variant)
+   - Base: https://oidref.com/1.3.6.1.4.1.25355
 
-2. Hioso/Hitech Enterprise OID
-   - Enterprise ID: 17409 (1.3.6.1.4.1.17409)
-   - Common base for EPON: 1.3.6.1.4.1.17409.2.3
+3. Hioso/Hitech Enterprise OID
+   - Enterprise ID: 17409 (1.3.6.1.4.1.17409) - Model lama
+   - Enterprise ID: 25355 (1.3.6.1.4.1.25355) - Model baru/V1600D
+   - Common base for EPON: 1.3.6.1.4.1.{enterprise}.2.3
+
+================================================================================
+                        DUAL ENTERPRISE ID SUPPORT
+================================================================================
+
+Hioso OLT memiliki 2 Enterprise ID yang berbeda:
+
+1. Enterprise 17409 (Hioso/Hitech original)
+   - Digunakan pada model: HA7302, HA7304, HA7308
+   - OID Prefix: 1.3.6.1.4.1.17409
+
+2. Enterprise 25355 (Haishuo/Hioso variant)
+   - Digunakan pada model: V1600D, dan model baru lainnya
+   - OID Prefix: 1.3.6.1.4.1.25355
+
+PENTING: Struktur OID di bawah enterprise prefix sama untuk kedua varian!
+         Contoh: .2.3.5.1.1.1.1.2 = ONU Serial Number (berlaku untuk keduanya)
 
 ================================================================================
                            STRUKTUR OID HIOSO
@@ -172,9 +193,10 @@ Get PON Port Status:
 1. Model Detection:
    - sysDescr biasanya mengandung "HA73xx" 
    - Contoh: "HA7308 8-PON EPON OLT"
+   - Enterprise 25355: "Linux EPON 2.6.32..." (ARM-based)
 
 2. Enterprise ID Detection:
-   - sysObjectID mengandung 1.3.6.1.4.1.17409
+   - sysObjectID mengandung 1.3.6.1.4.1.17409 atau 25355
    - Lebih reliable daripada string matching
 
 3. SNMP Community:
@@ -190,6 +212,52 @@ Get PON Port Status:
    - Bisa dalam dBm * 100 atau mW
    - Perlu kalibrasi per device
 
+6. SNMP vs Telnet:
+   - Enterprise 25355 OLT mungkin tidak support SNMP enterprise OIDs
+   - Gunakan Telnet fallback jika SNMP tidak mengembalikan data ONU
+   - Basic SNMP (sysDescr, ifDescr) tetap berfungsi
+
+================================================================================
+                    TELNET FALLBACK COMMANDS
+================================================================================
+
+Untuk OLT yang tidak support SNMP enterprise OIDs (Enterprise 25355),
+gunakan Telnet sebagai alternatif:
+
+Credentials Default:
+  Username: admin
+  Password: admin
+
+Login Mode:
+  User mode: EPON>
+  Privileged mode: EPON# (setelah "enable")
+
+Commands untuk ONU Info:
+  show onu info epon 0/{port} all     - List semua ONU di port
+  show onu info epon 0/{port} {id}    - Info ONU specific
+  show onu optical-ddm epon 0/{port} {id} - Optical power ONU
+  show epon 0/{port} optical-ddm      - Optical DDM port
+
+Output Format "show onu info":
+  OnuId  MacAddress        Status  Firmware ChipId Ge Fe Pots CtcStatus CtcVer Activate Uptime Name
+  0/1:1  08:5c:1b:de:39:dd Down    3230     6301   4  2  1    --        30     Yes      0H0M0S Jani-28
+  0/1:3  40:ee:dd:22:02:d9 Up      3230     6301   4  12 2    CtcNegDone 30    Yes      1D17H50M44S
+
+Field Mapping:
+  - OnuId: slot/port:onuId
+  - MacAddress: ONU MAC address (juga sebagai serial)
+  - Status: Up (online) / Down (offline)
+  - Firmware: Firmware version number
+  - ChipId: Chip identifier
+  - Ge/Fe/Pots: Port counts
+  - CtcStatus: CTC negotiation status
+  - Uptime: Format xDxHxMxS
+  - Name: User-configured description
+
+Pagination:
+  - Output panjang menampilkan "--- Enter Key To Continue ----"
+  - Kirim space " " untuk lanjut ke halaman berikutnya
+
 ================================================================================
                            CHANGELOG
 ================================================================================
@@ -198,4 +266,7 @@ Februari 2026:
 - Initial documentation
 - Added OID reference from HiosoHelper.php
 - Added Enterprise ID detection (17409)
+- Added Enterprise 25355 (Haishuo variant) support
+- Added Telnet fallback documentation
+- Tested on Enterprise 25355 OLT: 98 ONUs berhasil diambil via Telnet
 

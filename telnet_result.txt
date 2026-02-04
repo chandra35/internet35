@@ -1,0 +1,32 @@
+=== show onu info epon ? ===
+show onu info epon 
+  INTERFACE  -- Port example: 0/1
+EPON# show onu info epon 
+% Command incomplete.
+EPON# 
+
+=== show onu info epon 0/1 ===
+
+Idle timed out, Logout CLI.
+
+
+=== show onu info epon 0/2 ===
+show onu info epon 0/1
+Password:
+% Incorrect passwd!
+
+Username:
+
+=== show onu info epon 0/3 ===
+show onu info epon 0/3
+Password:
+
+=== show onu info epon 0/4 ===
+
+% Incorrect passwd!
+
+Username:
+
+=== show epon 0/1 optical-ddm ===
+show epon 0/1 optical-ddm
+Password:

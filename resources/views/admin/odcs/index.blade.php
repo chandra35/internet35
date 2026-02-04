@@ -100,12 +100,12 @@
                     <div class="row">
                         <div class="col-md-3">
                             <div class="form-group">
-                                <label>Router</label>
-                                <select name="router_id" class="form-control select2">
-                                    <option value="">Semua Router</option>
-                                    @foreach($routers as $router)
-                                        <option value="{{ $router->id }}" {{ request('router_id') == $router->id ? 'selected' : '' }}>
-                                            {{ $router->name }}
+                                <label>OLT</label>
+                                <select name="olt_id" class="form-control select2">
+                                    <option value="">Semua OLT</option>
+                                    @foreach($olts as $olt)
+                                        <option value="{{ $olt->id }}" {{ request('olt_id') == $olt->id ? 'selected' : '' }}>
+                                            {{ $olt->name }}
                                         </option>
                                     @endforeach
                                 </select>
@@ -157,7 +157,7 @@
                         <tr>
                             <th>Kode</th>
                             <th>Nama</th>
-                            <th>Router</th>
+                            <th>OLT / PON</th>
                             <th>Lokasi</th>
                             <th>Port</th>
                             <th>ODP</th>
@@ -170,7 +170,18 @@
                         <tr>
                             <td><code>{{ $odc->code }}</code></td>
                             <td><strong>{{ $odc->name }}</strong></td>
-                            <td>{{ $odc->router->name ?? '-' }}</td>
+                            <td>
+                                @if($odc->olt)
+                                    <a href="{{ route('admin.olts.show', $odc->olt) }}" class="text-primary">
+                                        {{ $odc->olt->name }}
+                                    </a>
+                                    @if($odc->olt_pon_port)
+                                        <br><small class="text-muted">PON {{ $odc->olt_pon_port }}</small>
+                                    @endif
+                                @else
+                                    <span class="text-muted">-</span>
+                                @endif
+                            </td>
                             <td>
                                 @if($odc->hasCoordinates())
                                     <a href="https://www.google.com/maps?q={{ $odc->latitude }},{{ $odc->longitude }}" target="_blank" class="text-primary">

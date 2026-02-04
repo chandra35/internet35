@@ -10,12 +10,11 @@
     <li class="breadcrumb-item active">Detail</li>
 @endsection
 
-@section('styles')
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+@push('css')
 <style>
     #map { height: 300px; border-radius: 5px; }
 </style>
-@endsection
+@endpush
 
 @section('content')
 <div class="row">
@@ -43,12 +42,15 @@
                         <td>{{ $odc->name }}</td>
                     </tr>
                     <tr>
-                        <td><strong>Router</strong></td>
+                        <td><strong>OLT</strong></td>
                         <td>
-                            @if($odc->router)
-                            <a href="{{ route('admin.routers.show', $odc->router) }}">
-                                {{ $odc->router->name }}
+                            @if($odc->olt)
+                            <a href="{{ route('admin.olts.show', $odc->olt) }}">
+                                {{ $odc->olt->name }}
                             </a>
+                            @if($odc->olt_pon_port)
+                                <span class="badge badge-info ml-2">PON {{ $odc->olt_pon_port }}</span>
+                            @endif
                             @else
                             <span class="text-muted">-</span>
                             @endif
@@ -227,8 +229,9 @@
 </div>
 @endsection
 
-@section('scripts')
+@push('js')
 @if($odc->hasCoordinates())
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 $(function() {
@@ -237,9 +240,31 @@ $(function() {
     
     const map = L.map('map').setView([lat, lng], 16);
     
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
-    }).addTo(map);
+    // Define base layers - Google Satellite
+    var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap'
+    });
+    
+    var satelliteLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+        maxZoom: 20,
+        attribution: '© Google'
+    });
+    
+    var hybridLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+        maxZoom: 20,
+        attribution: '© Google'
+    });
+    
+    // Add default layer
+    satelliteLayer.addTo(map);
+    
+    // Layer control
+    L.control.layers({
+        "Satelit": satelliteLayer,
+        "Peta": osmLayer,
+        "Hybrid": hybridLayer
+    }, null, { position: 'topright' }).addTo(map);
     
     // ODC marker (blue)
     const odcIcon = L.divIcon({
@@ -274,6 +299,8 @@ $(function() {
         ], {color: '#28a745', weight: 2}).addTo(map);
         @endif
     @endforeach
+    
+    setTimeout(function() { map.invalidateSize(); }, 200);
 });
 </script>
 <style>
@@ -283,4 +310,4 @@ $(function() {
     }
 </style>
 @endif
-@endsection
+@endpush

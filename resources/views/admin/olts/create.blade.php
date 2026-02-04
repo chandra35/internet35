@@ -485,12 +485,40 @@ $(function() {
         var lng = $('#longitude').val() || 106.8456;
         
         map = L.map('map').setView([lat, lng], 13);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        
+        // Define base layers - Google Satellite
+        var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
             attribution: '© OpenStreetMap'
-        }).addTo(map);
+        });
+        
+        var satelliteLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+            maxZoom: 20,
+            attribution: '© Google'
+        });
+        
+        var hybridLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+            maxZoom: 20,
+            attribution: '© Google'
+        });
+        
+        // Add default layer
+        satelliteLayer.addTo(map);
+        
+        // Layer control
+        L.control.layers({
+            "Satelit": satelliteLayer,
+            "Peta": osmLayer,
+            "Hybrid": hybridLayer
+        }, null, { position: 'topright' }).addTo(map);
 
         if ($('#latitude').val() && $('#longitude').val()) {
-            marker = L.marker([lat, lng]).addTo(map);
+            marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+            marker.on('dragend', function(e) {
+                var ll = e.target.getLatLng();
+                $('#latitude').val(ll.lat.toFixed(8));
+                $('#longitude').val(ll.lng.toFixed(8));
+            });
         }
 
         map.on('click', function(e) {
@@ -504,7 +532,12 @@ $(function() {
         if (marker) {
             map.removeLayer(marker);
         }
-        marker = L.marker([lat, lng]).addTo(map);
+        marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+        marker.on('dragend', function(e) {
+            var ll = e.target.getLatLng();
+            $('#latitude').val(ll.lat.toFixed(8));
+            $('#longitude').val(ll.lng.toFixed(8));
+        });
         $('#latitude').val(parseFloat(lat).toFixed(8));
         $('#longitude').val(parseFloat(lng).toFixed(8));
         map.setView([lat, lng], zoom || 16);

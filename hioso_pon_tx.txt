@@ -1,0 +1,12 @@
+=== Connected to Hioso ===
+
+--- show olt ---
+show olt
+% Command incomplete.
+EPON# 
+
+--- show olt optical-transceiver ---
+show olt optical-transceiver
+% [DEFAULT] Unknown command: show olt optical-transceiver
+EPON# 
+

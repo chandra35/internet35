@@ -13,7 +13,9 @@ class Odc extends Model
 
     protected $fillable = [
         'pop_id',
-        'router_id',
+        'olt_id',
+        'olt_pon_port',
+        'olt_slot',
         'name',
         'code',
         'latitude',
@@ -37,6 +39,8 @@ class Odc extends Model
         'used_ports' => 'integer',
         'cable_core' => 'integer',
         'cable_distance' => 'decimal:2',
+        'olt_pon_port' => 'integer',
+        'olt_slot' => 'integer',
     ];
 
     /**
@@ -125,9 +129,16 @@ class Odc extends Model
         return $this->belongsTo(User::class, 'pop_id');
     }
 
-    public function router()
+    public function olt()
     {
-        return $this->belongsTo(Router::class);
+        return $this->belongsTo(Olt::class);
+    }
+
+    public function ponPort()
+    {
+        return $this->belongsTo(OltPonPort::class, 'olt_id', 'olt_id')
+            ->where('port', $this->olt_pon_port)
+            ->where('slot', $this->olt_slot);
     }
 
     public function odps()
@@ -153,9 +164,9 @@ class Odc extends Model
         return $query->where('pop_id', $popId);
     }
 
-    public function scopeForRouter($query, $routerId)
+    public function scopeForOlt($query, $oltId)
     {
-        return $query->where('router_id', $routerId);
+        return $query->where('olt_id', $oltId);
     }
 
     public function scopeWithCoordinates($query)

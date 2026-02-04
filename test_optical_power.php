@@ -1,67 +1,81 @@
 <?php
-/**
- * Test VSOL V1600D Optical Power OIDs
- */
+// Test Hioso Optical DDM Commands
 
-ini_set('display_errors', 0);
-error_reporting(0);
-snmp_set_quick_print(true);
-snmp_set_valueretrieval(SNMP_VALUE_PLAIN);
+$host = '172.16.16.4';
+$username = 'admin';
+$password = 'admin';
 
-$ip = '172.16.16.3';
-$community = 'private';
+echo "=== Hioso Optical DDM Test ===\n\n";
 
-echo "=== VSOL V1600D Optical Power Test ===\n\n";
+$sock = @fsockopen($host, 23, $errno, $errstr, 5);
+if (!$sock) die("Connection failed\n");
 
-// Test berbagai OID untuk optical power
-$testOids = [
-    // MIB opmDiagInfo (.12.2.1.8)
-    'opmDiag.txPower' => '1.3.6.1.4.1.37950.1.1.5.12.2.1.8.1.6',
-    'opmDiag.rxPower' => '1.3.6.1.4.1.37950.1.1.5.12.2.1.8.1.7',
-    
-    // onuOpmDiag (.12.2.1.13)
-    'onuOpmDiag.txPower' => '1.3.6.1.4.1.37950.1.1.5.12.2.1.13.1.6',
-    'onuOpmDiag.rxPower' => '1.3.6.1.4.1.37950.1.1.5.12.2.1.13.1.7',
-    
-    // Try onuStatisticsTable (.12.1.20)
-    'onuStat.5' => '1.3.6.1.4.1.37950.1.1.5.12.1.20.1.5',
-    'onuStat.6' => '1.3.6.1.4.1.37950.1.1.5.12.1.20.1.6',
-    
-    // PON Port
-    'ponPort.10' => '1.3.6.1.4.1.37950.1.1.5.11.1.1.1.10',
-    'ponPort.11' => '1.3.6.1.4.1.37950.1.1.5.11.1.1.1.11',
-];
+stream_set_timeout($sock, 30);
 
-foreach ($testOids as $name => $oid) {
-    $data = @snmpwalkoid($ip, $community, $oid, 2000000, 1);
-    if ($data && count($data) > 0) {
-        echo "OK $name: " . count($data) . " entries\n";
-        $i = 0;
-        foreach ($data as $o => $val) {
-            if ($i++ < 2) {
-                preg_match('/\.(\d+(?:\.\d+)*)$/', $o, $m);
-                echo "   .{$m[1]} = $val\n";
-            }
-        }
-    } else {
-        echo "-- $name: No data\n";
+function rd($sock, $wait = 3) {
+    $buf = '';
+    $end = time() + $wait;
+    while (time() < $end) {
+        $c = @fread($sock, 1024);
+        if ($c) $buf .= $c;
+        else usleep(100000);
+        if (preg_match('/EPON[#>]\s*$/', $buf)) break;
     }
+    return $buf;
 }
 
-// Quick test parent
-echo "\n=== Quick scan onuSla (.12.2) ===\n";
-$data = @snmpwalkoid($ip, $community, '1.3.6.1.4.1.37950.1.1.5.12.2', 5000000, 1);
-if ($data) {
-    echo "Found " . count($data) . " entries under .12.2\n";
-    $i = 0;
-    foreach ($data as $o => $val) {
-        if ($i++ < 10) {
-            $short = preg_replace('/^.*37950\.1\.1\.5\./', '.', $o);
-            echo "  $short = " . substr($val, 0, 40) . "\n";
+// Login
+rd($sock, 5);
+fwrite($sock, "$username\r\n"); usleep(500000);
+rd($sock, 2);
+fwrite($sock, "$password\r\n"); usleep(500000);
+rd($sock, 3);
+fwrite($sock, "enable\r\n"); usleep(500000);
+rd($sock, 2);
+
+echo "Logged in\n\n";
+
+// Test: show epon 0/1 optical-ddm (per port)
+echo "=== show epon 0/1 optical-ddm ===\n";
+fwrite($sock, "show epon 0/1 optical-ddm\r\n");
+usleep(2000000);
+
+$out = '';
+$end = time() + 10;
+while (time() < $end) {
+    $c = @fread($sock, 4096);
+    if ($c) {
+        $out .= $c;
+        if (strpos($out, '--More--') !== false) {
+            fwrite($sock, " ");
+            $out = str_replace('--More--', '', $out);
         }
+        if (preg_match('/EPON#\s*$/', $out)) break;
     }
-} else {
-    echo "No data under .12.2\n";
+    usleep(100000);
 }
 
-echo "\nDone.\n";
+echo str_replace("\r", "", $out) . "\n\n";
+
+// Test: show onu optical-ddm epon 0/1 1 (per ONU)
+echo "=== show onu optical-ddm epon 0/1 1 ===\n";
+fwrite($sock, "show onu optical-ddm epon 0/1 1\r\n");
+usleep(2000000);
+
+$out = '';
+$end = time() + 5;
+while (time() < $end) {
+    $c = @fread($sock, 4096);
+    if ($c) {
+        $out .= $c;
+        if (preg_match('/EPON#\s*$/', $out)) break;
+    }
+    usleep(100000);
+}
+
+echo str_replace("\r", "", $out) . "\n";
+
+fwrite($sock, "exit\r\n");
+fclose($sock);
+
+echo "\nDone!\n";

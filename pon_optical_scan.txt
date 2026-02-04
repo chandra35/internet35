@@ -1,0 +1,101 @@
+﻿
+============================================================
+OLT: Hioso (172.16.16.4)
+============================================================
+
+--- Trying: hioso_pon_tx_power (1.3.6.1.4.1.25355.2.3.4.1.1.1.1) ---
+  (no data)
+
+--- Trying: hioso_pon_optical (1.3.6.1.4.1.25355.2.3.4.1.2) ---
+  (no data)
+
+--- Trying: hioso_sfp_info (1.3.6.1.4.1.25355.2.3.4.1.3) ---
+  (no data)
+
+--- Trying: hioso_pon_diag (1.3.6.1.4.1.25355.2.3.4.1.4) ---
+  (no data)
+
+--- Trying: hioso17409_pon (1.3.6.1.4.1.17409.2.3.4.1.1.1.1) ---
+  (no data)
+
+--- Trying: hioso17409_optical (1.3.6.1.4.1.17409.2.3.4.1.2) ---
+  (no data)
+
+--- Trying: hioso17409_sfp (1.3.6.1.4.1.17409.2.3.4.1.3) ---
+  (no data)
+
+--- Trying: vsol_pon_port (1.3.6.1.4.1.37950.1.1.5.11.1.1.1) ---
+  (no data)
+
+--- Trying: vsol_pon_optical (1.3.6.1.4.1.37950.1.1.5.11.1.2) ---
+  (no data)
+
+--- Trying: vsol_sfp (1.3.6.1.4.1.37950.1.1.5.11.2) ---
+  (no data)
+
+--- Trying: vsol_pon_diag (1.3.6.1.4.1.37950.1.1.5.11.3) ---
+  (no data)
+
+--- Trying: vsol_optical (1.3.6.1.4.1.37950.1.1.5.13) ---
+  (no data)
+
+--- Trying: entity_physical (1.3.6.1.2.1.47.1.1.1.1) ---
+  (no data)
+
+--- Trying: entity_sensor (1.3.6.1.2.1.99.1.1.1) ---
+  (no data)
+
+--- Trying: ifMIB (1.3.6.1.2.1.31.1.1.1) ---
+  (no data)
+
+============================================================
+OLT: VSOL (172.16.16.3)
+============================================================
+
+--- Trying: hioso_pon_tx_power (1.3.6.1.4.1.25355.2.3.4.1.1.1.1) ---
+  (no data)
+
+--- Trying: hioso_pon_optical (1.3.6.1.4.1.25355.2.3.4.1.2) ---
+  (no data)
+
+--- Trying: hioso_sfp_info (1.3.6.1.4.1.25355.2.3.4.1.3) ---
+  (no data)
+
+--- Trying: hioso_pon_diag (1.3.6.1.4.1.25355.2.3.4.1.4) ---
+  (no data)
+
+--- Trying: hioso17409_pon (1.3.6.1.4.1.17409.2.3.4.1.1.1.1) ---
+  (no data)
+
+--- Trying: hioso17409_optical (1.3.6.1.4.1.17409.2.3.4.1.2) ---
+  (no data)
+
+--- Trying: hioso17409_sfp (1.3.6.1.4.1.17409.2.3.4.1.3) ---
+  (no data)
+
+--- Trying: vsol_pon_port (1.3.6.1.4.1.37950.1.1.5.11.1.1.1) ---
+  (no data)
+
+--- Trying: vsol_pon_optical (1.3.6.1.4.1.37950.1.1.5.11.1.2) ---
+  (no data)
+
+--- Trying: vsol_sfp (1.3.6.1.4.1.37950.1.1.5.11.2) ---
+  (no data)
+
+--- Trying: vsol_pon_diag (1.3.6.1.4.1.37950.1.1.5.11.3) ---
+  (no data)
+
+--- Trying: vsol_optical (1.3.6.1.4.1.37950.1.1.5.13) ---
+  (no data)
+
+--- Trying: entity_physical (1.3.6.1.2.1.47.1.1.1.1) ---
+  (no data)
+
+--- Trying: entity_sensor (1.3.6.1.2.1.99.1.1.1) ---
+  (no data)
+
+--- Trying: ifMIB (1.3.6.1.2.1.31.1.1.1) ---
+  (no data)
+
+
+Done!

@@ -125,6 +125,7 @@ class HiosoHelper extends BaseOltHelper
 
     /**
      * Get enterprise ID for this OLT
+     * Uses cached value if available, otherwise detects via SNMP with short timeout
      */
     protected function getEnterpriseId(): string
     {
@@ -132,21 +133,57 @@ class HiosoHelper extends BaseOltHelper
             return $this->enterpriseId;
         }
 
-        // Detect from sysObjectID
+        // Check if already stored in OLT internal_notes (cached)
+        if ($this->olt->internal_notes) {
+            $notes = json_decode($this->olt->internal_notes, true);
+            if (isset($notes['enterprise_id'])) {
+                $this->enterpriseId = $notes['enterprise_id'];
+                return $this->enterpriseId;
+            }
+        }
+
+        // Detect from sysObjectID with short timeout
         try {
+            // Use shorter timeout for enterprise detection
+            $oldTimeout = $this->snmpTimeout;
+            $this->snmpTimeout = 2; // 2 seconds max
+            
             $sysObjectId = $this->snmpGet($this->commonOids['sysObjectID']);
+            
+            $this->snmpTimeout = $oldTimeout;
+            
             if ($sysObjectId && preg_match('/(?:iso|\.?1)\.3\.6\.1\.4\.1\.(\d+)/', $sysObjectId, $matches)) {
                 $this->enterpriseId = $matches[1];
                 Log::info("Hioso OLT {$this->olt->name} detected enterprise ID: {$this->enterpriseId}");
+                
+                // Cache to OLT internal_notes
+                $this->cacheEnterpriseId($this->enterpriseId);
+                
                 return $this->enterpriseId;
             }
         } catch (\Exception $e) {
             Log::warning("Failed to detect enterprise ID: " . $e->getMessage());
         }
 
-        // Default to standard Hioso
-        $this->enterpriseId = self::ENTERPRISE_HIOSO;
+        // Default to Haishuo (25355) which uses Telnet - safer fallback
+        $this->enterpriseId = self::ENTERPRISE_HAISHUO;
+        $this->cacheEnterpriseId($this->enterpriseId);
+        
         return $this->enterpriseId;
+    }
+    
+    /**
+     * Cache enterprise ID to OLT internal_notes
+     */
+    protected function cacheEnterpriseId(string $enterpriseId): void
+    {
+        try {
+            $notes = $this->olt->internal_notes ? json_decode($this->olt->internal_notes, true) : [];
+            $notes['enterprise_id'] = $enterpriseId;
+            $this->olt->update(['internal_notes' => json_encode($notes)]);
+        } catch (\Exception $e) {
+            // Ignore cache errors
+        }
     }
 
     /**
@@ -299,37 +336,98 @@ class HiosoHelper extends BaseOltHelper
 
     /**
      * Get PON ports info
+     * Uses SNMP enterprise OIDs, falls back to ifDescr detection
      */
     public function getPonPorts(): array
     {
         $ports = [];
 
         try {
+            // Try SNMP enterprise OIDs first
             $adminStatuses = $this->snmpWalk($this->getOid('ponPortAdmin'));
             $operStatuses = $this->snmpWalk($this->getOid('ponPortOper'));
 
-            foreach ($adminStatuses as $oid => $adminStatus) {
-                preg_match('/\.(\d+)\.(\d+)$/', $oid, $matches);
-                if (count($matches) < 3) continue;
+            if (!empty($adminStatuses)) {
+                foreach ($adminStatuses as $oid => $adminStatus) {
+                    preg_match('/\.(\d+)\.(\d+)$/', $oid, $matches);
+                    if (count($matches) < 3) continue;
 
-                $slot = (int) $matches[1];
-                $port = (int) $matches[2];
-                $index = "{$slot}.{$port}";
+                    $slot = (int) $matches[1];
+                    $port = (int) $matches[2];
+                    $index = "{$slot}.{$port}";
 
-                $ports[] = [
-                    'slot' => $slot,
-                    'port' => $port,
-                    'admin_status' => $adminStatus == 1 ? 'enabled' : 'disabled',
-                    'status' => ($operStatuses[$this->getOid('ponPortOper') . ".{$index}"] ?? 0) == 1 ? 'up' : 'down',
-                ];
+                    $ports[] = [
+                        'slot' => $slot,
+                        'port' => $port,
+                        'admin_status' => $adminStatus == 1 ? 'enabled' : 'disabled',
+                        'status' => ($operStatuses[$this->getOid('ponPortOper') . ".{$index}"] ?? 0) == 1 ? 'up' : 'down',
+                    ];
 
-                $this->updatePonPort($slot, $port, end($ports));
+                    $this->updatePonPort($slot, $port, end($ports));
+                }
+            }
+            
+            // Fallback: detect PON ports from ifDescr
+            if (empty($ports)) {
+                Log::info("Hioso: SNMP PON ports empty, detecting from ifDescr");
+                $ports = $this->detectPonPortsFromInterfaces();
             }
 
         } catch (Exception $e) {
             Log::error("Hioso getPonPorts error: " . $e->getMessage());
+            
+            // Try fallback
+            try {
+                $ports = $this->detectPonPortsFromInterfaces();
+            } catch (Exception $e2) {
+                Log::error("Hioso getPonPorts fallback error: " . $e2->getMessage());
+            }
         }
 
+        return $ports;
+    }
+
+    /**
+     * Detect PON ports from interface descriptions (ifDescr)
+     */
+    protected function detectPonPortsFromInterfaces(): array
+    {
+        $ports = [];
+        
+        $ifDescrs = $this->snmpWalk('1.3.6.1.2.1.2.2.1.2'); // ifDescr
+        
+        foreach ($ifDescrs as $oid => $name) {
+            $name = trim(str_replace(['"', "'"], '', $name));
+            
+            // Match PON interface names like: Pon-Nni1, EPON0/1, PON1, epon-0/1, etc.
+            // Use .*? to match any characters (including -Nni) before the port number
+            if (preg_match('/pon.*?(\d+)$/i', $name, $m)) {
+                $portNum = (int) $m[1];
+                $slot = 0;
+                
+                // Check for slot/port format (e.g., EPON0/1)
+                if (preg_match('/(\d+)\/(\d+)/', $name, $sp)) {
+                    $slot = (int) $sp[1];
+                    $portNum = (int) $sp[2];
+                }
+                
+                $ports[] = [
+                    'slot' => $slot,
+                    'port' => $portNum,
+                    'name' => $name,
+                    'admin_status' => 'enabled',
+                    'status' => 'up',
+                ];
+                
+                $this->updatePonPort($slot, $portNum, end($ports));
+            }
+        }
+        
+        // Sort by port number
+        usort($ports, fn($a, $b) => $a['port'] - $b['port']);
+        
+        Log::info("Hioso: Detected " . count($ports) . " PON ports from ifDescr");
+        
         return $ports;
     }
 
@@ -350,40 +448,58 @@ class HiosoHelper extends BaseOltHelper
 
     /**
      * Get all ONUs
+     * Tries SNMP first, falls back to Telnet if SNMP returns empty
      */
     public function getAllOnus(): array
     {
         $onus = [];
 
         try {
+            // Try SNMP first
             $serialNumbers = $this->snmpWalk($this->getOid('onuSerial'));
-            $statuses = $this->snmpWalk($this->getOid('onuStatus'));
-            $distances = $this->snmpWalk($this->getOid('onuDistance'));
+            
+            if (!empty($serialNumbers)) {
+                $statuses = $this->snmpWalk($this->getOid('onuStatus'));
+                $distances = $this->snmpWalk($this->getOid('onuDistance'));
 
-            foreach ($serialNumbers as $oid => $serialRaw) {
-                // Parse slot.port.onuid
-                preg_match('/\.(\d+)\.(\d+)\.(\d+)$/', $oid, $matches);
-                if (count($matches) < 4) continue;
+                foreach ($serialNumbers as $oid => $serialRaw) {
+                    // Parse slot.port.onuid
+                    preg_match('/\.(\d+)\.(\d+)\.(\d+)$/', $oid, $matches);
+                    if (count($matches) < 4) continue;
 
-                $slot = (int) $matches[1];
-                $port = (int) $matches[2];
-                $onuId = (int) $matches[3];
-                $index = "{$slot}.{$port}.{$onuId}";
+                    $slot = (int) $matches[1];
+                    $port = (int) $matches[2];
+                    $onuId = (int) $matches[3];
+                    $index = "{$slot}.{$port}.{$onuId}";
 
-                $status = $statuses[$this->getOid('onuStatus') . ".{$index}"] ?? 0;
+                    $status = $statuses[$this->getOid('onuStatus') . ".{$index}"] ?? 0;
 
-                $onus[] = [
-                    'slot' => $slot,
-                    'port' => $port,
-                    'onu_id' => $onuId,
-                    'serial_number' => $this->parseSerialNumber($serialRaw),
-                    'status' => $this->statusMap[$status] ?? 'unknown',
-                    'distance' => $this->parseDistance($distances[$this->getOid('onuDistance') . ".{$index}"] ?? null),
-                ];
+                    $onus[] = [
+                        'slot' => $slot,
+                        'port' => $port,
+                        'onu_id' => $onuId,
+                        'serial_number' => $this->parseSerialNumber($serialRaw),
+                        'status' => $this->statusMap[$status] ?? 'unknown',
+                        'distance' => $this->parseDistance($distances[$this->getOid('onuDistance') . ".{$index}"] ?? null),
+                    ];
+                }
+            }
+
+            // Fallback to Telnet if SNMP returned empty
+            if (empty($onus)) {
+                Log::info("Hioso SNMP returned empty, trying Telnet fallback for {$this->olt->name}");
+                $onus = $this->getAllOnusViaTelnet();
             }
 
         } catch (Exception $e) {
-            Log::error("Hioso getAllOnus error: " . $e->getMessage());
+            Log::error("Hioso getAllOnus SNMP error: " . $e->getMessage());
+            
+            // Try Telnet fallback on SNMP error
+            try {
+                $onus = $this->getAllOnusViaTelnet();
+            } catch (Exception $te) {
+                Log::error("Hioso getAllOnus Telnet fallback error: " . $te->getMessage());
+            }
         }
 
         return $onus;
@@ -422,10 +538,16 @@ class HiosoHelper extends BaseOltHelper
     }
 
     /**
-     * Get ONU optical info
+     * Get ONU optical info via SNMP, fallback to Telnet
+     * Note: Enterprise 25355 OLTs don't respond to SNMP enterprise OIDs, use Telnet directly
      */
     public function getOnuOpticalInfo(int $slot, int $port, int $onuId): array
     {
+        // For Enterprise 25355, skip SNMP and use Telnet directly (SNMP OIDs don't work)
+        if ($this->getEnterpriseId() === self::ENTERPRISE_HAISHUO) {
+            return $this->getOnuOpticalViaTelnet($slot, $port, $onuId);
+        }
+        
         $index = "{$slot}.{$port}.{$onuId}";
 
         $rxPower = $this->snmpGet($this->getOid('onuRxPower') . ".{$index}");
@@ -434,13 +556,75 @@ class HiosoHelper extends BaseOltHelper
         $temp = $this->snmpGet($this->getOid('onuTemperature') . ".{$index}");
         $volt = $this->snmpGet($this->getOid('onuVoltage') . ".{$index}");
 
-        return [
+        $result = [
             'rx_power' => $this->parseHiosoOpticalPower($rxPower),
             'tx_power' => $this->parseHiosoOpticalPower($txPower),
             'olt_rx_power' => $this->parseHiosoOpticalPower($oltRx),
             'temperature' => $temp ? ((float)$temp / 100) : null,
             'voltage' => $volt ? ((float)$volt / 1000) : null,
         ];
+        
+        // If SNMP returns no data, try Telnet
+        if ($result['rx_power'] === null && $result['tx_power'] === null) {
+            $telnetData = $this->getOnuOpticalViaTelnet($slot, $port, $onuId);
+            if (!empty($telnetData)) {
+                return $telnetData;
+            }
+        }
+        
+        return $result;
+    }
+    
+    /**
+     * Get single ONU optical data via Telnet
+     * Command: show onu optical-ddm epon 0/{port} {onuId}
+     * Note: Connection is kept open for reuse, caller should disconnect when done
+     */
+    protected function getOnuOpticalViaTelnet(int $slot, int $port, int $onuId): array
+    {
+        try {
+            $this->telnetConnect();
+            
+            $command = "show onu optical-ddm epon {$slot}/{$port} {$onuId}";
+            $output = $this->telnetCommand($command, 3);
+            
+            // DON'T disconnect here - keep connection for subsequent calls
+            // Caller should call telnetDisconnect() when done with batch operations
+            
+            // Parse format:
+            // Temperature  : 46.00 C
+            // Voltage      : 3.00  V
+            // TxBias       : 8.00  mA
+            // TxPower      : 2.22 dBm
+            // RxPower      : -14.60 dBm
+            
+            $data = [
+                'tx_power' => null,
+                'rx_power' => null,
+                'olt_rx_power' => null,
+                'temperature' => null,
+                'voltage' => null,
+            ];
+            
+            if (preg_match('/TxPower\s*:\s*(-?[\d.]+)/i', $output, $m)) {
+                $data['tx_power'] = (float) $m[1];
+            }
+            if (preg_match('/RxPower\s*:\s*(-?[\d.]+)/i', $output, $m)) {
+                $data['rx_power'] = (float) $m[1];
+            }
+            if (preg_match('/Temperature\s*:\s*(-?[\d.]+)/i', $output, $m)) {
+                $data['temperature'] = (float) $m[1];
+            }
+            if (preg_match('/Voltage\s*:\s*([\d.]+)/i', $output, $m)) {
+                $data['voltage'] = (float) $m[1];
+            }
+            
+            return $data;
+            
+        } catch (Exception $e) {
+            Log::error("Hioso: Failed to get optical via Telnet for ONU {$slot}/{$port}:{$onuId}: " . $e->getMessage());
+            return [];
+        }
     }
 
     /**
@@ -653,6 +837,7 @@ class HiosoHelper extends BaseOltHelper
 
     /**
      * Sync all ONU data
+     * For Hioso OLTs with Enterprise 25355, uses Telnet data directly
      */
     public function syncAll(): array
     {
@@ -665,20 +850,34 @@ class HiosoHelper extends BaseOltHelper
         ];
 
         try {
+            // Sync PON ports
             $this->getPonPorts();
             $result['pon_ports_synced'] = $this->olt->total_pon_ports;
 
+            // Get all ONUs (may come from SNMP or Telnet)
             $allOnus = $this->getAllOnus();
+            
+            // Check if data came from Telnet (has 'source' => 'telnet')
+            $isFromTelnet = !empty($allOnus) && isset($allOnus[0]['source']) && $allOnus[0]['source'] === 'telnet';
 
             foreach ($allOnus as $onuData) {
                 try {
-                    $fullInfo = $this->getOnuInfo($onuData['slot'], $onuData['port'], $onuData['onu_id']);
+                    // If data is from Telnet, it's already complete - use directly
+                    // If from SNMP, need to get additional info
+                    if ($isFromTelnet) {
+                        $fullInfo = $onuData;
+                    } else {
+                        $fullInfo = $this->getOnuInfo($onuData['slot'], $onuData['port'], $onuData['onu_id']);
+                    }
 
-                    $onu = $this->saveOnuToDatabase(array_merge($fullInfo, [
-                        'olt_id' => $this->olt->id,
-                        'config_status' => 'registered',
-                    ]));
+                    // Ensure required fields
+                    $fullInfo['olt_id'] = $this->olt->id;
+                    $fullInfo['config_status'] = 'registered';
+                    
+                    // Save to database
+                    $onu = $this->saveOnuToDatabase($fullInfo);
 
+                    // Save signal history (optical data may be empty for Telnet)
                     $this->saveSignalHistory($onu, $fullInfo);
 
                     $result['onus_synced']++;
@@ -688,6 +887,9 @@ class HiosoHelper extends BaseOltHelper
                     $result['errors'][] = "ONU {$onuData['slot']}/{$onuData['port']}:{$onuData['onu_id']}: " . $e->getMessage();
                 }
             }
+
+            // Update PON port stats from synced ONU data
+            $this->updatePonPortStats($allOnus);
 
             $this->olt->update([
                 'last_sync_at' => now(),
@@ -703,6 +905,45 @@ class HiosoHelper extends BaseOltHelper
     }
 
     /**
+     * Update PON port statistics from ONU data
+     */
+    protected function updatePonPortStats(array $onus): void
+    {
+        $portStats = [];
+        
+        foreach ($onus as $onu) {
+            $key = "{$onu['slot']}.{$onu['port']}";
+            
+            if (!isset($portStats[$key])) {
+                $portStats[$key] = [
+                    'slot' => $onu['slot'],
+                    'port' => $onu['port'],
+                    'total_onus' => 0,
+                    'online_onus' => 0,
+                    'offline_onus' => 0,
+                ];
+            }
+            
+            $portStats[$key]['total_onus']++;
+            
+            if ($onu['status'] === 'online') {
+                $portStats[$key]['online_onus']++;
+            } else {
+                $portStats[$key]['offline_onus']++;
+            }
+        }
+        
+        foreach ($portStats as $stats) {
+            $this->updatePonPort($stats['slot'], $stats['port'], [
+                'total_onus' => $stats['total_onus'],
+                'online_onus' => $stats['online_onus'],
+                'offline_onus' => $stats['offline_onus'],
+                'status' => 'up',
+            ]);
+        }
+    }
+
+    /**
      * Get next available ONU ID
      */
     protected function getNextOnuId(int $slot, int $port): int
@@ -715,5 +956,772 @@ class HiosoHelper extends BaseOltHelper
         }
 
         throw new Exception("No available ONU ID on port {$slot}/{$port}");
+    }
+
+    // ========================================
+    // TELNET METHODS (Fallback for Enterprise 25355 OLTs)
+    // ========================================
+
+    /**
+     * Telnet connection resource
+     */
+    protected $telnetSocket = null;
+
+    /**
+     * Get all ONUs via Telnet with optical data
+     * Command: show onu info epon 0/{port} all
+     * Optical data can be skipped for faster sync (default: skip for speed)
+     * 
+     * @param bool $includeOptical Whether to include optical DDM data (slower)
+     */
+    protected function getAllOnusViaTelnet(bool $includeOptical = false): array
+    {
+        $onus = [];
+
+        try {
+            $this->telnetConnect();
+            
+            // Query each PON port
+            $totalPorts = $this->olt->total_pon_ports ?? 4;
+            
+            for ($port = 1; $port <= $totalPorts; $port++) {
+                // Get ONU basic info
+                $portOnus = $this->getOnuInfoViaTelnet(0, $port);
+                
+                // Only query optical if explicitly requested (slow - ~1 sec per ONU)
+                if ($includeOptical) {
+                    // Collect ONLINE ONU IDs for optical query
+                    $onlineOnuIds = [];
+                    foreach ($portOnus as $onu) {
+                        if (($onu['status'] ?? 'offline') === 'online') {
+                            $onlineOnuIds[] = $onu['onu_id'];
+                        }
+                    }
+                    
+                    // Get optical data only for ONLINE ONUs
+                    if (!empty($onlineOnuIds)) {
+                        Log::info("Hioso: Querying optical for " . count($onlineOnuIds) . " online ONUs on port 0/{$port}");
+                        $opticalData = $this->getPortOpticalViaTelnet(0, $port, $onlineOnuIds);
+                        
+                        // Merge optical data into ONU info
+                        foreach ($portOnus as &$onu) {
+                            $onuId = $onu['onu_id'];
+                            if (isset($opticalData[$onuId])) {
+                                $onu = array_merge($onu, $opticalData[$onuId]);
+                            }
+                        }
+                        unset($onu);
+                    }
+                }
+                
+                $onus = array_merge($onus, $portOnus);
+            }
+            
+            $this->telnetDisconnect();
+            
+        } catch (Exception $e) {
+            Log::error("Hioso Telnet getAllOnus error: " . $e->getMessage());
+            $this->telnetDisconnect();
+        }
+
+        return $onus;
+    }
+
+    /**
+     * Get optical DDM data for all ONUs in a port via Telnet
+     * Note: Hioso requires per-ONU query which is slow
+     * Command: show onu optical-ddm epon 0/{port} {onuId}
+     * 
+     * For bulk sync, we query only ONLINE ONUs to save time
+     * Returns array keyed by onu_id
+     */
+    protected function getPortOpticalViaTelnet(int $slot, int $port, array $onuIds = []): array
+    {
+        $optical = [];
+        
+        // If no ONU IDs provided, skip (caller should provide list of online ONUs)
+        if (empty($onuIds)) {
+            return $optical;
+        }
+        
+        foreach ($onuIds as $onuId) {
+            $command = "show onu optical-ddm epon {$slot}/{$port} {$onuId}";
+            $output = $this->telnetCommand($command, 3);
+            
+            // Parse format:
+            // Temperature  : 46.00 C
+            // Voltage      : 3.00  V
+            // TxBias       : 8.00  mA
+            // TxPower      : 2.22 dBm
+            // RxPower      : -14.60 dBm
+            
+            $data = [
+                'tx_power' => null,
+                'rx_power' => null,
+                'olt_rx_power' => null,
+                'temperature' => null,
+                'voltage' => null,
+            ];
+            
+            if (preg_match('/TxPower\s*:\s*(-?[\d.]+)/i', $output, $m)) {
+                $data['tx_power'] = (float) $m[1];
+            }
+            if (preg_match('/RxPower\s*:\s*(-?[\d.]+)/i', $output, $m)) {
+                $data['rx_power'] = (float) $m[1];
+            }
+            if (preg_match('/Temperature\s*:\s*(-?[\d.]+)/i', $output, $m)) {
+                $data['temperature'] = (float) $m[1];
+            }
+            if (preg_match('/Voltage\s*:\s*([\d.]+)/i', $output, $m)) {
+                $data['voltage'] = (float) $m[1];
+            }
+            
+            // Only store if we got at least one value
+            if ($data['tx_power'] !== null || $data['rx_power'] !== null) {
+                $optical[$onuId] = $data;
+            }
+        }
+        
+        Log::info("Hioso: Got optical data for " . count($optical) . " ONUs on port {$slot}/{$port}");
+        
+        return $optical;
+    }
+
+    /**
+     * Get ONU info for a specific port via Telnet
+     */
+    protected function getOnuInfoViaTelnet(int $slot, int $port): array
+    {
+        $onus = [];
+        
+        $command = "show onu info epon {$slot}/{$port} all";
+        $output = $this->telnetCommand($command, 10);
+        
+        // Parse output
+        // Format: OnuId  MacAddress        Status  Firmware ChipId Ge Fe Pots CtcStatus CtcVer Activate Uptime Name
+        //         0/1:1  08:5c:1b:de:39:dd Down    3230     6301   4  2  1    --        30     Yes      0H0M0S Jani-28
+        
+        $lines = explode("\n", $output);
+        
+        foreach ($lines as $line) {
+            $line = trim($line);
+            
+            // Skip header and empty lines
+            if (empty($line) || strpos($line, 'OnuId') === 0 || strpos($line, '===') === 0) {
+                continue;
+            }
+            
+            // Match ONU line: slot/port:onuId MAC Status ...
+            if (preg_match('/^(\d+)\/(\d+):(\d+)\s+([0-9a-f:]+)\s+(\w+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\S+)\s+\S+\s+\w+\s+(\S+)\s*(.*)?$/i', $line, $matches)) {
+                $onuSlot = (int) $matches[1];
+                $onuPort = (int) $matches[2];
+                $onuId = (int) $matches[3];
+                $macAddress = strtoupper($matches[4]);
+                $statusRaw = $matches[5];
+                $firmware = $matches[6];
+                $chipId = $matches[7];
+                $geCount = (int) $matches[8];
+                $feCount = (int) $matches[9];
+                $potsCount = (int) $matches[10];
+                $ctcStatus = $matches[11];
+                $uptime = $matches[12];
+                $name = trim($matches[13] ?? '');
+                
+                // Parse uptime to seconds (format: 1D17H50M44S or 0H0M0S)
+                $uptimeSeconds = $this->parseHiosoUptime($uptime);
+                
+                $onus[] = [
+                    'slot' => $onuSlot,
+                    'port' => $onuPort,
+                    'onu_id' => $onuId,
+                    'mac_address' => $macAddress,
+                    'serial_number' => str_replace(':', '', $macAddress), // Use MAC as serial for Hioso
+                    'status' => strtolower($statusRaw) === 'up' ? 'online' : 'offline',
+                    'firmware' => $firmware,
+                    'chip_id' => $chipId,
+                    'ge_ports' => $geCount,
+                    'fe_ports' => $feCount,
+                    'pots_ports' => $potsCount,
+                    'ctc_status' => $ctcStatus,
+                    'uptime_seconds' => $uptimeSeconds,
+                    'description' => $name,
+                    'source' => 'telnet',
+                ];
+            }
+        }
+        
+        Log::info("Hioso Telnet: Found " . count($onus) . " ONUs on port {$slot}/{$port}");
+        
+        return $onus;
+    }
+
+    /**
+     * Parse Hioso uptime string to seconds
+     * Format: 1D17H50M44S, 0H0M0S, 18D1H19M53S
+     */
+    protected function parseHiosoUptime(string $uptime): int
+    {
+        $seconds = 0;
+        
+        if (preg_match('/(\d+)D/i', $uptime, $m)) {
+            $seconds += (int) $m[1] * 86400;
+        }
+        if (preg_match('/(\d+)H/i', $uptime, $m)) {
+            $seconds += (int) $m[1] * 3600;
+        }
+        if (preg_match('/(\d+)M/i', $uptime, $m)) {
+            $seconds += (int) $m[1] * 60;
+        }
+        if (preg_match('/(\d+)S/i', $uptime, $m)) {
+            $seconds += (int) $m[1];
+        }
+        
+        return $seconds;
+    }
+
+    /**
+     * Get PON port optical DDM (Digital Diagnostic Monitoring) via Telnet
+     * Reads TX Power, RX Power, Temperature, Voltage from OLT SFP transceiver
+     * 
+     * @return array Array of PON ports with optical DDM data
+     */
+    public function getPonOpticalPower(): array
+    {
+        $result = [];
+        
+        try {
+            // Get PON ports from database
+            $ponPorts = \App\Models\OltPonPort::where('olt_id', $this->olt->id)
+                ->orderBy('slot')
+                ->orderBy('port')
+                ->get();
+            
+            if ($ponPorts->isEmpty()) {
+                // Use default 4 PON ports for Hioso (typical for HA7304)
+                $ports = [];
+                for ($i = 1; $i <= 4; $i++) {
+                    $ports[] = ['slot' => 0, 'port' => $i, 'name' => "PON 0/{$i}"];
+                }
+            } else {
+                $ports = $ponPorts->map(function($p) {
+                    return ['slot' => $p->slot, 'port' => $p->port, 'name' => $p->name ?? "PON {$p->slot}/{$p->port}"];
+                })->toArray();
+            }
+            
+            // Get optical DDM via dedicated connection
+            $result = $this->getOpticalDdmViaTelnet($ports);
+            
+        } catch (\Exception $e) {
+            Log::error("Hioso getPonOpticalPower error: " . $e->getMessage());
+        }
+        
+        return $result;
+    }
+    
+    /**
+     * Get optical DDM data for all PON ports via single Telnet session
+     */
+    protected function getOpticalDdmViaTelnet(array $ports): array
+    {
+        $result = [];
+        $socket = null;
+        
+        try {
+            $ip = $this->olt->ip_address;
+            $username = $this->olt->telnet_username ?? 'admin';
+            $password = $this->olt->telnet_password ?? 'admin';
+            
+            // Connect
+            $socket = @fsockopen($ip, 23, $errno, $errstr, 10);
+            if (!$socket) {
+                throw new \Exception("Cannot connect to {$ip}: {$errstr}");
+            }
+            
+            stream_set_timeout($socket, 10);
+            
+            // Helper to read until pattern
+            $readUntil = function($patterns, $timeout = 5) use ($socket) {
+                $start = time();
+                $buffer = '';
+                while (time() - $start < $timeout) {
+                    $chunk = @fread($socket, 1024);
+                    if ($chunk) {
+                        $buffer .= $chunk;
+                        foreach ((array)$patterns as $p) {
+                            if (stripos($buffer, $p) !== false) return $buffer;
+                        }
+                    }
+                    usleep(50000);
+                }
+                return $buffer;
+            };
+            
+            // Login
+            $readUntil(['login:', 'Username:'], 10);
+            fwrite($socket, "{$username}\r\n");
+            usleep(200000);
+            
+            $readUntil(['Password:'], 5);
+            fwrite($socket, "{$password}\r\n");
+            usleep(200000);
+            
+            $readUntil(['>', '#', 'EPON'], 5);
+            fwrite($socket, "enable\r\n");
+            usleep(200000);
+            
+            $buf = $readUntil(['#', 'Password:'], 3);
+            if (stripos($buf, 'Password') !== false) {
+                fwrite($socket, "{$password}\r\n");
+                usleep(200000);
+                $readUntil(['#'], 3);
+            }
+            
+            // Execute DDM command for each port
+            foreach ($ports as $port) {
+                $slot = $port['slot'];
+                $portNum = $port['port'];
+                $portName = $port['name'];
+                
+                fwrite($socket, "show epon {$slot}/{$portNum} optical-ddm\r\n");
+                usleep(500000);
+                
+                $output = $readUntil(['EPON#'], 5);
+                
+                // Parse DDM output
+                $txPower = null;
+                $rxPower = null;
+                $temperature = null;
+                $voltage = null;
+                $txBias = null;
+                
+                if (preg_match('/TxPower\s*:\s*([\-\d\.]+)\s*dBm/i', $output, $m)) {
+                    $txPower = floatval($m[1]);
+                }
+                if (preg_match('/RxPower\s*:\s*([\-\d\.]+)\s*dBm/i', $output, $m)) {
+                    $rxPower = floatval($m[1]);
+                }
+                if (preg_match('/Temperature\s*:\s*([\-\d\.]+)\s*C/i', $output, $m)) {
+                    $temperature = floatval($m[1]);
+                }
+                if (preg_match('/Voltage\s*:\s*([\-\d\.]+)\s*V/i', $output, $m)) {
+                    $voltage = floatval($m[1]);
+                }
+                if (preg_match('/TxBias\s*:\s*([\-\d\.]+)\s*mA/i', $output, $m)) {
+                    $txBias = floatval($m[1]);
+                }
+                
+                // Determine signal quality based on TX power
+                $signalQuality = 'unknown';
+                if ($txPower !== null) {
+                    if ($txPower >= 0 && $txPower <= 10) {
+                        $signalQuality = 'excellent';
+                    } elseif ($txPower >= -3 && $txPower < 0) {
+                        $signalQuality = 'good';
+                    } elseif ($txPower >= -6 && $txPower < -3) {
+                        $signalQuality = 'acceptable';
+                    } elseif ($txPower < -6 || $txPower > 10) {
+                        $signalQuality = 'warning';
+                    }
+                }
+                
+                $result[] = [
+                    'slot' => $slot,
+                    'port' => $portNum,
+                    'name' => $portName,
+                    'tx_power' => $txPower,
+                    'rx_power' => $rxPower,
+                    'temperature' => $temperature,
+                    'voltage' => $voltage,
+                    'tx_bias' => $txBias,
+                    'signal_quality' => $signalQuality,
+                    'tx_power_formatted' => $txPower !== null ? $txPower . ' dBm' : '-',
+                    'rx_power_formatted' => $rxPower !== null ? $rxPower . ' dBm' : '-',
+                    'temperature_formatted' => $temperature !== null ? $temperature . ' °C' : '-',
+                    'voltage_formatted' => $voltage !== null ? $voltage . ' V' : '-',
+                    'tx_bias_formatted' => $txBias !== null ? $txBias . ' mA' : '-',
+                ];
+            }
+            
+            // Logout
+            @fwrite($socket, "exit\r\n");
+            @fclose($socket);
+            
+        } catch (\Exception $e) {
+            if ($socket) {
+                @fclose($socket);
+            }
+            Log::error("Hioso getOpticalDdmViaTelnet error: " . $e->getMessage());
+        }
+        
+        return $result;
+    }
+
+    /**
+     * Connect via Telnet
+     */
+    protected function telnetConnect(): void
+    {
+        if ($this->telnetSocket) {
+            return; // Already connected
+        }
+
+        $ip = $this->olt->ip_address;
+        $port = $this->olt->telnet_port ?? 23;
+        $username = $this->olt->telnet_username ?? 'admin';
+        $password = $this->olt->telnet_password ?? 'admin';
+
+        $this->telnetSocket = @fsockopen($ip, $port, $errno, $errstr, 10);
+        
+        if (!$this->telnetSocket) {
+            throw new Exception("Telnet connection failed: {$errstr}");
+        }
+
+        stream_set_timeout($this->telnetSocket, 30);
+
+        // Wait for login prompt
+        $this->telnetReadUntil(['login:', 'Username:', 'user:'], 10);
+        
+        // Send username
+        $this->telnetWrite($username);
+        
+        // Wait for password prompt
+        $this->telnetReadUntil(['Password:', 'assword'], 5);
+        
+        // Send password
+        $this->telnetWrite($password);
+        
+        // Wait for prompt
+        $response = $this->telnetReadUntil(['>', '#', 'EPON'], 5);
+        
+        if (stripos($response, 'failed') !== false || stripos($response, 'incorrect') !== false) {
+            $this->telnetDisconnect();
+            throw new Exception("Telnet login failed");
+        }
+
+        // Enter privileged mode
+        $this->telnetWrite('enable');
+        $this->telnetReadUntil(['#', 'Password:'], 3);
+        
+        // If enable password needed, try with same password
+        if ($this->telnetSocket) {
+            $info = stream_get_meta_data($this->telnetSocket);
+            if (!$info['timed_out']) {
+                // Check if we got password prompt
+                $buf = @fread($this->telnetSocket, 1024);
+                if (stripos($buf, 'password') !== false) {
+                    $this->telnetWrite($password);
+                    $this->telnetReadUntil(['#'], 3);
+                }
+            }
+        }
+
+        Log::info("Hioso Telnet connected to {$ip}");
+    }
+
+    /**
+     * Disconnect Telnet
+     */
+    protected function telnetDisconnect(): void
+    {
+        if ($this->telnetSocket) {
+            @fwrite($this->telnetSocket, "exit\r\n");
+            usleep(100000);
+            @fwrite($this->telnetSocket, "exit\r\n");
+            usleep(100000);
+            @fclose($this->telnetSocket);
+            $this->telnetSocket = null;
+        }
+    }
+
+    /**
+     * Send command via Telnet
+     */
+    protected function telnetCommand(string $command, int $timeout = 5): string
+    {
+        if (!$this->telnetSocket) {
+            throw new Exception("Telnet not connected");
+        }
+
+        $this->telnetWrite($command);
+        
+        $output = '';
+        $start = time();
+        
+        while (time() - $start < $timeout) {
+            $chunk = @fread($this->telnetSocket, 4096);
+            
+            if ($chunk) {
+                $output .= $chunk;
+                
+                // Handle pagination
+                if (stripos($output, '--More--') !== false || stripos($output, '--- Enter Key') !== false) {
+                    fwrite($this->telnetSocket, " "); // Space to continue
+                    $output = preg_replace('/--More--/', '', $output);
+                    $output = preg_replace('/--- Enter Key.*----/', '', $output);
+                }
+                
+                // Check for prompt return
+                if (preg_match('/EPON[#>]\s*$/', $output)) {
+                    break;
+                }
+            }
+            
+            usleep(100000);
+        }
+        
+        // Clean output
+        $output = str_replace("\r", "", $output);
+        
+        // Remove command echo and prompt
+        $lines = explode("\n", $output);
+        $cleanLines = [];
+        $skipFirst = true;
+        
+        foreach ($lines as $line) {
+            if ($skipFirst && stripos($line, $command) !== false) {
+                $skipFirst = false;
+                continue;
+            }
+            if (!$skipFirst && stripos($line, 'EPON#') === false && stripos($line, 'EPON>') === false) {
+                $cleanLines[] = $line;
+            }
+        }
+        
+        return implode("\n", $cleanLines);
+    }
+
+    /**
+     * Write to Telnet socket
+     */
+    protected function telnetWrite(string $data): void
+    {
+        if ($this->telnetSocket) {
+            fwrite($this->telnetSocket, $data . "\r\n");
+            usleep(300000); // Wait 300ms
+        }
+    }
+
+    /**
+     * Read from Telnet until pattern found
+     */
+    protected function telnetReadUntil(array $patterns, int $timeout = 5): string
+    {
+        $buffer = '';
+        $start = time();
+        
+        while (time() - $start < $timeout) {
+            $char = @fread($this->telnetSocket, 1024);
+            
+            if ($char) {
+                $buffer .= $char;
+                
+                foreach ($patterns as $pattern) {
+                    if (stripos($buffer, $pattern) !== false) {
+                        return $buffer;
+                    }
+                }
+            }
+            
+            usleep(50000);
+        }
+        
+        return $buffer;
+    }
+
+    /**
+     * Get interface traffic statistics via SNMP
+     * This works for all Hioso OLTs including Enterprise 25355
+     * 
+     * @return array Interface statistics with traffic data
+     */
+    public function getInterfaceStats(): array
+    {
+        $stats = [];
+        
+        try {
+            snmp_set_quick_print(true);
+            snmp_set_valueretrieval(SNMP_VALUE_PLAIN);
+            
+            $timeout = 3000000; // 3 seconds
+            $retries = 1;
+            
+            // Get interface descriptions
+            $ifDescr = @snmpwalkoid(
+                $this->olt->ip_address,
+                $this->olt->snmp_community ?? 'public',
+                '1.3.6.1.2.1.2.2.1.2',
+                $timeout,
+                $retries
+            );
+            
+            if (!$ifDescr) {
+                return [];
+            }
+            
+            // Get additional interface data
+            $ifOperStatus = @snmpwalkoid($this->olt->ip_address, $this->olt->snmp_community ?? 'public', '1.3.6.1.2.1.2.2.1.8', $timeout, $retries) ?: [];
+            $ifSpeed = @snmpwalkoid($this->olt->ip_address, $this->olt->snmp_community ?? 'public', '1.3.6.1.2.1.2.2.1.5', $timeout, $retries) ?: [];
+            $ifInOctets = @snmpwalkoid($this->olt->ip_address, $this->olt->snmp_community ?? 'public', '1.3.6.1.2.1.2.2.1.10', $timeout, $retries) ?: [];
+            $ifOutOctets = @snmpwalkoid($this->olt->ip_address, $this->olt->snmp_community ?? 'public', '1.3.6.1.2.1.2.2.1.16', $timeout, $retries) ?: [];
+            $ifInErrors = @snmpwalkoid($this->olt->ip_address, $this->olt->snmp_community ?? 'public', '1.3.6.1.2.1.2.2.1.14', $timeout, $retries) ?: [];
+            $ifOutErrors = @snmpwalkoid($this->olt->ip_address, $this->olt->snmp_community ?? 'public', '1.3.6.1.2.1.2.2.1.20', $timeout, $retries) ?: [];
+            $ifInUcast = @snmpwalkoid($this->olt->ip_address, $this->olt->snmp_community ?? 'public', '1.3.6.1.2.1.2.2.1.11', $timeout, $retries) ?: [];
+            $ifOutUcast = @snmpwalkoid($this->olt->ip_address, $this->olt->snmp_community ?? 'public', '1.3.6.1.2.1.2.2.1.17', $timeout, $retries) ?: [];
+            
+            foreach ($ifDescr as $oid => $name) {
+                // Extract interface index from OID
+                $idx = substr($oid, strrpos($oid, '.') + 1);
+                
+                // Determine interface type
+                $nameLower = strtolower($name);
+                $type = 'other';
+                if (strpos($nameLower, 'pon') !== false) {
+                    $type = 'pon';
+                } elseif (preg_match('/^g\d+$/i', trim($name))) {
+                    $type = 'uplink';
+                }
+                
+                // Get status
+                $statusKey = "iso.3.6.1.2.1.2.2.1.8.$idx";
+                $status = $ifOperStatus[$statusKey] ?? null;
+                $statusStr = match((int)$status) {
+                    1 => 'up',
+                    2 => 'down',
+                    3 => 'testing',
+                    default => 'unknown'
+                };
+                
+                // Get speed
+                $speedKey = "iso.3.6.1.2.1.2.2.1.5.$idx";
+                $speed = $ifSpeed[$speedKey] ?? 0;
+                $speedMbps = round($speed / 1000000);
+                
+                // Get traffic counters
+                $inOctets = $ifInOctets["iso.3.6.1.2.1.2.2.1.10.$idx"] ?? 0;
+                $outOctets = $ifOutOctets["iso.3.6.1.2.1.2.2.1.16.$idx"] ?? 0;
+                $inErrors = $ifInErrors["iso.3.6.1.2.1.2.2.1.14.$idx"] ?? 0;
+                $outErrors = $ifOutErrors["iso.3.6.1.2.1.2.2.1.20.$idx"] ?? 0;
+                $inPackets = $ifInUcast["iso.3.6.1.2.1.2.2.1.11.$idx"] ?? 0;
+                $outPackets = $ifOutUcast["iso.3.6.1.2.1.2.2.1.17.$idx"] ?? 0;
+                
+                $stats[$idx] = [
+                    'index' => (int)$idx,
+                    'name' => trim(str_replace(['"', "'"], '', $name)),
+                    'type' => $type,
+                    'status' => $statusStr,
+                    'speed_mbps' => $speedMbps,
+                    'in_octets' => (int)$inOctets,
+                    'out_octets' => (int)$outOctets,
+                    'in_bytes_formatted' => $this->formatBytes($inOctets),
+                    'out_bytes_formatted' => $this->formatBytes($outOctets),
+                    'in_errors' => (int)$inErrors,
+                    'out_errors' => (int)$outErrors,
+                    'in_packets' => (int)$inPackets,
+                    'out_packets' => (int)$outPackets,
+                ];
+            }
+            
+            // Sort by index
+            ksort($stats);
+            
+        } catch (\Exception $e) {
+            Log::error("Error getting interface stats: " . $e->getMessage());
+        }
+        
+        return array_values($stats);
+    }
+
+    /**
+     * Get PON port traffic statistics only
+     * 
+     * @return array PON port statistics
+     */
+    public function getPonTrafficStats(): array
+    {
+        $allStats = $this->getInterfaceStats();
+        
+        return array_filter($allStats, function($stat) {
+            return $stat['type'] === 'pon';
+        });
+    }
+
+    /**
+     * Get uplink port traffic statistics only
+     * 
+     * @return array Uplink port statistics
+     */
+    public function getUplinkTrafficStats(): array
+    {
+        $allStats = $this->getInterfaceStats();
+        
+        return array_filter($allStats, function($stat) {
+            return $stat['type'] === 'uplink';
+        });
+    }
+
+    /**
+     * Get traffic summary for dashboard
+     * 
+     * @return array Traffic summary with totals
+     */
+    public function getTrafficSummary(): array
+    {
+        $stats = $this->getInterfaceStats();
+        
+        $ponStats = array_filter($stats, fn($s) => $s['type'] === 'pon');
+        $uplinkStats = array_filter($stats, fn($s) => $s['type'] === 'uplink');
+        
+        $totalPonIn = array_sum(array_column($ponStats, 'in_octets'));
+        $totalPonOut = array_sum(array_column($ponStats, 'out_octets'));
+        $totalUplinkIn = array_sum(array_column($uplinkStats, 'in_octets'));
+        $totalUplinkOut = array_sum(array_column($uplinkStats, 'out_octets'));
+        
+        $ponUp = count(array_filter($ponStats, fn($s) => $s['status'] === 'up'));
+        $uplinkUp = count(array_filter($uplinkStats, fn($s) => $s['status'] === 'up'));
+        
+        // Get optical power data
+        $opticalData = $this->getOpticalPowerSummary();
+        
+        return [
+            'pon_ports' => [
+                'total' => count($ponStats),
+                'up' => $ponUp,
+                'down' => count($ponStats) - $ponUp,
+                'in_bytes' => $totalPonIn,
+                'out_bytes' => $totalPonOut,
+                'in_formatted' => $this->formatBytes($totalPonIn),
+                'out_formatted' => $this->formatBytes($totalPonOut),
+                'ports' => array_values($ponStats),
+            ],
+            'uplink_ports' => [
+                'total' => count($uplinkStats),
+                'up' => $uplinkUp,
+                'down' => count($uplinkStats) - $uplinkUp,
+                'in_bytes' => $totalUplinkIn,
+                'out_bytes' => $totalUplinkOut,
+                'in_formatted' => $this->formatBytes($totalUplinkIn),
+                'out_formatted' => $this->formatBytes($totalUplinkOut),
+                'ports' => array_values($uplinkStats),
+            ],
+            'optical_power' => $opticalData,
+            'interfaces' => $stats,
+            'collected_at' => now()->toIso8601String(),
+        ];
+    }
+
+    /**
+     * Format bytes to human readable format
+     */
+    protected function formatBytes(int $bytes, int $precision = 2): string
+    {
+        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        
+        $bytes = max($bytes, 0);
+        $pow = floor(($bytes ? log($bytes) : 0) / log(1024));
+        $pow = min($pow, count($units) - 1);
+        
+        $bytes /= pow(1024, $pow);
+        
+        return round($bytes, $precision) . ' ' . $units[$pow];
     }
 }

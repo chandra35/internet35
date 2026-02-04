@@ -73,6 +73,27 @@ class VsolHelper extends BaseOltHelper
         // Auth mode table - .1.3.6.1.4.1.37950.1.1.5.12.1.1.1.x
         'authModeStatus' => '1.3.6.1.4.1.37950.1.1.5.12.1.1.1.2',
         
+        // ============ PON TRANSCEIVER TABLE (from LibreNMS MIB) ============
+        // .1.3.6.1.4.1.37950.1.1.5.10.13.1.1.x - VERIFIED WORKING!
+        // Under v1600dAlarm subtree - ponTransceiverTable
+        'ponTransceiverIndex' => '1.3.6.1.4.1.37950.1.1.5.10.13.1.1.1',      // PON port index
+        'ponTransceiverTemp' => '1.3.6.1.4.1.37950.1.1.5.10.13.1.1.2',       // Temperature (OCTET STRING)
+        'ponTransceiverVoltage' => '1.3.6.1.4.1.37950.1.1.5.10.13.1.1.3',    // Voltage (OCTET STRING)
+        'ponTransceiverBias' => '1.3.6.1.4.1.37950.1.1.5.10.13.1.1.4',       // TX Bias (OCTET STRING)
+        'ponTransceiverTxPower' => '1.3.6.1.4.1.37950.1.1.5.10.13.1.1.5',    // TX Power (OCTET STRING, in dBm)
+        
+        // ============ PON PORT TRAFFIC TABLE (from LibreNMS MIB) ============
+        // .1.3.6.1.4.1.37950.1.1.5.10.1.2.2.1.x (ponPortPerformanceDataEntry)
+        'ponPortIndex' => '1.3.6.1.4.1.37950.1.1.5.10.1.2.2.1.1',        // PON index
+        'ponPortDownBytes' => '1.3.6.1.4.1.37950.1.1.5.10.1.2.2.1.44',   // Download bytes (Counter64)
+        'ponPortUpBytes' => '1.3.6.1.4.1.37950.1.1.5.10.1.2.2.1.45',     // Upload bytes (Counter64)
+        
+        // ============ UPLINK PORT TRAFFIC TABLE (from LibreNMS MIB) ============
+        // .1.3.6.1.4.1.37950.1.1.5.10.1.1.2.1.x (uplinkPortPerformanceDataEntry)
+        'uplinkPortIndex' => '1.3.6.1.4.1.37950.1.1.5.10.1.1.2.1.1',     // Uplink index
+        'uplinkPortDownBytes' => '1.3.6.1.4.1.37950.1.1.5.10.1.1.2.1.36', // Download bytes (Counter64)
+        'uplinkPortUpBytes' => '1.3.6.1.4.1.37950.1.1.5.10.1.1.2.1.37',   // Upload bytes (Counter64)
+        
         // Legacy OIDs (older firmware or alternative) - for fallback
         'onuSerialNumberLegacy' => '1.3.6.1.4.1.37950.1.1.5.12.1.1.1.9',
         'onuStatusLegacy' => '1.3.6.1.4.1.37950.1.1.5.12.1.1.1.2',
@@ -1334,6 +1355,156 @@ class VsolHelper extends BaseOltHelper
     {
         return [];
     }
+    
+    /**
+     * Get PON port optical power (TX Power from OLT SFP transceiver)
+     * 
+     * VSOL V1600D-MINI documentation shows these OIDs:
+     * - TX Power: 1.3.6.1.4.1.37950.1.1.5.1.1.1.11.[port_index] (0.001 dBm)
+     * - RX Power: 1.3.6.1.4.1.37950.1.1.5.1.1.1.13.[port_index] (0.001 dBm)
+     * 
+     * Note: These OIDs may not be available on all firmware versions.
+     * 
+     * @return array Array of PON ports with optical power data
+     */
+    public function getPonOpticalPower(): array
+    {
+        $result = [];
+        
+        try {
+            /**
+             * VSOL V1600D PON Transceiver Table (from LibreNMS MIB)
+             * 
+             * OID Base: 1.3.6.1.4.1.37950.1.1.5.10.13.1.1
+             * Fields:
+             *   .1 = transceiverPonIndex (INTEGER 1-16)
+             *   .2 = tempperature (OCTET STRING, e.g. "48.03")
+             *   .3 = voltage (OCTET STRING, e.g. "3.33")
+             *   .4 = biasCurrent (OCTET STRING, e.g. "15.15")
+             *   .5 = transmitPower (OCTET STRING, e.g. "7.16")
+             * 
+             * Verified working on VSOL V1600D firmware!
+             */
+            
+            // PON Transceiver Table OIDs (from LibreNMS MIB)
+            $ponTransceiverBase = '1.3.6.1.4.1.37950.1.1.5.10.13.1.1';
+            
+            // Try to get PON transceiver data via snmpwalk
+            $temperatures = $this->snmpWalk("{$ponTransceiverBase}.2");
+            $voltages = $this->snmpWalk("{$ponTransceiverBase}.3");
+            $biasCurrents = $this->snmpWalk("{$ponTransceiverBase}.4");
+            $txPowers = $this->snmpWalk("{$ponTransceiverBase}.5");
+            
+            // If we got TX power data, parse it
+            if (!empty($txPowers)) {
+                // Get PON port names from database
+                $ponPorts = \App\Models\OltPonPort::where('olt_id', $this->olt->id)
+                    ->orderBy('slot')
+                    ->orderBy('port')
+                    ->get()
+                    ->keyBy('port');
+                
+                $portIndex = 1;
+                foreach ($txPowers as $oid => $txPowerRaw) {
+                    // Parse TX power value (OCTET STRING, already in dBm)
+                    $txPower = $this->parseOctetStringToFloat($txPowerRaw);
+                    
+                    // Get other values for this port index
+                    $temperature = null;
+                    $voltage = null;
+                    $txBias = null;
+                    
+                    // Find corresponding values by index
+                    $tempKey = array_keys($temperatures)[$portIndex - 1] ?? null;
+                    $voltKey = array_keys($voltages)[$portIndex - 1] ?? null;
+                    $biasKey = array_keys($biasCurrents)[$portIndex - 1] ?? null;
+                    
+                    if ($tempKey && isset($temperatures[$tempKey])) {
+                        $temperature = $this->parseOctetStringToFloat($temperatures[$tempKey]);
+                    }
+                    if ($voltKey && isset($voltages[$voltKey])) {
+                        $voltage = $this->parseOctetStringToFloat($voltages[$voltKey]);
+                    }
+                    if ($biasKey && isset($biasCurrents[$biasKey])) {
+                        $txBias = $this->parseOctetStringToFloat($biasCurrents[$biasKey]);
+                    }
+                    
+                    // Get port name from database or generate default
+                    $portName = "PON 0/{$portIndex}";
+                    if (isset($ponPorts[$portIndex])) {
+                        $portName = $ponPorts[$portIndex]->name ?? $portName;
+                    }
+                    
+                    // Determine signal quality based on TX power
+                    // Standard SFP PON TX Power range: +1 to +10 dBm (nominal ~+5 dBm)
+                    // Allow up to +12 dBm as still acceptable
+                    $signalQuality = 'unknown';
+                    if ($txPower !== null) {
+                        if ($txPower >= 0 && $txPower <= 12) {
+                            $signalQuality = 'excellent';
+                        } elseif ($txPower >= -3 && $txPower < 0) {
+                            $signalQuality = 'good';
+                        } elseif ($txPower >= -6 && $txPower < -3) {
+                            $signalQuality = 'acceptable';
+                        } elseif ($txPower < -6 || $txPower > 12) {
+                            $signalQuality = 'warning';
+                        }
+                    }
+                    
+                    $result[] = [
+                        'slot' => 0,
+                        'port' => $portIndex,
+                        'name' => $portName,
+                        'tx_power' => $txPower,
+                        'rx_power' => null, // RX power not available in transceiver table
+                        'temperature' => $temperature,
+                        'voltage' => $voltage,
+                        'tx_bias' => $txBias,
+                        'signal_quality' => $signalQuality,
+                        'tx_power_formatted' => $txPower !== null ? round($txPower, 2) . ' dBm' : '-',
+                        'rx_power_formatted' => '-',
+                        'temperature_formatted' => $temperature !== null ? round($temperature, 1) . ' °C' : '-',
+                        'voltage_formatted' => $voltage !== null ? round($voltage, 2) . ' V' : '-',
+                        'tx_bias_formatted' => $txBias !== null ? round($txBias, 2) . ' mA' : '-',
+                    ];
+                    
+                    $portIndex++;
+                }
+                
+                Log::info("VSOL getPonOpticalPower: Found " . count($result) . " PON ports with optical data");
+            } else {
+                Log::info("VSOL getPonOpticalPower: PON transceiver table not available on this firmware");
+            }
+            
+        } catch (\Exception $e) {
+            Log::error("VSOL getPonOpticalPower error: " . $e->getMessage());
+            return [];
+        }
+        
+        return $result;
+    }
+    
+    /**
+     * Parse OCTET STRING value to float
+     * Handles formats like: STRING: "7.16" or just "7.16"
+     */
+    protected function parseOctetStringToFloat($value): ?float
+    {
+        if ($value === null) {
+            return null;
+        }
+        
+        // Remove STRING: prefix if present
+        $value = preg_replace('/^STRING:\s*/', '', $value);
+        // Remove quotes
+        $value = trim($value, '"\'');
+        
+        if (is_numeric($value)) {
+            return floatval($value);
+        }
+        
+        return null;
+    }
 
     /**
      * Sync all
@@ -1436,5 +1607,166 @@ class VsolHelper extends BaseOltHelper
         }
 
         throw new Exception("No available ONU ID on port {$port}");
+    }
+
+    /**
+     * Get interface traffic statistics for VSOL OLT
+     * 
+     * Uses LibreNMS MIB OIDs for PON and Uplink traffic:
+     * - PON Port: 1.3.6.1.4.1.37950.1.1.5.10.1.2.2.1.x (ponPortPerformanceDataEntry)
+     * - Uplink: 1.3.6.1.4.1.37950.1.1.5.10.1.1.2.1.x (uplinkPortPerformanceDataEntry)
+     */
+    public function getInterfaceStats(): array
+    {
+        $interfaces = [];
+        
+        try {
+            $community = $this->olt->snmp_community ?? 'public';
+            $timeout = 2000000; // 2 seconds
+            
+            // ============ PON PORT TRAFFIC (from LibreNMS MIB) ============
+            // ponPortPerformanceDataEntry: 1.3.6.1.4.1.37950.1.1.5.10.1.2.2.1
+            $ponBase = '1.3.6.1.4.1.37950.1.1.5.10.1.2.2.1';
+            
+            // Get PON port traffic using Counter64 (most accurate)
+            $ponDownBytes = $this->snmpWalk("{$ponBase}.44"); // ponPortDownBytes
+            $ponUpBytes = $this->snmpWalk("{$ponBase}.45");   // ponPortUpBytes
+            
+            // Get PON port status from database
+            $ponPorts = \App\Models\OltPonPort::where('olt_id', $this->olt->id)
+                ->orderBy('slot')
+                ->orderBy('port')
+                ->get()
+                ->keyBy('port');
+            
+            // Parse PON traffic data
+            $ponDownData = [];
+            $ponUpData = [];
+            
+            if (!empty($ponDownBytes)) {
+                $idx = 1;
+                foreach ($ponDownBytes as $oid => $val) {
+                    $ponDownData[$idx] = $this->parseCounter64($val);
+                    $idx++;
+                }
+            }
+            if (!empty($ponUpBytes)) {
+                $idx = 1;
+                foreach ($ponUpBytes as $oid => $val) {
+                    $ponUpData[$idx] = $this->parseCounter64($val);
+                    $idx++;
+                }
+            }
+            
+            // Build PON port interfaces
+            $ponCount = max(count($ponDownData), count($ponUpData), 4);
+            for ($i = 1; $i <= $ponCount; $i++) {
+                $inOctets = $ponDownData[$i] ?? 0;
+                $outOctets = $ponUpData[$i] ?? 0;
+                $status = 'unknown';
+                $onuCount = 0;
+                
+                if (isset($ponPorts[$i])) {
+                    $status = $ponPorts[$i]->status === 'up' ? 'up' : 'down';
+                    $onuCount = $ponPorts[$i]->onu_count ?? 0;
+                }
+                
+                $interfaces[] = [
+                    'index' => $i,
+                    'name' => "EPON{$i}",
+                    'type' => 'pon',
+                    'status' => $status,
+                    'speed_bps' => 1250000000, // 1.25 Gbps EPON
+                    'speed_mbps' => 1250,
+                    'in_octets' => $inOctets,
+                    'out_octets' => $outOctets,
+                    'in_bytes_formatted' => $this->formatBytes($inOctets),
+                    'out_bytes_formatted' => $this->formatBytes($outOctets),
+                    'in_errors' => 0,
+                    'out_errors' => 0,
+                    'onu_count' => $onuCount,
+                ];
+            }
+            
+            // ============ UPLINK PORT TRAFFIC (from LibreNMS MIB) ============
+            // uplinkPortPerformanceDataEntry: 1.3.6.1.4.1.37950.1.1.5.10.1.1.2.1
+            $uplinkBase = '1.3.6.1.4.1.37950.1.1.5.10.1.1.2.1';
+            
+            $uplinkDownBytes = $this->snmpWalk("{$uplinkBase}.36"); // uplinkPortDownBytes
+            $uplinkUpBytes = $this->snmpWalk("{$uplinkBase}.37");   // uplinkPortUpBytes
+            
+            // Skip MIB-II ifOperStatus query for performance
+            // We'll determine status from traffic data instead
+            
+            // Parse Uplink traffic data
+            $uplinkDownData = [];
+            $uplinkUpData = [];
+            
+            if (!empty($uplinkDownBytes)) {
+                $idx = 1;
+                foreach ($uplinkDownBytes as $oid => $val) {
+                    $uplinkDownData[$idx] = $this->parseCounter64($val);
+                    $idx++;
+                }
+            }
+            if (!empty($uplinkUpBytes)) {
+                $idx = 1;
+                foreach ($uplinkUpBytes as $oid => $val) {
+                    $uplinkUpData[$idx] = $this->parseCounter64($val);
+                    $idx++;
+                }
+            }
+            
+            // Build Uplink interfaces (8 ports on V1600D, SNMP index 5-12)
+            $uplinkCount = max(count($uplinkDownData), count($uplinkUpData), 4);
+            for ($i = 1; $i <= $uplinkCount; $i++) {
+                $snmpIdx = $i + 4; // SNMP index starts at 5 for uplinks
+                $inOctets = $uplinkDownData[$i] ?? 0;
+                $outOctets = $uplinkUpData[$i] ?? 0;
+                
+                // Determine status from traffic data (if traffic > 0, port is up)
+                $status = ($inOctets > 0 || $outOctets > 0) ? 'up' : 'down';
+                
+                $interfaces[] = [
+                    'index' => $snmpIdx,
+                    'name' => "GE{$i}",
+                    'type' => 'uplink',
+                    'status' => $status,
+                    'speed_bps' => 1000000000,
+                    'speed_mbps' => 1000,
+                    'in_octets' => $inOctets,
+                    'out_octets' => $outOctets,
+                    'in_bytes_formatted' => $this->formatBytes($inOctets),
+                    'out_bytes_formatted' => $this->formatBytes($outOctets),
+                    'in_errors' => 0,
+                    'out_errors' => 0,
+                ];
+            }
+            
+        } catch (\Exception $e) {
+            Log::error("VsolHelper: Failed to get interface stats: " . $e->getMessage());
+        }
+        
+        return $interfaces;
+    }
+    
+    /**
+     * Parse Counter64 value from SNMP response
+     */
+    protected function parseCounter64($value): int
+    {
+        if ($value === null) {
+            return 0;
+        }
+        
+        // Remove "Counter64: " prefix if present
+        $value = preg_replace('/^Counter64:\s*/i', '', $value);
+        $value = trim($value);
+        
+        if (is_numeric($value)) {
+            return (int)$value;
+        }
+        
+        return 0;
     }
 }

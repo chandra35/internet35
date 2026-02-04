@@ -9,10 +9,7 @@
     <li class="breadcrumb-item active">Network Map</li>
 @endsection
 
-@section('styles')
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
-<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+@push('css')
 <style>
     #networkMap { 
         height: calc(100vh - 280px); 
@@ -76,7 +73,7 @@
         z-index: 1000;
     }
 </style>
-@endsection
+@endpush
 
 @section('content')
 <div class="row">
@@ -260,7 +257,10 @@
 </div>
 @endsection
 
-@section('scripts')
+@push('js')
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
 <script>
@@ -278,9 +278,31 @@ $(function() {
     const defaultCenter = [{{ $defaultCenter['lat'] }}, {{ $defaultCenter['lng'] }}];
     const map = L.map('networkMap').setView(defaultCenter, 13);
     
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
-    }).addTo(map);
+    // Define base layers - Google Satellite
+    var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap'
+    });
+    
+    var satelliteLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+        maxZoom: 20,
+        attribution: '© Google'
+    });
+    
+    var hybridLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+        maxZoom: 20,
+        attribution: '© Google'
+    });
+    
+    // Add default layer
+    hybridLayer.addTo(map);
+    
+    // Layer control for base maps
+    L.control.layers({
+        "Hybrid": hybridLayer,
+        "Satelit": satelliteLayer,
+        "Peta": osmLayer
+    }, null, { position: 'topright' }).addTo(map);
     
     // Layer groups
     const routerLayer = L.layerGroup().addTo(map);
@@ -488,4 +510,4 @@ $(function() {
     @endif
 });
 </script>
-@endsection
+@endpush

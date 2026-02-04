@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Odc;
-use App\Models\Router;
+use App\Models\Olt;
 use App\Models\User;
 use App\Services\ActivityLogService;
 use Illuminate\Http\Request;
@@ -65,10 +65,10 @@ class OdcController extends Controller implements HasMiddleware
         }
         
         // Build query
-        $query = Odc::with(['pop', 'router', 'creator'])
+        $query = Odc::with(['pop', 'olt', 'creator'])
             ->withCount('odps')
             ->when($popId, fn($q) => $q->where('pop_id', $popId))
-            ->when($request->router_id, fn($q, $r) => $q->where('router_id', $r))
+            ->when($request->olt_id, fn($q, $o) => $q->where('olt_id', $o))
             ->when($request->status, fn($q, $s) => $q->where('status', $s))
             ->when($request->search, function($q, $s) {
                 $q->where(function($sq) use ($s) {
@@ -80,9 +80,9 @@ class OdcController extends Controller implements HasMiddleware
         
         $odcs = $query->orderBy('created_at', 'desc')->paginate(20);
         
-        // Get routers for filter
-        $routers = Router::when($popId, fn($q) => $q->where('pop_id', $popId))
-            ->where('is_active', true)
+        // Get OLTs for filter
+        $olts = Olt::when($popId, fn($q) => $q->where('pop_id', $popId))
+            ->where('status', 'active')
             ->orderBy('name')
             ->get();
         
@@ -94,7 +94,7 @@ class OdcController extends Controller implements HasMiddleware
             'inactive' => Odc::when($popId, fn($q) => $q->where('pop_id', $popId))->where('status', 'inactive')->count(),
         ];
         
-        return view('admin.odcs.index', compact('odcs', 'popUsers', 'popId', 'routers', 'stats'));
+        return view('admin.odcs.index', compact('odcs', 'popUsers', 'popId', 'olts', 'stats'));
     }
 
     /**
@@ -108,15 +108,18 @@ class OdcController extends Controller implements HasMiddleware
             return back()->with('error', 'Pilih POP terlebih dahulu');
         }
         
-        $routers = Router::where('pop_id', $popId)
-            ->where('is_active', true)
+        $olts = Olt::where('pop_id', $popId)
+            ->where('status', 'active')
+            ->with(['ponPorts' => function($q) {
+                $q->orderBy('slot')->orderBy('port');
+            }])
             ->orderBy('name')
             ->get();
         
         // Generate ODC code
         $nextCode = Odc::generateCode($popId);
         
-        return view('admin.odcs.create', compact('routers', 'nextCode', 'popId'));
+        return view('admin.odcs.create', compact('olts', 'nextCode', 'popId'));
     }
 
     /**
@@ -129,7 +132,9 @@ class OdcController extends Controller implements HasMiddleware
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'code' => 'nullable|string|max:50|unique:odcs,code',
-            'router_id' => 'required|uuid|exists:routers,id',
+            'olt_id' => 'required|uuid|exists:olts,id',
+            'olt_pon_port' => 'nullable|integer|min:1',
+            'olt_slot' => 'nullable|integer|min:0',
             'latitude' => 'nullable|numeric|between:-90,90',
             'longitude' => 'nullable|numeric|between:-180,180',
             'address' => 'nullable|string|max:500',
@@ -181,7 +186,7 @@ class OdcController extends Controller implements HasMiddleware
      */
     public function show(Odc $odc)
     {
-        $odc->load(['pop', 'router', 'odps.customers', 'creator']);
+        $odc->load(['pop', 'olt', 'odps.customers', 'creator']);
         
         return view('admin.odcs.show', compact('odc'));
     }
@@ -191,12 +196,15 @@ class OdcController extends Controller implements HasMiddleware
      */
     public function edit(Odc $odc)
     {
-        $routers = Router::where('pop_id', $odc->pop_id)
-            ->where('is_active', true)
+        $olts = Olt::where('pop_id', $odc->pop_id)
+            ->where('status', 'active')
+            ->with(['ponPorts' => function($q) {
+                $q->orderBy('slot')->orderBy('port');
+            }])
             ->orderBy('name')
             ->get();
         
-        return view('admin.odcs.edit', compact('odc', 'routers'));
+        return view('admin.odcs.edit', compact('odc', 'olts'));
     }
 
     /**
@@ -207,7 +215,9 @@ class OdcController extends Controller implements HasMiddleware
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'code' => 'nullable|string|max:50|unique:odcs,code,' . $odc->id,
-            'router_id' => 'required|uuid|exists:routers,id',
+            'olt_id' => 'required|uuid|exists:olts,id',
+            'olt_pon_port' => 'nullable|integer|min:1',
+            'olt_slot' => 'nullable|integer|min:0',
             'latitude' => 'nullable|numeric|between:-90,90',
             'longitude' => 'nullable|numeric|between:-180,180',
             'address' => 'nullable|string|max:500',
@@ -289,16 +299,22 @@ class OdcController extends Controller implements HasMiddleware
     }
 
     /**
-     * Get ODCs by Router (AJAX)
+     * Get ODCs by OLT (AJAX)
      */
-    public function getByRouter(Request $request)
+    public function getByOlt(Request $request)
     {
-        $routerId = $request->input('router_id');
+        $oltId = $request->input('olt_id');
         
-        $odcs = Odc::where('router_id', $routerId)
+        $odcs = Odc::where('olt_id', $oltId)
             ->where('status', 'active')
             ->orderBy('name')
-            ->get(['id', 'name', 'code', 'available_ports' => DB::raw('total_ports - used_ports')]);
+            ->get(['id', 'name', 'code', 'total_ports', 'used_ports']);
+        
+        // Add available_ports to each ODC
+        $odcs = $odcs->map(function($odc) {
+            $odc->available_ports = $odc->total_ports - $odc->used_ports;
+            return $odc;
+        });
         
         return response()->json($odcs);
     }

@@ -244,7 +244,7 @@ Route::prefix('admin')->middleware(['auth'])->name('admin.')->group(function () 
         Route::get('/', [OdcController::class, 'index'])->name('index');
         Route::get('/create', [OdcController::class, 'create'])->name('create');
         Route::post('/', [OdcController::class, 'store'])->name('store');
-        Route::get('/by-router', [OdcController::class, 'getByRouter'])->name('by-router');
+        Route::get('/by-olt', [OdcController::class, 'getByOlt'])->name('by-olt');
         Route::get('/{odc}', [OdcController::class, 'show'])->name('show');
         Route::get('/{odc}/edit', [OdcController::class, 'edit'])->name('edit');
         Route::put('/{odc}', [OdcController::class, 'update'])->name('update');
@@ -257,6 +257,7 @@ Route::prefix('admin')->middleware(['auth'])->name('admin.')->group(function () 
         Route::get('/create', [OdpController::class, 'create'])->name('create');
         Route::post('/', [OdpController::class, 'store'])->name('store');
         Route::get('/by-odc', [OdpController::class, 'getByOdc'])->name('by-odc');
+        Route::get('/by-olt', [OdpController::class, 'getByOlt'])->name('by-olt');
         Route::get('/generate-code', [OdpController::class, 'generateCode'])->name('generate-code');
         Route::get('/{odp}', [OdpController::class, 'show'])->name('show');
         Route::get('/{odp}/edit', [OdpController::class, 'edit'])->name('edit');
@@ -280,6 +281,7 @@ Route::prefix('admin')->middleware(['auth'])->name('admin.')->group(function () 
         Route::get('/{olt}/sync-stream', [\App\Http\Controllers\Admin\OltController::class, 'syncStream'])->name('sync-stream');
         Route::get('/{olt}/unregistered-onus', [\App\Http\Controllers\Admin\OltController::class, 'getUnregisteredOnus'])->name('unregistered-onus');
         Route::get('/{olt}/signal-history', [\App\Http\Controllers\Admin\OltController::class, 'getSignalHistory'])->name('signal-history');
+        Route::get('/{olt}/traffic-stats', [\App\Http\Controllers\Admin\OltController::class, 'getTrafficStats'])->name('traffic-stats');
     });
 
     // ONU (Optical Network Unit) Management

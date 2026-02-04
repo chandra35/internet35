@@ -1,0 +1,29 @@
+VSOL: 172.16.16.3
+
+Interface Status (ifOperStatus):
+  [1] INTEGER: 2 => DOWN
+  [2] INTEGER: 2 => DOWN
+  [3] INTEGER: 2 => DOWN
+  [4] INTEGER: 2 => DOWN
+  [5] INTEGER: 1 => UP
+  [6] INTEGER: 2 => DOWN
+  [7] INTEGER: 2 => DOWN
+  [8] INTEGER: 2 => DOWN
+  [9] INTEGER: 1 => UP
+  [10] INTEGER: 1 => UP
+  [11] INTEGER: 1 => UP
+  [12] INTEGER: 1 => UP
+  [15] INTEGER: 1 => UP
+  [16] INTEGER: 1 => UP
+  [17] INTEGER: 1 => UP
+  [18] INTEGER: 1 => UP
+  [19] INTEGER: 1 => UP
+  [20] INTEGER: 2 => DOWN
+  [21] INTEGER: 1 => UP
+
+
+Database PON ports:
+  Slot 0 Port 2: up, ONUs: 
+  Slot 0 Port 4: up, ONUs: 
+  Slot 0 Port 1: up, ONUs: 
+  Slot 0 Port 3: up, ONUs: 

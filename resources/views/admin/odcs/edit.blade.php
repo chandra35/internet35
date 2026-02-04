@@ -10,12 +10,11 @@
     <li class="breadcrumb-item active">Edit</li>
 @endsection
 
-@section('styles')
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+@push('css')
 <style>
     #map { height: 300px; border-radius: 5px; }
 </style>
-@endsection
+@endpush
 
 @section('content')
 <form action="{{ route('admin.odcs.update', $odc) }}" method="POST">
@@ -56,21 +55,48 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="form-group">
-                                <label for="router_id">Router <span class="text-danger">*</span></label>
-                                <select class="form-control select2 @error('router_id') is-invalid @enderror" 
-                                        id="router_id" name="router_id" required style="width: 100%;">
-                                    <option value="">-- Pilih Router --</option>
-                                    @foreach($routers as $router)
-                                        <option value="{{ $router->id }}" {{ old('router_id', $odc->router_id) == $router->id ? 'selected' : '' }}>
-                                            {{ $router->name }} ({{ $router->host }})
+                                <label for="olt_id">OLT <span class="text-danger">*</span></label>
+                                <select class="form-control select2 @error('olt_id') is-invalid @enderror" 
+                                        id="olt_id" name="olt_id" required style="width: 100%;">
+                                    <option value="">-- Pilih OLT --</option>
+                                    @foreach($olts as $olt)
+                                        <option value="{{ $olt->id }}" 
+                                                data-pon-ports="{{ $olt->ponPorts->toJson() }}"
+                                                {{ old('olt_id', $odc->olt_id) == $olt->id ? 'selected' : '' }}>
+                                            {{ $olt->name }} ({{ $olt->ip_address }})
                                         </option>
                                     @endforeach
                                 </select>
-                                @error('router_id')
+                                @error('olt_id')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
                             </div>
                         </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="olt_slot">Slot</label>
+                                <input type="number" class="form-control @error('olt_slot') is-invalid @enderror" 
+                                       id="olt_slot" name="olt_slot" value="{{ old('olt_slot', $odc->olt_slot ?? 0) }}" min="0">
+                                @error('olt_slot')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="olt_pon_port">PON Port</label>
+                                <select class="form-control @error('olt_pon_port') is-invalid @enderror" 
+                                        id="olt_pon_port" name="olt_pon_port">
+                                    <option value="">-- Pilih --</option>
+                                </select>
+                                @error('olt_pon_port')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label for="status">Status <span class="text-danger">*</span></label>
@@ -83,6 +109,12 @@
                                 @error('status')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>&nbsp;</label>
+                                <div class="text-muted small" id="pon-port-info"></div>
                             </div>
                         </div>
                     </div>
@@ -104,6 +136,23 @@
                     <h3 class="card-title"><i class="fas fa-map-marker-alt mr-2"></i>Lokasi</h3>
                 </div>
                 <div class="card-body">
+                    <div class="row mb-2">
+                        <div class="col-md-10">
+                            <div class="input-group">
+                                <input type="text" id="searchAddress" class="form-control" placeholder="Cari alamat atau lokasi...">
+                                <div class="input-group-append">
+                                    <button type="button" class="btn btn-primary" id="btnSearch">
+                                        <i class="fas fa-search"></i> Cari
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <button type="button" class="btn btn-success btn-block" id="btnMyLocation">
+                                <i class="fas fa-crosshairs"></i>
+                            </button>
+                        </div>
+                    </div>
                     <div id="map"></div>
                     <div class="row mt-3">
                         <div class="col-md-6">
@@ -238,7 +287,8 @@
 </form>
 @endsection
 
-@section('scripts')
+@push('js')
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 $(function() {
@@ -246,34 +296,69 @@ $(function() {
     const defaultLat = {{ old('latitude', $odc->latitude ?? -6.2088) }};
     const defaultLng = {{ old('longitude', $odc->longitude ?? 106.8456) }};
     
-    const map = L.map('map').setView([defaultLat, defaultLng], 15);
+    const map = L.map('map').setView([defaultLat, defaultLng], 16);
     
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
-    }).addTo(map);
+    // Define base layers - Google Satellite
+    var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap'
+    });
+    
+    var satelliteLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+        maxZoom: 20,
+        attribution: '© Google'
+    });
+    
+    var hybridLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+        maxZoom: 20,
+        attribution: '© Google'
+    });
+    
+    // Add default layer
+    satelliteLayer.addTo(map);
+    
+    // Layer control
+    var baseLayers = {
+        "Satelit": satelliteLayer,
+        "Peta": osmLayer,
+        "Hybrid": hybridLayer
+    };
+    L.control.layers(baseLayers, null, { position: 'topright' }).addTo(map);
     
     let marker = null;
+    
+    // Function to set marker
+    function setMarker(lat, lng) {
+        $('#latitude').val(lat.toFixed(8));
+        $('#longitude').val(lng.toFixed(8));
+        
+        if (marker) {
+            marker.setLatLng([lat, lng]);
+        } else {
+            marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+            marker.on('dragend', function(ev) {
+                var ll = ev.target.getLatLng();
+                $('#latitude').val(ll.lat.toFixed(8));
+                $('#longitude').val(ll.lng.toFixed(8));
+            });
+        }
+    }
     
     // Add marker if coordinates exist
     if ($('#latitude').val() && $('#longitude').val()) {
         const lat = parseFloat($('#latitude').val());
         const lng = parseFloat($('#longitude').val());
-        marker = L.marker([lat, lng]).addTo(map);
+        marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+        marker.on('dragend', function(ev) {
+            var ll = ev.target.getLatLng();
+            $('#latitude').val(ll.lat.toFixed(8));
+            $('#longitude').val(ll.lng.toFixed(8));
+        });
     }
     
     // Click on map to set location
     map.on('click', function(e) {
-        const lat = e.latlng.lat.toFixed(8);
-        const lng = e.latlng.lng.toFixed(8);
-        
-        $('#latitude').val(lat);
-        $('#longitude').val(lng);
-        
-        if (marker) {
-            marker.setLatLng(e.latlng);
-        } else {
-            marker = L.marker(e.latlng).addTo(map);
-        }
+        setMarker(e.latlng.lat, e.latlng.lng);
     });
     
     // Update marker when coordinates change manually
@@ -282,14 +367,104 @@ $(function() {
         const lng = parseFloat($('#longitude').val());
         
         if (!isNaN(lat) && !isNaN(lng)) {
-            if (marker) {
-                marker.setLatLng([lat, lng]);
-            } else {
-                marker = L.marker([lat, lng]).addTo(map);
-            }
-            map.setView([lat, lng], 15);
+            setMarker(lat, lng);
+            map.setView([lat, lng], 17);
         }
     });
+    
+    // Search address using Nominatim
+    function searchAddress() {
+        var query = $('#searchAddress').val().trim();
+        if (!query) return;
+        
+        $('#btnSearch').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+        
+        $.ajax({
+            url: 'https://nominatim.openstreetmap.org/search',
+            data: { q: query, format: 'json', limit: 1, countrycodes: 'id' },
+            success: function(data) {
+                if (data && data.length > 0) {
+                    var lat = parseFloat(data[0].lat);
+                    var lng = parseFloat(data[0].lon);
+                    setMarker(lat, lng);
+                    map.setView([lat, lng], 17);
+                } else {
+                    alert('Lokasi tidak ditemukan');
+                }
+            },
+            error: function() { alert('Gagal mencari lokasi'); },
+            complete: function() {
+                $('#btnSearch').prop('disabled', false).html('<i class="fas fa-search"></i> Cari');
+            }
+        });
+    }
+    
+    $('#btnSearch').on('click', searchAddress);
+    $('#searchAddress').on('keypress', function(e) {
+        if (e.which === 13) { e.preventDefault(); searchAddress(); }
+    });
+    
+    // My location button
+    $('#btnMyLocation').on('click', function() {
+        if (!navigator.geolocation) { alert('Browser tidak mendukung geolocation'); return; }
+        
+        var btn = $(this);
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+        
+        navigator.geolocation.getCurrentPosition(
+            function(position) {
+                setMarker(position.coords.latitude, position.coords.longitude);
+                map.setView([position.coords.latitude, position.coords.longitude], 17);
+                btn.prop('disabled', false).html('<i class="fas fa-crosshairs"></i>');
+            },
+            function(error) {
+                alert('Gagal mendapatkan lokasi');
+                btn.prop('disabled', false).html('<i class="fas fa-crosshairs"></i>');
+            },
+            { enableHighAccuracy: true, timeout: 10000 }
+        );
+    });
+    
+    setTimeout(function() { map.invalidateSize(); }, 200);
+    
+    // Handle OLT change - populate PON ports
+    var currentPonPort = '{{ old('olt_pon_port', $odc->olt_pon_port) }}';
+    
+    $('#olt_id').on('change', function() {
+        var $selected = $(this).find(':selected');
+        var ponPorts = $selected.data('pon-ports') || [];
+        var $ponSelect = $('#olt_pon_port');
+        
+        $ponSelect.empty().append('<option value="">-- Pilih --</option>');
+        $('#pon-port-info').html('');
+        
+        if (ponPorts && ponPorts.length > 0) {
+            ponPorts.forEach(function(port) {
+                var label = 'PON ' + port.port;
+                if (port.slot > 0) {
+                    label = 'Slot ' + port.slot + ' / PON ' + port.port;
+                }
+                var status = port.status === 'up' ? '✓' : '✗';
+                var selected = (port.port == currentPonPort) ? 'selected' : '';
+                $ponSelect.append('<option value="' + port.port + '" data-slot="' + port.slot + '" ' + selected + '>' + label + ' [' + status + ']</option>');
+            });
+            $('#pon-port-info').html('<i class="fas fa-info-circle"></i> ' + ponPorts.length + ' PON ports tersedia');
+        } else {
+            $('#pon-port-info').html('<span class="text-warning"><i class="fas fa-exclamation-triangle"></i> Tidak ada PON port terdaftar</span>');
+        }
+    });
+    
+    // Update slot when PON port is selected
+    $('#olt_pon_port').on('change', function() {
+        var $selected = $(this).find(':selected');
+        var slot = $selected.data('slot') || 0;
+        $('#olt_slot').val(slot);
+    });
+    
+    // Trigger OLT change on load if already selected
+    if ($('#olt_id').val()) {
+        $('#olt_id').trigger('change');
+    }
 });
 </script>
-@endsection
+@endpush

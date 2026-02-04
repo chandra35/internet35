@@ -1,0 +1,41 @@
+Connecting to Hioso OLT: 172.16.16.4
+Login OK - Testing commands
+
+=== show ? ===
+show
+cpu             -- CPU information
+epon-nni        -- Epon nni config
+epon-onu        -- Epon onu config
+epon            -- Epon config
+olt             -- Olt config
+alarm_ctrl      -- Alarm contrl
+clock           -- Show system clock
+ddr             -- DDR config information
+history         --Display the session command history
+log             -- System log information
+loop-detect     -- loop-detect configuration
+memory          Memory statistics
+mgmt-switch     -- Inner Mgmt Switch
+network         -- System Network Information
+nni             -- Network interface
+onu             -- Onu config
+onu-loop        -- Onu loop config
+polling         -- Polling config
+pon             -- Pon
+running-config  Show current running system unsaved configuration info
+service         -- System service
+system          -- System information
+users           -- System users
+version         -- Displays version
+EPON# show
+% Command incomplete.
+EPON#
+
+=== show pon ? ===
+show pon
+<1-4>  -- Pon Id
+EPON# show pon
+% Command incomplete.
+EPON#
+
+=== show port ===

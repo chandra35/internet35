@@ -10,13 +10,14 @@
     <li class="breadcrumb-item active">Detail</li>
 @endsection
 
-@section('styles')
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+@push('css')
 <style>
-    #map { height: 300px; border-radius: 5px; }
+    #map { height: 400px; border-radius: 5px; }
     .custom-marker { background: transparent; border: none; }
+    .leaflet-control-layers { border-radius: 8px; }
+    .leaflet-control-layers-toggle { width: 36px; height: 36px; }
 </style>
-@endsection
+@endpush
 
 @section('content')
 <div class="row">
@@ -44,28 +45,83 @@
                         <td>{{ $odp->name }}</td>
                     </tr>
                     <tr>
-                        <td><strong>ODC</strong></td>
+                        <td><strong>Tipe Koneksi</strong></td>
                         <td>
                             @if($odp->odc)
+                                <span class="badge badge-primary"><i class="fas fa-box mr-1"></i>Via ODC</span>
+                            @elseif($odp->parentOdp)
+                                <span class="badge badge-warning"><i class="fas fa-sitemap mr-1"></i>Cascade/Relay</span>
+                            @elseif($odp->olt)
+                                <span class="badge badge-success"><i class="fas fa-server mr-1"></i>Direct OLT</span>
+                            @else
+                                <span class="badge badge-secondary">-</span>
+                            @endif
+                            @if($odp->splitter_level)
+                                <span class="badge badge-info ml-1">Level {{ $odp->splitter_level }}</span>
+                            @endif
+                        </td>
+                    </tr>
+                    @if($odp->odc)
+                    <tr>
+                        <td><strong>ODC</strong></td>
+                        <td>
                             <a href="{{ route('admin.odcs.show', $odp->odc) }}">
                                 {{ $odp->odc->code }} - {{ $odp->odc->name }}
                             </a>
                             <span class="badge badge-info ml-2">Port {{ $odp->odc_port }}</span>
-                            @else
-                            <span class="text-muted">-</span>
-                            @endif
                         </td>
                     </tr>
+                    @endif
+                    @if($odp->parentOdp)
                     <tr>
-                        <td><strong>Router</strong></td>
+                        <td><strong>Parent ODP</strong></td>
                         <td>
-                            @if($odp->odc && $odp->odc->router)
-                            {{ $odp->odc->router->name }}
-                            @else
-                            <span class="text-muted">-</span>
+                            <a href="{{ route('admin.odps.show', $odp->parentOdp) }}">
+                                {{ $odp->parentOdp->code }} - {{ $odp->parentOdp->name }}
+                            </a>
+                        </td>
+                    </tr>
+                    @endif
+                    @if($odp->olt)
+                    <tr>
+                        <td><strong>OLT</strong></td>
+                        <td>
+                            <a href="{{ route('admin.olts.show', $odp->olt) }}">
+                                {{ $odp->olt->name }}
+                            </a>
+                            @if($odp->olt_pon_port)
+                                <span class="badge badge-info ml-1">PON {{ $odp->olt_pon_port }}</span>
+                            @endif
+                            @if($odp->olt_slot)
+                                <span class="badge badge-secondary ml-1">Slot {{ $odp->olt_slot }}</span>
                             @endif
                         </td>
                     </tr>
+                    @elseif($odp->odc && $odp->odc->olt)
+                    <tr>
+                        <td><strong>OLT (via ODC)</strong></td>
+                        <td>
+                            <a href="{{ route('admin.olts.show', $odp->odc->olt) }}">
+                                {{ $odp->odc->olt->name }}
+                            </a>
+                            @if($odp->odc->olt_pon_port)
+                                <span class="badge badge-info ml-1">PON {{ $odp->odc->olt_pon_port }}</span>
+                            @endif
+                        </td>
+                    </tr>
+                    @endif
+                    @if($odp->childOdps && $odp->childOdps->count() > 0)
+                    <tr>
+                        <td><strong>ODP Turunan</strong></td>
+                        <td>
+                            @foreach($odp->childOdps as $child)
+                                <a href="{{ route('admin.odps.show', $child) }}" class="badge badge-warning mr-1 mb-1">
+                                    {{ $child->code }}
+                                </a>
+                            @endforeach
+                        </td>
+                    </tr>
+                    @endif
                     <tr>
                         <td><strong>Status</strong></td>
                         <td><span class="badge badge-{{ $odp->status_badge }} badge-lg">{{ $odp->status_label }}</span></td>
@@ -237,50 +293,89 @@
 </div>
 @endsection
 
-@section('scripts')
+@push('js')
 @if($odp->hasCoordinates())
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 $(function() {
     const lat = {{ $odp->latitude }};
     const lng = {{ $odp->longitude }};
     
-    const map = L.map('map').setView([lat, lng], 16);
+    const map = L.map('map').setView([lat, lng], 18);
     
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
-    }).addTo(map);
-    
-    // ODP marker (green)
-    const odpIcon = L.divIcon({
-        className: 'custom-marker',
-        html: '<i class="fas fa-box fa-2x text-success"></i>',
-        iconSize: [30, 30],
-        iconAnchor: [15, 15]
+    // Layer Satellite dari Google
+    const googleSat = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+        maxZoom: 20,
+        attribution: '© Google Satellite'
     });
     
-    L.marker([lat, lng], {icon: odpIcon})
-        .addTo(map)
-        .bindPopup('<strong>{{ $odp->code }}</strong><br>{{ $odp->name }}');
+    // Layer Hybrid (Satellite + Labels)
+    const googleHybrid = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+        maxZoom: 20,
+        attribution: '© Google Hybrid'
+    });
     
-    // Add ODC marker and line if available
+    // Layer Street dari Google
+    const googleStreet = L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+        maxZoom: 20,
+        attribution: '© Google Maps'
+    });
+    
+    // Layer OpenStreetMap
+    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap contributors'
+    });
+    
+    // Default to Hybrid view
+    googleHybrid.addTo(map);
+    
+    // Layer control
+    const baseMaps = {
+        "🛰️ Satelit + Label": googleHybrid,
+        "🛰️ Satelit": googleSat,
+        "🗺️ Street": googleStreet,
+        "🗺️ OpenStreetMap": osm
+    };
+    
+    L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
+    
+    // Add scale control
+    L.control.scale({ imperial: false }).addTo(map);
+    
+    // ODP marker with custom label
+    const odpIcon = L.divIcon({
+        className: 'custom-marker',
+        html: '<div style="background: #28a745; color: white; padding: 5px 10px; border-radius: 5px; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.3); white-space: nowrap;"><i class="fas fa-box"></i> {{ $odp->code }}</div>',
+        iconSize: [100, 30],
+        iconAnchor: [50, 30]
+    });
+    
+    const odpMarker = L.marker([lat, lng], {icon: odpIcon})
+        .addTo(map)
+        .bindPopup('<strong>{{ $odp->code }}</strong><br>{{ $odp->name }}<br><small class="text-muted">{{ $odp->address }}</small>');
+    
+    odpMarker.openPopup();
+    
+    // Add Parent connection marker and line
     @if($odp->odc && $odp->odc->hasCoordinates())
     const odcIcon = L.divIcon({
         className: 'custom-marker',
-        html: '<i class="fas fa-server fa-2x text-primary"></i>',
-        iconSize: [30, 30],
-        iconAnchor: [15, 15]
+        html: '<div style="background: #007bff; color: white; padding: 5px 10px; border-radius: 5px; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.3); white-space: nowrap;"><i class="fas fa-box-open"></i> {{ $odp->odc->code }}</div>',
+        iconSize: [100, 30],
+        iconAnchor: [50, 30]
     });
     
     L.marker([{{ $odp->odc->latitude }}, {{ $odp->odc->longitude }}], {icon: odcIcon})
         .addTo(map)
-        .bindPopup('<strong>{{ $odp->odc->code }}</strong><br>{{ $odp->odc->name }}');
+        .bindPopup('<strong>ODC: {{ $odp->odc->code }}</strong><br>{{ $odp->odc->name }}');
     
     // Draw line from ODC to ODP
     L.polyline([
         [{{ $odp->odc->latitude }}, {{ $odp->odc->longitude }}],
         [lat, lng]
-    ], {color: '#28a745', weight: 2}).addTo(map);
+    ], {color: '#28a745', weight: 3, dashArray: '10, 5'}).addTo(map);
     
     // Fit bounds to show both markers
     map.fitBounds([
@@ -288,7 +383,57 @@ $(function() {
         [{{ $odp->odc->latitude }}, {{ $odp->odc->longitude }}]
     ], {padding: [50, 50]});
     @endif
+    
+    @if($odp->parentOdp && $odp->parentOdp->hasCoordinates())
+    const parentIcon = L.divIcon({
+        className: 'custom-marker',
+        html: '<div style="background: #ffc107; color: #333; padding: 5px 10px; border-radius: 5px; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.3); white-space: nowrap;"><i class="fas fa-sitemap"></i> {{ $odp->parentOdp->code }}</div>',
+        iconSize: [100, 30],
+        iconAnchor: [50, 30]
+    });
+    
+    L.marker([{{ $odp->parentOdp->latitude }}, {{ $odp->parentOdp->longitude }}], {icon: parentIcon})
+        .addTo(map)
+        .bindPopup('<strong>Parent ODP: {{ $odp->parentOdp->code }}</strong><br>{{ $odp->parentOdp->name }}');
+    
+    // Draw line from Parent ODP to this ODP
+    L.polyline([
+        [{{ $odp->parentOdp->latitude }}, {{ $odp->parentOdp->longitude }}],
+        [lat, lng]
+    ], {color: '#ffc107', weight: 3, dashArray: '10, 5'}).addTo(map);
+    
+    // Fit bounds
+    map.fitBounds([
+        [lat, lng],
+        [{{ $odp->parentOdp->latitude }}, {{ $odp->parentOdp->longitude }}]
+    ], {padding: [50, 50]});
+    @endif
+    
+    @if($odp->olt && !$odp->odc && $odp->olt->hasCoordinates())
+    const oltIcon = L.divIcon({
+        className: 'custom-marker',
+        html: '<div style="background: #17a2b8; color: white; padding: 5px 10px; border-radius: 5px; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.3); white-space: nowrap;"><i class="fas fa-server"></i> {{ $odp->olt->name }}</div>',
+        iconSize: [120, 30],
+        iconAnchor: [60, 30]
+    });
+    
+    L.marker([{{ $odp->olt->latitude }}, {{ $odp->olt->longitude }}], {icon: oltIcon})
+        .addTo(map)
+        .bindPopup('<strong>OLT: {{ $odp->olt->name }}</strong><br>PON Port: {{ $odp->olt_pon_port }}');
+    
+    // Draw line from OLT to ODP
+    L.polyline([
+        [{{ $odp->olt->latitude }}, {{ $odp->olt->longitude }}],
+        [lat, lng]
+    ], {color: '#17a2b8', weight: 3, dashArray: '10, 5'}).addTo(map);
+    
+    // Fit bounds
+    map.fitBounds([
+        [lat, lng],
+        [{{ $odp->olt->latitude }}, {{ $odp->olt->longitude }}]
+    ], {padding: [50, 50]});
+    @endif
 });
 </script>
 @endif
-@endsection
+@endpush

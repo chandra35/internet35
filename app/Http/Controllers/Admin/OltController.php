@@ -188,14 +188,27 @@ class OltController extends Controller implements HasMiddleware
      */
     public function show(Olt $olt)
     {
-        $olt->load(['pop', 'router', 'creator', 'ponPorts', 'odcs', 'onus.customer']);
+        // Load only essential relations
+        $olt->load(['pop', 'router', 'creator', 'ponPorts', 'odcs']);
         
-        // Get ONU statistics
+        // Load ONUs with pagination-friendly query (only first 100 for display)
+        // Full list can be loaded via AJAX if needed
+        $onus = $olt->onus()
+            ->with('customer:id,name,customer_id')
+            ->orderBy('port')
+            ->orderBy('onu_id')
+            ->limit(100)
+            ->get();
+        
+        // Assign to OLT for view compatibility
+        $olt->setRelation('onus', $onus);
+        
+        // Get ONU statistics with efficient queries (no full load)
         $onuStats = [
-            'total' => $olt->onus->count(),
-            'online' => $olt->onus->where('status', 'online')->count(),
-            'offline' => $olt->onus->whereIn('status', ['offline', 'los', 'dying_gasp'])->count(),
-            'weak_signal' => $olt->onus->where('olt_rx_power', '<', -26)->count(),
+            'total' => $olt->onus()->count(),
+            'online' => $olt->onus()->where('status', 'online')->count(),
+            'offline' => $olt->onus()->whereIn('status', ['offline', 'los', 'dying_gasp'])->count(),
+            'weak_signal' => $olt->onus()->where('olt_rx_power', '<', -26)->count(),
         ];
         
         // Get profiles for this OLT
@@ -203,11 +216,8 @@ class OltController extends Controller implements HasMiddleware
             ->orderBy('name')
             ->get();
         
-        // Get customers without ONU for register modal
-        $customers = Customer::where('pop_id', $olt->pop_id)
-            ->whereDoesntHave('onu')
-            ->orderBy('name')
-            ->get();
+        // Skip loading customers here - use AJAX search instead
+        $customers = collect();
         
         return view('admin.olts.show', compact('olt', 'onuStats', 'profiles', 'customers'));
     }
@@ -701,6 +711,33 @@ class OltController extends Controller implements HasMiddleware
             return response()->json([
                 'success' => false,
                 'message' => 'Error: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Get interface traffic statistics
+     */
+    public function getTrafficStats(Olt $olt, Request $request)
+    {
+        try {
+            // Support force refresh by clearing cache
+            if ($request->has('refresh') || $request->has('force')) {
+                $cacheKey = "olt_traffic_{$olt->id}";
+                \Illuminate\Support\Facades\Cache::forget($cacheKey);
+            }
+            
+            $helper = OltFactory::make($olt);
+            $summary = $helper->getTrafficSummary();
+            
+            return response()->json([
+                'success' => true,
+                'data' => $summary,
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
             ], 500);
         }
     }

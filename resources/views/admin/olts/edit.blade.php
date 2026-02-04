@@ -371,17 +371,50 @@ $(function() {
     var lng = {{ $olt->longitude ?? 106.8456 }};
     
     var map = L.map('map').setView([lat, lng], 15);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    
+    // Define base layers - Google Satellite
+    var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
         attribution: '© OpenStreetMap'
-    }).addTo(map);
+    });
+    
+    var satelliteLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+        maxZoom: 20,
+        attribution: '© Google'
+    });
+    
+    var hybridLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+        maxZoom: 20,
+        attribution: '© Google'
+    });
+    
+    // Add default layer
+    satelliteLayer.addTo(map);
+    
+    // Layer control
+    L.control.layers({
+        "Satelit": satelliteLayer,
+        "Peta": osmLayer,
+        "Hybrid": hybridLayer
+    }, null, { position: 'topright' }).addTo(map);
 
-    var marker = L.marker([lat, lng]).addTo(map);
+    var marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+    marker.on('dragend', function(e) {
+        var ll = e.target.getLatLng();
+        $('#latitude').val(ll.lat.toFixed(8));
+        $('#longitude').val(ll.lng.toFixed(8));
+    });
 
     map.on('click', function(e) {
         if (marker) {
             map.removeLayer(marker);
         }
-        marker = L.marker(e.latlng).addTo(map);
+        marker = L.marker(e.latlng, { draggable: true }).addTo(map);
+        marker.on('dragend', function(ev) {
+            var ll = ev.target.getLatLng();
+            $('#latitude').val(ll.lat.toFixed(8));
+            $('#longitude').val(ll.lng.toFixed(8));
+        });
         $('#latitude').val(e.latlng.lat.toFixed(8));
         $('#longitude').val(e.latlng.lng.toFixed(8));
     });

@@ -1,23 +1,57 @@
 <?php
-require_once __DIR__ . '/vendor/autoload.php';
-
+/**
+ * Test Hioso OLT dengan OID Enterprise 17409
+ */
+error_reporting(0);
 snmp_set_quick_print(true);
 snmp_set_valueretrieval(SNMP_VALUE_PLAIN);
 
 $ip = '172.16.16.4';
 $community = 'public';
 
-echo "=== Testing Hioso OLT $ip ===\n\n";
+echo "=== Test Hioso OLT - Enterprise 17409 OIDs ===\n\n";
 
-// sysDescr
-$sysDescr = @snmpget($ip, $community, '1.3.6.1.2.1.1.1.0', 5000000, 2);
-echo "sysDescr: $sysDescr\n";
+// System info
+echo "sysObjectID: ";
+$val = @snmpget($ip, $community, '1.3.6.1.2.1.1.2.0', 3000000, 2);
+echo ($val ?: "timeout") . "\n";
 
-// sysObjectID
-$sysObjId = @snmpget($ip, $community, '1.3.6.1.2.1.1.2.0', 5000000, 2);
-echo "sysObjectID: $sysObjId\n\n";
+echo "sysDescr: ";
+$val = @snmpget($ip, $community, '1.3.6.1.2.1.1.1.0', 3000000, 2);
+echo ($val ?: "timeout") . "\n\n";
 
-// Try different PON port OIDs
+// Test ONU OIDs dengan Enterprise 17409
+echo "=== Testing Enterprise 17409 OIDs ===\n";
+
+$oids17409 = [
+    'ONU Serial' => '1.3.6.1.4.1.17409.2.3.5.1.1.1.1.2',
+    'ONU MAC' => '1.3.6.1.4.1.17409.2.3.5.1.1.1.1.3',
+    'ONU Status' => '1.3.6.1.4.1.17409.2.3.5.1.1.1.1.4',
+    'ONU Distance' => '1.3.6.1.4.1.17409.2.3.5.1.1.1.1.7',
+    'ONU Rx Power' => '1.3.6.1.4.1.17409.2.3.5.1.4.1.1.3',
+    'PON Port Status' => '1.3.6.1.4.1.17409.2.3.4.1.1.1.1.3',
+];
+
+foreach ($oids17409 as $name => $oid) {
+    echo "\n$name ($oid):\n";
+    $result = @snmpwalkoid($ip, $community, $oid, 5000000, 2);
+    if ($result && count($result) > 0) {
+        echo "  Found " . count($result) . " entries:\n";
+        $i = 0;
+        foreach ($result as $fullOid => $value) {
+            $shortOid = preg_replace('/^iso\.3\.6\.1\.4\.1\.17409\./', '.17409.', $fullOid);
+            echo "  $shortOid => $value\n";
+            if (++$i >= 10) {
+                echo "  ... (showing first 10)\n";
+                break;
+            }
+        }
+    } else {
+        echo "  No data or timeout\n";
+    }
+}
+
+echo "\n\nDone!\n";
 echo "=== Try PON Port OIDs ===\n";
 
 $oids = [
