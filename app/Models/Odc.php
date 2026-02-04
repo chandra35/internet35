@@ -6,10 +6,11 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Traits\HasPhotos;
 
 class Odc extends Model
 {
-    use HasFactory, HasUuids, SoftDeletes;
+    use HasFactory, HasUuids, SoftDeletes, HasPhotos;
 
     protected $fillable = [
         'pop_id',
@@ -29,6 +30,7 @@ class Odc extends Model
         'cable_core',
         'cable_distance',
         'notes',
+        'photos',
         'created_by',
     ];
 
@@ -41,6 +43,7 @@ class Odc extends Model
         'cable_distance' => 'decimal:2',
         'olt_pon_port' => 'integer',
         'olt_slot' => 'integer',
+        'photos' => 'array',
     ];
 
     /**

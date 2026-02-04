@@ -6,10 +6,11 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Traits\HasPhotos;
 
 class Odp extends Model
 {
-    use HasFactory, HasUuids, SoftDeletes;
+    use HasFactory, HasUuids, SoftDeletes, HasPhotos;
 
     protected $fillable = [
         'pop_id',
@@ -32,6 +33,7 @@ class Odp extends Model
         'splitter_level',
         'pole_number',
         'notes',
+        'photos',
         'created_by',
     ];
 
@@ -44,6 +46,7 @@ class Odp extends Model
         'olt_pon_port' => 'integer',
         'olt_slot' => 'integer',
         'splitter_level' => 'integer',
+        'photos' => 'array',
     ];
 
     /**

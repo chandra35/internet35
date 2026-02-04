@@ -11,7 +11,7 @@
 @endsection
 
 @section('content')
-<form action="{{ route('admin.olts.store') }}" method="POST" id="form-olt">
+<form action="{{ route('admin.olts.store') }}" method="POST" id="form-olt" enctype="multipart/form-data">
     @csrf
     
     <!-- Hidden fields for identified data -->
@@ -383,6 +383,23 @@
                     <div class="form-group">
                         <label>Catatan Internal</label>
                         <textarea name="notes" class="form-control" rows="2">{{ old('notes') }}</textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label><i class="fas fa-camera mr-1"></i>Foto Dokumentasi</label>
+                        <small class="form-text text-muted mb-2">(Maks. 10 foto, masing-masing maks. 5MB)</small>
+                        <div class="input-group">
+                            <div class="custom-file">
+                                <input type="file" class="custom-file-input" id="photos" name="photos[]" accept="image/*" multiple>
+                                <label class="custom-file-label" for="photos">Pilih foto...</label>
+                            </div>
+                            <div class="input-group-append">
+                                <button type="button" class="btn btn-info" id="btn-camera" title="Ambil foto dari kamera">
+                                    <i class="fas fa-camera"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div id="photo-preview" class="d-flex flex-wrap mt-2"></div>
                     </div>
                 </div>
                 <div class="card-footer">
@@ -817,6 +834,94 @@ $(function() {
             });
         });
     });
+    
+    // Photo handling
+    var photoInput = document.getElementById('photos');
+    var photoPreview = document.getElementById('photo-preview');
+    
+    $('#photos').on('change', function() {
+        var files = this.files;
+        if (files.length > 0) {
+            $(this).next('.custom-file-label').text(files.length + ' foto dipilih');
+            updatePhotoPreview();
+        }
+    });
+    
+    function updatePhotoPreview() {
+        photoPreview.innerHTML = '';
+        var files = photoInput.files;
+        
+        for (var i = 0; i < files.length; i++) {
+            var file = files[i];
+            if (file.type.startsWith('image/')) {
+                var reader = new FileReader();
+                reader.onload = (function(f, idx) {
+                    return function(e) {
+                        var div = document.createElement('div');
+                        div.className = 'position-relative mr-2 mb-2';
+                        div.innerHTML = '<img src="' + e.target.result + '" class="img-thumbnail" style="width:80px;height:80px;object-fit:cover;">' +
+                            '<button type="button" class="btn btn-danger btn-xs position-absolute" style="top:-5px;right:-5px;padding:2px 5px;font-size:10px;" onclick="removePhoto(' + idx + ')"><i class="fas fa-times"></i></button>';
+                        photoPreview.appendChild(div);
+                    };
+                })(file, i);
+                reader.readAsDataURL(file);
+            }
+        }
+    }
+    
+    // Camera capture
+    $('#btn-camera').on('click', function() {
+        var input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.capture = 'environment';
+        input.onchange = function(e) {
+            if (e.target.files.length > 0) {
+                var dt = new DataTransfer();
+                var existingFiles = photoInput.files;
+                for (var i = 0; i < existingFiles.length; i++) {
+                    dt.items.add(existingFiles[i]);
+                }
+                dt.items.add(e.target.files[0]);
+                photoInput.files = dt.files;
+                $('#photos').next('.custom-file-label').text(dt.files.length + ' foto dipilih');
+                updatePhotoPreview();
+            }
+        };
+        input.click();
+    });
 });
+
+// Remove photo from preview
+window.removePhoto = function(idx) {
+    var dt = new DataTransfer();
+    var files = document.getElementById('photos').files;
+    for (var i = 0; i < files.length; i++) {
+        if (i !== idx) {
+            dt.items.add(files[i]);
+        }
+    }
+    document.getElementById('photos').files = dt.files;
+    $('#photos').next('.custom-file-label').text(dt.files.length > 0 ? dt.files.length + ' foto dipilih' : 'Pilih foto...');
+    
+    var photoPreview = document.getElementById('photo-preview');
+    photoPreview.innerHTML = '';
+    for (var i = 0; i < dt.files.length; i++) {
+        var file = dt.files[i];
+        if (file.type.startsWith('image/')) {
+            var reader = new FileReader();
+            reader.onload = (function(f, idx) {
+                return function(e) {
+                    var div = document.createElement('div');
+                    div.className = 'position-relative mr-2 mb-2';
+                    div.innerHTML = '<img src="' + e.target.result + '" class="img-thumbnail" style="width:80px;height:80px;object-fit:cover;">' +
+                        '<button type="button" class="btn btn-danger btn-xs position-absolute" style="top:-5px;right:-5px;padding:2px 5px;font-size:10px;" onclick="removePhoto(' + idx + ')"><i class="fas fa-times"></i></button>';
+                    photoPreview.appendChild(div);
+                };
+            })(file, i);
+            reader.readAsDataURL(file);
+        }
+    }
+};
 </script>
 @endpush

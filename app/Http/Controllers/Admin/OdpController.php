@@ -179,6 +179,8 @@ class OdpController extends Controller implements HasMiddleware
             'splitter_type' => 'nullable|string|max:100',
             'pole_number' => 'nullable|string|max:50',
             'notes' => 'nullable|string|max:1000',
+            'photos' => 'nullable|array|max:10',
+            'photos.*' => 'image|mimes:jpeg,png,jpg,webp|max:5120',
         ];
         
         // Add conditional validation based on connection type
@@ -250,7 +252,16 @@ class OdpController extends Controller implements HasMiddleware
         try {
             DB::beginTransaction();
             
+            // Remove photos from validated to handle separately
+            $photoFiles = $request->file('photos', []);
+            unset($validated['photos']);
+            
             $odp = Odp::create($validated);
+            
+            // Upload photos if provided
+            if (!empty($photoFiles)) {
+                $odp->addPhotos($photoFiles);
+            }
             
             // Update ODC used_ports if via ODC
             if ($connectionType === 'odc' && isset($odc)) {
@@ -339,6 +350,9 @@ class OdpController extends Controller implements HasMiddleware
             'splitter_type' => 'nullable|string|max:100',
             'pole_number' => 'nullable|string|max:50',
             'notes' => 'nullable|string|max:1000',
+            'photos' => 'nullable|array|max:10',
+            'photos.*' => 'image|mimes:jpeg,png,jpg,webp|max:5120',
+            'remove_photos' => 'nullable|array',
         ];
         
         $connectionType = $request->input('connection_type');
@@ -424,6 +438,22 @@ class OdpController extends Controller implements HasMiddleware
         
         try {
             DB::beginTransaction();
+            
+            // Handle photo removal
+            if ($request->has('remove_photos')) {
+                foreach ($request->remove_photos as $filename) {
+                    $odp->removePhoto($filename);
+                }
+            }
+            
+            // Handle new photos
+            $photoFiles = $request->file('photos', []);
+            if (!empty($photoFiles)) {
+                $odp->addPhotos($photoFiles);
+            }
+            
+            // Remove photo fields from validated
+            unset($validated['photos'], $validated['remove_photos']);
             
             $oldOdcId = $odp->odc_id;
             $oldData = $odp->toArray();

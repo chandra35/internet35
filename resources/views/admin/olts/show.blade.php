@@ -278,6 +278,27 @@
             </div>
         </div>
         @endif
+
+        <!-- Photos -->
+        @if($olt->photos && count($olt->photos) > 0)
+        <div class="card card-secondary">
+            <div class="card-header">
+                <h3 class="card-title"><i class="fas fa-images mr-2"></i>Foto ({{ count($olt->photos) }})</h3>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    @foreach($olt->photos as $photo)
+                    <div class="col-6 mb-2">
+                        <a href="{{ $olt->getPhotoUrl($photo) }}" data-lightbox="olt-photos" data-title="{{ $olt->name }}">
+                            <img src="{{ $olt->getThumbnailUrl($photo) }}" class="img-thumbnail w-100" 
+                                 style="height:80px;object-fit:cover;" alt="Foto OLT">
+                        </a>
+                    </div>
+                    @endforeach
+                </div>
+            </div>
+        </div>
+        @endif
     </div>
 
     <!-- ONU List -->
@@ -560,6 +581,7 @@
 
 @push('css')
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.4/css/lightbox.min.css">
 @endpush
 
 @push('js')
@@ -1095,4 +1117,5 @@ $(function() {
     }, refreshInterval);
 });
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.4/js/lightbox.min.js"></script>
 @endpush

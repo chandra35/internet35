@@ -11,6 +11,7 @@
 @endsection
 
 @push('css')
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.4/css/lightbox.min.css">
 <style>
     #map { height: 400px; border-radius: 5px; }
     .custom-marker { background: transparent; border: none; }
@@ -271,6 +272,27 @@
         </div>
         @endif
 
+        <!-- Photos -->
+        @if($odp->photos && count($odp->photos) > 0)
+        <div class="card card-secondary">
+            <div class="card-header">
+                <h3 class="card-title"><i class="fas fa-images mr-2"></i>Foto Dokumentasi ({{ count($odp->photos) }})</h3>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    @foreach($odp->photos as $photo)
+                    <div class="col-6 mb-2">
+                        <a href="{{ $odp->getPhotoUrl($photo) }}" data-lightbox="odp-photos" data-title="{{ $odp->code }}">
+                            <img src="{{ $odp->getThumbnailUrl($photo) }}" class="img-thumbnail w-100" 
+                                 style="height:100px;object-fit:cover;" alt="Foto ODP">
+                        </a>
+                    </div>
+                    @endforeach
+                </div>
+            </div>
+        </div>
+        @endif
+
         <!-- Actions -->
         <div class="card">
             <div class="card-body">
@@ -436,4 +458,5 @@ $(function() {
 });
 </script>
 @endif
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.4/js/lightbox.min.js"></script>
 @endpush

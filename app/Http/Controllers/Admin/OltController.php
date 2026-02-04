@@ -133,6 +133,7 @@ class OltController extends Controller implements HasMiddleware
             'longitude' => 'nullable|numeric|between:-180,180',
             'total_pon_ports' => 'nullable|integer|min:1|max:64',
             'status' => 'nullable|in:active,inactive,maintenance',
+            'photos.*' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:5120',
         ]);
 
         try {
@@ -169,6 +170,11 @@ class OltController extends Controller implements HasMiddleware
                 'notes' => $request->notes,
                 'created_by' => auth()->id(),
             ]);
+            
+            // Upload photos if provided
+            if ($request->hasFile('photos')) {
+                $olt->uploadPhotos($request->file('photos'));
+            }
             
             $this->activityLog->log('olts', "Created OLT: {$olt->name} ({$olt->code})");
             
@@ -258,6 +264,7 @@ class OltController extends Controller implements HasMiddleware
             'latitude' => 'nullable|numeric|between:-90,90',
             'longitude' => 'nullable|numeric|between:-180,180',
             'status' => 'nullable|in:active,inactive,maintenance,offline',
+            'photos.*' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:5120',
         ]);
 
         try {
@@ -295,6 +302,18 @@ class OltController extends Controller implements HasMiddleware
             }
             
             $olt->update($data);
+            
+            // Handle photo removal
+            if ($request->has('remove_photos')) {
+                foreach ($request->remove_photos as $photo) {
+                    $olt->removePhoto($photo);
+                }
+            }
+            
+            // Upload new photos
+            if ($request->hasFile('photos')) {
+                $olt->addPhotos($request->file('photos'));
+            }
             
             $this->activityLog->log('olts', "Updated OLT: {$olt->name} ({$olt->code})");
             

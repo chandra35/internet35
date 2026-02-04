@@ -8,10 +8,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Traits\HasPhotos;
 
 class Olt extends Model
 {
-    use HasFactory, HasUuids, SoftDeletes;
+    use HasFactory, HasUuids, SoftDeletes, HasPhotos;
 
     protected $fillable = [
         'pop_id',
@@ -57,6 +58,7 @@ class Olt extends Model
         'notes',
         'internal_notes',
         'created_by',
+        'photos',
     ];
 
     protected $casts = [
@@ -70,6 +72,7 @@ class Olt extends Model
         'max_onu_per_port' => 'integer',
         'last_sync_at' => 'datetime',
         'last_online_at' => 'datetime',
+        'photos' => 'array',
     ];
 
     protected $hidden = [

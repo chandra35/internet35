@@ -11,6 +11,7 @@
 @endsection
 
 @push('css')
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.4/css/lightbox.min.css">
 <style>
     #map { height: 300px; border-radius: 5px; }
 </style>
@@ -94,6 +95,30 @@
                     <small class="text-muted">
                         Koordinat: {{ $odc->latitude }}, {{ $odc->longitude }}
                     </small>
+                </div>
+            </div>
+        </div>
+        @endif
+
+        <!-- Photo Gallery -->
+        @if($odc->photos && count($odc->photos) > 0)
+        <div class="card card-secondary card-outline">
+            <div class="card-header">
+                <h3 class="card-title"><i class="fas fa-images mr-2"></i>Foto Dokumentasi</h3>
+                <div class="card-tools">
+                    <span class="badge badge-info">{{ count($odc->photos) }} foto</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    @foreach($odc->photos as $photo)
+                    <div class="col-md-3 col-sm-4 col-6 mb-3">
+                        <a href="{{ $odc->getPhotoUrl($photo) }}" data-lightbox="odc-gallery" data-title="{{ $odc->code }} - Foto {{ $loop->iteration }}">
+                            <img src="{{ $odc->getThumbnailUrl($photo) }}" class="img-fluid img-thumbnail" 
+                                 style="width:100%;height:150px;object-fit:cover;" alt="Foto {{ $loop->iteration }}">
+                        </a>
+                    </div>
+                    @endforeach
                 </div>
             </div>
         </div>
@@ -310,4 +335,14 @@ $(function() {
     }
 </style>
 @endif
+
+<!-- Lightbox for photo gallery -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.4/js/lightbox.min.js"></script>
+<script>
+lightbox.option({
+    'resizeDuration': 200,
+    'wrapAround': true,
+    'albumLabel': 'Foto %1 dari %2'
+});
+</script>
 @endpush

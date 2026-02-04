@@ -145,6 +145,8 @@ class OdcController extends Controller implements HasMiddleware
             'cable_core' => 'nullable|integer|min:1',
             'cable_distance' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string|max:1000',
+            'photos' => 'nullable|array|max:10',
+            'photos.*' => 'image|mimes:jpeg,png,jpg,webp|max:5120',
         ]);
         
         $validated['pop_id'] = $popId;
@@ -159,7 +161,16 @@ class OdcController extends Controller implements HasMiddleware
         try {
             DB::beginTransaction();
             
+            // Remove photos from validated to handle separately
+            $photoFiles = $request->file('photos', []);
+            unset($validated['photos']);
+            
             $odc = Odc::create($validated);
+            
+            // Upload photos if provided
+            if (!empty($photoFiles)) {
+                $odc->addPhotos($photoFiles);
+            }
             
             $this->activityLog->log(
                 'odc_created',
@@ -228,6 +239,9 @@ class OdcController extends Controller implements HasMiddleware
             'cable_core' => 'nullable|integer|min:1',
             'cable_distance' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string|max:1000',
+            'photos' => 'nullable|array|max:10',
+            'photos.*' => 'image|mimes:jpeg,png,jpg,webp|max:5120',
+            'remove_photos' => 'nullable|array',
         ]);
         
         // Validate total_ports >= used_ports
@@ -239,6 +253,22 @@ class OdcController extends Controller implements HasMiddleware
         
         try {
             DB::beginTransaction();
+            
+            // Handle photo removal
+            if ($request->has('remove_photos')) {
+                foreach ($request->remove_photos as $filename) {
+                    $odc->removePhoto($filename);
+                }
+            }
+            
+            // Handle new photos
+            $photoFiles = $request->file('photos', []);
+            if (!empty($photoFiles)) {
+                $odc->addPhotos($photoFiles);
+            }
+            
+            // Remove photo fields from validated
+            unset($validated['photos'], $validated['remove_photos']);
             
             $oldData = $odc->toArray();
             $odc->update($validated);

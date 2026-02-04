@@ -17,7 +17,7 @@
 @endpush
 
 @section('content')
-<form action="{{ route('admin.odcs.update', $odc) }}" method="POST">
+<form action="{{ route('admin.odcs.update', $odc) }}" method="POST" enctype="multipart/form-data">
     @csrf
     @method('PUT')
     
@@ -255,6 +255,55 @@
                 </div>
             </div>
 
+            <!-- Photos -->
+            <div class="card card-secondary">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-camera mr-2"></i>Foto Dokumentasi</h3>
+                </div>
+                <div class="card-body">
+                    <!-- Existing Photos -->
+                    @if($odc->photos && count($odc->photos) > 0)
+                    <div class="mb-3">
+                        <label class="d-block mb-2">Foto yang sudah ada:</label>
+                        <div class="d-flex flex-wrap" id="existing-photos">
+                            @foreach($odc->photos as $photo)
+                            <div class="position-relative mr-2 mb-2" id="photo-{{ $loop->index }}">
+                                <img src="{{ $odc->getThumbnailUrl($photo) }}" class="img-thumbnail" style="width:100px;height:100px;object-fit:cover;">
+                                <button type="button" class="btn btn-danger btn-xs position-absolute" style="top:-5px;right:-5px;padding:2px 6px;" 
+                                        onclick="markPhotoForRemoval('{{ $photo }}', {{ $loop->index }})">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                                <input type="hidden" name="keep_photos[]" value="{{ $photo }}" id="keep-{{ $loop->index }}">
+                            </div>
+                            @endforeach
+                        </div>
+                    </div>
+                    @endif
+                    
+                    <!-- Upload New Photos -->
+                    <div class="form-group mb-0">
+                        <label>Tambah Foto Baru</label>
+                        <div class="input-group">
+                            <div class="custom-file">
+                                <input type="file" class="custom-file-input @error('photos.*') is-invalid @enderror" 
+                                       id="photos" name="photos[]" multiple accept="image/*">
+                                <label class="custom-file-label" for="photos">Pilih foto...</label>
+                            </div>
+                            <div class="input-group-append">
+                                <button type="button" class="btn btn-info" id="btn-camera" title="Ambil dari Kamera">
+                                    <i class="fas fa-camera"></i>
+                                </button>
+                            </div>
+                        </div>
+                        @error('photos.*')
+                            <div class="text-danger small mt-1">{{ $message }}</div>
+                        @enderror
+                        <small class="text-muted">Format: JPG, PNG, WebP. Maks 5MB per foto.</small>
+                    </div>
+                    <div id="photo-preview" class="mt-3 d-flex flex-wrap"></div>
+                </div>
+            </div>
+
             <!-- Notes -->
             <div class="card">
                 <div class="card-header">
@@ -465,6 +514,112 @@ $(function() {
     if ($('#olt_id').val()) {
         $('#olt_id').trigger('change');
     }
+    
+    // Photo handling
+    var photoInput = document.getElementById('photos');
+    var photoPreview = document.getElementById('photo-preview');
+    
+    $('#photos').on('change', function() {
+        var files = this.files;
+        if (files.length > 0) {
+            $(this).next('.custom-file-label').text(files.length + ' foto baru dipilih');
+            updatePhotoPreview();
+        } else {
+            $(this).next('.custom-file-label').text('Pilih foto...');
+        }
+    });
+    
+    function updatePhotoPreview() {
+        photoPreview.innerHTML = '';
+        var files = photoInput.files;
+        
+        for (var i = 0; i < files.length; i++) {
+            var file = files[i];
+            if (file.type.startsWith('image/')) {
+                var reader = new FileReader();
+                reader.onload = (function(f, idx) {
+                    return function(e) {
+                        var div = document.createElement('div');
+                        div.className = 'position-relative mr-2 mb-2';
+                        div.innerHTML = '<img src="' + e.target.result + '" class="img-thumbnail" style="width:100px;height:100px;object-fit:cover;">' +
+                            '<span class="badge badge-success position-absolute" style="top:5px;left:5px;">Baru</span>' +
+                            '<button type="button" class="btn btn-danger btn-xs position-absolute" style="top:-5px;right:-5px;padding:2px 6px;" onclick="removePreviewPhoto(' + idx + ')"><i class="fas fa-times"></i></button>';
+                        photoPreview.appendChild(div);
+                    };
+                })(file, i);
+                reader.readAsDataURL(file);
+            }
+        }
+    }
+    
+    // Camera capture
+    $('#btn-camera').on('click', function() {
+        var input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.capture = 'environment';
+        input.onchange = function(e) {
+            if (e.target.files.length > 0) {
+                var dt = new DataTransfer();
+                var existingFiles = photoInput.files;
+                for (var i = 0; i < existingFiles.length; i++) {
+                    dt.items.add(existingFiles[i]);
+                }
+                dt.items.add(e.target.files[0]);
+                photoInput.files = dt.files;
+                $('#photos').next('.custom-file-label').text(dt.files.length + ' foto baru dipilih');
+                updatePhotoPreview();
+            }
+        };
+        input.click();
+    });
 });
+
+// Mark existing photo for removal
+window.markPhotoForRemoval = function(filename, idx) {
+    if (confirm('Hapus foto ini?')) {
+        $('#photo-' + idx).hide();
+        $('#keep-' + idx).remove();
+        // Add hidden input to mark for removal
+        $('<input>').attr({
+            type: 'hidden',
+            name: 'remove_photos[]',
+            value: filename
+        }).appendTo('form');
+    }
+};
+
+// Remove new photo from preview
+window.removePreviewPhoto = function(idx) {
+    var dt = new DataTransfer();
+    var files = document.getElementById('photos').files;
+    for (var i = 0; i < files.length; i++) {
+        if (i !== idx) {
+            dt.items.add(files[i]);
+        }
+    }
+    document.getElementById('photos').files = dt.files;
+    $('#photos').next('.custom-file-label').text(dt.files.length > 0 ? dt.files.length + ' foto baru dipilih' : 'Pilih foto...');
+    
+    var photoPreview = document.getElementById('photo-preview');
+    photoPreview.innerHTML = '';
+    for (var i = 0; i < dt.files.length; i++) {
+        var file = dt.files[i];
+        if (file.type.startsWith('image/')) {
+            var reader = new FileReader();
+            reader.onload = (function(f, idx) {
+                return function(e) {
+                    var div = document.createElement('div');
+                    div.className = 'position-relative mr-2 mb-2';
+                    div.innerHTML = '<img src="' + e.target.result + '" class="img-thumbnail" style="width:100px;height:100px;object-fit:cover;">' +
+                        '<span class="badge badge-success position-absolute" style="top:5px;left:5px;">Baru</span>' +
+                        '<button type="button" class="btn btn-danger btn-xs position-absolute" style="top:-5px;right:-5px;padding:2px 6px;" onclick="removePreviewPhoto(' + idx + ')"><i class="fas fa-times"></i></button>';
+                    photoPreview.appendChild(div);
+                };
+            })(file, i);
+            reader.readAsDataURL(file);
+        }
+    }
+};
 </script>
 @endpush
