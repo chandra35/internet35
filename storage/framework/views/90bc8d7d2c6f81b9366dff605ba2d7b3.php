@@ -1,15 +1,15 @@
-@extends('layouts.admin')
 
-@section('title', 'Network Map')
 
-@section('page-title', 'Network Map - Peta Jaringan')
+<?php $__env->startSection('title', 'Network Map'); ?>
 
-@section('breadcrumb')
-    <li class="breadcrumb-item"><a href="{{ route('admin.dashboard') }}">Dashboard</a></li>
+<?php $__env->startSection('page-title', 'Network Map - Peta Jaringan'); ?>
+
+<?php $__env->startSection('breadcrumb'); ?>
+    <li class="breadcrumb-item"><a href="<?php echo e(route('admin.dashboard')); ?>">Dashboard</a></li>
     <li class="breadcrumb-item active">Network Map</li>
-@endsection
+<?php $__env->stopSection(); ?>
 
-@push('css')
+<?php $__env->startPush('css'); ?>
 <style>
     #networkMap { 
         height: calc(100vh - 280px); 
@@ -73,13 +73,13 @@
         z-index: 1000;
     }
 </style>
-@endpush
+<?php $__env->stopPush(); ?>
 
-@section('content')
+<?php $__env->startSection('content'); ?>
 <div class="row">
     <div class="col-12">
         <!-- Superadmin POP Selector -->
-        @if($popUsers && auth()->user()->hasRole('superadmin'))
+        <?php if($popUsers && auth()->user()->hasRole('superadmin')): ?>
         <div class="card card-outline card-info mb-3">
             <div class="card-body py-2">
                 <div class="row align-items-center">
@@ -90,19 +90,19 @@
                     <div class="col">
                         <select class="form-control select2" id="selectPop" style="width: 100%;">
                             <option value="">-- Pilih POP --</option>
-                            @foreach($popUsers as $pop)
-                                <option value="{{ $pop->id }}" {{ $popId == $pop->id ? 'selected' : '' }}>
-                                    {{ $pop->name }} ({{ $pop->email }})
+                            <?php $__currentLoopData = $popUsers; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $pop): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <option value="<?php echo e($pop->id); ?>" <?php echo e($popId == $pop->id ? 'selected' : ''); ?>>
+                                    <?php echo e($pop->name); ?> (<?php echo e($pop->email); ?>)
                                 </option>
-                            @endforeach
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </select>
                     </div>
                 </div>
             </div>
         </div>
-        @endif
+        <?php endif; ?>
 
-        @if($popId)
+        <?php if($popId): ?>
         <!-- Statistics -->
         <div class="row" id="statsRow">
             <div class="col-lg-3 col-6">
@@ -244,7 +244,7 @@
                 </div>
             </div>
         </div>
-        @else
+        <?php else: ?>
         <div class="card">
             <div class="card-body text-center py-5">
                 <i class="fas fa-map fa-4x text-muted mb-3"></i>
@@ -252,12 +252,12 @@
                 <p class="text-muted">Pilih POP terlebih dahulu untuk melihat peta jaringan</p>
             </div>
         </div>
-        @endif
+        <?php endif; ?>
     </div>
 </div>
-@endsection
+<?php $__env->stopSection(); ?>
 
-@push('js')
+<?php $__env->startPush('js'); ?>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
@@ -269,13 +269,13 @@ $(function() {
     $('#selectPop').on('change', function() {
         const popId = $(this).val();
         if (popId) {
-            window.location.href = '{{ route("admin.network-map.index") }}?pop_id=' + popId;
+            window.location.href = '<?php echo e(route("admin.network-map.index")); ?>?pop_id=' + popId;
         }
     });
 
-    @if($popId)
+    <?php if($popId): ?>
     // Initialize map
-    const defaultCenter = [{{ $defaultCenter['lat'] }}, {{ $defaultCenter['lng'] }}];
+    const defaultCenter = [<?php echo e($defaultCenter['lat']); ?>, <?php echo e($defaultCenter['lng']); ?>];
     const map = L.map('networkMap').setView(defaultCenter, 13);
     
     // Define base layers - Google Satellite
@@ -369,8 +369,8 @@ $(function() {
         
         const showCustomers = $('#showCustomers').is(':checked');
         
-        $.get('{{ route("admin.network-map.data") }}', {
-            pop_id: '{{ $popId }}',
+        $.get('<?php echo e(route("admin.network-map.data")); ?>', {
+            pop_id: '<?php echo e($popId); ?>',
             show_customers: showCustomers ? 1 : 0
         }, function(data) {
             // Clear layers
@@ -503,8 +503,8 @@ $(function() {
     
     // Load statistics
     function loadStats() {
-        $.get('{{ route("admin.network-map.stats") }}', {
-            pop_id: '{{ $popId }}'
+        $.get('<?php echo e(route("admin.network-map.stats")); ?>', {
+            pop_id: '<?php echo e($popId); ?>'
         }, function(data) {
             $('#statOlts').text(data.olts ? data.olts.total : 0);
             $('#statOltsCoords').text(data.olts ? data.olts.with_coords : 0);
@@ -538,7 +538,9 @@ $(function() {
     $('#showCustomers').on('change', function() {
         loadMapData();
     });
-    @endif
+    <?php endif; ?>
 });
 </script>
-@endpush
+<?php $__env->stopPush(); ?>
+
+<?php echo $__env->make('layouts.admin', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH D:\projek\internet35\resources\views/admin/network-map/index.blade.php ENDPATH**/ ?>

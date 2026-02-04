@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Models\Odc;
 use App\Models\Odp;
+use App\Models\Olt;
 use App\Models\Router;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -90,6 +91,7 @@ class NetworkMapController extends Controller implements HasMiddleware
         if (!$popId) {
             return response()->json([
                 'routers' => [],
+                'olts' => [],
                 'odcs' => [],
                 'odps' => [],
                 'customers' => [],
@@ -115,11 +117,29 @@ class NetworkMapController extends Controller implements HasMiddleware
                 ];
             });
         
+        // Get OLTs with coordinates
+        $olts = Olt::where('pop_id', $popId)
+            ->whereNotNull('latitude')
+            ->whereNotNull('longitude')
+            ->get()
+            ->map(function($olt) {
+                return [
+                    'id' => $olt->id,
+                    'name' => $olt->name,
+                    'code' => $olt->code,
+                    'lat' => (float) $olt->latitude,
+                    'lng' => (float) $olt->longitude,
+                    'status' => $olt->status,
+                    'brand' => $olt->brand,
+                    'type' => 'olt',
+                ];
+            });
+        
         // Get ODCs with coordinates
         $odcs = Odc::where('pop_id', $popId)
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
-            ->with('router')
+            ->with('olt')
             ->get()
             ->map(function($odc) {
                 return [
@@ -179,14 +199,14 @@ class NetworkMapController extends Controller implements HasMiddleware
         // Build connection lines
         $lines = [];
         
-        // Router to ODC lines (blue)
+        // OLT to ODC lines (blue)
         foreach ($odcs as $odc) {
-            $router = $routers->firstWhere('id', $odc['router_id']);
-            if ($router) {
+            $olt = $olts->firstWhere('id', $odc['olt_id']);
+            if ($olt) {
                 $lines[] = [
-                    'from' => ['lat' => $router['lat'], 'lng' => $router['lng']],
+                    'from' => ['lat' => $olt['lat'], 'lng' => $olt['lng']],
                     'to' => ['lat' => $odc['lat'], 'lng' => $odc['lng']],
-                    'type' => 'router-odc',
+                    'type' => 'olt-odc',
                     'color' => '#007bff', // Blue
                     'weight' => 3,
                 ];
@@ -225,6 +245,7 @@ class NetworkMapController extends Controller implements HasMiddleware
         
         return response()->json([
             'routers' => $routers->values(),
+            'olts' => $olts->values(),
             'odcs' => $odcs->values(),
             'odps' => $odps->values(),
             'customers' => $request->input('show_customers', false) ? $customers->values() : [],
@@ -244,6 +265,12 @@ class NetworkMapController extends Controller implements HasMiddleware
                 'total' => Router::when($popId, fn($q) => $q->where('pop_id', $popId))->count(),
                 'online' => Router::when($popId, fn($q) => $q->where('pop_id', $popId))->where('status', 'online')->count(),
                 'with_coords' => Router::when($popId, fn($q) => $q->where('pop_id', $popId))
+                    ->whereNotNull('latitude')->whereNotNull('longitude')->count(),
+            ],
+            'olts' => [
+                'total' => Olt::when($popId, fn($q) => $q->where('pop_id', $popId))->count(),
+                'active' => Olt::when($popId, fn($q) => $q->where('pop_id', $popId))->where('status', 'active')->count(),
+                'with_coords' => Olt::when($popId, fn($q) => $q->where('pop_id', $popId))
                     ->whereNotNull('latitude')->whereNotNull('longitude')->count(),
             ],
             'odcs' => [
