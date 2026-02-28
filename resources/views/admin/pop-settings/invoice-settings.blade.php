@@ -44,122 +44,156 @@
             <input type="hidden" name="user_id" value="{{ $userId }}">
             @endif
 
-            <!-- Invoice Settings -->
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title"><i class="fas fa-file-invoice mr-2"></i>Pengaturan Invoice</h3>
+            <div class="row">
+                <div class="col-lg-8">
+                    <!-- Invoice Settings -->
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h3 class="card-title mb-0"><i class="fas fa-file-invoice mr-2"></i>Pengaturan Invoice</h3>
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="btnPreview" onclick="openFullPreview()">
+                                <i class="fas fa-eye mr-1"></i>Preview Invoice
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label>Prefix Invoice</label>
+                                        <input type="text" name="invoice_prefix" class="form-control preview-trigger" 
+                                               value="{{ $popSetting->invoice_prefix ?? 'INV' }}" 
+                                               placeholder="INV" maxlength="10">
+                                        <small class="text-muted">Contoh: INV-2024-0001</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label>Jatuh Tempo (Hari)</label>
+                                        <input type="number" name="invoice_due_days" class="form-control preview-trigger" 
+                                               value="{{ $popSetting->invoice_due_days ?? 7 }}" 
+                                               min="1" max="30">
+                                        <small class="text-muted">Hari setelah invoice dibuat</small>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="form-group">
+                                        <label>Footer Invoice</label>
+                                        <input type="text" name="invoice_footer" class="form-control preview-trigger" 
+                                               value="{{ $popSetting->invoice_footer }}" 
+                                               placeholder="Terima kasih atas pembayaran Anda">
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="form-group mb-0">
+                                        <label>Catatan Invoice Default</label>
+                                        <textarea name="invoice_notes" class="form-control preview-trigger" rows="2" 
+                                                  placeholder="Catatan yang akan ditampilkan di setiap invoice">{{ $popSetting->invoice_notes }}</textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tax Settings -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title"><i class="fas fa-percentage mr-2"></i>Pengaturan Pajak (PPN)</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-12 mb-3">
+                                    <div class="custom-control custom-switch">
+                                        <input type="checkbox" class="custom-control-input preview-trigger" id="ppn_enabled" name="ppn_enabled" 
+                                               value="1" {{ $popSetting->ppn_enabled ? 'checked' : '' }}>
+                                        <label class="custom-control-label" for="ppn_enabled">
+                                            <strong>Aktifkan PPN</strong>
+                                        </label>
+                                    </div>
+                                    <small class="text-muted d-block mt-1">Jika diaktifkan, PPN akan ditambahkan ke setiap invoice</small>
+                                </div>
+                            </div>
+                            
+                            <div id="ppnSettings" style="{{ $popSetting->ppn_enabled ? '' : 'display:none;' }}">
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="form-group">
+                                            <label>Persentase PPN (%)</label>
+                                            <div class="input-group">
+                                                <input type="number" name="ppn_percentage" class="form-control preview-trigger" 
+                                                       value="{{ $popSetting->ppn_percentage ?? 11 }}" 
+                                                       min="0" max="100" step="0.5">
+                                                <div class="input-group-append">
+                                                    <span class="input-group-text">%</span>
+                                                </div>
+                                            </div>
+                                            <small class="text-muted">PPN standar Indonesia: 11%</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-group">
+                                            <label>Metode Perhitungan</label>
+                                            <select name="ppn_method" class="form-control">
+                                                <option value="exclusive" {{ ($popSetting->ppn_method ?? 'exclusive') == 'exclusive' ? 'selected' : '' }}>
+                                                    Exclusive (PPN ditambahkan)
+                                                </option>
+                                                <option value="inclusive" {{ ($popSetting->ppn_method ?? '') == 'inclusive' ? 'selected' : '' }}>
+                                                    Inclusive (Sudah termasuk)
+                                                </option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-group">
+                                            <label>Tampilkan di Invoice</label>
+                                            <select name="ppn_display" class="form-control">
+                                                <option value="separate" {{ ($popSetting->ppn_display ?? 'separate') == 'separate' ? 'selected' : '' }}>
+                                                    Terpisah (Subtotal + PPN)
+                                                </option>
+                                                <option value="included" {{ ($popSetting->ppn_display ?? '') == 'included' ? 'selected' : '' }}>
+                                                    Termasuk dalam total
+                                                </option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-4">
-                            <div class="form-group">
-                                <label>Prefix Invoice</label>
-                                <input type="text" name="invoice_prefix" class="form-control" 
-                                       value="{{ $popSetting->invoice_prefix ?? 'INV' }}" 
-                                       placeholder="INV" maxlength="10">
-                                <small class="text-muted">Contoh: INV-2024-0001</small>
+
+                <!-- Live Preview Panel -->
+                <div class="col-lg-4">
+                    <div class="card sticky-top" style="top: 70px;">
+                        <div class="card-header bg-gradient-primary text-white">
+                            <h3 class="card-title mb-0"><i class="fas fa-eye mr-2"></i>Live Preview</h3>
+                        </div>
+                        <div class="card-body p-2" style="max-height: 500px; overflow-y: auto;">
+                            <div id="livePreviewContent">
+                                <div class="text-center py-5 text-muted">
+                                    <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
+                                    <p class="mb-0">Memuat preview...</p>
+                                </div>
                             </div>
                         </div>
-                        <div class="col-md-4">
-                            <div class="form-group">
-                                <label>Jatuh Tempo (Hari)</label>
-                                <input type="number" name="invoice_due_days" class="form-control" 
-                                       value="{{ $popSetting->invoice_due_days ?? 7 }}" 
-                                       min="1" max="30">
-                                <small class="text-muted">Hari setelah invoice dibuat</small>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="form-group">
-                                <label>Footer Invoice</label>
-                                <input type="text" name="invoice_footer" class="form-control" 
-                                       value="{{ $popSetting->invoice_footer }}" 
-                                       placeholder="Terima kasih atas pembayaran Anda">
-                            </div>
-                        </div>
-                        <div class="col-12">
-                            <div class="form-group">
-                                <label>Catatan Invoice Default</label>
-                                <textarea name="invoice_notes" class="form-control" rows="3" 
-                                          placeholder="Catatan yang akan ditampilkan di setiap invoice">{{ $popSetting->invoice_notes }}</textarea>
-                            </div>
+                        <div class="card-footer text-center">
+                            <button type="button" class="btn btn-primary btn-sm" onclick="openFullPreview()">
+                                <i class="fas fa-external-link-alt mr-1"></i>Buka Preview Penuh
+                            </button>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Tax Settings -->
+            <!-- Syarat & Ketentuan -->
             <div class="card">
                 <div class="card-header">
-                    <h3 class="card-title"><i class="fas fa-percentage mr-2"></i>Pengaturan Pajak (PPN)</h3>
+                    <h3 class="card-title"><i class="fas fa-file-contract mr-2"></i>Syarat & Ketentuan Invoice</h3>
                 </div>
                 <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-12 mb-3">
-                            <div class="custom-control custom-switch">
-                                <input type="checkbox" class="custom-control-input" id="ppn_enabled" name="ppn_enabled" 
-                                       value="1" {{ $popSetting->ppn_enabled ? 'checked' : '' }}>
-                                <label class="custom-control-label" for="ppn_enabled">
-                                    <strong>Aktifkan PPN</strong>
-                                </label>
-                            </div>
-                            <small class="text-muted d-block mt-1">Jika diaktifkan, PPN akan ditambahkan ke setiap invoice</small>
-                        </div>
-                    </div>
-                    
-                    <div id="ppnSettings" style="{{ $popSetting->ppn_enabled ? '' : 'display:none;' }}">
-                        <div class="row">
-                            <div class="col-md-4">
-                                <div class="form-group">
-                                    <label>Persentase PPN (%)</label>
-                                    <div class="input-group">
-                                        <input type="number" name="ppn_percentage" class="form-control" 
-                                               value="{{ $popSetting->ppn_percentage ?? 11 }}" 
-                                               min="0" max="100" step="0.5">
-                                        <div class="input-group-append">
-                                            <span class="input-group-text">%</span>
-                                        </div>
-                                    </div>
-                                    <small class="text-muted">PPN standar Indonesia: 11%</small>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="form-group">
-                                    <label>Metode Perhitungan</label>
-                                    <select name="ppn_method" class="form-control select2">
-                                        <option value="exclusive" {{ ($popSetting->ppn_method ?? 'exclusive') == 'exclusive' ? 'selected' : '' }}>
-                                            Exclusive (PPN ditambahkan di atas harga)
-                                        </option>
-                                        <option value="inclusive" {{ ($popSetting->ppn_method ?? '') == 'inclusive' ? 'selected' : '' }}>
-                                            Inclusive (Harga sudah termasuk PPN)
-                                        </option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="form-group">
-                                    <label>Tampilkan di Invoice</label>
-                                    <select name="ppn_display" class="form-control select2">
-                                        <option value="separate" {{ ($popSetting->ppn_display ?? 'separate') == 'separate' ? 'selected' : '' }}>
-                                            Terpisah (Subtotal + PPN)
-                                        </option>
-                                        <option value="included" {{ ($popSetting->ppn_display ?? '') == 'included' ? 'selected' : '' }}>
-                                            Termasuk dalam total
-                                        </option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="alert alert-info">
-                            <i class="fas fa-calculator mr-2"></i>
-                            <strong>Contoh Perhitungan:</strong>
-                            <div class="mt-2">
-                                <span id="calculationExample">
-                                    Harga Paket: Rp 100.000 + PPN 11% = <strong>Rp 111.000</strong>
-                                </span>
-                            </div>
-                        </div>
+                    <div class="form-group mb-0">
+                        <label>Syarat & Ketentuan</label>
+                        <textarea name="invoice_terms" class="form-control preview-trigger" rows="4" 
+                                  placeholder="Syarat dan ketentuan yang berlaku pada setiap invoice">{{ $popSetting->invoice_terms }}</textarea>
+                        <small class="text-muted">Akan ditampilkan di bagian bawah invoice</small>
                     </div>
                 </div>
             </div>
@@ -421,6 +455,7 @@ $(function() {
             success: function(response) {
                 if (response.success) {
                     toastr.success(response.message);
+                    updateLivePreview(); // Refresh preview after save
                 } else {
                     toastr.error(response.message);
                 }
@@ -440,6 +475,50 @@ $(function() {
             }
         });
     });
+
+    // Live Preview Functions
+    let previewTimeout = null;
+    
+    function updateLivePreview() {
+        const formData = $('#invoiceForm').serialize();
+        
+        $.ajax({
+            url: '{{ route("admin.pop-settings.invoice-live-preview") }}',
+            type: 'POST',
+            data: formData,
+            success: function(html) {
+                $('#livePreviewContent').html(html);
+            },
+            error: function() {
+                $('#livePreviewContent').html('<div class="text-center py-3 text-muted"><i class="fas fa-exclamation-triangle"></i> Gagal memuat preview</div>');
+            }
+        });
+    }
+
+    function debouncedPreview() {
+        clearTimeout(previewTimeout);
+        previewTimeout = setTimeout(updateLivePreview, 500);
+    }
+
+    // Trigger live preview on input change
+    $(document).on('input change', '.preview-trigger', function() {
+        debouncedPreview();
+    });
+
+    // Also update on bank account changes
+    $(document).on('input change', '[name^="bank_accounts"]', function() {
+        debouncedPreview();
+    });
+
+    // Initial preview load
+    updateLivePreview();
 });
+
+// Open full preview in new window
+function openFullPreview() {
+    const userId = '{{ $userId ?? "" }}';
+    const url = '{{ route("admin.pop-settings.invoice-preview") }}' + (userId ? '?user_id=' + userId : '');
+    window.open(url, '_blank', 'width=900,height=800,scrollbars=yes');
+}
 </script>
 @endpush

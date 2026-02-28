@@ -35,6 +35,23 @@ class Odp extends Model
         'notes',
         'photos',
         'created_by',
+        // Optical power fields
+        'input_power',
+        'fiber_distance',
+        'fiber_loss_per_km',
+        'splitter_ratio',
+        'splitter_loss',
+        'output_power',
+        'cascade_output_power',
+        'is_power_manual',
+        // Splitter configuration
+        'splitter_config_type',
+        'unequal_ratio',
+        'branch_splitter',
+        'fiber_loss',
+        'unequal_loss',
+        'branch_loss',
+        'total_loss',
     ];
 
     protected $casts = [
@@ -47,7 +64,152 @@ class Odp extends Model
         'olt_slot' => 'integer',
         'splitter_level' => 'integer',
         'photos' => 'array',
+        'input_power' => 'decimal:2',
+        'fiber_distance' => 'decimal:3',
+        'fiber_loss_per_km' => 'decimal:2',
+        'splitter_loss' => 'decimal:2',
+        'output_power' => 'decimal:2',
+        'cascade_output_power' => 'decimal:2',
+        'is_power_manual' => 'boolean',
+        'fiber_loss' => 'decimal:2',
+        'unequal_loss' => 'decimal:2',
+        'branch_loss' => 'decimal:2',
+        'total_loss' => 'decimal:2',
     ];
+
+    /**
+     * Splitter loss constants (in dB)
+     */
+    const SPLITTER_LOSSES = [
+        // Equal splitters
+        '1:2' => 3.5,
+        '1:4' => 7.0,
+        '1:8' => 10.5,
+        '1:16' => 14.0,
+        '1:32' => 17.5,
+        '1:64' => 21.0,
+        // Unequal splitters - format: [main_port_loss, branch_port_loss]
+        '90:10' => ['main' => 0.5, 'branch' => 10.0],
+        '85:15' => ['main' => 0.7, 'branch' => 8.2],
+        '80:20' => ['main' => 1.0, 'branch' => 7.0],
+        '70:30' => ['main' => 1.5, 'branch' => 5.2],
+        '60:40' => ['main' => 2.2, 'branch' => 4.0],
+        '50:50' => ['main' => 3.0, 'branch' => 3.0],
+    ];
+
+    /**
+     * Check if splitter ratio is unequal type
+     */
+    public function isUnequalSplitter(): bool
+    {
+        if (!$this->splitter_ratio) return false;
+        return strpos($this->splitter_ratio, ':') !== false 
+            && !str_starts_with($this->splitter_ratio, '1:');
+    }
+
+    /**
+     * Get splitter loss for given ratio
+     */
+    public static function getSplitterLoss(string $ratio): array
+    {
+        if (!isset(self::SPLITTER_LOSSES[$ratio])) {
+            return ['main' => 0, 'branch' => 0];
+        }
+        
+        $loss = self::SPLITTER_LOSSES[$ratio];
+        
+        // Equal splitter returns same loss for all
+        if (is_numeric($loss)) {
+            return ['main' => $loss, 'branch' => $loss];
+        }
+        
+        return $loss;
+    }
+
+    /**
+     * Calculate optical power values
+     */
+    public function calculateOpticalPower(): array
+    {
+        $inputPower = $this->input_power;
+        $fiberDistance = $this->fiber_distance ?? 0;
+        $fiberLossPerKm = $this->fiber_loss_per_km ?? 0.35;
+        $splitterRatio = $this->splitter_ratio;
+        
+        // Calculate fiber loss
+        $fiberLoss = $fiberDistance * $fiberLossPerKm;
+        $powerAfterFiber = $inputPower - $fiberLoss;
+        
+        // Get splitter loss
+        $splitterLoss = self::getSplitterLoss($splitterRatio);
+        
+        // Calculate output power
+        $outputPower = $powerAfterFiber - $splitterLoss['branch'];
+        $cascadeOutputPower = $powerAfterFiber - $splitterLoss['main'];
+        
+        return [
+            'fiber_loss' => round($fiberLoss, 2),
+            'power_after_fiber' => round($powerAfterFiber, 2),
+            'splitter_loss_main' => $splitterLoss['main'],
+            'splitter_loss_branch' => $splitterLoss['branch'],
+            'output_power' => round($outputPower, 2),
+            'cascade_output_power' => round($cascadeOutputPower, 2),
+            'is_warning' => $outputPower < -28, // Typical ONU sensitivity threshold
+            'is_critical' => $outputPower < -30,
+        ];
+    }
+
+    /**
+     * Get source power from parent (OLT/ODC/parent ODP)
+     */
+    public function getSourcePower(): ?float
+    {
+        // If connected directly to OLT
+        if ($this->olt_id && $this->olt) {
+            // Try to get TX power from OLT PON port
+            $ponPort = $this->olt->ponPorts()
+                ->where('port_number', $this->olt_pon_port)
+                ->first();
+            
+            if ($ponPort && $ponPort->tx_power) {
+                return (float) $ponPort->tx_power;
+            }
+            
+            // Fallback: typical OLT TX power
+            return null;
+        }
+        
+        // If connected via ODC
+        if ($this->odc_id && $this->odc) {
+            // ODC doesn't amplify, use OLT power - ODC fiber loss
+            if ($this->odc->olt_id && $this->odc->olt) {
+                $oltPonPort = $this->odc->olt->ponPorts()
+                    ->where('port_number', $this->odc->olt_pon_port)
+                    ->first();
+                
+                if ($oltPonPort && $oltPonPort->tx_power) {
+                    // Subtract estimated fiber loss to ODC
+                    $odcFiberLoss = ($this->odc->fiber_distance ?? 0) * 0.35;
+                    return (float) $oltPonPort->tx_power - $odcFiberLoss;
+                }
+            }
+            return null;
+        }
+        
+        // If connected via parent ODP (cascade)
+        if ($this->parent_odp_id && $this->parentOdp) {
+            // Use cascade output power from parent ODP
+            if ($this->parentOdp->cascade_output_power) {
+                return (float) $this->parentOdp->cascade_output_power;
+            }
+            // Or regular output power if no cascade configured
+            if ($this->parentOdp->output_power) {
+                return (float) $this->parentOdp->output_power;
+            }
+        }
+        
+        return null;
+    }
 
     /**
      * Generate unique code for ODP

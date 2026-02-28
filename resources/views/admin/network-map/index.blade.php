@@ -453,13 +453,50 @@ $(function() {
                 const marker = L.marker([odp.lat, odp.lng], {
                     icon: icons.odp(odp.status)
                 });
+                
+                // Build splitter info
+                let splitterInfo = '';
+                if (odp.splitter_ratio) {
+                    if (odp.splitter_config_type === 'cascade' && odp.unequal_ratio) {
+                        splitterInfo = `<tr><td>Splitter</td><td><span class="badge badge-info">Cascade</span> ${odp.unequal_ratio} + ${odp.branch_splitter || '-'}</td></tr>`;
+                    } else {
+                        splitterInfo = `<tr><td>Splitter</td><td>${odp.splitter_ratio}</td></tr>`;
+                    }
+                }
+                
+                // Build power info
+                let powerInfo = '';
+                if (odp.output_power !== null) {
+                    let powerClass = 'success';
+                    if (odp.output_power < -28) powerClass = 'danger';
+                    else if (odp.output_power < -25) powerClass = 'warning';
+                    
+                    powerInfo = `<tr><td>Output Power</td><td><span class="badge badge-${powerClass}">${parseFloat(odp.output_power).toFixed(1)} dBm</span></td></tr>`;
+                }
+                
+                // Build loss info
+                let lossInfo = '';
+                if (odp.total_loss !== null) {
+                    lossInfo = `<tr><td>Total Redaman</td><td>${parseFloat(odp.total_loss).toFixed(1)} dB</td></tr>`;
+                }
+                
+                // Build distance info
+                let distanceInfo = '';
+                if (odp.fiber_distance) {
+                    distanceInfo = `<tr><td>Jarak Fiber</td><td>${parseFloat(odp.fiber_distance).toFixed(2)} km</td></tr>`;
+                }
+                
                 marker.bindPopup(`
-                    <div style="min-width: 200px;">
+                    <div style="min-width: 220px;">
                         <h6><i class="fas fa-box mr-1"></i> ${odp.code}</h6>
                         <p class="mb-1">${odp.name}</p>
                         <table class="table table-sm mb-0">
                             <tr><td>Port</td><td>${odp.used_ports}/${odp.total_ports}</td></tr>
                             <tr><td>Status</td><td><span class="badge badge-${odp.status === 'active' ? 'success' : (odp.status === 'maintenance' ? 'warning' : 'secondary')}">${odp.status}</span></td></tr>
+                            ${splitterInfo}
+                            ${powerInfo}
+                            ${lossInfo}
+                            ${distanceInfo}
                         </table>
                         <a href="/admin/odps/${odp.id}" class="btn btn-xs btn-info mt-2">Detail</a>
                     </div>

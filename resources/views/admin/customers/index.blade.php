@@ -24,6 +24,28 @@
         transform: translateY(-3px);
         box-shadow: 0 5px 15px rgba(0,0,0,0.1);
     }
+    .bulk-toolbar {
+        display: none;
+        background: #343a40;
+        color: white;
+        padding: 10px 15px;
+        border-radius: 6px;
+        margin-bottom: 15px;
+        animation: slideDown 0.2s ease;
+    }
+    .bulk-toolbar.show { display: flex; }
+    @keyframes slideDown {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .cb-cell { width: 35px; text-align: center; }
+    .cb-cell .custom-control { display: inline-block; }
+    .badge-isolir {
+        font-size: 0.7rem;
+        cursor: pointer;
+        transition: opacity 0.2s;
+    }
+    .badge-isolir:hover { opacity: 0.8; }
 </style>
 @endpush
 
@@ -124,6 +146,9 @@
         </h3>
         <div class="card-tools">
             @can('customers.create')
+            <a href="{{ route('admin.customers.import') }}" class="btn btn-success btn-sm mr-1">
+                <i class="fas fa-file-import mr-1"></i> Import Excel
+            </a>
             <a href="{{ route('admin.customers.create') }}" class="btn btn-primary btn-sm">
                 <i class="fas fa-plus mr-1"></i> Tambah Pelanggan
             </a>
@@ -162,7 +187,16 @@
                         </select>
                     </div>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
+                    <div class="form-group">
+                        <select name="auto_isolir" class="form-control">
+                            <option value="">Auto Isolir</option>
+                            <option value="1" {{ request('auto_isolir') === '1' ? 'selected' : '' }}>Aktif</option>
+                            <option value="0" {{ request('auto_isolir') === '0' ? 'selected' : '' }}>Nonaktif</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-auto">
                     <button type="submit" class="btn btn-secondary">
                         <i class="fas fa-search mr-1"></i> Cari
                     </button>
@@ -172,6 +206,22 @@
                 </div>
             </div>
         </form>
+
+        <!-- Bulk Action Toolbar -->
+        <div class="bulk-toolbar align-items-center justify-content-between" id="bulkToolbar">
+            <div>
+                <i class="fas fa-check-square mr-2"></i>
+                <span id="selectedCount">0</span> pelanggan dipilih
+            </div>
+            <div class="btn-group">
+                <button type="button" class="btn btn-success btn-sm" id="btnBulkEnableIsolir">
+                    <i class="fas fa-shield-alt mr-1"></i> Aktifkan Auto Isolir
+                </button>
+                <button type="button" class="btn btn-outline-light btn-sm" id="btnBulkDisableIsolir">
+                    <i class="fas fa-unlock mr-1"></i> Nonaktifkan Auto Isolir
+                </button>
+            </div>
+        </div>
 
         <!-- Table -->
         @if($customers->isEmpty())
@@ -189,6 +239,12 @@
             <table class="table table-hover table-striped">
                 <thead class="thead-dark">
                     <tr>
+                        <th class="cb-cell">
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" class="custom-control-input" id="checkAll">
+                                <label class="custom-control-label" for="checkAll"></label>
+                            </div>
+                        </th>
                         <th>ID</th>
                         <th>Pelanggan</th>
                         <th>Kontak</th>
@@ -202,6 +258,12 @@
                 <tbody>
                     @foreach($customers as $customer)
                     <tr>
+                        <td class="cb-cell">
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" class="custom-control-input customer-check" id="chk{{ $customer->id }}" value="{{ $customer->id }}">
+                                <label class="custom-control-label" for="chk{{ $customer->id }}"></label>
+                            </div>
+                        </td>
                         <td>
                             <code>{{ $customer->customer_id }}</code>
                         </td>
@@ -253,6 +315,16 @@
                                 <i class="fas fa-{{ $customer->mikrotik_status === 'enabled' ? 'check' : 'times' }}"></i>
                                 {{ $customer->mikrotik_status }}
                             </small>
+                            @endif
+                            <br>
+                            @if($customer->auto_isolir)
+                            <span class="badge badge-info badge-isolir" data-id="{{ $customer->id }}" data-isolir="1" title="Auto-isolir aktif — klik untuk nonaktifkan">
+                                <i class="fas fa-shield-alt mr-1"></i>Auto Isolir
+                            </span>
+                            @else
+                            <span class="badge badge-light badge-isolir" data-id="{{ $customer->id }}" data-isolir="0" title="Auto-isolir nonaktif — klik untuk aktifkan">
+                                <i class="fas fa-unlock mr-1"></i>No Isolir
+                            </span>
                             @endif
                         </td>
                         <td>
@@ -333,6 +405,137 @@ function changePop(popId) {
 
 $(function() {
     // Select2 sudah diinisialisasi secara global di layout admin
+
+    // ========== Checkbox & Bulk Actions ==========
+    const bulkToolbar = document.getElementById('bulkToolbar');
+    const selectedCount = document.getElementById('selectedCount');
+    
+    function updateBulkToolbar() {
+        const checked = document.querySelectorAll('.customer-check:checked');
+        const count = checked.length;
+        selectedCount.textContent = count;
+        if (count > 0) {
+            bulkToolbar.classList.add('show');
+        } else {
+            bulkToolbar.classList.remove('show');
+        }
+    }
+
+    // Check all
+    $(document).on('change', '#checkAll', function() {
+        const isChecked = this.checked;
+        document.querySelectorAll('.customer-check').forEach(cb => { cb.checked = isChecked; });
+        updateBulkToolbar();
+    });
+
+    // Individual checkbox
+    $(document).on('change', '.customer-check', function() {
+        const total = document.querySelectorAll('.customer-check').length;
+        const checked = document.querySelectorAll('.customer-check:checked').length;
+        document.getElementById('checkAll').checked = (total === checked && total > 0);
+        updateBulkToolbar();
+    });
+
+    function getSelectedIds() {
+        return Array.from(document.querySelectorAll('.customer-check:checked')).map(cb => cb.value);
+    }
+
+    // Bulk enable auto isolir
+    $('#btnBulkEnableIsolir').on('click', function() {
+        const ids = getSelectedIds();
+        if (ids.length === 0) return;
+        Swal.fire({
+            title: 'Aktifkan Auto Isolir?',
+            html: `<p>Aktifkan auto-isolir untuk <strong>${ids.length}</strong> pelanggan?</p>
+                   <small class="text-muted">Pelanggan akan otomatis diisolir saat jatuh tempo dan belum ada pembayaran.</small>`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: '<i class="fas fa-shield-alt mr-1"></i> Ya, Aktifkan',
+            cancelButtonText: 'Batal',
+            confirmButtonColor: '#17a2b8',
+        }).then(result => {
+            if (result.isConfirmed) bulkAutoIsolir(ids, true);
+        });
+    });
+
+    // Bulk disable auto isolir
+    $('#btnBulkDisableIsolir').on('click', function() {
+        const ids = getSelectedIds();
+        if (ids.length === 0) return;
+        Swal.fire({
+            title: 'Nonaktifkan Auto Isolir?',
+            html: `<p>Nonaktifkan auto-isolir untuk <strong>${ids.length}</strong> pelanggan?</p>`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: '<i class="fas fa-unlock mr-1"></i> Ya, Nonaktifkan',
+            cancelButtonText: 'Batal',
+        }).then(result => {
+            if (result.isConfirmed) bulkAutoIsolir(ids, false);
+        });
+    });
+
+    function bulkAutoIsolir(ids, enable) {
+        Swal.fire({ title: 'Memproses...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        $.ajax({
+            url: '{{ route("admin.customers.bulk-auto-isolir") }}',
+            method: 'POST',
+            data: {
+                _token: '{{ csrf_token() }}',
+                customer_ids: ids,
+                auto_isolir: enable ? 1 : 0,
+            },
+            success: function(response) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Berhasil!',
+                    text: response.message,
+                    timer: 2000,
+                    showConfirmButton: false,
+                }).then(() => location.reload());
+            },
+            error: function(xhr) {
+                Swal.fire('Error', xhr.responseJSON?.message || 'Gagal memproses', 'error');
+            }
+        });
+    }
+
+    // ========== Individual auto-isolir toggle (badge click) ==========
+    $(document).on('click', '.badge-isolir', function(e) {
+        e.stopPropagation();
+        const badge = $(this);
+        const id = badge.data('id');
+        const currentState = badge.data('isolir');
+        const newState = currentState ? 0 : 1;
+        const label = newState ? 'Aktifkan' : 'Nonaktifkan';
+
+        $.ajax({
+            url: '{{ route("admin.customers.bulk-auto-isolir") }}',
+            method: 'POST',
+            data: {
+                _token: '{{ csrf_token() }}',
+                customer_ids: [id],
+                auto_isolir: newState,
+            },
+            success: function(response) {
+                toastr.success(response.message);
+                // Update badge inline
+                if (newState) {
+                    badge.removeClass('badge-light').addClass('badge-info')
+                         .attr('title', 'Auto-isolir aktif — klik untuk nonaktifkan')
+                         .data('isolir', 1)
+                         .html('<i class="fas fa-shield-alt mr-1"></i>Auto Isolir');
+                } else {
+                    badge.removeClass('badge-info').addClass('badge-light')
+                         .attr('title', 'Auto-isolir nonaktif — klik untuk aktifkan')
+                         .data('isolir', 0)
+                         .html('<i class="fas fa-unlock mr-1"></i>No Isolir');
+                }
+            },
+            error: function(xhr) {
+                toastr.error(xhr.responseJSON?.message || 'Gagal mengubah auto-isolir');
+            }
+        });
+    });
 
     // Show password
     $(document).on('click', '.btn-show-password', function() {

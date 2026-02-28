@@ -717,4 +717,117 @@ class PopSettingController extends Controller
             ]);
         }
     }
+
+    /**
+     * Preview invoice template
+     */
+    public function previewInvoice(Request $request)
+    {
+        $userId = $request->query('user_id');
+        $popSetting = $this->getPopSetting($userId);
+
+        // Create dummy invoice data for preview
+        $dummyInvoice = (object) [
+            'invoice_number' => ($popSetting->invoice_prefix ?? 'INV') . '-' . date('Ym') . '-0001',
+            'invoice_date' => now(),
+            'due_date' => now()->addDays($popSetting->invoice_due_days ?? 7),
+            'period_start' => now()->startOfMonth(),
+            'period_end' => now()->endOfMonth(),
+            'status' => 'pending',
+            'status_label' => 'Menunggu Pembayaran',
+            'customer' => (object) [
+                'customer_id' => 'CUST-001',
+                'name' => 'John Doe (Contoh Pelanggan)',
+                'phone' => '081234567890',
+                'address' => 'Jl. Contoh Alamat No. 123, RT 01/RW 02, Kelurahan Contoh, Kecamatan Contoh, Kota Contoh 12345',
+                'email' => 'johndoe@example.com',
+            ],
+            'items' => [
+                ['description' => 'Layanan Internet - Paket Premium 50 Mbps', 'amount' => 350000],
+                ['description' => 'Biaya Instalasi (Promo)', 'amount' => 0],
+            ],
+            'subtotal' => 350000,
+            'discount_amount' => 0,
+            'tax_amount' => $popSetting->ppn_enabled ? round(350000 * ($popSetting->ppn_percentage / 100)) : 0,
+            'total_amount' => $popSetting->ppn_enabled 
+                ? 350000 + round(350000 * ($popSetting->ppn_percentage / 100))
+                : 350000,
+            'paid_amount' => 0,
+            'remaining_amount' => $popSetting->ppn_enabled 
+                ? 350000 + round(350000 * ($popSetting->ppn_percentage / 100))
+                : 350000,
+            'notes' => $popSetting->invoice_notes ?? 'Catatan invoice akan muncul di sini.',
+            'created_at' => now(),
+        ];
+
+        return view('admin.pop-settings.preview-invoice', [
+            'invoice' => $dummyInvoice,
+            'popSetting' => $popSetting,
+            'isPreview' => true,
+        ]);
+    }
+
+    /**
+     * Live preview invoice template via AJAX
+     */
+    public function livePreviewInvoice(Request $request)
+    {
+        $userId = $request->input('user_id');
+        $popSetting = $this->getPopSetting($userId);
+
+        // Override with form data for live preview
+        $popSetting->invoice_prefix = $request->input('invoice_prefix', $popSetting->invoice_prefix ?? 'INV');
+        $popSetting->invoice_due_days = $request->input('invoice_due_days', $popSetting->invoice_due_days ?? 7);
+        $popSetting->invoice_notes = $request->input('invoice_notes', $popSetting->invoice_notes);
+        $popSetting->invoice_footer = $request->input('invoice_footer', $popSetting->invoice_footer);
+        $popSetting->invoice_terms = $request->input('invoice_terms', $popSetting->invoice_terms);
+        $popSetting->ppn_enabled = $request->boolean('ppn_enabled');
+        $popSetting->ppn_percentage = $request->input('ppn_percentage', $popSetting->ppn_percentage ?? 11);
+        
+        // Parse bank accounts
+        $bankAccounts = $request->input('bank_accounts', []);
+        if (is_array($bankAccounts)) {
+            $popSetting->bank_accounts = collect($bankAccounts)->filter(function ($item) {
+                return !empty($item['bank_name']) || !empty($item['account_number']);
+            })->values()->toArray();
+        }
+
+        // Create dummy invoice data
+        $subtotal = 350000;
+        $taxAmount = $popSetting->ppn_enabled ? round($subtotal * ($popSetting->ppn_percentage / 100)) : 0;
+        
+        $dummyInvoice = (object) [
+            'invoice_number' => $popSetting->invoice_prefix . '-' . date('Ym') . '-0001',
+            'invoice_date' => now(),
+            'due_date' => now()->addDays($popSetting->invoice_due_days ?? 7),
+            'period_start' => now()->startOfMonth(),
+            'period_end' => now()->endOfMonth(),
+            'status' => 'pending',
+            'status_label' => 'Menunggu Pembayaran',
+            'customer' => (object) [
+                'customer_id' => 'CUST-001',
+                'name' => 'John Doe (Contoh Pelanggan)',
+                'phone' => '081234567890',
+                'address' => 'Jl. Contoh Alamat No. 123, RT 01/RW 02, Kelurahan Contoh, Kecamatan Contoh, Kota Contoh 12345',
+                'email' => 'johndoe@example.com',
+            ],
+            'items' => [
+                ['description' => 'Layanan Internet - Paket Premium 50 Mbps', 'amount' => 350000],
+            ],
+            'subtotal' => $subtotal,
+            'discount_amount' => 0,
+            'tax_amount' => $taxAmount,
+            'total_amount' => $subtotal + $taxAmount,
+            'paid_amount' => 0,
+            'remaining_amount' => $subtotal + $taxAmount,
+            'notes' => $popSetting->invoice_notes ?? '',
+            'created_at' => now(),
+        ];
+
+        return view('admin.pop-settings.partials.invoice-preview-content', [
+            'invoice' => $dummyInvoice,
+            'popSetting' => $popSetting,
+            'isPreview' => true,
+        ]);
+    }
 }

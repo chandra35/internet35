@@ -54,10 +54,12 @@
         right: 10px;
     }
     #map {
-        height: 300px;
+        height: 400px;
         border-radius: 8px;
-        margin-top: 10px;
     }
+    .custom-customer-marker { background: transparent; border: none; }
+    .leaflet-control-layers { border-radius: 8px; }
+    .leaflet-control-layers-toggle { width: 36px; height: 36px; }
     .cropper-modal-body {
         max-height: 70vh;
         overflow: hidden;
@@ -186,6 +188,8 @@
                             <h3 class="card-title"><i class="fas fa-network-wired mr-2"></i>Layanan Internet</h3>
                         </div>
                         <div class="card-body">
+                            {{-- Router & Paket --}}
+                            <h6 class="text-muted mb-3"><i class="fas fa-server mr-1"></i> Router & Paket</h6>
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="form-group">
@@ -228,6 +232,8 @@
 
                             <hr>
 
+                            {{-- Detail Layanan --}}
+                            <h6 class="text-muted mb-3"><i class="fas fa-cog mr-1"></i> Detail Layanan</h6>
                             <div class="row">
                                 <div class="col-md-4">
                                     <div class="form-group">
@@ -241,65 +247,8 @@
                                 </div>
                                 <div class="col-md-4">
                                     <div class="form-group">
-                                        <label>Username PPPoE <span class="text-danger" id="usernameRequired">*</span></label>
-                                        <div class="input-group">
-                                            @if($popSetting?->pop_prefix)
-                                            <div class="input-group-prepend">
-                                                <span class="input-group-text">{{ $popSetting->pop_prefix }}-</span>
-                                            </div>
-                                            @endif
-                                            <input type="text" name="pppoe_username" id="pppoe_username" class="form-control" placeholder="username atau user@lokasi" required>
-                                            <div class="input-group-append">
-                                                <button type="button" class="btn btn-outline-secondary" id="btnGenerateUsername" title="Generate random username">
-                                                    <i class="fas fa-magic"></i>
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <small class="text-muted" id="usernameStatus">
-                                            <i class="fas fa-info-circle mr-1"></i>Format: {{ $popSetting?->pop_prefix ? $popSetting->pop_prefix . '-' : '' }}username (contoh: {{ $popSetting?->pop_prefix ? $popSetting->pop_prefix . '-' : '' }}123456@lokasi)
-                                        </small>
-                                    </div>
-                                </div>
-                                <div class="col-md-4">
-                                    <div class="form-group">
-                                        <label>Password PPPoE</label>
-                                        <div class="input-group">
-                                            <input type="text" name="pppoe_password" id="pppoe_password" class="form-control" placeholder="Default: 12345">
-                                            <div class="input-group-append">
-                                                <button type="button" class="btn btn-outline-secondary" id="btnGeneratePassword" title="Set default password">
-                                                    <i class="fas fa-key"></i>
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <small class="text-muted">Default: 12345 (mudah diingat pelanggan)</small>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <hr>
-
-                            <div class="row">
-                                <div class="col-md-4">
-                                    <div class="form-group">
-                                        <label>Biaya Bulanan</label>
-                                        <div class="input-group">
-                                            <div class="input-group-prepend">
-                                                <span class="input-group-text">Rp</span>
-                                            </div>
-                                            <input type="number" name="monthly_fee" id="monthly_fee" class="form-control" min="0" placeholder="Otomatis dari paket">
-                                        </div>
-                                        <small class="text-muted">Akan menggunakan harga paket jika kosong</small>
-                                    </div>
-                                </div>
-                                <div class="col-md-4">
-                                    <div class="form-group">
-                                        <label>Biaya Instalasi</label>
-                                        <div class="input-group">
-                                            <div class="input-group-prepend">
-                                                <span class="input-group-text">Rp</span>
-                                            </div>
-                                            <input type="number" name="installation_fee" class="form-control" min="0" value="0">
-                                        </div>
+                                        <label>Tanggal Instalasi</label>
+                                        <input type="date" name="installation_date" class="form-control" value="{{ date('Y-m-d') }}">
                                     </div>
                                 </div>
                                 <div class="col-md-4">
@@ -312,10 +261,61 @@
                                         </select>
                                     </div>
                                 </div>
-                                <div class="col-md-4">
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
                                     <div class="form-group">
-                                        <label>Tanggal Instalasi</label>
-                                        <input type="date" name="installation_date" class="form-control" value="{{ date('Y-m-d') }}">
+                                        <label>Biaya Bulanan</label>
+                                        <div class="input-group">
+                                            <div class="input-group-prepend">
+                                                <span class="input-group-text">Rp</span>
+                                            </div>
+                                            <input type="number" name="monthly_fee" id="monthly_fee" class="form-control" min="0" placeholder="Otomatis dari paket">
+                                        </div>
+                                        <small class="text-muted">Akan menggunakan harga paket jika kosong</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label>Biaya Instalasi</label>
+                                        <div class="input-group">
+                                            <div class="input-group-prepend">
+                                                <span class="input-group-text">Rp</span>
+                                            </div>
+                                            <input type="number" name="installation_fee" class="form-control" min="0" value="0">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <hr>
+                            
+                            {{-- Koneksi ODP --}}
+                            <h6 class="text-muted mb-3"><i class="fas fa-box mr-1"></i> Koneksi ODP <small>(Opsional)</small></h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label>ODP</label>
+                                        <select name="odp_id" id="odp_id" class="form-control select2">
+                                            <option value="">-- Tidak Ada / Belum Dipasang --</option>
+                                            @foreach($odps as $odp)
+                                            <option value="{{ $odp->id }}" 
+                                                    data-total-ports="{{ $odp->total_ports }}"
+                                                    data-used-ports="{{ $odp->used_ports }}">
+                                                {{ $odp->code }} - {{ $odp->name }} ({{ $odp->total_ports - $odp->used_ports }} port tersedia)
+                                            </option>
+                                            @endforeach
+                                        </select>
+                                        <small class="text-muted">Bisa diisi nanti saat instalasi</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label>Port ODP</label>
+                                        <select name="odp_port" id="odp_port" class="form-control" disabled>
+                                            <option value="">-- Pilih ODP Dulu --</option>
+                                        </select>
+                                        <small class="text-muted" id="odp_port_info"></small>
                                     </div>
                                 </div>
                             </div>
@@ -392,15 +392,10 @@
                             </div>
                             
                             <!-- Map -->
-                            <div class="form-group">
-                                <label>
-                                    <i class="fas fa-map-marker-alt text-danger"></i> Lokasi di Peta
-                                    <button type="button" class="btn btn-sm btn-outline-primary ml-2" id="btnGetLocation">
-                                        <i class="fas fa-crosshairs"></i> Gunakan Lokasi Saya
-                                    </button>
-                                </label>
+                            <div class="form-group mt-3">
+                                <label><i class="fas fa-map-marker-alt text-danger mr-1"></i> Lokasi di Peta</label>
                                 <div id="map"></div>
-                                <small class="text-muted">Klik pada peta untuk menandai lokasi pelanggan</small>
+                                <small class="text-muted">Klik pada peta untuk menentukan lokasi atau masukkan koordinat manual</small>
                             </div>
                         </div>
                     </div>
@@ -518,40 +513,95 @@
                 <div class="card-body">
                     @if($popSetting && $popSetting->mikrotik_sync_enabled)
                     
-                    <!-- Import dari Mikrotik (untuk migrasi) -->
-                    <div class="mb-3 p-3 bg-light rounded">
-                        <label class="d-block mb-2">
-                            <i class="fas fa-download text-primary mr-1"></i>
-                            <strong>Ambil dari Mikrotik</strong>
-                            <small class="text-muted">(untuk pelanggan existing)</small>
+                    {{-- Option 1: Buat PPP Secret di Mikrotik --}}
+                    <div class="custom-control custom-switch mb-2">
+                        <input type="checkbox" class="custom-control-input" id="sync_mikrotik" name="sync_mikrotik" value="1" {{ $popSetting->mikrotik_auto_sync ? 'checked' : '' }}>
+                        <label class="custom-control-label" for="sync_mikrotik">
+                            <i class="fas fa-plus-circle text-info mr-1"></i>Buat PPP Secret di Mikrotik
                         </label>
-                        <div class="input-group">
-                            <select class="form-control" id="importFromMikrotik" disabled>
-                                <option value="">-- Pilih Router dulu --</option>
-                            </select>
-                            <div class="input-group-append">
-                                <button type="button" class="btn btn-outline-primary" id="btnLoadSecrets" disabled title="Muat daftar PPP Secret">
-                                    <i class="fas fa-sync-alt"></i>
-                                </button>
+                    </div>
+                    <small class="text-muted d-block mb-2" id="syncMikrotikHint">
+                        Username dan password akan dibuat sebagai PPP Secret baru di router yang dipilih.
+                    </small>
+
+                    {{-- PPPoE Credentials (shown when Buat PPP Secret checked OR import mode) --}}
+                    <div id="pppCredentialsSection" class="mt-2 mb-3 p-3 bg-light rounded border" style="{{ $popSetting->mikrotik_auto_sync ? '' : 'display:none' }}">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group mb-2">
+                                    <label class="mb-1">Username PPPoE <span class="text-danger" id="usernameRequired">*</span></label>
+                                    <div class="input-group input-group-sm">
+                                        @if($popSetting?->pop_prefix)
+                                        <div class="input-group-prepend">
+                                            <span class="input-group-text">{{ $popSetting->pop_prefix }}-</span>
+                                        </div>
+                                        @endif
+                                        <input type="text" name="pppoe_username" id="pppoe_username" class="form-control" placeholder="username atau user@lokasi">
+                                        <div class="input-group-append">
+                                            <button type="button" class="btn btn-outline-secondary" id="btnGenerateUsername" title="Generate random username">
+                                                <i class="fas fa-magic"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <small class="text-muted" id="usernameStatus">
+                                        <i class="fas fa-info-circle mr-1"></i>Format: {{ $popSetting?->pop_prefix ? $popSetting->pop_prefix . '-' : '' }}username
+                                    </small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group mb-2">
+                                    <label class="mb-1">Password PPPoE</label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="text" name="pppoe_password" id="pppoe_password" class="form-control" placeholder="Default: 12345">
+                                        <div class="input-group-append">
+                                            <button type="button" class="btn btn-outline-secondary" id="btnGeneratePassword" title="Set default password">
+                                                <i class="fas fa-key"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <small class="text-muted">Kosongkan untuk default: 12345</small>
+                                </div>
                             </div>
                         </div>
-                        <small class="text-muted d-block mt-1">
-                            <i class="fas fa-info-circle mr-1"></i>
-                            Pilih PPP Secret yang sudah ada di Mikrotik untuk assign ke pelanggan ini (migrasi).
-                        </small>
                     </div>
                     
                     <hr>
                     
-                    <div class="custom-control custom-switch mb-3">
-                        <input type="checkbox" class="custom-control-input" id="sync_mikrotik" name="sync_mikrotik" value="1" {{ $popSetting->mikrotik_auto_sync ? 'checked' : '' }}>
-                        <label class="custom-control-label" for="sync_mikrotik">
-                            <i class="fas fa-server text-info mr-1"></i>Buat PPP Secret di Mikrotik
+                    {{-- Option 2: Ambil dari Mikrotik (hidden when sync_mikrotik checked) --}}
+                    <div id="importMikrotikSection">
+                        <label class="d-block mb-2">
+                            <i class="fas fa-download text-primary mr-1"></i>
+                            <strong>Atau: Ambil dari Mikrotik</strong>
+                            <small class="text-muted">(untuk pelanggan existing)</small>
                         </label>
+                        <div class="d-flex align-items-center">
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="btnBrowseSecrets" disabled>
+                                <i class="fas fa-search mr-1"></i>Browse PPP Secret...
+                            </button>
+                            <span class="ml-2 text-muted small" id="importedSecretInfo">
+                                <i class="fas fa-info-circle mr-1"></i>Pilih router terlebih dahulu
+                            </span>
+                        </div>
+
+                        {{-- Import active badge --}}
+                        <div id="importActiveTag" class="d-none mt-2">
+                            <div class="alert alert-success alert-sm py-2 px-3 mb-0 d-flex align-items-center justify-content-between">
+                                <span>
+                                    <i class="fas fa-check-circle mr-1"></i>
+                                    <strong>PPP Secret terpilih:</strong> <span id="importedSecretName">-</span>
+                                    <span class="badge badge-light ml-1" id="importedSecretProfile"></span>
+                                </span>
+                                <button type="button" class="btn btn-sm btn-outline-danger ml-2" id="btnClearImport" title="Batalkan import">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <small class="text-muted d-block mt-1">
+                            Untuk assign PPP Secret yang sudah ada di Mikrotik ke pelanggan ini (migrasi).
+                        </small>
                     </div>
-                    <small class="text-muted d-block mb-3">
-                        Username dan password akan dibuat di router yang dipilih.
-                    </small>
+                    
                     @else
                     <div class="text-muted small mb-3">
                         <i class="fas fa-info-circle mr-1"></i>
@@ -560,7 +610,8 @@
                     @endif
 
                     @if($popSetting && $popSetting->radius_enabled)
-                    <div class="custom-control custom-switch mb-3">
+                    <hr>
+                    <div class="custom-control custom-switch mb-2">
                         <input type="checkbox" class="custom-control-input" id="sync_radius" name="sync_radius" value="1" {{ $popSetting->radius_auto_sync ? 'checked' : '' }}>
                         <label class="custom-control-label" for="sync_radius">
                             <i class="fas fa-database text-success mr-1"></i>Buat user di FreeRadius
@@ -667,6 +718,96 @@
         </div>
     </div>
 </div>
+
+{{-- Modal Browse PPP Secrets --}}
+<div class="modal fade" id="pppSecretsModal" tabindex="-1" aria-labelledby="pppSecretsModalLabel">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="pppSecretsModalLabel">
+                    <i class="fas fa-key mr-2"></i>Browse PPP Secret di Mikrotik
+                </h5>
+                <button type="button" class="close text-white" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body p-0">
+                {{-- Search bar --}}
+                <div class="p-3 border-bottom bg-light">
+                    <div class="input-group">
+                        <div class="input-group-prepend">
+                            <span class="input-group-text"><i class="fas fa-search"></i></span>
+                        </div>
+                        <input type="text" class="form-control" id="searchSecrets" placeholder="Cari berdasarkan nama, profile, atau comment...">
+                        <div class="input-group-append">
+                            <button type="button" class="btn btn-outline-secondary" id="btnRefreshSecrets" title="Refresh dari router">
+                                <i class="fas fa-sync-alt"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-2">
+                        <small class="text-muted" id="secretsCount">-</small>
+                        <div>
+                            <div class="btn-group btn-group-sm">
+                                <button type="button" class="btn btn-outline-secondary active" data-filter="all">Semua</button>
+                                <button type="button" class="btn btn-outline-success" data-filter="active">Aktif</button>
+                                <button type="button" class="btn btn-outline-danger" data-filter="disabled">Disabled</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Loading state --}}
+                <div id="secretsLoading" class="text-center py-5">
+                    <i class="fas fa-spinner fa-spin fa-2x text-primary mb-3"></i>
+                    <p class="text-muted">Memuat PPP Secrets dari router...</p>
+                </div>
+
+                {{-- Empty state --}}
+                <div id="secretsEmpty" class="text-center py-5 d-none">
+                    <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                    <p class="text-muted">Tidak ada PPP Secret ditemukan</p>
+                </div>
+
+                {{-- Error state --}}
+                <div id="secretsError" class="text-center py-5 d-none">
+                    <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>
+                    <p class="text-danger" id="secretsErrorMsg">Gagal memuat data</p>
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="btnRetrySecrets">
+                        <i class="fas fa-redo mr-1"></i>Coba Lagi
+                    </button>
+                </div>
+
+                {{-- Secrets table --}}
+                <div id="secretsTableWrapper" class="d-none">
+                    <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                        <table class="table table-hover table-sm mb-0">
+                            <thead class="thead-light" style="position: sticky; top: 0; z-index: 1;">
+                                <tr>
+                                    <th style="width: 30%">Username</th>
+                                    <th style="width: 20%">Profile</th>
+                                    <th style="width: 30%">Comment</th>
+                                    <th style="width: 10%" class="text-center">Status</th>
+                                    <th style="width: 10%" class="text-center">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="secretsTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer justify-content-between">
+                <small class="text-muted">
+                    <i class="fas fa-info-circle mr-1"></i>
+                    Pilih secret yang ingin di-assign ke pelanggan ini
+                </small>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @endsection
 
 @push('js')
@@ -682,90 +823,261 @@ let pppSecretsData = []; // Store PPP Secrets from Mikrotik
 $(function() {
     // Select2 sudah diinisialisasi secara global di layout admin
 
-    // Initialize Map
-    map = L.map('map').setView([-6.2088, 106.8456], 10);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap'
-    }).addTo(map);
+    // Initialize Map with multiple layers (same as ODP)
+    var defaultLat = -6.2088;
+    var defaultLng = 106.8456;
+    map = L.map('map').setView([defaultLat, defaultLng], 13);
 
+    // Google tile layers
+    const googleSat = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+        maxZoom: 20, attribution: '© Google Satellite'
+    });
+    const googleHybrid = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+        maxZoom: 20, attribution: '© Google Hybrid'
+    });
+    const googleStreet = L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+        maxZoom: 20, attribution: '© Google Maps'
+    });
+    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19, attribution: '© OpenStreetMap contributors'
+    });
+
+    // Default to Hybrid view
+    googleHybrid.addTo(map);
+
+    // Layer control
+    L.control.layers({
+        "🛰️ Satelit + Label": googleHybrid,
+        "🛰️ Satelit": googleSat,
+        "🗺️ Street": googleStreet,
+        "🗺️ OpenStreetMap": osm
+    }, null, { position: 'topright' }).addTo(map);
+
+    // Scale control
+    L.control.scale({ imperial: false }).addTo(map);
+
+    // Custom icon for customer marker
+    const customerIcon = L.divIcon({
+        className: 'custom-customer-marker',
+        html: '<div style="background:#28a745;color:white;padding:5px 10px;border-radius:5px;font-weight:bold;box-shadow:0 2px 5px rgba(0,0,0,0.3);white-space:nowrap;"><i class="fas fa-user"></i> Pelanggan</div>',
+        iconSize: [90, 30],
+        iconAnchor: [45, 30]
+    });
+
+    // Click on map to set location
     map.on('click', function(e) {
         setMarker(e.latlng.lat, e.latlng.lng);
+    });
+
+    // Update marker when coordinates change manually
+    $('#latitude, #longitude').on('change', function() {
+        const lat = parseFloat($('#latitude').val());
+        const lng = parseFloat($('#longitude').val());
+        if (!isNaN(lat) && !isNaN(lng)) {
+            setMarker(lat, lng);
+            map.setView([lat, lng], 18);
+        }
+    });
+
+    // Geolocation button (Leaflet control, top-left)
+    if (navigator.geolocation) {
+        const locateBtn = L.control({ position: 'topleft' });
+        locateBtn.onAdd = function() {
+            const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+            div.innerHTML = '<a href="#" title="Lokasi Saya" style="display:flex;align-items:center;justify-content:center;width:30px;height:30px;background:white;font-size:16px;"><i class="fas fa-crosshairs"></i></a>';
+            div.onclick = function(e) {
+                e.preventDefault();
+                const btn = div.querySelector('a');
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                navigator.geolocation.getCurrentPosition(function(pos) {
+                    const lat = pos.coords.latitude;
+                    const lng = pos.coords.longitude;
+                    const accuracy = pos.coords.accuracy;
+                    map.setView([lat, lng], 18);
+                    setMarker(lat, lng);
+                    btn.innerHTML = '<i class="fas fa-crosshairs"></i>';
+                    toastr.success('Lokasi ditemukan (akurasi: ' + Math.round(accuracy) + 'm)');
+                }, function(err) {
+                    btn.innerHTML = '<i class="fas fa-crosshairs"></i>';
+                    let msg = 'Tidak dapat mengakses lokasi';
+                    if (err.code === 1) msg = 'Izin lokasi ditolak. Aktifkan GPS dan izinkan akses lokasi di browser.';
+                    else if (err.code === 2) msg = 'Lokasi tidak tersedia. Pastikan GPS aktif.';
+                    else if (err.code === 3) msg = 'Waktu permintaan lokasi habis. Coba lagi.';
+                    toastr.error(msg);
+                }, {
+                    enableHighAccuracy: true,
+                    timeout: 15000,
+                    maximumAge: 0
+                });
+                return false;
+            };
+            return div;
+        };
+        locateBtn.addTo(map);
+    }
+
+    // Fix map rendering when Alamat tab is shown (Leaflet in hidden tabs)
+    $('a[data-toggle="pill"]').on('shown.bs.tab', function(e) {
+        if ($(e.target).attr('href') === '#tab-address') {
+            setTimeout(function() { map.invalidateSize(); }, 100);
+        }
     });
 
     // Load PPP Secrets when router changes
     $('#router_id').on('change', function() {
         const routerId = $(this).val();
         if (routerId) {
-            $('#btnLoadSecrets').prop('disabled', false);
-            // Auto-load secrets when router selected
-            loadPPPSecrets(routerId);
+            // Enable browse button
+            $('#btnBrowseSecrets').prop('disabled', false);
+            $('#importedSecretInfo').html('<i class="fas fa-info-circle mr-1"></i>Klik "Browse PPP Secret" untuk melihat daftar');
         } else {
-            $('#btnLoadSecrets').prop('disabled', true);
-            $('#importFromMikrotik').html('<option value="">-- Pilih Router dulu --</option>').prop('disabled', true);
+            $('#btnBrowseSecrets').prop('disabled', true);
+            $('#importedSecretInfo').html('<i class="fas fa-info-circle mr-1"></i>Pilih router terlebih dahulu');
         }
     });
 
-    // Manual reload PPP Secrets
-    $('#btnLoadSecrets').on('click', function() {
+    // Browse PPP Secrets button → open modal
+    $('#btnBrowseSecrets').on('click', function() {
         const routerId = $('#router_id').val();
-        if (routerId) {
-            loadPPPSecrets(routerId);
+        if (!routerId) {
+            toastr.warning('Pilih router terlebih dahulu');
+            return;
         }
+        $('#pppSecretsModal').modal('show');
+        loadPPPSecretsModal(routerId);
     });
 
-    // When selecting PPP Secret from Mikrotik
-    $('#importFromMikrotik').on('change', function() {
-        const secretId = $(this).val();
-        if (secretId && pppSecretsData.length > 0) {
-            const secret = pppSecretsData.find(s => s['.id'] === secretId);
-            if (secret) {
-                // Fill form with PPP Secret data
-                $('#pppoe_username').val(secret.name || '');
-                $('#pppoe_password').val(secret.password || '');
-                
-                // Set flag that this is imported from Mikrotik
-                $('#imported_from_mikrotik').val('1');
-                
-                // Uncheck "Create to Mikrotik" since we're importing existing
-                $('#sync_mikrotik').prop('checked', false).prop('disabled', true);
-                
-                // Show import badge
-                $('#importBadge').removeClass('d-none');
-                
-                // Show info
-                toastr.success(`PPP Secret "${secret.name}" berhasil diambil. Data sudah ada di Mikrotik, tidak perlu sync ulang.`);
-                
-                // Highlight the fields
-                $('#pppoe_username, #pppoe_password').addClass('border-success');
-                setTimeout(() => {
-                    $('#pppoe_username, #pppoe_password').removeClass('border-success');
-                }, 2000);
+    // Refresh button inside modal
+    $('#btnRefreshSecrets, #btnRetrySecrets').on('click', function() {
+        const routerId = $('#router_id').val();
+        if (routerId) loadPPPSecretsModal(routerId);
+    });
 
-                // Try to match profile with package
-                if (secret.profile) {
-                    const matchingPkg = packagesData.find(p => 
-                        p.profile_name === secret.profile || p.name === secret.profile
-                    );
-                    if (matchingPkg) {
-                        $('#package_id').val(matchingPkg.id).trigger('change');
-                        toastr.info(`Profile "${secret.profile}" cocok dengan paket "${matchingPkg.name}"`);
-                    }
-                }
+    // Search filter inside modal
+    $('#searchSecrets').on('input', function() {
+        filterSecretsTable();
+    });
+
+    // Status filter buttons inside modal
+    $('#pppSecretsModal .btn-group .btn').on('click', function() {
+        $(this).siblings().removeClass('active');
+        $(this).addClass('active');
+        filterSecretsTable();
+    });
+
+    // Select a PPP Secret from modal
+    $(document).on('click', '.btn-select-secret', function() {
+        const secretId = $(this).data('id');
+        const secret = pppSecretsData.find(s => s['.id'] === secretId);
+        if (!secret) return;
+
+        // Fill form with PPP Secret data
+        $('#pppoe_username').val(secret.name || '');
+        $('#pppoe_password').val(secret.password || '');
+        
+        // Set flag that this is imported from Mikrotik
+        $('#imported_from_mikrotik').val('1');
+        
+        // Uncheck & disable "Buat PPP Secret" since we're importing existing
+        $('#sync_mikrotik').prop('checked', false).prop('disabled', true);
+        $('#syncMikrotikHint').text('Dinonaktifkan karena menggunakan PPP Secret existing dari Mikrotik.');
+        
+        // Show credentials section with imported data (read-only)
+        $('#pppCredentialsSection').slideDown(200);
+        $('#pppoe_username, #pppoe_password').prop('readonly', true).addClass('bg-light');
+        
+        // Show import active tag
+        $('#importActiveTag').removeClass('d-none');
+        $('#importedSecretName').text(secret.name);
+        $('#importedSecretProfile').text(secret.profile || '-');
+        
+        // Hide browse button, show active state
+        $('#btnBrowseSecrets').addClass('d-none');
+        
+        // Show import badge at submit area
+        $('#importBadge').removeClass('d-none');
+        
+        // Close modal
+        $('#pppSecretsModal').modal('hide');
+        
+        toastr.success(`PPP Secret "${secret.name}" berhasil dipilih. Data sudah ada di Mikrotik, tidak perlu sync ulang.`);
+        
+        // Highlight the fields
+        $('#pppoe_username, #pppoe_password').addClass('border-success');
+        setTimeout(() => {
+            $('#pppoe_username, #pppoe_password').removeClass('border-success');
+        }, 2000);
+
+        // Re-check username availability (DB only, since we know it exists in Mikrotik)
+        if (secret.name) {
+            checkUsername(secret.name);
+        }
+
+        // Try to match profile with package
+        if (secret.profile) {
+            const matchingPkg = packagesData.find(p => 
+                p.profile_name === secret.profile || p.name === secret.profile
+            );
+            if (matchingPkg) {
+                $('#package_id').val(matchingPkg.id).trigger('change');
+                toastr.info(`Profile "${secret.profile}" cocok dengan paket "${matchingPkg.name}"`);
             }
-        } else {
-            // Reset import mode when selection is cleared
-            $('#imported_from_mikrotik').val('0');
-            $('#sync_mikrotik').prop('disabled', false);
-            $('#importBadge').addClass('d-none');
         }
     });
 
-    // Sync checkbox handlers - show warning when enabled
+    // Clear import selection
+    $('#btnClearImport').on('click', function() {
+        // Reset import mode
+        $('#imported_from_mikrotik').val('0');
+        
+        // Re-enable "Buat PPP Secret" checkbox
+        $('#sync_mikrotik').prop('disabled', false);
+        $('#syncMikrotikHint').text('Username dan password akan dibuat sebagai PPP Secret baru di router yang dipilih.');
+        
+        // Hide credentials section & remove read-only
+        $('#pppCredentialsSection').slideUp(200);
+        $('#pppoe_username, #pppoe_password').prop('readonly', false).removeClass('bg-light');
+        
+        // Hide import active tag, show browse button
+        $('#importActiveTag').addClass('d-none');
+        $('#btnBrowseSecrets').removeClass('d-none');
+        
+        // Hide import badge
+        $('#importBadge').addClass('d-none');
+        
+        // Clear username/password
+        $('#pppoe_username').val('');
+        $('#pppoe_password').val('');
+        $('#usernameStatus').html('<i class="fas fa-info-circle mr-1"></i>Format: {{ $popSetting?->pop_prefix ? $popSetting->pop_prefix . "-" : "" }}username');
+        
+        toastr.info('Import dibatalkan');
+    });
+
+    // ── Sync checkbox mutual exclusivity ──
     $('#sync_mikrotik').on('change', function() {
         if ($(this).is(':checked')) {
+            // Show credentials, hide "Ambil dari Mikrotik" 
+            $('#pppCredentialsSection').slideDown(200);
+            $('#importMikrotikSection').slideUp(200);
+            $('#pppoe_username').prop('required', true);
             checkAndGenerateCredentials('Mikrotik PPP Secret');
+        } else {
+            // Hide credentials, show "Ambil dari Mikrotik"
+            $('#pppCredentialsSection').slideUp(200);
+            $('#importMikrotikSection').slideDown(200);
+            $('#pppoe_username').prop('required', false);
         }
     });
+
+    // Initial state: if sync_mikrotik is checked on load, hide import section & show credentials
+    if ($('#sync_mikrotik').is(':checked')) {
+        $('#importMikrotikSection').hide();
+        $('#pppCredentialsSection').show();
+        $('#pppoe_username').prop('required', true);
+    } else {
+        $('#pppCredentialsSection').hide();
+        $('#pppoe_username').prop('required', false);
+    }
 
     $('#sync_radius').on('change', function() {
         if ($(this).is(':checked')) {
@@ -804,7 +1116,7 @@ $(function() {
         }
     });
 
-    // Router change - load packages
+    // Router change - load packages & re-check username
     $('#router_id').on('change', function() {
         const routerId = $(this).val();
         $('#package_id').html('<option value="">Pilih Router dulu...</option>').prop('disabled', true);
@@ -812,6 +1124,12 @@ $(function() {
         
         if (routerId) {
             loadPackages(routerId);
+            
+            // Re-check username against new router's Mikrotik
+            const username = $('#pppoe_username').val();
+            if (username && username.length >= 3) {
+                checkUsername(username);
+            }
         }
     });
 
@@ -829,6 +1147,49 @@ $(function() {
             }
         } else {
             $('#packageInfo').addClass('d-none');
+        }
+    });
+
+    // Used ODP ports data from controller
+    var usedOdpPorts = @json($usedOdpPorts ?? []);
+    
+    // ODP change handler - populate port dropdown with protection
+    $('#odp_id').on('change', function() {
+        const $selected = $(this).find(':selected');
+        const odpId = $(this).val();
+        const totalPorts = parseInt($selected.data('total-ports')) || 8;
+        const $portSelect = $('#odp_port');
+        const $portInfo = $('#odp_port_info');
+        
+        if (!odpId) {
+            $portSelect.html('<option value="">-- Pilih ODP Dulu --</option>').prop('disabled', true);
+            $portInfo.html('');
+            return;
+        }
+        
+        // Get used ports for this ODP
+        const usedForOdp = usedOdpPorts[odpId] || {};
+        const usedCount = Object.keys(usedForOdp).length;
+        const availableCount = totalPorts - usedCount;
+        
+        // Build options
+        let options = '<option value="">-- Pilih Port --</option>';
+        for (let i = 1; i <= totalPorts; i++) {
+            const usedData = usedForOdp[i];
+            if (usedData) {
+                // Port is used - disable it and show customer info
+                options += `<option value="${i}" disabled class="text-danger">Port ${i} - ⛔ ${usedData.customer_id}: ${usedData.customer_name}</option>`;
+            } else {
+                options += `<option value="${i}">Port ${i} - ✅ Tersedia</option>`;
+            }
+        }
+        $portSelect.html(options).prop('disabled', false);
+        
+        // Update info text
+        if (availableCount > 0) {
+            $portInfo.html(`<span class="text-success"><i class="fas fa-info-circle"></i> ${availableCount} dari ${totalPorts} port tersedia</span>`);
+        } else {
+            $portInfo.html(`<span class="text-danger"><i class="fas fa-exclamation-triangle"></i> Semua port sudah terpakai!</span>`);
         }
     });
 
@@ -855,20 +1216,7 @@ $(function() {
         }
     });
 
-    // Get current location
-    $('#btnGetLocation').on('click', function() {
-        if (navigator.geolocation) {
-            $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
-            navigator.geolocation.getCurrentPosition(function(position) {
-                setMarker(position.coords.latitude, position.coords.longitude);
-                map.setView([position.coords.latitude, position.coords.longitude], 16);
-                $('#btnGetLocation').prop('disabled', false).html('<i class="fas fa-crosshairs"></i> Gunakan Lokasi Saya');
-            }, function() {
-                toastr.error('Tidak dapat mengakses lokasi');
-                $('#btnGetLocation').prop('disabled', false).html('<i class="fas fa-crosshairs"></i> Gunakan Lokasi Saya');
-            });
-        }
-    });
+    // Geolocation is now handled by Leaflet control on the map
 
     // Photo upload boxes
     $('.photo-upload-box').on('click', function() {
@@ -945,6 +1293,17 @@ $(function() {
     $('#customerForm').on('submit', function(e) {
         e.preventDefault();
         
+        // Block submit if username status shows unavailable
+        const usernameStatusEl = $('#usernameStatus');
+        if (usernameStatusEl.hasClass('text-danger') || usernameStatusEl.hasClass('text-warning')) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Username Tidak Tersedia',
+                text: 'Username PPPoE yang dipilih sudah digunakan. Silakan ganti username terlebih dahulu.',
+            });
+            return;
+        }
+        
         const btn = $('#btnSubmit');
         btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-2"></i>Menyimpan...');
 
@@ -952,25 +1311,30 @@ $(function() {
             url: '{{ route("admin.customers.store") }}',
             type: 'POST',
             data: $(this).serialize(),
+            timeout: 60000, // 60 second timeout
             success: function(response) {
                 if (response.success) {
                     Swal.fire({
                         icon: 'success',
                         title: 'Berhasil!',
                         text: response.message,
-                        timer: 1500,
-                        showConfirmButton: false
+                        timer: 2000,
+                        showConfirmButton: true
                     }).then(() => {
                         window.location.href = '{{ route("admin.customers.index") }}';
                     });
                 } else {
-                    btn.prop('disabled', false).html('<i class="fas fa-save mr-2"></i>Simpan Pelanggan');
                     toastr.error(response.message);
                 }
             },
             error: function(xhr) {
-                btn.prop('disabled', false).html('<i class="fas fa-save mr-2"></i>Simpan Pelanggan');
-                if (xhr.status === 422) {
+                if (xhr.statusText === 'timeout') {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Timeout',
+                        text: 'Request memakan waktu terlalu lama. Silakan cek apakah pelanggan sudah tersimpan.',
+                    });
+                } else if (xhr.status === 422) {
                     const errors = xhr.responseJSON.errors;
                     let errorMsg = '';
                     for (const key in errors) {
@@ -984,6 +1348,9 @@ $(function() {
                 } else {
                     toastr.error(xhr.responseJSON?.message || 'Terjadi kesalahan');
                 }
+            },
+            complete: function() {
+                btn.prop('disabled', false).html('<i class="fas fa-save mr-2"></i>Simpan Pelanggan');
             }
         });
     });
@@ -991,10 +1358,16 @@ $(function() {
 
 // Helper functions
 function setMarker(lat, lng) {
+    const customerIcon = L.divIcon({
+        className: 'custom-customer-marker',
+        html: '<div style="background:#28a745;color:white;padding:5px 10px;border-radius:5px;font-weight:bold;box-shadow:0 2px 5px rgba(0,0,0,0.3);white-space:nowrap;"><i class="fas fa-user"></i> Pelanggan</div>',
+        iconSize: [90, 30],
+        iconAnchor: [45, 30]
+    });
     if (marker) {
         marker.setLatLng([lat, lng]);
     } else {
-        marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+        marker = L.marker([lat, lng], { icon: customerIcon, draggable: true }).addTo(map);
         marker.on('dragend', function(e) {
             const pos = e.target.getLatLng();
             $('#latitude').val(pos.lat.toFixed(8));
@@ -1005,49 +1378,117 @@ function setMarker(lat, lng) {
     $('#longitude').val(lng.toFixed(8));
 }
 
-// Load PPP Secrets from Mikrotik for import/migration
-function loadPPPSecrets(routerId) {
-    const btn = $('#btnLoadSecrets');
-    const select = $('#importFromMikrotik');
-    
-    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
-    select.html('<option value="">Memuat PPP Secrets...</option>').prop('disabled', true);
+// Load PPP Secrets into modal from Mikrotik
+function loadPPPSecretsModal(routerId) {
+    // Show loading, hide others
+    $('#secretsLoading').removeClass('d-none');
+    $('#secretsTableWrapper, #secretsEmpty, #secretsError').addClass('d-none');
+    $('#searchSecrets').val('');
     
     $.ajax({
         url: `{{ url('admin/routers') }}/${routerId}/ppp-secrets`,
         method: 'GET',
+        timeout: 30000,
         success: function(response) {
+            $('#secretsLoading').addClass('d-none');
+            
             if (response.success && response.secrets) {
                 pppSecretsData = response.secrets;
                 
-                let html = '<option value="">-- Pilih Secret untuk Import --</option>';
-                
                 if (response.secrets.length === 0) {
-                    html = '<option value="">Tidak ada PPP Secret di router ini</option>';
+                    $('#secretsEmpty').removeClass('d-none');
+                    $('#secretsCount').text('0 PPP Secret');
                 } else {
-                    // Group by profile if available
-                    response.secrets.forEach(secret => {
-                        const status = secret.disabled === 'true' ? ' [DISABLED]' : '';
-                        const profile = secret.profile ? ` (${secret.profile})` : '';
-                        html += `<option value="${secret['.id']}">${secret.name}${profile}${status}</option>`;
-                    });
+                    renderSecretsTable(response.secrets);
+                    $('#secretsTableWrapper').removeClass('d-none');
+                    $('#secretsCount').text(`${response.secrets.length} PPP Secret ditemukan`);
                 }
-                
-                select.html(html).prop('disabled', false);
-                toastr.success(`${response.secrets.length} PPP Secret ditemukan`);
             } else {
-                select.html('<option value="">Gagal memuat - ' + (response.message || 'Error') + '</option>');
-                toastr.error(response.message || 'Gagal memuat PPP Secrets');
+                $('#secretsError').removeClass('d-none');
+                $('#secretsErrorMsg').text(response.message || 'Gagal memuat PPP Secrets');
             }
         },
         error: function(xhr) {
-            select.html('<option value="">Error koneksi ke router</option>');
-            toastr.error(xhr.responseJSON?.message || 'Gagal terhubung ke router');
-        },
-        complete: function() {
-            btn.prop('disabled', false).html('<i class="fas fa-sync-alt"></i>');
+            $('#secretsLoading').addClass('d-none');
+            $('#secretsError').removeClass('d-none');
+            $('#secretsErrorMsg').text(xhr.responseJSON?.message || 'Gagal terhubung ke router');
         }
     });
+}
+
+// Render PPP Secrets table rows
+function renderSecretsTable(secrets) {
+    const tbody = $('#secretsTableBody');
+    let html = '';
+    
+    secrets.forEach(secret => {
+        const isDisabled = secret.disabled === 'true';
+        const statusBadge = isDisabled 
+            ? '<span class="badge badge-danger">Disabled</span>'
+            : '<span class="badge badge-success">Aktif</span>';
+        const rowClass = isDisabled ? 'table-secondary' : '';
+        const name = escapeHtml(secret.name || '-');
+        const profile = escapeHtml(secret.profile || '-');
+        const comment = escapeHtml(secret.comment || '-');
+        
+        html += `
+            <tr class="${rowClass}" data-name="${name.toLowerCase()}" data-profile="${profile.toLowerCase()}" data-comment="${comment.toLowerCase()}" data-disabled="${isDisabled}">
+                <td>
+                    <strong>${name}</strong>
+                </td>
+                <td><span class="badge badge-info">${profile}</span></td>
+                <td class="text-muted small">${comment}</td>
+                <td class="text-center">${statusBadge}</td>
+                <td class="text-center">
+                    <button type="button" class="btn btn-sm btn-primary btn-select-secret" data-id="${secret['.id']}" title="Pilih secret ini">
+                        <i class="fas fa-check"></i>
+                    </button>
+                </td>
+            </tr>`;
+    });
+    
+    tbody.html(html);
+}
+
+// Filter secrets table by search & status
+function filterSecretsTable() {
+    const search = $('#searchSecrets').val().toLowerCase();
+    const statusFilter = $('#pppSecretsModal .btn-group .btn.active').data('filter') || 'all';
+    let visible = 0;
+    
+    $('#secretsTableBody tr').each(function() {
+        const name = $(this).data('name') || '';
+        const profile = $(this).data('profile') || '';
+        const comment = $(this).data('comment') || '';
+        const isDisabled = $(this).data('disabled');
+        
+        // Text match
+        const matchesSearch = !search || 
+            name.includes(search) || 
+            profile.includes(search) || 
+            comment.includes(search);
+        
+        // Status match
+        let matchesStatus = true;
+        if (statusFilter === 'active') matchesStatus = !isDisabled;
+        if (statusFilter === 'disabled') matchesStatus = isDisabled;
+        
+        if (matchesSearch && matchesStatus) {
+            $(this).show();
+            visible++;
+        } else {
+            $(this).hide();
+        }
+    });
+    
+    $('#secretsCount').text(`${visible} dari ${pppSecretsData.length} PPP Secret`);
+}
+
+// Escape HTML for safe rendering
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 function loadCities(provinceCode) {
@@ -1096,15 +1537,57 @@ function loadPackages(routerId) {
 }
 
 function checkUsername(username) {
+    const routerId = $('#router_id').val();
+    
+    // Show checking indicator
+    $('#usernameStatus').html('<i class="fas fa-spinner fa-spin"></i> Memeriksa ketersediaan...').removeClass('text-danger text-success text-warning').addClass('text-info');
+    
     $.post('{{ route("admin.customers.check-username") }}', {
         _token: '{{ csrf_token() }}',
-        username: username
+        username: username,
+        router_id: routerId,
+        exclude_id: null
     }, function(response) {
+        let html = '';
+        let statusClass = '';
+        
         if (response.available) {
-            $('#usernameStatus').html('<i class="fas fa-check text-success"></i> Username tersedia').removeClass('text-danger').addClass('text-success');
+            html = '<i class="fas fa-check-circle text-success"></i> Username tersedia';
+            statusClass = 'text-success';
+            
+            // Show Mikrotik check status
+            if (response.mikrotik_checked === true) {
+                html += ' <span class="badge badge-success"><i class="fas fa-server"></i> Tidak ada di Mikrotik</span>';
+            } else if (response.mikrotik_checked === false && response.mikrotik_error) {
+                html += ` <span class="badge badge-warning" title="${response.mikrotik_error}"><i class="fas fa-exclamation-triangle"></i> Mikrotik tidak dicek</span>`;
+            }
         } else {
-            $('#usernameStatus').html('<i class="fas fa-times text-danger"></i> Username sudah digunakan').removeClass('text-success').addClass('text-danger');
+            statusClass = 'text-danger';
+            
+            if (response.mikrotik_only) {
+                // Exists only in Mikrotik (orphaned secret)
+                html = '<i class="fas fa-exclamation-triangle text-warning"></i> <strong>' + response.message + '</strong>';
+                statusClass = 'text-warning';
+            } else if (response.db_exists && response.mikrotik_exists) {
+                html = '<i class="fas fa-times-circle text-danger"></i> ' + response.message;
+            } else if (response.db_exists) {
+                html = '<i class="fas fa-times-circle text-danger"></i> ' + (response.message || 'Username sudah digunakan di database');
+                if (response.mikrotik_checked === true && !response.mikrotik_exists) {
+                    html += ' <span class="badge badge-info"><i class="fas fa-server"></i> Belum ada di Mikrotik</span>';
+                }
+            } else {
+                html = '<i class="fas fa-times-circle text-danger"></i> ' + (response.message || 'Username tidak tersedia');
+            }
         }
+        
+        // Show full username that will be created
+        if (response.full_username && response.full_username !== username) {
+            html += `<br><small class="text-muted">Username lengkap: <code>${response.full_username}</code></small>`;
+        }
+        
+        $('#usernameStatus').html(html).removeClass('text-danger text-success text-warning text-info').addClass(statusClass);
+    }).fail(function() {
+        $('#usernameStatus').html('<i class="fas fa-exclamation-triangle text-warning"></i> Gagal memeriksa username').removeClass('text-danger text-success text-info').addClass('text-warning');
     });
 }
 

@@ -891,6 +891,14 @@ class HiosoHelper extends BaseOltHelper
             // Update PON port stats from synced ONU data
             $this->updatePonPortStats($allOnus);
 
+            // Sync PON port optical power (TX power from OLT SFP)
+            try {
+                $ponOpticalSynced = $this->syncPonOpticalPower();
+                $result['pon_optical_synced'] = $ponOpticalSynced;
+            } catch (Exception $e) {
+                $result['errors'][] = "Failed to sync PON optical power: " . $e->getMessage();
+            }
+
             $this->olt->update([
                 'last_sync_at' => now(),
                 'status' => 'active',

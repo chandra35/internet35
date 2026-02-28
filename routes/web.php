@@ -24,6 +24,8 @@ use App\Http\Controllers\Admin\PaymentGatewayController;
 use App\Http\Controllers\Admin\NotificationSettingController;
 use App\Http\Controllers\Admin\MessageTemplateController;
 use App\Http\Controllers\Admin\CustomerController;
+use App\Http\Controllers\Admin\InvoiceController;
+use App\Http\Controllers\Admin\SchedulerController;
 use App\Http\Controllers\Admin\OdcController;
 use App\Http\Controllers\Admin\OdpController;
 use App\Http\Controllers\Admin\NetworkMapController;
@@ -164,6 +166,8 @@ Route::prefix('admin')->middleware(['auth'])->name('admin.')->group(function () 
         // Invoice Settings
         Route::get('/invoice-settings', [PopSettingController::class, 'invoiceSettings'])->name('invoice-settings');
         Route::post('/invoice-settings', [PopSettingController::class, 'updateInvoiceSettings'])->name('update-invoice-settings');
+        Route::get('/invoice-preview', [PopSettingController::class, 'previewInvoice'])->name('invoice-preview');
+        Route::post('/invoice-live-preview', [PopSettingController::class, 'livePreviewInvoice'])->name('invoice-live-preview');
         
         // Copy Settings
         Route::get('/copy-settings', [PopSettingController::class, 'copySettingsForm'])->name('copy-settings');
@@ -227,6 +231,10 @@ Route::prefix('admin')->middleware(['auth'])->name('admin.')->group(function () 
     Route::prefix('customers')->name('customers.')->group(function () {
         Route::get('/', [CustomerController::class, 'index'])->name('index');
         Route::get('/search', [CustomerController::class, 'search'])->name('search');
+        Route::get('/import', [CustomerController::class, 'import'])->name('import');
+        Route::post('/import', [CustomerController::class, 'processImport'])->name('process-import');
+        Route::post('/import/preview', [CustomerController::class, 'previewImport'])->name('preview-import');
+        Route::get('/import/template', [CustomerController::class, 'downloadTemplate'])->name('download-template');
         Route::get('/create', [CustomerController::class, 'create'])->name('create');
         Route::post('/', [CustomerController::class, 'store'])->name('store');
         Route::get('/{customer}', [CustomerController::class, 'show'])->name('show');
@@ -235,8 +243,41 @@ Route::prefix('admin')->middleware(['auth'])->name('admin.')->group(function () 
         Route::delete('/{customer}', [CustomerController::class, 'destroy'])->name('destroy');
         Route::get('/{customer}/password', [CustomerController::class, 'getPassword'])->name('password');
         Route::post('/{customer}/status', [CustomerController::class, 'changeStatus'])->name('change-status');
+        Route::post('/{customer}/sync-mikrotik', [CustomerController::class, 'syncMikrotik'])->name('sync-mikrotik');
+        Route::post('/bulk-auto-isolir', [CustomerController::class, 'bulkToggleAutoIsolir'])->name('bulk-auto-isolir');
         Route::get('/packages/{router}', [CustomerController::class, 'getPackagesByRouter'])->name('packages-by-router');
         Route::post('/check-username', [CustomerController::class, 'checkUsername'])->name('check-username');
+    });
+
+    // Invoice Management
+    Route::prefix('invoices')->name('invoices.')->group(function () {
+        Route::get('/', [InvoiceController::class, 'index'])->name('index');
+        Route::get('/create', [InvoiceController::class, 'create'])->name('create');
+        Route::post('/', [InvoiceController::class, 'store'])->name('store');
+        Route::post('/generate', [InvoiceController::class, 'generate'])->name('generate');
+        Route::get('/{invoice}', [InvoiceController::class, 'show'])->name('show');
+        Route::get('/{invoice}/edit', [InvoiceController::class, 'edit'])->name('edit');
+        Route::put('/{invoice}', [InvoiceController::class, 'update'])->name('update');
+        Route::delete('/{invoice}', [InvoiceController::class, 'destroy'])->name('destroy');
+        Route::get('/{invoice}/print', [InvoiceController::class, 'print'])->name('print');
+        Route::post('/{invoice}/mark-paid', [InvoiceController::class, 'markPaid'])->name('mark-paid');
+        Route::post('/{invoice}/cancel', [InvoiceController::class, 'cancel'])->name('cancel');
+        Route::post('/{invoice}/send-reminder', [InvoiceController::class, 'sendReminder'])->name('send-reminder');
+    });
+
+    // Scheduler Management
+    Route::prefix('scheduler')->name('scheduler.')->group(function () {
+        Route::get('/', [SchedulerController::class, 'index'])->name('index');
+        Route::get('/create', [SchedulerController::class, 'create'])->name('create');
+        Route::post('/', [SchedulerController::class, 'store'])->name('store');
+        Route::get('/logs', [SchedulerController::class, 'logs'])->name('logs');
+        Route::post('/clear-logs', [SchedulerController::class, 'clearLogs'])->name('clear-logs');
+        Route::get('/{task}', [SchedulerController::class, 'show'])->name('show');
+        Route::get('/{task}/edit', [SchedulerController::class, 'edit'])->name('edit');
+        Route::put('/{task}', [SchedulerController::class, 'update'])->name('update');
+        Route::delete('/{task}', [SchedulerController::class, 'destroy'])->name('destroy');
+        Route::post('/{task}/toggle', [SchedulerController::class, 'toggle'])->name('toggle');
+        Route::post('/{task}/run', [SchedulerController::class, 'run'])->name('run');
     });
 
     // ODC (Optical Distribution Cabinet) Management
@@ -258,7 +299,10 @@ Route::prefix('admin')->middleware(['auth'])->name('admin.')->group(function () 
         Route::post('/', [OdpController::class, 'store'])->name('store');
         Route::get('/by-odc', [OdpController::class, 'getByOdc'])->name('by-odc');
         Route::get('/by-olt', [OdpController::class, 'getByOlt'])->name('by-olt');
+        Route::get('/olt-pon-ports', [OdpController::class, 'getOltPonPorts'])->name('olt-pon-ports');
         Route::get('/generate-code', [OdpController::class, 'generateCode'])->name('generate-code');
+        Route::get('/source-power', [OdpController::class, 'getSourcePower'])->name('source-power');
+        Route::post('/calculate-power', [OdpController::class, 'calculateOpticalPower'])->name('calculate-power');
         Route::get('/{odp}', [OdpController::class, 'show'])->name('show');
         Route::get('/{odp}/edit', [OdpController::class, 'edit'])->name('edit');
         Route::put('/{odp}', [OdpController::class, 'update'])->name('update');

@@ -260,6 +260,100 @@
             </div>
         </div>
 
+        <!-- Optical Power Info -->
+        @if($odp->input_power || $odp->output_power)
+        <div class="card card-{{ $odp->output_power >= -25 ? 'success' : ($odp->output_power >= -28 ? 'info' : ($odp->output_power >= -30 ? 'warning' : 'danger')) }} card-outline">
+            <div class="card-header">
+                <h3 class="card-title"><i class="fas fa-bolt mr-2"></i>Optical Power Budget</h3>
+            </div>
+            <div class="card-body">
+                <div class="row text-center mb-3">
+                    <div class="col-4">
+                        <div class="small text-muted">Input Power</div>
+                        <h4 class="mb-0">{{ $odp->input_power ?? '-' }} <small>dBm</small></h4>
+                    </div>
+                    <div class="col-4">
+                        <div class="small text-muted">Output Power</div>
+                        <h4 class="mb-0 text-{{ $odp->output_power >= -25 ? 'success' : ($odp->output_power >= -28 ? 'info' : ($odp->output_power >= -30 ? 'warning' : 'danger')) }}">
+                            {{ $odp->output_power ?? '-' }} <small>dBm</small>
+                        </h4>
+                    </div>
+                    <div class="col-4">
+                        <div class="small text-muted">Cascade Output</div>
+                        <h4 class="mb-0 text-info">{{ $odp->cascade_output_power ?? '-' }} <small>dBm</small></h4>
+                    </div>
+                </div>
+                
+                {{-- Konfigurasi Splitter --}}
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <div class="info-box mb-0 {{ $odp->splitter_config_type === 'cascade' ? 'bg-gradient-info' : 'bg-gradient-secondary' }}">
+                            <span class="info-box-icon"><i class="fas fa-project-diagram"></i></span>
+                            <div class="info-box-content">
+                                <span class="info-box-text">Konfigurasi Splitter</span>
+                                <span class="info-box-number">
+                                    @if($odp->splitter_config_type === 'cascade' && $odp->unequal_ratio)
+                                        <span class="badge badge-warning mr-1">Cascade</span>
+                                        {{ $odp->unequal_ratio }} + {{ $odp->branch_splitter }}
+                                    @else
+                                        <span class="badge badge-info mr-1">Equal</span>
+                                        {{ $odp->splitter_ratio ?? '1:8' }}
+                                    @endif
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <table class="table table-sm table-borderless mb-0">
+                    <tr>
+                        <td><strong>Jarak Fiber</strong></td>
+                        <td>{{ $odp->fiber_distance ?? 0 }} km</td>
+                        <td><strong>Loss Fiber</strong></td>
+                        <td>{{ $odp->fiber_loss ?? number_format(($odp->fiber_distance ?? 0) * ($odp->fiber_loss_per_km ?? 0.35), 2) }} dB</td>
+                    </tr>
+                    @if($odp->splitter_config_type === 'cascade' && $odp->unequal_ratio)
+                    <tr>
+                        <td><strong>Loss Rasio ({{ $odp->unequal_ratio }})</strong></td>
+                        <td>{{ $odp->unequal_loss ?? '-' }} dB</td>
+                        <td><strong>Loss Splitter ({{ $odp->branch_splitter }})</strong></td>
+                        <td>{{ $odp->branch_loss ?? '-' }} dB</td>
+                    </tr>
+                    @else
+                    <tr>
+                        <td><strong>Loss Splitter</strong></td>
+                        <td>{{ $odp->splitter_loss ?? '-' }} dB</td>
+                        <td></td>
+                        <td></td>
+                    </tr>
+                    @endif
+                    <tr>
+                        <td><strong>Total Redaman</strong></td>
+                        <td><span class="badge badge-dark">{{ $odp->total_loss ?? '-' }} dB</span></td>
+                        <td><strong>Sumber Data</strong></td>
+                        <td>
+                            @if($odp->is_power_manual)
+                            <span class="badge badge-secondary">Manual Input</span>
+                            @else
+                            <span class="badge badge-primary">Auto (SNMP)</span>
+                            @endif
+                        </td>
+                    </tr>
+                </table>
+                @if($odp->output_power && $odp->output_power < -28)
+                <div class="alert alert-{{ $odp->output_power >= -30 ? 'warning' : 'danger' }} mt-3 mb-0">
+                    <i class="fas fa-exclamation-triangle mr-1"></i>
+                    @if($odp->output_power < -30)
+                    <strong>CRITICAL:</strong> Power terlalu rendah! ONU tidak akan sync.
+                    @else
+                    <strong>WARNING:</strong> Power mendekati batas minimum ONU (-30 dBm).
+                    @endif
+                </div>
+                @endif
+            </div>
+        </div>
+        @endif
+
         <!-- Notes -->
         @if($odp->notes)
         <div class="card">

@@ -1159,6 +1159,14 @@ class ZteC320Helper extends BaseOltHelper
                 }
             }
 
+            // Sync PON port optical power (TX power from OLT SFP)
+            try {
+                $ponOpticalSynced = $this->syncPonOpticalPower();
+                $result['pon_optical_synced'] = $ponOpticalSynced;
+            } catch (Exception $e) {
+                $result['errors'][] = "Failed to sync PON optical power: " . $e->getMessage();
+            }
+
             // Update OLT last sync time
             $this->olt->update([
                 'last_sync_at' => now(),

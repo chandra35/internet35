@@ -215,6 +215,26 @@ class PermissionScannerService
             'network-map' => [
                 ['name' => 'network-map.view', 'description' => 'View network map'],
             ],
+            'invoices' => [
+                ['name' => 'invoices.view', 'description' => 'View invoices list'],
+                ['name' => 'invoices.create', 'description' => 'Create new invoice'],
+                ['name' => 'invoices.edit', 'description' => 'Edit invoice'],
+                ['name' => 'invoices.delete', 'description' => 'Delete invoice'],
+                ['name' => 'invoices.generate', 'description' => 'Bulk generate invoices'],
+                ['name' => 'invoices.mark-paid', 'description' => 'Mark invoice as paid'],
+                ['name' => 'invoices.cancel', 'description' => 'Cancel invoice'],
+                ['name' => 'invoices.print', 'description' => 'Print invoice'],
+                ['name' => 'invoices.send-reminder', 'description' => 'Send payment reminder'],
+            ],
+            'scheduler' => [
+                ['name' => 'scheduler.view', 'description' => 'View scheduler tasks'],
+                ['name' => 'scheduler.create', 'description' => 'Create scheduler task'],
+                ['name' => 'scheduler.edit', 'description' => 'Edit scheduler task'],
+                ['name' => 'scheduler.delete', 'description' => 'Delete scheduler task'],
+                ['name' => 'scheduler.toggle', 'description' => 'Enable/disable scheduler task'],
+                ['name' => 'scheduler.run', 'description' => 'Run scheduler task manually'],
+                ['name' => 'scheduler.logs', 'description' => 'View scheduler logs'],
+            ],
         ];
     }
 

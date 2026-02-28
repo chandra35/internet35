@@ -593,7 +593,23 @@ $(function() {
         $('#table-onus').DataTable({
             pageLength: 25,
             order: [[0, 'asc']],
-            language: { url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/id.json' }
+            language: {
+                "emptyTable": "Tidak ada data",
+                "info": "Menampilkan _START_ - _END_ dari _TOTAL_ data",
+                "infoEmpty": "Menampilkan 0 data",
+                "infoFiltered": "(disaring dari _MAX_ total data)",
+                "lengthMenu": "Tampilkan _MENU_ data",
+                "loadingRecords": "Memuat...",
+                "processing": "Memproses...",
+                "search": "Cari:",
+                "zeroRecords": "Tidak ditemukan data yang cocok",
+                "paginate": {
+                    "first": "Pertama",
+                    "last": "Terakhir",
+                    "next": "Berikutnya",
+                    "previous": "Sebelumnya"
+                }
+            }
         });
     }
 

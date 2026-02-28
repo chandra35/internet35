@@ -304,6 +304,14 @@
                         </a>
                     </li>
                     @endcan
+                    @can('invoices.view')
+                    <li class="nav-item">
+                        <a href="{{ route('admin.invoices.index') }}" class="nav-link {{ request()->routeIs('admin.invoices.*') ? 'active' : '' }}">
+                            <i class="nav-icon fas fa-file-invoice-dollar"></i>
+                            <p>Invoice</p>
+                        </a>
+                    </li>
+                    @endcan
                     @endcanany
 
                     <!-- OLT Management -->
@@ -487,6 +495,14 @@
                         </a>
                     </li>
                     @endcan
+                    @role('superadmin')
+                    <li class="nav-item">
+                        <a href="{{ route('admin.scheduler.index') }}" class="nav-link {{ request()->routeIs('admin.scheduler.*') ? 'active' : '' }}">
+                            <i class="nav-icon fas fa-clock"></i>
+                            <p>Scheduler</p>
+                        </a>
+                    </li>
+                    @endrole
                     @endcanany
                     
                     <!-- POP Settings -->

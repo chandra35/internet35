@@ -387,6 +387,39 @@
                             </div>
                         </div>
                     </div>
+                    
+                    <hr>
+                    
+                    <!-- ODP Selection -->
+                    <h6 class="text-muted mb-3"><i class="fas fa-box mr-1"></i> Koneksi ODP (Opsional)</h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>ODP</label>
+                                <select name="odp_id" id="odp_id" class="form-control select2">
+                                    <option value="">-- Tidak Ada / Belum Dipasang --</option>
+                                    @foreach($odps as $odp)
+                                    <option value="{{ $odp->id }}" 
+                                            data-total-ports="{{ $odp->total_ports }}"
+                                            data-used-ports="{{ $odp->used_ports }}"
+                                            {{ old('odp_id', $customer->odp_id) == $odp->id ? 'selected' : '' }}>
+                                        {{ $odp->code }} - {{ $odp->name }} ({{ $odp->total_ports - $odp->used_ports }} port tersedia)
+                                    </option>
+                                    @endforeach
+                                </select>
+                                <small class="text-muted">Bisa diisi nanti saat instalasi</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Port ODP</label>
+                                <select name="odp_port" id="odp_port" class="form-control" {{ $customer->odp_id ? '' : 'disabled' }}>
+                                    <option value="">-- Pilih ODP Dulu --</option>
+                                </select>
+                                <small class="text-muted" id="odp_port_info"></small>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Tab Photos -->
@@ -612,6 +645,62 @@ $(function() {
         const price = $(this).find(':selected').data('price');
         if (price) $('#monthly_fee').val(price);
     });
+
+    // Used ODP ports data from controller
+    var usedOdpPorts = @json($usedOdpPorts ?? []);
+    var currentCustomerOdpId = "{{ $customer->odp_id ?? '' }}";
+    var currentCustomerOdpPort = {{ $customer->odp_port ?? 'null' }};
+    
+    // ODP change handler - populate port dropdown with protection
+    $('#odp_id').on('change', function() {
+        const $selected = $(this).find(':selected');
+        const odpId = $(this).val();
+        const totalPorts = parseInt($selected.data('total-ports')) || 8;
+        const $portSelect = $('#odp_port');
+        const $portInfo = $('#odp_port_info');
+        
+        if (!odpId) {
+            $portSelect.html('<option value="">-- Pilih ODP Dulu --</option>').prop('disabled', true);
+            $portInfo.html('');
+            return;
+        }
+        
+        // Get used ports for this ODP
+        const usedForOdp = usedOdpPorts[odpId] || {};
+        const usedCount = Object.keys(usedForOdp).length;
+        const availableCount = totalPorts - usedCount;
+        
+        // Build options
+        let options = '<option value="">-- Pilih Port --</option>';
+        for (let i = 1; i <= totalPorts; i++) {
+            const usedData = usedForOdp[i];
+            // Check if this is the current customer's port (allow re-selection)
+            const isCurrentPort = (odpId === currentCustomerOdpId && i === currentCustomerOdpPort);
+            
+            if (usedData && !isCurrentPort) {
+                // Port is used by another customer - disable it
+                options += `<option value="${i}" disabled class="text-danger">Port ${i} - ⛔ ${usedData.customer_id}: ${usedData.customer_name}</option>`;
+            } else if (isCurrentPort) {
+                // This is the current customer's port - select it
+                options += `<option value="${i}" selected>Port ${i} - ✅ Port saat ini</option>`;
+            } else {
+                options += `<option value="${i}">Port ${i} - ✅ Tersedia</option>`;
+            }
+        }
+        $portSelect.html(options).prop('disabled', false);
+        
+        // Update info text
+        if (availableCount > 0) {
+            $portInfo.html(`<span class="text-success"><i class="fas fa-info-circle"></i> ${availableCount} dari ${totalPorts} port tersedia</span>`);
+        } else {
+            $portInfo.html(`<span class="text-danger"><i class="fas fa-exclamation-triangle"></i> Semua port sudah terpakai!</span>`);
+        }
+    });
+    
+    // Trigger ODP change on load to populate ports
+    @if($customer->odp_id)
+    $('#odp_id').trigger('change');
+    @endif
 
     // Password toggle & generate
     $('#btnTogglePwd').on('click', function() {

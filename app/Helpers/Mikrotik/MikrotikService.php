@@ -26,10 +26,13 @@ class MikrotikService
     {
         $this->router = $router;
         
+        // Get password with empty string fallback
+        $password = $router->decrypted_password ?? '';
+        
         $connected = $this->api->connect(
             $router->host,
             $router->username,
-            $router->decrypted_password,
+            $password,
             $router->use_ssl ? $router->api_ssl_port : $router->api_port,
             $router->use_ssl
         );
@@ -219,6 +222,27 @@ class MikrotikService
     public function getPppSecrets(): array
     {
         return $this->api->exec('/ppp/secret/print');
+    }
+
+    /**
+     * Get a single PPP secret by username
+     */
+    public function getPppSecretByName(string $username): ?array
+    {
+        try {
+            $result = $this->api->exec('/ppp/secret/print', ['?name' => $username]);
+            return $result[0] ?? null;
+        } catch (\Exception $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Check if PPP secret exists in Mikrotik
+     */
+    public function pppSecretExists(string $username): bool
+    {
+        return $this->getPppSecretByName($username) !== null;
     }
 
     /**

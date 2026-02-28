@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
+use App\Models\Odp;
 use App\Models\Package;
 use App\Models\PopSetting;
 use App\Models\Router;
@@ -20,6 +21,9 @@ use Illuminate\Support\Str;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
 use Laravolt\Indonesia\Models\Province;
+use App\Imports\CustomerImport;
+use App\Exports\CustomerImportTemplate;
+use Maatwebsite\Excel\Facades\Excel;
 
 class CustomerController extends Controller implements HasMiddleware
 {
@@ -29,8 +33,8 @@ class CustomerController extends Controller implements HasMiddleware
     {
         return [
             new Middleware('permission:customers.view', only: ['index', 'show', 'getData']),
-            new Middleware('permission:customers.create', only: ['create', 'store']),
-            new Middleware('permission:customers.edit', only: ['edit', 'update']),
+            new Middleware('permission:customers.create', only: ['create', 'store', 'import', 'processImport', 'previewImport', 'downloadTemplate']),
+            new Middleware('permission:customers.edit', only: ['edit', 'update', 'syncMikrotik', 'bulkToggleAutoIsolir']),
             new Middleware('permission:customers.delete', only: ['destroy']),
         ];
     }
@@ -81,6 +85,7 @@ class CustomerController extends Controller implements HasMiddleware
             ->when($popId, fn($q) => $q->where('pop_id', $popId))
             ->when($request->status, fn($q, $s) => $q->where('status', $s))
             ->when($request->router_id, fn($q, $r) => $q->where('router_id', $r))
+            ->when($request->has('auto_isolir') && $request->auto_isolir !== '', fn($q) => $q->where('auto_isolir', $request->boolean('auto_isolir')))
             ->when($request->search, function($q, $s) {
                 $q->where(function($sq) use ($s) {
                     $sq->where('name', 'like', "%{$s}%")
@@ -180,7 +185,28 @@ class CustomerController extends Controller implements HasMiddleware
         // Generate customer ID
         $nextCustomerId = Customer::generateCustomerId($popId);
         
-        return view('admin.customers.create', compact('routers', 'packages', 'provinces', 'nextCustomerId', 'popId', 'popSetting'));
+        // Get ODPs for this POP
+        $odps = Odp::where('pop_id', $popId)
+            ->where('status', 'active')
+            ->orderBy('code')
+            ->get(['id', 'code', 'name', 'total_ports', 'used_ports']);
+        
+        // Get used ODP ports per ODP
+        $usedOdpPorts = Customer::whereNotNull('odp_id')
+            ->whereNotNull('odp_port')
+            ->get()
+            ->groupBy('odp_id')
+            ->map(function($customers) {
+                return $customers->map(function($c) {
+                    return [
+                        'port' => $c->odp_port,
+                        'customer_name' => $c->name,
+                        'customer_id' => $c->customer_id,
+                    ];
+                })->keyBy('port');
+            });
+        
+        return view('admin.customers.create', compact('routers', 'packages', 'provinces', 'nextCustomerId', 'popId', 'popSetting', 'odps', 'usedOdpPorts'));
     }
 
     /**
@@ -210,8 +236,8 @@ class CustomerController extends Controller implements HasMiddleware
             'postal_code' => 'nullable|string|max:10',
             'latitude' => 'nullable|numeric',
             'longitude' => 'nullable|numeric',
-            // PPPoE credentials - username wajib diisi manual
-            'pppoe_username' => 'required|string|max:255',
+            // PPPoE credentials - auto-generated if not provided
+            'pppoe_username' => 'nullable|string|max:255|unique:customers,pppoe_username',
             'pppoe_password' => 'nullable|string|max:255',
             'service_type' => 'nullable|in:pppoe,hotspot,static',
             'installation_date' => 'nullable|date',
@@ -225,7 +251,24 @@ class CustomerController extends Controller implements HasMiddleware
             'photo_ktp' => 'nullable|string',
             'photo_selfie' => 'nullable|string',
             'photo_house' => 'nullable|string',
+            // ODP connection (optional)
+            'odp_id' => 'nullable|uuid|exists:odps,id',
+            'odp_port' => 'nullable|integer|min:1',
         ]);
+        
+        // Validate ODP port is not already used (server-side protection)
+        if ($request->odp_id && $request->odp_port) {
+            $existingCustomer = Customer::where('odp_id', $request->odp_id)
+                ->where('odp_port', $request->odp_port)
+                ->first();
+            
+            if ($existingCustomer) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Port {$request->odp_port} pada ODP ini sudah digunakan oleh pelanggan: {$existingCustomer->customer_id} ({$existingCustomer->name})"
+                ], 422);
+            }
+        }
 
         DB::beginTransaction();
         try {
@@ -285,6 +328,8 @@ class CustomerController extends Controller implements HasMiddleware
                 'photo_house' => $photoHouse,
                 'router_id' => $request->router_id,
                 'package_id' => $request->package_id,
+                'odp_id' => $request->odp_id,
+                'odp_port' => $request->odp_port,
                 'pppoe_username' => $pppoeUsername,
                 'pppoe_password' => $pppoePassword,
                 'service_type' => $request->service_type ?? 'pppoe',
@@ -298,106 +343,12 @@ class CustomerController extends Controller implements HasMiddleware
                 'registered_by' => auth()->id(),
                 'created_by' => auth()->id(),
             ]);
-
-            // Sync tracking
-            $syncResults = [];
             
-            // Check if imported from Mikrotik (migration mode - don't create, just mark as synced)
-            $importedFromMikrotik = $request->boolean('imported_from_mikrotik');
-            
-            // Determine sync targets
-            $syncToMikrotik = $request->boolean('sync_mikrotik') && $popSetting?->mikrotik_sync_enabled && $router;
-            $syncToRadius = $request->boolean('sync_radius') && $popSetting?->radius_enabled;
-            
-            if ($importedFromMikrotik) {
-                // Mark as already synced since we imported from existing Mikrotik secret
-                $customer->update([
-                    'mikrotik_synced' => true, 
-                    'mikrotik_synced_at' => now(),
-                    'internal_notes' => ($customer->internal_notes ? $customer->internal_notes . "\n" : '') . "[MIGRASI] Diimport dari PPP Secret Mikrotik yang sudah ada."
-                ]);
-                $syncResults['mikrotik'] = 'imported (existing)';
-                
-                // Still sync to Radius if requested (for hybrid backup)
-                $syncToMikrotik = false; // Don't create in Mikrotik since imported
-            }
-            
-            // Sync to Mikrotik PPP Secret if requested
-            if ($syncToMikrotik) {
-                try {
-                    $mikrotikService = new MikrotikService();
-                    
-                    if (!$mikrotikService->connectRouter($router)) {
-                        $syncResults['mikrotik'] = 'failed: Gagal terhubung ke router';
-                        Log::warning("Mikrotik connection failed for customer {$customer->id}");
-                    } else {
-                        $params = [
-                            'name' => $pppoeUsername,
-                            'password' => $pppoePassword,
-                            'profile' => $package->profile_name ?? $package->name,
-                            'comment' => $customer->address,
-                        ];
-                        
-                        $mikrotikResult = $mikrotikService->addPppSecret($params);
-                        
-                        if (isset($mikrotikResult['ret'])) {
-                            $syncResults['mikrotik'] = 'success';
-                            $customer->update(['mikrotik_synced' => true, 'mikrotik_synced_at' => now()]);
-                        } else {
-                            $syncResults['mikrotik'] = 'failed: ' . ($mikrotikResult[0]['message'] ?? 'Unknown error');
-                            Log::warning("Mikrotik sync failed for customer {$customer->id}");
-                        }
-                    }
-                } catch (\Exception $e) {
-                    $syncResults['mikrotik'] = 'error: ' . $e->getMessage();
-                    Log::error("Mikrotik sync error for customer {$customer->id}: " . $e->getMessage());
-                }
-            }
-            
-            // Sync to FreeRadius if requested
-            if ($request->boolean('sync_radius') && $popSetting?->radius_enabled) {
-                try {
-                    $radiusService = new RadiusService([
-                        'host' => $popSetting->radius_host,
-                        'port' => $popSetting->radius_port ?? 3306,
-                        'database' => $popSetting->radius_database ?? 'radius',
-                        'username' => $popSetting->radius_username,
-                        'password' => $popSetting->decrypted_radius_password,
-                    ]);
-                    
-                    // Get bandwidth from package
-                    $bandwidth = null;
-                    if ($package) {
-                        $bandwidth = [
-                            'download' => $package->download_rate . ($package->rate_unit ?? 'M'),
-                            'upload' => $package->upload_rate . ($package->rate_unit ?? 'M'),
-                        ];
-                    }
-                    
-                    $radiusResult = $radiusService->createUser(
-                        $pppoeUsername,
-                        $pppoePassword,
-                        $package->profile_name ?? $package->name,
-                        $bandwidth,
-                        [
-                            'name' => $customer->name,
-                            'phone' => $customer->phone,
-                            'email' => $customer->email,
-                            'address' => $customer->address,
-                            'customer_id' => $customer->customer_id,
-                        ]
-                    );
-                    
-                    if ($radiusResult['success']) {
-                        $syncResults['radius'] = 'success';
-                        $customer->update(['radius_synced' => true, 'radius_synced_at' => now()]);
-                    } else {
-                        $syncResults['radius'] = 'failed: ' . ($radiusResult['error'] ?? 'Unknown error');
-                        Log::warning("Radius sync failed for customer {$customer->id}: " . ($radiusResult['error'] ?? 'Unknown'));
-                    }
-                } catch (\Exception $e) {
-                    $syncResults['radius'] = 'error: ' . $e->getMessage();
-                    Log::error("Radius sync error for customer {$customer->id}: " . $e->getMessage());
+            // Update ODP used ports count if assigned
+            if ($request->odp_id) {
+                $odp = Odp::find($request->odp_id);
+                if ($odp) {
+                    $odp->increment('used_ports');
                 }
             }
 
@@ -423,26 +374,6 @@ class CustomerController extends Controller implements HasMiddleware
             $this->activityLog->log('customers', "Menambah pelanggan baru: {$customer->name} ({$customer->customer_id})");
 
             DB::commit();
-
-            // Build response message
-            $message = 'Pelanggan berhasil ditambahkan';
-            if (!empty($syncResults)) {
-                $syncMessages = [];
-                if (isset($syncResults['mikrotik'])) {
-                    $syncMessages[] = 'Mikrotik: ' . $syncResults['mikrotik'];
-                }
-                if (isset($syncResults['radius'])) {
-                    $syncMessages[] = 'Radius: ' . $syncResults['radius'];
-                }
-                $message .= '. Sync: ' . implode(', ', $syncMessages);
-            }
-
-            return response()->json([
-                'success' => true,
-                'message' => $message,
-                'customer' => $customer,
-                'sync_results' => $syncResults,
-            ]);
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
@@ -450,6 +381,126 @@ class CustomerController extends Controller implements HasMiddleware
                 'message' => 'Gagal menambahkan pelanggan: ' . $e->getMessage(),
             ], 500);
         }
+
+        // ============================================================
+        // SYNC OPERATIONS (outside DB transaction to prevent rollback)
+        // Customer is already saved to database at this point
+        // ============================================================
+        $syncResults = [];
+        
+        try {
+            // Check if imported from Mikrotik (migration mode - don't create, just mark as synced)
+            $importedFromMikrotik = $request->boolean('imported_from_mikrotik');
+            
+            // Determine sync targets
+            $syncToMikrotik = $request->boolean('sync_mikrotik') && $popSetting?->mikrotik_sync_enabled && $router;
+            
+            if ($importedFromMikrotik) {
+                // Mark as already synced since we imported from existing Mikrotik secret
+                $customer->update([
+                    'mikrotik_synced' => true, 
+                    'mikrotik_synced_at' => now(),
+                    'internal_notes' => ($customer->internal_notes ? $customer->internal_notes . "\n" : '') . "[MIGRASI] Diimport dari PPP Secret Mikrotik yang sudah ada."
+                ]);
+                $syncResults['mikrotik'] = 'imported (existing)';
+                
+                // Still sync to Radius if requested (for hybrid backup)
+                $syncToMikrotik = false; // Don't create in Mikrotik since imported
+            }
+            
+            // Sync to Mikrotik PPP Secret if requested
+            if ($syncToMikrotik) {
+                try {
+                    $mikrotikService = new MikrotikService();
+                    
+                    if (!$mikrotikService->connectRouter($router)) {
+                        $syncResults['mikrotik'] = 'failed: Gagal terhubung ke router';
+                        Log::warning("Mikrotik connection failed for customer {$customer->id}");
+                    } else {
+                        // Pre-check: username already exists in Mikrotik?
+                        if ($mikrotikService->pppSecretExists($pppoeUsername)) {
+                            $syncResults['mikrotik'] = 'skipped: Username sudah ada di Mikrotik';
+                            // Mark as synced since it already exists
+                            $customer->update([
+                                'mikrotik_synced' => true, 
+                                'mikrotik_synced_at' => now(),
+                                'internal_notes' => ($customer->internal_notes ? $customer->internal_notes . "\n" : '') . '[AUTO] PPP Secret sudah ada di Mikrotik, skip pembuatan.'
+                            ]);
+                            Log::info("Mikrotik PPP Secret '{$pppoeUsername}' already exists, skipping creation for customer {$customer->id}");
+                        } else {
+                            $params = [
+                                'name' => $pppoeUsername,
+                                'password' => $pppoePassword,
+                                'profile' => $package->profile_name ?? $package->name,
+                                'comment' => $customer->address ?? $customer->name,
+                            ];
+                            
+                            $mikrotikResult = $mikrotikService->addPppSecret($params);
+                            
+                            // Response is nested array: [0 => ['ret' => '*XX']]
+                            if (isset($mikrotikResult[0]['ret']) || isset($mikrotikResult['ret'])) {
+                                $syncResults['mikrotik'] = 'success';
+                                $customer->update(['mikrotik_synced' => true, 'mikrotik_synced_at' => now()]);
+                            } else {
+                                $errorMsg = $mikrotikResult[0]['message'] ?? ($mikrotikResult['message'] ?? 'Unknown error');
+                                $syncResults['mikrotik'] = 'failed: ' . $errorMsg;
+                                Log::warning("Mikrotik sync failed for customer {$customer->id}: {$errorMsg}");
+                            }
+                        }
+                    }
+                } catch (\Exception $e) {
+                    $syncResults['mikrotik'] = 'error: ' . $e->getMessage();
+                    Log::error("Mikrotik sync error for customer {$customer->id}: " . $e->getMessage());
+                }
+            }
+            
+            // Sync to FreeRadius if requested
+            if ($request->boolean('sync_radius') && $popSetting?->radius_enabled) {
+                try {
+                    $radiusService = new RadiusService();
+                    
+                    if (!$radiusService->connect($popSetting)) {
+                        $syncResults['radius'] = 'failed: Gagal terhubung ke database Radius';
+                        Log::warning("Radius connection failed for customer {$customer->id}");
+                    } else {
+                        $radiusResult = $radiusService->createUser($customer, $package);
+                        
+                        if ($radiusResult['success']) {
+                            $syncResults['radius'] = 'success';
+                            $customer->update(['radius_synced' => true, 'radius_synced_at' => now()]);
+                        } else {
+                            $syncResults['radius'] = 'failed: ' . ($radiusResult['message'] ?? 'Unknown error');
+                            Log::warning("Radius sync failed for customer {$customer->id}: " . ($radiusResult['message'] ?? 'Unknown'));
+                        }
+                    }
+                } catch (\Exception $e) {
+                    $syncResults['radius'] = 'error: ' . $e->getMessage();
+                    Log::error("Radius sync error for customer {$customer->id}: " . $e->getMessage());
+                }
+            }
+        } catch (\Exception $e) {
+            Log::error("Sync error for customer {$customer->id}: " . $e->getMessage());
+        }
+
+        // Build response message
+        $message = 'Pelanggan berhasil ditambahkan';
+        if (!empty($syncResults)) {
+            $syncMessages = [];
+            if (isset($syncResults['mikrotik'])) {
+                $syncMessages[] = 'Mikrotik: ' . $syncResults['mikrotik'];
+            }
+            if (isset($syncResults['radius'])) {
+                $syncMessages[] = 'Radius: ' . $syncResults['radius'];
+            }
+            $message .= '. Sync: ' . implode(', ', $syncMessages);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => $message,
+            'customer' => $customer,
+            'sync_results' => $syncResults,
+        ]);
     }
 
     /**
@@ -494,7 +545,29 @@ class CustomerController extends Controller implements HasMiddleware
             ? \Laravolt\Indonesia\Models\Village::where('district_code', $customer->district_code)->orderBy('name')->get()
             : collect();
         
-        return view('admin.customers.edit', compact('customer', 'routers', 'packages', 'provinces', 'cities', 'districts', 'villages'));
+        // Get ODPs for this POP
+        $odps = Odp::where('pop_id', $customer->pop_id)
+            ->where('status', 'active')
+            ->orderBy('code')
+            ->get(['id', 'code', 'name', 'total_ports', 'used_ports']);
+        
+        // Get used ODP ports per ODP (exclude current customer for edit)
+        $usedOdpPorts = Customer::whereNotNull('odp_id')
+            ->whereNotNull('odp_port')
+            ->where('id', '!=', $customer->id)
+            ->get()
+            ->groupBy('odp_id')
+            ->map(function($customers) {
+                return $customers->map(function($c) {
+                    return [
+                        'port' => $c->odp_port,
+                        'customer_name' => $c->name,
+                        'customer_id' => $c->customer_id,
+                    ];
+                })->keyBy('port');
+            });
+        
+        return view('admin.customers.edit', compact('customer', 'routers', 'packages', 'provinces', 'cities', 'districts', 'villages', 'odps', 'usedOdpPorts'));
     }
 
     /**
@@ -524,13 +597,30 @@ class CustomerController extends Controller implements HasMiddleware
             'postal_code' => 'nullable|string|max:10',
             'latitude' => 'nullable|numeric',
             'longitude' => 'nullable|numeric',
-            'pppoe_username' => 'nullable|string|max:255',
+            'pppoe_username' => 'nullable|string|max:255|unique:customers,pppoe_username,' . $customer->id,
             'pppoe_password' => 'nullable|string|max:255',
             'service_type' => 'nullable|in:pppoe,hotspot,static',
             'monthly_fee' => 'nullable|numeric|min:0',
             'billing_day' => 'nullable|integer|min:1|max:28',
             'active_until' => 'nullable|date',
+            // ODP connection (optional)
+            'odp_id' => 'nullable|uuid|exists:odps,id',
+            'odp_port' => 'nullable|integer|min:1',
         ]);
+        
+        // Validate ODP port is not already used (server-side protection)
+        if ($request->odp_id && $request->odp_port) {
+            $existingCustomer = Customer::where('odp_id', $request->odp_id)
+                ->where('odp_port', $request->odp_port)
+                ->where('id', '!=', $customer->id)
+                ->first();
+            
+            if ($existingCustomer) {
+                return back()->withInput()->withErrors([
+                    'odp_port' => "Port {$request->odp_port} pada ODP ini sudah digunakan oleh pelanggan: {$existingCustomer->customer_id} ({$existingCustomer->name})"
+                ]);
+            }
+        }
 
         DB::beginTransaction();
         try {
@@ -540,7 +630,30 @@ class CustomerController extends Controller implements HasMiddleware
                 'postal_code', 'latitude', 'longitude', 'router_id', 'package_id',
                 'pppoe_username', 'service_type', 'monthly_fee', 'billing_day', 
                 'notes', 'internal_notes', 'remote_address', 'mac_address', 'active_until',
+                'odp_id', 'odp_port',
             ]);
+            
+            // Handle ODP change - update used_ports count
+            $oldOdpId = $customer->odp_id;
+            $newOdpId = $request->odp_id;
+            
+            // If ODP changed, update counts
+            if ($oldOdpId !== $newOdpId) {
+                // Decrement old ODP if had one
+                if ($oldOdpId) {
+                    $oldOdp = Odp::find($oldOdpId);
+                    if ($oldOdp && $oldOdp->used_ports > 0) {
+                        $oldOdp->decrement('used_ports');
+                    }
+                }
+                // Increment new ODP if assigned one
+                if ($newOdpId) {
+                    $newOdp = Odp::find($newOdpId);
+                    if ($newOdp) {
+                        $newOdp->increment('used_ports');
+                    }
+                }
+            }
 
             // Handle password change
             if ($request->filled('pppoe_password')) {
@@ -667,6 +780,39 @@ class CustomerController extends Controller implements HasMiddleware
     }
 
     /**
+     * Bulk toggle auto-isolir for multiple customers
+     */
+    public function bulkToggleAutoIsolir(Request $request)
+    {
+        $request->validate([
+            'customer_ids' => 'required|array|min:1',
+            'customer_ids.*' => 'required|uuid|exists:customers,id',
+            'auto_isolir' => 'required|boolean',
+        ]);
+
+        $user = auth()->user();
+        $customerIds = $request->customer_ids;
+        $autoIsolir = $request->boolean('auto_isolir');
+
+        // Scope to POP for non-superadmin
+        $query = Customer::whereIn('id', $customerIds);
+        if (!$user->hasRole('superadmin')) {
+            $query->where('pop_id', $user->id);
+        }
+
+        $affected = $query->update(['auto_isolir' => $autoIsolir]);
+
+        $action = $autoIsolir ? 'Mengaktifkan' : 'Menonaktifkan';
+        $this->activityLog->log('customers', "{$action} auto-isolir untuk {$affected} pelanggan");
+
+        return response()->json([
+            'success' => true,
+            'message' => "{$action} auto-isolir berhasil untuk {$affected} pelanggan.",
+            'affected' => $affected,
+        ]);
+    }
+
+    /**
      * Get packages by router
      */
     public function getPackagesByRouter(Router $router)
@@ -680,20 +826,76 @@ class CustomerController extends Controller implements HasMiddleware
     }
 
     /**
-     * Check if PPPoE username is available
+     * Check if PPPoE username is available (DB + Mikrotik)
      */
     public function checkUsername(Request $request)
     {
+        $popId = auth()->user()->hasRole('superadmin') ? $request->pop_id : auth()->id();
+        $popSetting = PopSetting::where('user_id', $popId)->first();
+        $prefix = $popSetting?->pop_prefix ?? '';
+
+        // Build full username with prefix
+        $username = $request->username;
+        if ($prefix && !str_starts_with($username, $prefix . '-')) {
+            $fullUsername = $prefix . '-' . $username;
+        } else {
+            $fullUsername = $username;
+        }
+
+        $response = [
+            'available' => true,
+            'db_exists' => false,
+            'mikrotik_exists' => false,
+            'full_username' => $fullUsername,
+        ];
+
+        // 1. Check database
         $existingCustomer = Customer::withTrashed()
-            ->where('pppoe_username', $request->username)
+            ->where('pppoe_username', $fullUsername)
             ->when($request->exclude_id, fn($q, $id) => $q->where('id', '!=', $id))
             ->first();
 
-        $response = ['available' => !$existingCustomer];
-        
-        if ($existingCustomer && $existingCustomer->trashed()) {
-            $response['message'] = 'Username ini pernah digunakan oleh pelanggan yang sudah dihapus';
-            $response['was_deleted'] = true;
+        if ($existingCustomer) {
+            $response['available'] = false;
+            $response['db_exists'] = true;
+            if ($existingCustomer->trashed()) {
+                $response['message'] = 'Username ini pernah digunakan oleh pelanggan yang sudah dihapus';
+                $response['was_deleted'] = true;
+            } else {
+                $response['message'] = 'Username sudah digunakan oleh: ' . $existingCustomer->name . ' (' . $existingCustomer->customer_id . ')';
+            }
+        }
+
+        // 2. Check Mikrotik (if router selected and sync enabled)
+        if ($request->router_id && $popSetting?->mikrotik_sync_enabled) {
+            try {
+                $router = Router::find($request->router_id);
+                if ($router) {
+                    $mikrotikService = new MikrotikService();
+                    if ($mikrotikService->connectRouter($router)) {
+                        $existsInMikrotik = $mikrotikService->pppSecretExists($fullUsername);
+                        $response['mikrotik_exists'] = $existsInMikrotik;
+                        $response['mikrotik_checked'] = true;
+
+                        if ($existsInMikrotik && !$existingCustomer) {
+                            // Exists in Mikrotik but NOT in DB — likely orphaned secret
+                            $response['available'] = false;
+                            $response['message'] = 'Username sudah ada di Mikrotik router! Gunakan fitur import jika ingin mengambil alih.';
+                            $response['mikrotik_only'] = true;
+                        } elseif ($existsInMikrotik && $existingCustomer) {
+                            $response['message'] .= ' (juga ada di Mikrotik)';
+                        }
+                    } else {
+                        $response['mikrotik_checked'] = false;
+                        $response['mikrotik_error'] = 'Gagal terhubung ke router';
+                    }
+                }
+            } catch (\Exception $e) {
+                $response['mikrotik_checked'] = false;
+                $response['mikrotik_error'] = 'Error: ' . $e->getMessage();
+            }
+        } else {
+            $response['mikrotik_checked'] = false;
         }
 
         return response()->json($response);
@@ -712,6 +914,296 @@ class CustomerController extends Controller implements HasMiddleware
         
         if ($customer->pop_id !== $user->id) {
             abort(403, 'Unauthorized');
+        }
+    }
+
+    /**
+     * Show import form
+     */
+    public function import(Request $request)
+    {
+        $user = auth()->user();
+        $popId = $this->getPopId($request);
+
+        // For superadmin, get list of POPs
+        $popUsers = null;
+        if ($user->hasRole('superadmin')) {
+            $popUsers = User::role('admin-pop')->orderBy('name')->get();
+        }
+
+        // Get routers and packages for reference
+        $routers = collect();
+        $packages = collect();
+        if ($popId) {
+            $routers = Router::where('pop_id', $popId)->orderBy('name')->get();
+            $packages = Package::whereIn('router_id', $routers->pluck('id'))
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get();
+        }
+
+        return view('admin.customers.import', compact('popUsers', 'popId', 'routers', 'packages'));
+    }
+
+    /**
+     * Preview import data (AJAX)
+     */
+    public function previewImport(Request $request)
+    {
+        $user = auth()->user();
+
+        if ($user->hasRole('superadmin')) {
+            $request->validate([
+                'pop_id' => 'required|uuid|exists:users,id',
+                'file' => 'required|file|mimes:xlsx,xls,csv|max:5120',
+            ]);
+            $popId = $request->pop_id;
+        } else {
+            $request->validate([
+                'file' => 'required|file|mimes:xlsx,xls,csv|max:5120',
+            ]);
+            $popId = $user->id;
+        }
+
+        try {
+            $import = new CustomerImport($popId, true); // preview mode
+            Excel::import($import, $request->file('file'));
+
+            $preview = $import->getPreviewRows();
+            $results = $import->getResults();
+
+            return response()->json([
+                'success' => true,
+                'preview' => $preview,
+                'summary' => [
+                    'valid' => $results['success_count'],
+                    'errors' => $results['failed_count'],
+                    'skipped' => $results['skipped_count'],
+                    'total' => $results['total_processed'],
+                ],
+                'errors' => $results['errors'],
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal membaca file: ' . $e->getMessage(),
+            ], 422);
+        }
+    }
+
+    /**
+     * Process Excel import
+     */
+    public function processImport(Request $request)
+    {
+        $user = auth()->user();
+
+        // Determine pop_id
+        if ($user->hasRole('superadmin')) {
+            $request->validate([
+                'pop_id' => 'required|uuid|exists:users,id',
+                'file' => 'required|file|mimes:xlsx,xls,csv|max:5120',
+            ], [
+                'pop_id.required' => 'Pilih POP terlebih dahulu.',
+                'file.required' => 'File Excel wajib diupload.',
+                'file.mimes' => 'Format file harus .xlsx, .xls, atau .csv',
+                'file.max' => 'Ukuran file maksimal 5MB.',
+            ]);
+            $popId = $request->pop_id;
+        } else {
+            $request->validate([
+                'file' => 'required|file|mimes:xlsx,xls,csv|max:5120',
+            ], [
+                'file.required' => 'File Excel wajib diupload.',
+                'file.mimes' => 'Format file harus .xlsx, .xls, atau .csv',
+                'file.max' => 'Ukuran file maksimal 5MB.',
+            ]);
+            $popId = $user->id;
+        }
+
+        try {
+            $import = new CustomerImport($popId);
+            Excel::import($import, $request->file('file'));
+
+            $results = $import->getResults();
+
+            $this->activityLog->log('customers', "Import pelanggan dari Excel: {$results['success_count']} berhasil, {$results['failed_count']} gagal, {$results['skipped_count']} dilewati");
+
+            $message = "Import selesai: {$results['success_count']} pelanggan berhasil diimport.";
+
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => $message,
+                    'results' => $results,
+                ]);
+            }
+
+            return redirect()->route('admin.customers.import')
+                ->with('import_results', $results)
+                ->with('success', $message);
+
+        } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
+            $failures = $e->failures();
+            $errorMessages = [];
+            foreach ($failures as $failure) {
+                $errorMessages[] = "Baris {$failure->row()}: " . implode(', ', $failure->errors());
+            }
+            $errorMsg = 'Validasi gagal: ' . implode('; ', array_slice($errorMessages, 0, 5));
+
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => $errorMsg], 422);
+            }
+
+            return redirect()->route('admin.customers.import')
+                ->with('error', $errorMsg);
+        } catch (\Exception $e) {
+            Log::error('Customer import failed: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => 'Import gagal: ' . $e->getMessage()], 500);
+            }
+
+            return redirect()->route('admin.customers.import')
+                ->with('error', 'Import gagal: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Download import template
+     */
+    public function downloadTemplate(Request $request)
+    {
+        $user = auth()->user();
+        $popId = $user->hasRole('superadmin') ? $request->pop_id : $user->id;
+
+        $routers = [];
+        $packages = [];
+
+        if ($popId) {
+            $routerModels = Router::where('pop_id', $popId)->orderBy('name')->get();
+            $routers = $routerModels->pluck('name')->toArray();
+            $packages = Package::whereIn('router_id', $routerModels->pluck('id'))
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get()
+                ->map(fn($p) => "{$p->name} ({$p->router->name})")
+                ->toArray();
+        }
+
+        return Excel::download(
+            new CustomerImportTemplate($routers, $packages),
+            'template_import_pelanggan.xlsx'
+        );
+    }
+
+    /**
+     * Sync customer PPP Secret to Mikrotik (for unsynced customers)
+     */
+    public function syncMikrotik(Request $request, Customer $customer)
+    {
+        $user = auth()->user();
+
+        // Authorization check
+        if (!$user->hasRole('superadmin')) {
+            if ($customer->pop_id !== $user->id) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+            }
+        }
+
+        // Must have router assigned
+        if (!$customer->router_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pelanggan belum memiliki router. Silakan edit pelanggan terlebih dahulu.',
+            ], 422);
+        }
+
+        // Load relationships
+        $customer->load(['router', 'package']);
+        $router = $customer->router;
+        $package = $customer->package;
+
+        // Check POP settings
+        $popSetting = PopSetting::where('user_id', $customer->pop_id)->first();
+        if (!$popSetting?->mikrotik_sync_enabled) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Sinkronisasi Mikrotik tidak diaktifkan pada pengaturan POP.',
+            ], 422);
+        }
+
+        try {
+            $mikrotikService = new MikrotikService();
+
+            if (!$mikrotikService->connectRouter($router)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Gagal terhubung ke router ' . $router->name,
+                ], 500);
+            }
+
+            // Check if already exists in Mikrotik
+            if ($mikrotikService->pppSecretExists($customer->pppoe_username)) {
+                // Already exists, just mark as synced
+                $customer->update([
+                    'mikrotik_synced' => true,
+                    'mikrotik_synced_at' => now(),
+                    'mikrotik_status' => 'enabled',
+                    'last_sync_error' => null,
+                ]);
+
+                $this->activityLog->log('customers', "Sync Mikrotik: {$customer->name} ({$customer->pppoe_username}) — PPP Secret sudah ada, ditandai synced");
+
+                return response()->json([
+                    'success' => true,
+                    'message' => "PPP Secret '{$customer->pppoe_username}' sudah ada di Mikrotik. Ditandai sebagai tersinkronisasi.",
+                    'already_exists' => true,
+                ]);
+            }
+
+            // Create PPP Secret
+            $profileName = $package?->mikrotik_profile_name ?? $package?->name ?? 'default';
+            $params = [
+                'name' => $customer->pppoe_username,
+                'password' => $customer->pppoe_password,
+                'profile' => $profileName,
+                'comment' => $customer->address ?? $customer->name,
+            ];
+
+            $result = $mikrotikService->addPppSecret($params);
+
+            if (isset($result[0]['ret']) || isset($result['ret'])) {
+                $customer->update([
+                    'mikrotik_synced' => true,
+                    'mikrotik_synced_at' => now(),
+                    'mikrotik_status' => 'enabled',
+                    'last_sync_error' => null,
+                ]);
+
+                $this->activityLog->log('customers', "Sync Mikrotik berhasil: {$customer->name} ({$customer->pppoe_username})");
+
+                return response()->json([
+                    'success' => true,
+                    'message' => "PPP Secret '{$customer->pppoe_username}' berhasil dibuat di Mikrotik.",
+                ]);
+            } else {
+                $errorMsg = $result[0]['message'] ?? ($result['message'] ?? 'Unknown error');
+                $customer->update(['last_sync_error' => $errorMsg]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => "Gagal membuat PPP Secret: {$errorMsg}",
+                ], 500);
+            }
+        } catch (\Exception $e) {
+            Log::error("Mikrotik sync error for customer {$customer->id}: " . $e->getMessage());
+            $customer->update(['last_sync_error' => $e->getMessage()]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error sinkronisasi: ' . $e->getMessage(),
+            ], 500);
         }
     }
 

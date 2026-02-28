@@ -132,6 +132,24 @@ class RolePermissionSeeder extends Seeder
             'onus.register',
             'onus.unregister',
             'onus.reboot',
+            // Invoice permissions
+            'invoices.view',
+            'invoices.create',
+            'invoices.edit',
+            'invoices.delete',
+            'invoices.generate',
+            'invoices.mark-paid',
+            'invoices.cancel',
+            'invoices.print',
+            'invoices.send-reminder',
+            // Scheduler permissions
+            'scheduler.view',
+            'scheduler.create',
+            'scheduler.edit',
+            'scheduler.delete',
+            'scheduler.toggle',
+            'scheduler.run',
+            'scheduler.logs',
         ])->get();
         $adminPop->syncPermissions($adminPopPermissions);
 

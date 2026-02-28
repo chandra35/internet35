@@ -175,6 +175,16 @@ class NetworkMapController extends Controller implements HasMiddleware
                     'status' => $odp->status,
                     'total_ports' => $odp->total_ports,
                     'used_ports' => $odp->used_ports,
+                    // Optical power & splitter info
+                    'splitter_config_type' => $odp->splitter_config_type ?? 'equal',
+                    'splitter_ratio' => $odp->splitter_ratio,
+                    'unequal_ratio' => $odp->unequal_ratio,
+                    'branch_splitter' => $odp->branch_splitter,
+                    'input_power' => $odp->input_power,
+                    'output_power' => $odp->output_power,
+                    'cascade_output_power' => $odp->cascade_output_power,
+                    'total_loss' => $odp->total_loss,
+                    'fiber_distance' => $odp->fiber_distance,
                     'type' => 'odp',
                 ];
             });

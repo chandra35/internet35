@@ -116,6 +116,15 @@
                                 </div>
                             </div>
                         </div>
+                        
+                        <!-- ODC Splitter Configuration -->
+                            @include('admin.odps.partials.splitter-config', [
+                                'prefix' => 'odc',
+                                'inputPowerDefault' => -3,
+                                'inputPowerLabel' => 'Input Power ODC',
+                                'equalSplitters' => $equalSplitters,
+                                'unequalSplitters' => $unequalSplitters
+                            ])
                     </div>
 
                     <!-- OLT Selection (shown when connection_type = olt) -->
@@ -143,8 +152,11 @@
                             <div class="col-md-4">
                                 <div class="form-group">
                                     <label for="olt_pon_port">PON Port <span class="text-danger">*</span></label>
-                                    <input type="number" class="form-control @error('olt_pon_port') is-invalid @enderror" 
-                                           id="olt_pon_port" name="olt_pon_port" value="{{ old('olt_pon_port', $odp->olt_pon_port ?? 1) }}" min="1">
+                                    <select class="form-control @error('olt_pon_port') is-invalid @enderror" 
+                                            id="olt_pon_port" name="olt_pon_port">
+                                        <option value="">-- Pilih OLT Dulu --</option>
+                                    </select>
+                                    <small class="text-muted" id="pon_port_info"></small>
                                     @error('olt_pon_port')
                                         <div class="invalid-feedback">{{ $message }}</div>
                                     @enderror
@@ -161,6 +173,15 @@
                                 </div>
                             </div>
                         </div>
+                        
+                        <!-- OLT Direct Splitter Configuration -->
+                            @include('admin.odps.partials.splitter-config', [
+                                'prefix' => 'olt',
+                                'inputPowerDefault' => 4,
+                                'inputPowerLabel' => 'TX Power OLT',
+                                'equalSplitters' => $equalSplitters,
+                                'unequalSplitters' => $unequalSplitters
+                            ])
                     </div>
 
                     <!-- Parent ODP Selection (shown when connection_type = cascade) -->
@@ -193,6 +214,13 @@
                                 </div>
                             </div>
                         </div>
+                            @include('admin.odps.partials.splitter-config', [
+                                'prefix' => 'cascade',
+                                'inputPowerDefault' => $odp->input_power ?? 4,
+                                'inputPowerLabel' => 'Input Power Parent ODP',
+                                'equalSplitters' => $equalSplitters,
+                                'unequalSplitters' => $unequalSplitters
+                            ])
                     </div>
 
                     <hr>
@@ -348,6 +376,169 @@
                 </div>
             </div>
 
+            <!-- Optical Power Calculator -->
+            <div class="card card-warning">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-bolt mr-2"></i>Optical Power Budget Calculator</h3>
+                    <div class="card-tools">
+                        <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                            <i class="fas fa-minus"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    @if($odp->output_power)
+                    <div class="alert alert-{{ $odp->output_power >= -25 ? 'success' : ($odp->output_power >= -28 ? 'info' : ($odp->output_power >= -30 ? 'warning' : 'danger')) }} mb-3">
+                        <strong><i class="fas fa-bolt mr-1"></i> Power Tersimpan:</strong>
+                        Output: <strong>{{ $odp->output_power }} dBm</strong>
+                        @if($odp->cascade_output_power)
+                        | Cascade: <strong>{{ $odp->cascade_output_power }} dBm</strong>
+                        @endif
+                        @if($odp->is_power_manual)
+                        <span class="badge badge-secondary ml-2">Manual</span>
+                        @else
+                        <span class="badge badge-primary ml-2">Auto</span>
+                        @endif
+                    </div>
+                    @endif
+
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        Kalkulator ini membantu menghitung power budget dari sumber (OLT/ODC/Parent ODP) ke ODP ini.
+                        <button type="button" class="btn btn-sm btn-info ml-2" id="btn-fetch-power">
+                            <i class="fas fa-sync-alt mr-1"></i> Baca Power Otomatis
+                        </button>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="input_power">Input Power (dBm) <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <input type="number" step="0.01" class="form-control @error('input_power') is-invalid @enderror" 
+                                           id="input_power" name="input_power" value="{{ old('input_power', $odp->input_power ?? 4) }}"
+                                           placeholder="Contoh: 4.0">
+                                    <div class="input-group-append">
+                                        <span class="input-group-text">dBm</span>
+                                    </div>
+                                </div>
+                                <small id="power-source-info" class="form-text text-muted">TX Power dari sumber</small>
+                                @error('input_power')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="fiber_distance">Jarak Fiber (km)</label>
+                                <div class="input-group">
+                                    <input type="number" step="0.01" min="0" class="form-control @error('fiber_distance') is-invalid @enderror" 
+                                           id="fiber_distance" name="fiber_distance" value="{{ old('fiber_distance', $odp->fiber_distance ?? 0) }}"
+                                           placeholder="0.5">
+                                    <div class="input-group-append">
+                                        <span class="input-group-text">km</span>
+                                    </div>
+                                </div>
+                                @error('fiber_distance')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="fiber_loss_per_km">Loss Fiber (dB/km)</label>
+                                <div class="input-group">
+                                    <input type="number" step="0.01" min="0" max="2" class="form-control @error('fiber_loss_per_km') is-invalid @enderror" 
+                                           id="fiber_loss_per_km" name="fiber_loss_per_km" value="{{ old('fiber_loss_per_km', $odp->fiber_loss_per_km ?? 0.35) }}"
+                                           placeholder="0.35">
+                                    <div class="input-group-append">
+                                        <span class="input-group-text">dB/km</span>
+                                    </div>
+                                </div>
+                                <small class="form-text text-muted">Default: 0.35 dB/km (G.652)</small>
+                                @error('fiber_loss_per_km')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="splitter_ratio">Rasio Splitter</label>
+                                <select class="form-control @error('splitter_ratio') is-invalid @enderror" 
+                                        id="splitter_ratio" name="splitter_ratio">
+                                    <optgroup label="Equal Splitter (Output sama rata)">
+                                        <option value="1:2" {{ old('splitter_ratio', $odp->splitter_ratio) == '1:2' ? 'selected' : '' }}>1:2 (Loss: 3.5 dB)</option>
+                                        <option value="1:4" {{ old('splitter_ratio', $odp->splitter_ratio) == '1:4' ? 'selected' : '' }}>1:4 (Loss: 7.0 dB)</option>
+                                        <option value="1:8" {{ old('splitter_ratio', $odp->splitter_ratio ?? '1:8') == '1:8' ? 'selected' : '' }}>1:8 (Loss: 10.5 dB) - Default</option>
+                                        <option value="1:16" {{ old('splitter_ratio', $odp->splitter_ratio) == '1:16' ? 'selected' : '' }}>1:16 (Loss: 14.0 dB)</option>
+                                        <option value="1:32" {{ old('splitter_ratio', $odp->splitter_ratio) == '1:32' ? 'selected' : '' }}>1:32 (Loss: 17.5 dB)</option>
+                                        <option value="1:64" {{ old('splitter_ratio', $odp->splitter_ratio) == '1:64' ? 'selected' : '' }}>1:64 (Loss: 21.0 dB)</option>
+                                    </optgroup>
+                                    <optgroup label="Unequal Splitter (Output berbeda)">
+                                        <option value="90:10" {{ old('splitter_ratio', $odp->splitter_ratio) == '90:10' ? 'selected' : '' }}>90:10 (Main: 0.5 dB, Branch: 10.0 dB)</option>
+                                        <option value="85:15" {{ old('splitter_ratio', $odp->splitter_ratio) == '85:15' ? 'selected' : '' }}>85:15 (Main: 0.7 dB, Branch: 8.2 dB)</option>
+                                        <option value="80:20" {{ old('splitter_ratio', $odp->splitter_ratio) == '80:20' ? 'selected' : '' }}>80:20 (Main: 1.0 dB, Branch: 7.0 dB)</option>
+                                        <option value="70:30" {{ old('splitter_ratio', $odp->splitter_ratio) == '70:30' ? 'selected' : '' }}>70:30 (Main: 1.5 dB, Branch: 5.2 dB)</option>
+                                        <option value="60:40" {{ old('splitter_ratio', $odp->splitter_ratio) == '60:40' ? 'selected' : '' }}>60:40 (Main: 2.2 dB, Branch: 4.0 dB)</option>
+                                        <option value="50:50" {{ old('splitter_ratio', $odp->splitter_ratio) == '50:50' ? 'selected' : '' }}>50:50 (Main: 3.0 dB, Branch: 3.0 dB)</option>
+                                    </optgroup>
+                                </select>
+                                <small class="form-text text-muted" id="splitter-info">
+                                    Equal: semua output sama. Unequal: main ke relay, branch ke customer.
+                                </small>
+                                @error('splitter_ratio')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Hasil Kalkulasi</label>
+                                <div class="card bg-light mb-0">
+                                    <div class="card-body py-2">
+                                        <div class="row text-center">
+                                            <div class="col-6">
+                                                <small class="text-muted d-block">Output Power</small>
+                                                <h4 id="calc-output" class="mb-0 text-primary">-- dBm</h4>
+                                                <small class="text-muted">Ke customer/ONU</small>
+                                            </div>
+                                            <div class="col-6">
+                                                <small class="text-muted d-block">Cascade Output</small>
+                                                <h4 id="calc-cascade" class="mb-0 text-info">-- dBm</h4>
+                                                <small class="text-muted">Ke ODP berikutnya</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-12">
+                            <div id="power-status" class="alert alert-secondary mb-0" style="display: none;">
+                                <i class="fas fa-info-circle mr-1"></i>
+                                <span id="power-status-text">Isi form untuk melihat hasil kalkulasi</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <input type="hidden" name="is_power_manual" id="is_power_manual" value="{{ old('is_power_manual', $odp->is_power_manual ?? 1) }}">
+                    
+                    <!-- Hidden fields for splitter configuration -->
+                    <input type="hidden" name="splitter_config_type" id="splitter_config_type" value="{{ old('splitter_config_type', $odp->splitter_config_type ?? 'equal') }}">
+                    <input type="hidden" name="unequal_ratio" id="unequal_ratio" value="{{ old('unequal_ratio', $odp->unequal_ratio) }}">
+                    <input type="hidden" name="branch_splitter" id="branch_splitter" value="{{ old('branch_splitter', $odp->branch_splitter) }}">
+                    <input type="hidden" name="fiber_loss" id="fiber_loss" value="{{ old('fiber_loss', $odp->fiber_loss) }}">
+                    <input type="hidden" name="unequal_loss" id="unequal_loss" value="{{ old('unequal_loss', $odp->unequal_loss) }}">
+                    <input type="hidden" name="branch_loss" id="branch_loss" value="{{ old('branch_loss', $odp->branch_loss) }}">
+                    <input type="hidden" name="total_loss" id="total_loss" value="{{ old('total_loss', $odp->total_loss) }}">
+                </div>
+            </div>
+
             <!-- Notes -->
             <div class="card">
                 <div class="card-header">
@@ -432,6 +623,7 @@
 @push('js')
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ asset('js/splitter-calculator.js') }}"></script>
 <script>
 function setConnectionType(type) {
     console.log('Setting connection type:', type);
@@ -600,12 +792,59 @@ $(function() {
         locateBtn.addTo(map);
     }
     
-    // OLT change handler
+    // Used PON ports data from controller
+    var usedPonPorts = @json($usedPonPorts ?? []);
+    var currentOdpPonPort = {{ $odp->olt_pon_port ?? 'null' }};
+    var currentOdpOltId = "{{ $odp->olt_id ?? '' }}";
+    
+    // OLT change handler - populate PON port dropdown with protection
     $('#olt_id').on('change', function() {
         const $selected = $(this).find(':selected');
+        const oltId = $(this).val();
         const ponPorts = parseInt($selected.data('pon-ports')) || 8;
-        $('#olt_pon_port').attr('max', ponPorts);
+        const $ponSelect = $('#olt_pon_port');
+        const $ponInfo = $('#pon_port_info');
+        
+        // Get used ports for this OLT
+        const usedForOlt = usedPonPorts[oltId] || {};
+        const usedCount = Object.keys(usedForOlt).length;
+        const availableCount = ponPorts - usedCount;
+        
+        // Build options
+        let options = '<option value="">-- Pilih PON Port --</option>';
+        for (let i = 1; i <= ponPorts; i++) {
+            const usedData = usedForOlt[i];
+            // Check if this is the current ODP's port (allow re-selection)
+            const isCurrentPort = (oltId === currentOdpOltId && i === currentOdpPonPort);
+            
+            if (usedData && !isCurrentPort) {
+                // Port is used by another ODP - disable it
+                options += `<option value="${i}" disabled class="text-danger">PON ${i} - ⛔ Digunakan: ${usedData.odp_code}</option>`;
+            } else if (isCurrentPort) {
+                // This is the current ODP's port - select it
+                options += `<option value="${i}" selected>PON ${i} - ✅ Port saat ini</option>`;
+            } else {
+                options += `<option value="${i}">PON ${i} - ✅ Tersedia</option>`;
+            }
+        }
+        $ponSelect.html(options);
+        
+        // Update info text
+        if (oltId) {
+            if (availableCount > 0) {
+                $ponInfo.html(`<span class="text-success"><i class="fas fa-info-circle"></i> ${availableCount} dari ${ponPorts} PON port tersedia</span>`);
+            } else {
+                $ponInfo.html(`<span class="text-danger"><i class="fas fa-exclamation-triangle"></i> Semua PON port sudah digunakan!</span>`);
+            }
+        } else {
+            $ponInfo.html('');
+        }
     });
+    
+    // Trigger OLT change on load to populate PON ports
+    @if($odp->olt_id)
+    $('#olt_id').trigger('change');
+    @endif
     
     // Photo handling
     var photoInput = document.getElementById('photos');
@@ -712,5 +951,182 @@ window.removePreviewPhoto = function(idx) {
         }
     }
 };
+
+// Optical Power Calculator
+var splitterLosses = {
+    // Equal splitters
+    '1:2': { main: 3.5, branch: 3.5 },
+    '1:4': { main: 7.0, branch: 7.0 },
+    '1:8': { main: 10.5, branch: 10.5 },
+    '1:16': { main: 14.0, branch: 14.0 },
+    '1:32': { main: 17.5, branch: 17.5 },
+    '1:64': { main: 21.0, branch: 21.0 },
+    // Unequal splitters
+    '90:10': { main: 0.5, branch: 10.0 },
+    '85:15': { main: 0.7, branch: 8.2 },
+    '80:20': { main: 1.0, branch: 7.0 },
+    '70:30': { main: 1.5, branch: 5.2 },
+    '60:40': { main: 2.2, branch: 4.0 },
+    '50:50': { main: 3.0, branch: 3.0 }
+};
+
+function isUnequalSplitter(ratio) {
+    return ratio.indexOf(':') !== -1 && !ratio.startsWith('1:');
+}
+
+function calculateOpticalPower() {
+    var inputPower = parseFloat($('#input_power').val()) || 0;
+    var fiberDistance = parseFloat($('#fiber_distance').val()) || 0;
+    var fiberLossPerKm = parseFloat($('#fiber_loss_per_km').val()) || 0.35;
+    var splitterRatio = $('#splitter_ratio').val() || '1:8';
+    
+    // Calculate fiber loss
+    var fiberLoss = fiberDistance * fiberLossPerKm;
+    var powerAfterFiber = inputPower - fiberLoss;
+    
+    // Get splitter loss
+    var losses = splitterLosses[splitterRatio] || { main: 10.5, branch: 10.5 };
+    
+    // For equal splitters, output = power after fiber - splitter loss
+    // For unequal splitters, customer gets branch output, cascade gets main output
+    var outputPower, cascadeOutput;
+    
+    if (isUnequalSplitter(splitterRatio)) {
+        outputPower = powerAfterFiber - losses.branch;
+        cascadeOutput = powerAfterFiber - losses.main;
+    } else {
+        outputPower = powerAfterFiber - losses.main;
+        cascadeOutput = powerAfterFiber - losses.main;
+    }
+    
+    // Update display
+    $('#calc-output').text(outputPower.toFixed(2) + ' dBm');
+    $('#calc-cascade').text(cascadeOutput.toFixed(2) + ' dBm');
+    
+    // Update colors based on power level
+    var statusDiv = $('#power-status');
+    var statusText = $('#power-status-text');
+    
+    statusDiv.show();
+    statusDiv.removeClass('alert-success alert-warning alert-danger alert-info alert-secondary');
+    
+    if (outputPower >= -25) {
+        statusDiv.addClass('alert-success');
+        statusText.html('<i class="fas fa-check-circle mr-1"></i> Power level OPTIMAL. ONU akan bekerja dengan baik.');
+        $('#calc-output').removeClass('text-warning text-danger').addClass('text-success');
+    } else if (outputPower >= -28) {
+        statusDiv.addClass('alert-info');
+        statusText.html('<i class="fas fa-info-circle mr-1"></i> Power CUKUP tapi margin terbatas. Pertimbangkan jarak atau splitter.');
+        $('#calc-output').removeClass('text-success text-danger').addClass('text-warning');
+    } else if (outputPower >= -30) {
+        statusDiv.addClass('alert-warning');
+        statusText.html('<i class="fas fa-exclamation-triangle mr-1"></i> WARNING: Power mendekati batas minimum ONU (-30 dBm)!');
+        $('#calc-output').removeClass('text-success').addClass('text-warning');
+    } else {
+        statusDiv.addClass('alert-danger');
+        statusText.html('<i class="fas fa-times-circle mr-1"></i> CRITICAL: Power terlalu rendah! ONU tidak akan sync. Gunakan splitter ratio lebih kecil atau kurangi jarak.');
+        $('#calc-output').removeClass('text-success text-warning').addClass('text-danger');
+    }
+}
+
+// Auto calculate on change
+$('#input_power, #fiber_distance, #fiber_loss_per_km, #splitter_ratio').on('change keyup', function() {
+    calculateOpticalPower();
+});
+
+// Fetch power from source
+$('#btn-fetch-power').on('click', function() {
+    var btn = $(this);
+    var connectionType = $('#connection_type').val();
+    var oltId = $('#olt_id').val();
+    var odcId = $('#odc_id').val();
+    var parentOdpId = $('#parent_odp_id').val();
+    var ponPort = $('#olt_pon_port').val();
+    
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Membaca...');
+    
+    $.ajax({
+        url: '{{ route("admin.odps.source-power") }}',
+        method: 'GET',
+        data: {
+            connection_type: connectionType,
+            olt_id: oltId,
+            odc_id: odcId,
+            parent_odp_id: parentOdpId,
+            pon_port: ponPort
+        },
+        success: function(response) {
+            if (response.success && response.source_power !== null) {
+                $('#input_power').val(response.source_power);
+                $('#is_power_manual').val(response.is_auto ? 0 : 1);
+                $('#power-source-info').html('<span class="text-success"><i class="fas fa-check mr-1"></i>' + response.message + '</span>');
+                calculateOpticalPower();
+            } else {
+                $('#power-source-info').html('<span class="text-warning"><i class="fas fa-exclamation-triangle mr-1"></i>' + response.message + '</span>');
+            }
+        },
+        error: function() {
+            $('#power-source-info').html('<span class="text-danger"><i class="fas fa-times mr-1"></i>Gagal membaca power dari sumber</span>');
+        },
+        complete: function() {
+            btn.prop('disabled', false).html('<i class="fas fa-sync-alt mr-1"></i> Baca Power Otomatis');
+        }
+    });
+});
+
+// Initial calculation
+calculateOpticalPower();
+
+// Re-calculate when fiber distance changes in Optical Power Calculator section
+$('#fiber_distance').on('change keyup', function() {
+    calculateOpticalPower();
+});
+
+// Initialize existing splitter config on page load - using new partial IDs
+$(function() {
+    var connectionType = '{{ $connectionType }}';
+    var existingConfigType = '{{ $odp->splitter_config_type ?? "" }}';
+    var existingRatio = '{{ $odp->unequal_ratio ?? "" }}';
+    var existingBranch = '{{ $odp->branch_splitter ?? "" }}';
+    var existingSplitter = '{{ $odp->splitter_ratio ?? "" }}';
+    
+    // Splitter config initialization is now handled by splitter-calculator.js
+    // Just need to set initial values for the dropdowns
+    if (connectionType === 'olt' && existingConfigType) {
+        if (existingConfigType === 'cascade' && existingRatio) {
+            $('#olt_splitter_type').val('unequal').trigger('change');
+            setTimeout(function() {
+                $('#olt_unequal_ratio').val(existingRatio);
+                if (existingBranch) {
+                    $('#olt_branch_splitter').val(existingBranch);
+                }
+                SplitterCalculator.calculate('olt', 'unequal');
+            }, 100);
+        } else if (existingConfigType === 'equal' && existingSplitter) {
+            $('#olt_splitter_type').val('equal').trigger('change');
+            setTimeout(function() {
+                $('#olt_equal_splitter').val(existingSplitter);
+                SplitterCalculator.calculate('olt', 'equal');
+            }, 100);
+        }
+    } else if (connectionType === 'odc' && existingConfigType) {
+        if (existingConfigType === 'cascade' && existingRatio) {
+            $('#odc_splitter_type').val('unequal').trigger('change');
+            setTimeout(function() {
+                $('#odc_unequal_ratio').val(existingRatio);
+                if (existingBranch) {
+                    $('#odc_branch_splitter').val(existingBranch);
+                }
+                SplitterCalculator.calculate('odc', 'unequal');
+            }, 100);
+        } else if (existingConfigType === 'equal' && existingSplitter) {
+            $('#odc_splitter_type').val('equal').trigger('change');
+            setTimeout(function() {
+                $('#odc_equal_splitter').val(existingSplitter);
+                SplitterCalculator.calculate('odc', 'equal');
+            }, 100);
+        }
+    }
+});
 </script>
 @endpush

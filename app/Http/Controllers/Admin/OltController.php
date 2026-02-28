@@ -493,9 +493,13 @@ class OltController extends Controller implements HasMiddleware
                 // Complete
                 $onusSynced = $result['onus_synced'] ?? 0;
                 $signalsRecorded = $result['signals_recorded'] ?? 0;
+                $ponOpticalSynced = $result['pon_optical_synced'] ?? 0;
                 $errors = $result['errors'] ?? [];
                 
                 $message = "Sync selesai. ONU: {$onusSynced}, Signal: {$signalsRecorded}";
+                if ($ponOpticalSynced > 0) {
+                    $message .= ", PON TX Power: {$ponOpticalSynced}";
+                }
                 if (!empty($errors)) {
                     $message .= " (dengan " . count($errors) . " error)";
                     foreach (array_slice($errors, 0, 3) as $err) {
@@ -507,6 +511,7 @@ class OltController extends Controller implements HasMiddleware
                 $this->sendComplete($result['success'] ?? true, $message, [
                     'onus_synced' => $onusSynced,
                     'signals_recorded' => $signalsRecorded,
+                    'pon_optical_synced' => $ponOpticalSynced,
                     'errors' => $errors,
                 ]);
                 

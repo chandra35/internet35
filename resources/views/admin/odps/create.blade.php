@@ -66,6 +66,19 @@
     .custom-odp-marker { background: transparent; border: none; }
     .leaflet-control-layers { border-radius: 8px; }
     .leaflet-control-layers-toggle { width: 36px; height: 36px; }
+    
+    /* Cascade Splitter Config Styles */
+    #cascade-splitter-config {
+        border: 2px solid #ffc107 !important;
+        background: linear-gradient(to bottom, #fff9e6, #ffffff) !important;
+    }
+    #cascade-calc-result .card {
+        border: 1px solid #17a2b8;
+        background: linear-gradient(to bottom, #e8f7fa, #ffffff);
+    }
+    #cascade-recommendation {
+        border-left: 4px solid;
+    }
 </style>
 @endpush
 
@@ -78,41 +91,42 @@ function setConnectionType(type) {
     // Get all cards
     var cards = ['odc', 'olt', 'cascade'];
     
-    // Reset all cards style
+    // Reset all cards - remove active class and inline styles
     cards.forEach(function(t) {
         var card = document.getElementById('card-' + t);
-        card.style.border = '3px solid #dee2e6';
-        card.style.background = '#fff';
-        card.style.boxShadow = 'none';
-        card.style.transform = 'none';
-        // Remove label if exists
-        var label = card.querySelector('.selected-label');
-        if (label) label.remove();
+        card.classList.remove('active');
+        card.style.border = '';
+        card.style.background = '';
+        card.style.boxShadow = '';
+        card.style.transform = '';
+        // Remove any existing selected label
+        var existingLabels = card.querySelectorAll('.selected-label');
+        existingLabels.forEach(function(label) {
+            label.remove();
+        });
     });
     
-    // Apply active style to selected card
+    // Apply active class to selected card
     var activeCard = document.getElementById('card-' + type);
-    activeCard.style.border = '4px solid #28a745';
-    activeCard.style.background = '#d4edda';
-    activeCard.style.boxShadow = '0 0 0 5px rgba(40,167,69,0.4), 0 10px 25px rgba(40,167,69,0.3)';
-    activeCard.style.transform = 'translateY(-3px) scale(1.02)';
+    activeCard.classList.add('active');
     
-    // Add "DIPILIH" label
-    var label = document.createElement('div');
-    label.className = 'selected-label';
-    label.innerHTML = '✓ DIPILIH';
-    label.style.cssText = 'position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:#28a745;color:white;padding:3px 12px;border-radius:12px;font-size:11px;font-weight:bold;z-index:100;white-space:nowrap;';
-    activeCard.style.position = 'relative';
-    activeCard.style.overflow = 'visible';
-    activeCard.appendChild(label);
-    
-    // Hide all fields
+    // Hide all connection fields
     document.getElementById('odc-fields').style.display = 'none';
     document.getElementById('olt-fields').style.display = 'none';
     document.getElementById('cascade-fields').style.display = 'none';
     
     // Show selected fields
     document.getElementById(type + '-fields').style.display = 'block';
+    
+    // Show/hide optical power calculator based on connection type
+    // For cascade, we use the inline calculator instead
+    var powerCalcCard = document.querySelector('.card-warning');
+    if (powerCalcCard && type === 'cascade') {
+        // Hide the main optical power card for cascade - we use inline one
+        powerCalcCard.style.display = 'none';
+    } else if (powerCalcCard) {
+        powerCalcCard.style.display = 'block';
+    }
     
     // Generate new code
     if (typeof generateCode === 'function') {
@@ -213,6 +227,15 @@ function setConnectionType(type) {
                                 </div>
                             </div>
                         </div>
+                        
+                        {{-- ODC Splitter Configuration --}}
+                        @include('admin.odps.partials.splitter-config', [
+                            'prefix' => 'odc',
+                            'inputPowerDefault' => -3,
+                            'inputPowerLabel' => 'Power dari ODC (dBm)',
+                            'equalSplitters' => $equalSplitters,
+                            'unequalSplitters' => $unequalSplitters,
+                        ])
                     </div>
 
                     <!-- OLT Selection (shown when connection_type = olt) -->
@@ -240,8 +263,11 @@ function setConnectionType(type) {
                             <div class="col-md-4">
                                 <div class="form-group">
                                     <label for="olt_pon_port">PON Port <span class="text-danger">*</span></label>
-                                    <input type="number" class="form-control @error('olt_pon_port') is-invalid @enderror" 
-                                           id="olt_pon_port" name="olt_pon_port" value="{{ old('olt_pon_port', 1) }}" min="1">
+                                    <select class="form-control @error('olt_pon_port') is-invalid @enderror" 
+                                            id="olt_pon_port" name="olt_pon_port">
+                                        <option value="">-- Pilih OLT Dulu --</option>
+                                    </select>
+                                    <small class="text-muted" id="pon_port_info"></small>
                                     @error('olt_pon_port')
                                         <div class="invalid-feedback">{{ $message }}</div>
                                     @enderror
@@ -258,36 +284,73 @@ function setConnectionType(type) {
                                 </div>
                             </div>
                         </div>
+                        
+                        {{-- OLT Splitter Configuration --}}
+                        @include('admin.odps.partials.splitter-config', [
+                            'prefix' => 'olt',
+                            'inputPowerDefault' => 4,
+                            'inputPowerLabel' => 'TX Power OLT (dBm)',
+                            'equalSplitters' => $equalSplitters,
+                            'unequalSplitters' => $unequalSplitters,
+                        ])
                     </div>
 
                     <!-- Parent ODP Selection (shown when connection_type = cascade) -->
                     <div id="cascade-fields" class="connection-fields" style="{{ old('connection_type', $connectionType) != 'cascade' ? 'display:none;' : '' }}">
                         <div class="row">
-                            <div class="col-md-8">
+                            <div class="col-md-6">
                                 <div class="form-group">
                                     <label for="parent_odp_id">Parent ODP <span class="text-danger">*</span></label>
                                     <select class="form-control select2 @error('parent_odp_id') is-invalid @enderror" 
                                             id="parent_odp_id" name="parent_odp_id" style="width: 100%;">
                                         <option value="">-- Pilih ODP Parent --</option>
                                         @foreach($parentOdps as $podp)
-                                            <option value="{{ $podp->id }}" 
-                                                    {{ old('parent_odp_id') == $podp->id ? 'selected' : '' }}>
-                                                {{ $podp->code }} - {{ $podp->name }} (Level {{ $podp->splitter_level ?? 1 }})
+                                            <option value="{{ $podp['id'] }}" 
+                                                    data-cascade-power="{{ $podp['cascade_output_power'] ?? '' }}"
+                                                    data-output-power="{{ $podp['output_power'] ?? '' }}"
+                                                    data-splitter-level="{{ $podp['splitter_level'] ?? 1 }}"
+                                                    data-splitter-ratio="{{ $podp['splitter_ratio'] ?? '' }}"
+                                                    {{ old('parent_odp_id') == $podp['id'] ? 'selected' : '' }}>
+                                                {{ $podp['code'] }} - {{ $podp['name'] }} 
+                                                @if($podp['cascade_output_power'])
+                                                    ({{ $podp['cascade_output_power'] }} dBm)
+                                                @endif
                                             </option>
                                         @endforeach
                                     </select>
                                     @error('parent_odp_id')
                                         <div class="invalid-feedback">{{ $message }}</div>
                                     @enderror
-                                    <small class="text-muted">ODP ini akan menjadi turunan dari parent (estafet splitter)</small>
                                 </div>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <div class="form-group">
-                                    <label for="splitter_level_display">Splitter Level</label>
-                                    <input type="text" class="form-control" id="splitter_level_display" readonly value="Auto (Level 2+)">
+                                    <label>Sisa Power dari Parent</label>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control font-weight-bold" id="parent_power_display" readonly value="-- dBm">
+                                        <div class="input-group-append">
+                                            <span class="input-group-text" id="parent_power_status">⏳</span>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
+                            <div class="col-md-3">
+                                <div class="form-group">
+                                    <label>Splitter Level</label>
+                                    <input type="text" class="form-control" id="splitter_level_display" readonly value="Auto">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {{-- Cascade Splitter Configuration (only shown when parent selected) --}}
+                        <div id="cascade-splitter-wrapper" style="display:none;">
+                            @include('admin.odps.partials.splitter-config', [
+                                'prefix' => 'cascade',
+                                'inputPowerDefault' => 0,
+                                'inputPowerLabel' => 'Sisa Power dari Parent (dBm)',
+                                'equalSplitters' => $equalSplitters,
+                                'unequalSplitters' => $unequalSplitters,
+                            ])
                         </div>
                     </div>
 
@@ -436,6 +499,21 @@ function setConnectionType(type) {
                 </div>
             </div>
 
+            {{-- Hidden fields for optical power data --}}
+            <input type="hidden" name="input_power" id="input_power" value="{{ old('input_power', 4) }}">
+            <input type="hidden" name="fiber_distance" id="fiber_distance" value="{{ old('fiber_distance', 0) }}">
+            <input type="hidden" name="fiber_loss_per_km" id="fiber_loss_per_km" value="{{ old('fiber_loss_per_km', 0.35) }}">
+            <input type="hidden" name="splitter_ratio" id="splitter_ratio" value="{{ old('splitter_ratio', '1:8') }}">
+            <input type="hidden" name="output_power" id="output_power" value="{{ old('output_power') }}">
+            <input type="hidden" name="cascade_output_power" id="cascade_output_power" value="{{ old('cascade_output_power') }}">
+            <input type="hidden" name="splitter_config_type" id="splitter_config_type" value="{{ old('splitter_config_type', 'equal') }}">
+            <input type="hidden" name="unequal_ratio" id="unequal_ratio" value="{{ old('unequal_ratio') }}">
+            <input type="hidden" name="branch_splitter" id="branch_splitter" value="{{ old('branch_splitter') }}">
+            <input type="hidden" name="fiber_loss" id="fiber_loss" value="{{ old('fiber_loss') }}">
+            <input type="hidden" name="unequal_loss" id="unequal_loss" value="{{ old('unequal_loss') }}">
+            <input type="hidden" name="branch_loss" id="branch_loss" value="{{ old('branch_loss') }}">
+            <input type="hidden" name="total_loss" id="total_loss" value="{{ old('total_loss') }}">
+
             <!-- Notes -->
             <div class="card">
                 <div class="card-header">
@@ -502,6 +580,7 @@ function setConnectionType(type) {
 @push('js')
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ asset('js/splitter-calculator.js') }}"></script>
 <script>
 function generateCode() {
     var type = document.getElementById('connection_type').value;
@@ -647,10 +726,15 @@ $(function() {
             div.innerHTML = '<a href="#" title="Lokasi Saya" style="display:flex;align-items:center;justify-content:center;width:30px;height:30px;background:white;font-size:16px;"><i class="fas fa-crosshairs"></i></a>';
             div.onclick = function(e) {
                 e.preventDefault();
+                const btn = div.querySelector('a');
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
                 navigator.geolocation.getCurrentPosition(function(pos) {
                     const lat = pos.coords.latitude;
                     const lng = pos.coords.longitude;
+                    const accuracy = pos.coords.accuracy;
                     map.setView([lat, lng], 18);
+                    btn.innerHTML = '<i class="fas fa-crosshairs"></i>';
+                    toastr.success('Lokasi ditemukan (akurasi: ' + Math.round(accuracy) + 'm)');
                     
                     if (marker) {
                         marker.setLatLng([lat, lng]);
@@ -665,6 +749,17 @@ $(function() {
                     
                     $('#latitude').val(lat.toFixed(8));
                     $('#longitude').val(lng.toFixed(8));
+                }, function(err) {
+                    btn.innerHTML = '<i class="fas fa-crosshairs"></i>';
+                    let msg = 'Tidak dapat mengakses lokasi';
+                    if (err.code === 1) msg = 'Izin lokasi ditolak. Aktifkan GPS dan izinkan akses lokasi di browser.';
+                    else if (err.code === 2) msg = 'Lokasi tidak tersedia. Pastikan GPS aktif.';
+                    else if (err.code === 3) msg = 'Waktu permintaan lokasi habis. Coba lagi.';
+                    toastr.error(msg);
+                }, {
+                    enableHighAccuracy: true,
+                    timeout: 15000,
+                    maximumAge: 0
                 });
                 return false;
             };
@@ -716,17 +811,89 @@ $(function() {
         generateCode();
     });
     
-    // OLT change handler
+    // Used PON ports data from controller
+    var usedPonPorts = @json($usedPonPorts ?? []);
+    
+    // OLT change handler - populate PON port dropdown with protection
     $('#olt_id').on('change', function() {
         const $selected = $(this).find(':selected');
+        const oltId = $(this).val();
         const ponPorts = parseInt($selected.data('pon-ports')) || 8;
-        $('#olt_pon_port').attr('max', ponPorts);
+        const $ponSelect = $('#olt_pon_port');
+        const $ponInfo = $('#pon_port_info');
+        
+        // Get used ports for this OLT
+        const usedForOlt = usedPonPorts[oltId] || {};
+        const usedCount = Object.keys(usedForOlt).length;
+        const availableCount = ponPorts - usedCount;
+        
+        // Build options
+        let options = '<option value="">-- Pilih PON Port --</option>';
+        for (let i = 1; i <= ponPorts; i++) {
+            const usedData = usedForOlt[i];
+            if (usedData) {
+                // Port is used - disable it and show info
+                options += `<option value="${i}" disabled class="text-danger">PON ${i} - ⛔ Digunakan: ${usedData.odp_code}</option>`;
+            } else {
+                options += `<option value="${i}">PON ${i} - ✅ Tersedia</option>`;
+            }
+        }
+        $ponSelect.html(options);
+        
+        // Update info text
+        if (oltId) {
+            if (availableCount > 0) {
+                $ponInfo.html(`<span class="text-success"><i class="fas fa-info-circle"></i> ${availableCount} dari ${ponPorts} PON port tersedia</span>`);
+            } else {
+                $ponInfo.html(`<span class="text-danger"><i class="fas fa-exclamation-triangle"></i> Semua PON port sudah digunakan!</span>`);
+            }
+        } else {
+            $ponInfo.html('');
+        }
+        
         generateCode();
     });
     
     // Parent ODP change handler
     $('#parent_odp_id').on('change', function() {
         generateCode();
+        
+        var $selected = $(this).find(':selected');
+        var cascadePower = parseFloat($selected.data('cascade-power')) || null;
+        var outputPower = parseFloat($selected.data('output-power')) || null;
+        var splitterLevel = parseInt($selected.data('splitter-level')) || 1;
+        
+        // Use cascade power if available, otherwise output power
+        var parentPower = cascadePower !== null ? cascadePower : outputPower;
+        
+        if (parentPower !== null && !isNaN(parentPower)) {
+            $('#parent_power_display').val(parentPower.toFixed(2) + ' dBm');
+            $('#splitter_level_display').val('Level ' + (splitterLevel + 1));
+            
+            // Update status indicator
+            if (parentPower >= -15) {
+                $('#parent_power_status').html('✅').attr('title', 'Power bagus');
+                $('#parent_power_display').removeClass('text-warning text-danger').addClass('text-success');
+            } else if (parentPower >= -25) {
+                $('#parent_power_status').html('⚠️').attr('title', 'Power cukup');
+                $('#parent_power_display').removeClass('text-success text-danger').addClass('text-warning');
+            } else {
+                $('#parent_power_status').html('❌').attr('title', 'Power rendah');
+                $('#parent_power_display').removeClass('text-success text-warning').addClass('text-danger');
+            }
+            
+            // Show cascade splitter config
+            $('#cascade-splitter-config').show();
+            
+            // Store parent power for calculations
+            window.parentOdpPower = parentPower;
+        } else {
+            $('#parent_power_display').val('-- dBm');
+            $('#parent_power_status').html('❓').attr('title', 'Belum ada data power');
+            $('#splitter_level_display').val('Level ' + (splitterLevel + 1));
+            $('#cascade-splitter-config').hide();
+            window.parentOdpPower = null;
+        }
     });
     
     // Trigger change if pre-selected
@@ -736,6 +903,12 @@ $(function() {
     @if($selectedOlt)
     $('#olt_id').trigger('change');
     @endif
+    
+    // Initialize connection type on page load
+    var initialConnectionType = '{{ old("connection_type", $connectionType) }}';
+    if (initialConnectionType) {
+        setConnectionType(initialConnectionType);
+    }
     
     // Photo handling
     var photoInput = document.getElementById('photos');
@@ -825,5 +998,56 @@ window.removePhoto = function(idx) {
         }
     }
 };
+
+// Splitter calculators are initialized in splitter-calculator.js
+// The script handles all splitter type changes, calculations, and form field updates automatically
+
+// Fetch power from source
+$('#btn-fetch-power').on('click', function() {
+    var btn = $(this);
+    var connectionType = $('#connection_type').val();
+    var oltId = $('#olt_id').val();
+    var odcId = $('#odc_id').val();
+    var parentOdpId = $('#parent_odp_id').val();
+    var ponPort = $('#olt_pon_port').val();
+    
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Membaca...');
+    
+    $.ajax({
+        url: '{{ route("admin.odps.source-power") }}',
+        method: 'GET',
+        data: {
+            connection_type: connectionType,
+            olt_id: oltId,
+            odc_id: odcId,
+            parent_odp_id: parentOdpId,
+            pon_port: ponPort
+        },
+        success: function(response) {
+            if (response.success && response.source_power !== null) {
+                $('#input_power').val(response.source_power);
+                $('#is_power_manual').val(response.is_auto ? 0 : 1);
+                $('#power-source-info').html('<span class="text-success"><i class="fas fa-check mr-1"></i>' + response.message + '</span>');
+                
+                // Trigger recalculation based on connection type
+                if (connectionType === 'odc') {
+                    SplitterCalculator.setInputPower('odc', response.source_power);
+                } else if (connectionType === 'olt') {
+                    SplitterCalculator.setInputPower('olt', response.source_power);
+                } else if (connectionType === 'cascade') {
+                    SplitterCalculator.setInputPower('cascade', response.source_power);
+                }
+            } else {
+                $('#power-source-info').html('<span class="text-warning"><i class="fas fa-exclamation-triangle mr-1"></i>' + response.message + '</span>');
+            }
+        },
+        error: function() {
+            $('#power-source-info').html('<span class="text-danger"><i class="fas fa-times mr-1"></i>Gagal membaca power dari sumber</span>');
+        },
+        complete: function() {
+            btn.prop('disabled', false).html('<i class="fas fa-sync-alt mr-1"></i> Baca Power Otomatis');
+        }
+    });
+});
 </script>
 @endpush

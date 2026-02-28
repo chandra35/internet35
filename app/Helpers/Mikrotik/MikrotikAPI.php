@@ -217,9 +217,30 @@ class MikrotikAPI
     private function read(): array
     {
         $response = [];
+        $startTime = time();
+        $maxTime = 30; // Maximum 30 seconds for a read operation
 
         while (true) {
-            $byte = ord(fread($this->socket, 1));
+            // Prevent infinite loop / hang
+            if ((time() - $startTime) > $maxTime) {
+                throw new \RuntimeException('Mikrotik API read timeout after ' . $maxTime . ' seconds');
+            }
+
+            // Check if socket is still valid
+            if (!$this->socket || feof($this->socket)) {
+                throw new \RuntimeException('Mikrotik API socket closed unexpectedly');
+            }
+
+            $data = fread($this->socket, 1);
+            if ($data === false || $data === '') {
+                // Socket timeout or no data
+                if (feof($this->socket)) {
+                    throw new \RuntimeException('Mikrotik API connection lost');
+                }
+                continue;
+            }
+
+            $byte = ord($data);
             
             if ($byte < 0x80) {
                 $length = $byte;
@@ -237,6 +258,12 @@ class MikrotikAPI
                 $line = '';
                 while ($length > 0) {
                     $chunk = fread($this->socket, min($length, 8192));
+                    if ($chunk === false || $chunk === '') {
+                        if (feof($this->socket)) {
+                            throw new \RuntimeException('Mikrotik API connection lost during read');
+                        }
+                        continue;
+                    }
                     $line .= $chunk;
                     $length -= strlen($chunk);
                 }

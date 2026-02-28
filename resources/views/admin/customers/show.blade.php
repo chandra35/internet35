@@ -115,6 +115,11 @@
                     <a class="dropdown-item" href="#" id="btnShowPassword">
                         <i class="fas fa-key mr-2"></i> Lihat Password PPPoE
                     </a>
+                    @if(!$customer->mikrotik_synced && $customer->router_id && $customer->pppoe_username)
+                    <a class="dropdown-item" href="#" id="btnSyncMikrotik">
+                        <i class="fas fa-sync text-info mr-2"></i> Sync ke Mikrotik
+                    </a>
+                    @endif
                     <div class="dropdown-divider"></div>
                     <a class="dropdown-item btn-change-status" href="#" data-status="active">
                         <i class="fas fa-check-circle text-success mr-2"></i> Aktifkan
@@ -481,6 +486,40 @@ $(function() {
                         showCloseButton: true
                     });
                 });
+            }
+        });
+    });
+
+    // Sync Mikrotik
+    $('#btnSyncMikrotik').on('click', function(e) {
+        e.preventDefault();
+        Swal.fire({
+            title: 'Sync ke Mikrotik?',
+            html: `<p>Buat PPP Secret <strong>{{ $customer->pppoe_username }}</strong> di router <strong>{{ $customer->router->name ?? '-' }}</strong>?</p>`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: '<i class="fas fa-sync mr-1"></i> Ya, Sync',
+            cancelButtonText: 'Batal',
+            confirmButtonColor: '#17a2b8',
+            showLoaderOnConfirm: true,
+            preConfirm: () => {
+                return $.ajax({
+                    url: '{{ route("admin.customers.sync-mikrotik", $customer) }}',
+                    method: 'POST',
+                    data: { _token: '{{ csrf_token() }}' },
+                }).then(response => response).catch(xhr => {
+                    Swal.showValidationMessage(xhr.responseJSON?.message || 'Gagal sync');
+                });
+            },
+            allowOutsideClick: () => !Swal.isLoading()
+        }).then((result) => {
+            if (result.isConfirmed && result.value) {
+                const icon = result.value.already_exists ? 'info' : 'success';
+                Swal.fire({
+                    title: icon === 'success' ? 'Berhasil!' : 'Info',
+                    text: result.value.message,
+                    icon: icon,
+                }).then(() => location.reload());
             }
         });
     });

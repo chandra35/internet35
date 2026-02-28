@@ -462,6 +462,50 @@ abstract class BaseOltHelper implements OltInterface
     }
 
     /**
+     * Sync PON port optical power (TX power from OLT SFP transceivers)
+     * This will update tx_power field in olt_pon_ports table
+     * 
+     * @return int Number of PON ports updated
+     */
+    public function syncPonOpticalPower(): int
+    {
+        $ponPorts = $this->getPonOpticalPower();
+        $synced = 0;
+        
+        foreach ($ponPorts as $portData) {
+            try {
+                $slot = $portData['slot'] ?? 0;
+                $port = $portData['port'] ?? null;
+                
+                if ($port === null) continue;
+                
+                // Update PON port with TX power data
+                OltPonPort::updateOrCreate(
+                    [
+                        'olt_id' => $this->olt->id,
+                        'slot' => $slot,
+                        'port' => $port,
+                    ],
+                    [
+                        'tx_power' => $portData['tx_power'] ?? null,
+                        'name' => $portData['name'] ?? "PON {$slot}/{$port}",
+                        'last_sync_at' => now(),
+                    ]
+                );
+                
+                $synced++;
+                
+            } catch (\Exception $e) {
+                Log::warning("Failed to sync PON optical power for port {$port}: " . $e->getMessage());
+            }
+        }
+        
+        Log::info("Synced TX power for {$synced} PON ports on OLT: {$this->olt->name}");
+        
+        return $synced;
+    }
+
+    /**
      * Parse serial number from different formats
      */
     protected function parseSerialNumber(string $raw): string
