@@ -44,15 +44,38 @@ class DashboardController extends Controller
         // Calculate days until due
         $daysUntilDue = null;
         if ($customer->active_until) {
-            $daysUntilDue = now()->diffInDays($customer->active_until, false);
+            $daysUntilDue = (int) now()->diffInDays($customer->active_until, false);
         }
+
+        // Current billing period
+        $billingDay = $customer->billing_day ?? 1;
+        $now = now();
+        $periodStart = $now->copy()->day($billingDay);
+        if ($now->day < $billingDay) {
+            $periodStart->subMonth();
+        }
+        $periodEnd = $periodStart->copy()->addMonth()->subDay();
+        $billingPeriod = [
+            'month' => $periodStart->translatedFormat('F Y'),
+            'start' => $periodStart->format('d M Y'),
+            'end' => $periodEnd->format('d M Y'),
+            'day_of_period' => $periodStart->diffInDays($now) + 1,
+            'total_days' => $periodStart->diffInDays($periodEnd) + 1,
+        ];
+
+        // Payment summary
+        $totalPaid = $customer->payments()->where('status', 'success')->sum('amount');
+        $totalUnpaid = $customer->invoices()->whereIn('status', ['pending', 'overdue'])->sum('total_amount');
         
         return view('pelanggan.dashboard', compact(
             'customer',
             'pendingInvoices',
             'recentPayments',
             'connectionStatus',
-            'daysUntilDue'
+            'daysUntilDue',
+            'billingPeriod',
+            'totalPaid',
+            'totalUnpaid'
         ));
     }
 
@@ -65,10 +88,15 @@ class DashboardController extends Controller
         // TODO: Integrate with Mikrotik API for real-time status
         
         if ($customer->status !== 'active') {
+            $color = match($customer->status) {
+                'suspended' => 'warning',
+                'pending' => 'info',
+                default => 'danger',
+            };
             return [
                 'online' => false,
                 'status' => $customer->status_label,
-                'color' => 'danger',
+                'color' => $color,
             ];
         }
         
@@ -108,8 +136,29 @@ class DashboardController extends Controller
         }
         
         $customer->load(['router', 'package']);
+
+        // Billing period
+        $billingDay = $customer->billing_day ?? 1;
+        $now = now();
+        $periodStart = $now->copy()->day($billingDay);
+        if ($now->day < $billingDay) {
+            $periodStart->subMonth();
+        }
+        $periodEnd = $periodStart->copy()->addMonth()->subDay();
+        $billingPeriod = [
+            'month' => $periodStart->translatedFormat('F Y'),
+            'start' => $periodStart->format('d M Y'),
+            'end' => $periodEnd->format('d M Y'),
+            'day_of_period' => $periodStart->diffInDays($now) + 1,
+            'total_days' => $periodStart->diffInDays($periodEnd) + 1,
+        ];
+
+        // Latest invoice & payment
+        $latestInvoice = $customer->invoices()->latest('invoice_date')->first();
+        $latestPayment = $customer->payments()->where('status', 'success')->latest('paid_at')->first();
+        $pendingInvoiceCount = $customer->invoices()->whereIn('status', ['pending', 'overdue'])->count();
         
-        return view('pelanggan.connection', compact('customer'));
+        return view('pelanggan.connection', compact('customer', 'billingPeriod', 'latestInvoice', 'latestPayment', 'pendingInvoiceCount'));
     }
 
     /**

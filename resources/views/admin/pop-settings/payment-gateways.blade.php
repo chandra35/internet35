@@ -97,7 +97,8 @@
                         <thead class="bg-light">
                             <tr>
                                 <th>Gateway</th>
-                                <th>Mode</th>
+                                <th>Mode API</th>
+                                <th>Mode Transaksi</th>
                                 <th>Status Sandbox</th>
                                 <th>Status</th>
                                 <th class="text-center" width="150">Aksi</th>
@@ -107,8 +108,8 @@
                             @foreach($gateways as $gateway)
                             <tr>
                                 <td>
-                                    <strong>{{ $gateway->gateway_name }}</strong>
-                                    @if($gateway->is_production)
+                                    <strong>{{ $gateway->display_name }}</strong>
+                                    @if(!$gateway->is_sandbox)
                                     <span class="badge badge-success ml-1">LIVE</span>
                                     @endif
                                 </td>
@@ -118,6 +119,21 @@
                                     @else
                                         <span class="badge badge-success">Production</span>
                                     @endif
+                                </td>
+                                <td>
+                                    <div class="custom-control custom-switch">
+                                        <input type="checkbox" class="custom-control-input toggle-mode" 
+                                               id="mode_{{ $gateway->id }}" 
+                                               data-id="{{ $gateway->id }}"
+                                               {{ $gateway->mode === 'live' ? 'checked' : '' }}>
+                                        <label class="custom-control-label" for="mode_{{ $gateway->id }}">
+                                            @if($gateway->mode === 'demo')
+                                                <span class="badge badge-info">DEMO</span>
+                                            @else
+                                                <span class="badge badge-success">LIVE</span>
+                                            @endif
+                                        </label>
+                                    </div>
                                 </td>
                                 <td>{!! $gateway->sandbox_status_badge !!}</td>
                                 <td>
@@ -165,7 +181,24 @@
 
         <!-- Info Cards -->
         <div class="row">
-            <div class="col-md-6">
+            <div class="col-md-4">
+                <div class="card card-outline card-success">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-flask mr-2"></i>Mode Demo vs Live</h3>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-2"><strong>Mode Demo:</strong> Simulasi pembayaran tanpa menghubungi pihak ketiga. Cocok untuk testing.</p>
+                        <ul class="pl-3 mb-2">
+                            <li>Transaksi disimulasikan secara lokal</li>
+                            <li>Callback response dibuat seperti asli</li>
+                            <li>Auto buka isolir berfungsi normal</li>
+                            <li>Tidak perlu kredensial API</li>
+                        </ul>
+                        <p class="mb-0"><strong>Mode Live:</strong> Menggunakan API pembayaran pihak ketiga yang sesungguhnya.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
                 <div class="card card-outline card-info">
                     <div class="card-header">
                         <h3 class="card-title"><i class="fas fa-info-circle mr-2"></i>Tentang Sandbox</h3>
@@ -180,7 +213,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <div class="card card-outline card-warning">
                     <div class="card-header">
                         <h3 class="card-title"><i class="fas fa-exclamation-triangle mr-2"></i>Penting</h3>
@@ -311,24 +344,39 @@ $(function() {
         // Common fields
         html += `
             <div class="row">
-                <div class="col-md-6">
+                <div class="col-md-4">
                     <div class="form-group">
-                        <label>Mode</label>
-                        <select name="is_sandbox" class="form-control select2" id="sandbox_mode">
+                        <label>Mode API</label>
+                        <select name="is_sandbox" class="form-control" id="sandbox_mode">
                             <option value="1" ${data && !data.is_sandbox ? '' : 'selected'}>Sandbox (Testing)</option>
                             <option value="0" ${data && !data.is_sandbox ? 'selected' : ''}>Production (Live)</option>
                         </select>
                     </div>
                 </div>
-                <div class="col-md-6">
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label>Mode Transaksi</label>
+                        <select name="mode" class="form-control" id="transaction_mode">
+                            <option value="demo" ${data && data.mode === 'live' ? '' : 'selected'}>Demo (Simulasi Lokal)</option>
+                            <option value="live" ${data && data.mode === 'live' ? 'selected' : ''}>Live (Pembayaran Nyata)</option>
+                        </select>
+                        <small class="text-muted">Demo: simulasi tanpa API pihak ketiga</small>
+                    </div>
+                </div>
+                <div class="col-md-4">
                     <div class="form-group">
                         <label>Status</label>
-                        <select name="is_active" class="form-control select2">
+                        <select name="is_active" class="form-control">
                             <option value="1" ${data && data.is_active ? 'selected' : ''}>Aktif</option>
                             <option value="0" ${data && !data.is_active ? 'selected' : ''}>Nonaktif</option>
                         </select>
                     </div>
                 </div>
+            </div>
+            <div class="alert alert-info" id="demoModeAlert" style="${data && data.mode === 'live' ? 'display:none' : ''}">
+                <i class="fas fa-flask mr-2"></i>
+                <strong>Mode Demo:</strong> Transaksi akan disimulasikan secara lokal tanpa menghubungi payment gateway. 
+                Cocok untuk testing fitur pembayaran & auto buka isolir. Callback response akan dibuat seperti asli.
             </div>
             <hr>
             <h6 class="mb-3"><i class="fas fa-key mr-2"></i>Kredensial API</h6>
@@ -365,7 +413,7 @@ $(function() {
             <div class="alert alert-secondary">
                 <h6><i class="fas fa-link mr-2"></i>Callback URL</h6>
                 <p class="mb-1">Gunakan URL berikut di dashboard ${info.name}:</p>
-                <code class="d-block p-2 bg-dark text-white rounded">{{ url('/') }}/payment/callback/${type}</code>
+                <code class="d-block p-2 bg-dark text-white rounded">{{ url('/api') }}/webhook/${type}</code>
             </div>
         `;
 
@@ -492,6 +540,54 @@ $(function() {
             toastr.error(xhr.responseJSON?.message || 'Gagal mengubah status');
             checkbox.prop('checked', !checkbox.prop('checked'));
         });
+    });
+
+    // Toggle mode (demo/live)
+    $('.toggle-mode').on('change', function() {
+        const id = $(this).data('id');
+        const checkbox = $(this);
+        const newMode = checkbox.prop('checked') ? 'live' : 'demo';
+        
+        const confirmMsg = newMode === 'live' 
+            ? 'Ubah ke mode LIVE? Transaksi akan menggunakan API payment gateway yang sesungguhnya.'
+            : 'Ubah ke mode DEMO? Transaksi akan disimulasikan secara lokal tanpa menghubungi pihak ketiga.';
+        
+        Swal.fire({
+            title: 'Ubah Mode Transaksi?',
+            text: confirmMsg,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, Ubah',
+            cancelButtonText: 'Batal'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                $.post(`{{ url('admin/payment-gateways') }}/${id}/toggle-mode`, {
+                    _token: '{{ csrf_token() }}'
+                }, function(response) {
+                    if (response.success) {
+                        toastr.success(response.message);
+                        setTimeout(() => location.reload(), 1000);
+                    } else {
+                        toastr.error(response.message);
+                        checkbox.prop('checked', !checkbox.prop('checked'));
+                    }
+                }).fail(function(xhr) {
+                    toastr.error(xhr.responseJSON?.message || 'Gagal mengubah mode');
+                    checkbox.prop('checked', !checkbox.prop('checked'));
+                });
+            } else {
+                checkbox.prop('checked', !checkbox.prop('checked'));
+            }
+        });
+    });
+
+    // Toggle demo mode alert in modal
+    $(document).on('change', '#transaction_mode', function() {
+        if ($(this).val() === 'demo') {
+            $('#demoModeAlert').show();
+        } else {
+            $('#demoModeAlert').hide();
+        }
     });
 
     // Delete gateway

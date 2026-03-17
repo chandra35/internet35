@@ -4,7 +4,8 @@ namespace App\Console\Commands;
 
 use App\Models\Customer;
 use App\Models\CustomerInvoice;
-use App\Helpers\Mikrotik\MikrotikService;
+use App\Services\CustomerUnsuspendService;
+use App\Services\NotificationService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
@@ -26,6 +27,14 @@ class BillingAutoSuspend extends Command
      * @var string
      */
     protected $description = 'Automatically suspend/isolate customers with overdue invoices (only those with auto_isolir enabled)';
+
+    protected CustomerUnsuspendService $unsuspendService;
+
+    public function __construct(CustomerUnsuspendService $unsuspendService)
+    {
+        parent::__construct();
+        $this->unsuspendService = $unsuspendService;
+    }
 
     /**
      * Execute the console command.
@@ -79,18 +88,15 @@ class BillingAutoSuspend extends Command
             }
             
             try {
-                // Suspend in Mikrotik if router is configured
-                $mikrotikResult = 'no_router';
-                if ($customer->router && $customer->pppoe_username) {
-                    $mikrotikResult = $this->suspendInMikrotik($customer);
-                }
+                // Isolir in Mikrotik: change PPP profile to 'isolir' + disconnect
+                $mikrotikResult = $this->unsuspendService->isolir($customer);
                 
                 // Update customer status
                 $customer->update([
                     'status' => 'suspended',
                     'suspended_at' => now(),
                     'suspend_reason' => 'Auto-isolir: tagihan belum dibayar',
-                    'mikrotik_status' => ($mikrotikResult === 'disabled') ? 'disabled' : $customer->mikrotik_status,
+                    'mikrotik_status' => ($mikrotikResult === 'isolated') ? 'isolated' : $customer->mikrotik_status,
                 ]);
                 
                 // Update invoices status to overdue
@@ -98,12 +104,23 @@ class BillingAutoSuspend extends Command
                     ->where('status', 'pending')
                     ->update(['status' => 'overdue']);
                 
-                $this->line("  ✓ Suspended {$customer->name} ({$customer->customer_id}) — Rp " . 
+                $this->line("  ✓ Isolated {$customer->name} ({$customer->customer_id}) — Rp " . 
                            number_format($totalOverdue) . " overdue [mikrotik: {$mikrotikResult}]");
                 $suspended++;
                 
-                Log::info("Auto-isolir: suspended {$customer->customer_id} ({$customer->name}), overdue: Rp " . number_format($totalOverdue));
+                Log::info("Auto-isolir: isolated {$customer->customer_id} ({$customer->name}), overdue: Rp " . number_format($totalOverdue));
                 
+                // Send notification to customer
+                try {
+                    app(NotificationService::class)->sendIsolated($customer, [
+                        'isolate_reason' => 'Auto-isolir: tagihan Rp ' . number_format($totalOverdue, 0, ',', '.') . ' belum dibayar',
+                        'isolate_date' => now()->format('d F Y H:i'),
+                        'overdue_amount' => 'Rp ' . number_format($totalOverdue, 0, ',', '.'),
+                    ]);
+                } catch (\Exception $notifErr) {
+                    Log::warning("Failed to send auto-isolir notification to {$customer->customer_id}: " . $notifErr->getMessage());
+                }
+
             } catch (\Exception $e) {
                 Log::error("Auto-isolir failed for {$customer->customer_id}: " . $e->getMessage());
                 $this->error("  ✗ Failed for {$customer->name}: " . $e->getMessage());
@@ -113,66 +130,12 @@ class BillingAutoSuspend extends Command
         
         $this->newLine();
         if ($dryRun) {
-            $this->info("Dry run completed. Would suspend {$suspended} customers (skipped {$skipped}).");
+            $this->info("Dry run completed. Would isolir {$suspended} customers (skipped {$skipped}).");
         } else {
             $this->info("Auto-isolir process completed!");
-            $this->info("Suspended: {$suspended} | Skipped (not overdue): {$skipped} | Failed: {$failed}");
+            $this->info("Isolated: {$suspended} | Skipped (not overdue): {$skipped} | Failed: {$failed}");
         }
         
         return 0;
-    }
-    
-    /**
-     * Suspend customer in Mikrotik by disabling PPP Secret
-     * 
-     * @return string Result status: 'disabled', 'not_found', 'not_connected', 'error'
-     */
-    protected function suspendInMikrotik(Customer $customer): string
-    {
-        try {
-            $router = $customer->router;
-            
-            if (!$router || !$router->is_active) {
-                return 'no_router';
-            }
-            
-            $mikrotik = new MikrotikService();
-            
-            if (!$mikrotik->connectRouter($router)) {
-                Log::warning("Auto-isolir: Cannot connect to router {$router->name} for {$customer->customer_id}");
-                return 'not_connected';
-            }
-            
-            // Lookup PPP secret by username to get its .id
-            $secret = $mikrotik->getPppSecretByName($customer->pppoe_username);
-            
-            if (!$secret) {
-                Log::warning("Auto-isolir: PPP secret not found for {$customer->pppoe_username} on {$router->name}");
-                return 'not_found';
-            }
-            
-            $secretId = $secret['.id'] ?? null;
-            if (!$secretId) {
-                return 'not_found';
-            }
-            
-            // Disable the PPP secret
-            $mikrotik->disablePppSecret($secretId);
-            
-            // Also disconnect active session if any
-            $activeConnections = $mikrotik->getPppActive();
-            foreach ($activeConnections as $conn) {
-                if (($conn['name'] ?? '') === $customer->pppoe_username && isset($conn['.id'])) {
-                    $mikrotik->disconnectPppUser($conn['.id']);
-                    break;
-                }
-            }
-            
-            return 'disabled';
-            
-        } catch (\Exception $e) {
-            Log::warning("Mikrotik isolir failed for {$customer->customer_id}: " . $e->getMessage());
-            return 'error';
-        }
     }
 }

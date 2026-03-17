@@ -22,10 +22,13 @@ use App\Http\Controllers\Admin\IpPoolController;
 use App\Http\Controllers\Admin\PopSettingController;
 use App\Http\Controllers\Admin\PaymentGatewayController;
 use App\Http\Controllers\Admin\NotificationSettingController;
+use App\Http\Controllers\Admin\NotificationLogController;
 use App\Http\Controllers\Admin\MessageTemplateController;
 use App\Http\Controllers\Admin\CustomerController;
 use App\Http\Controllers\Admin\InvoiceController;
 use App\Http\Controllers\Admin\SchedulerController;
+use App\Http\Controllers\Admin\DataMaintenanceController;
+use App\Http\Controllers\Admin\ResidentController;
 use App\Http\Controllers\Admin\OdcController;
 use App\Http\Controllers\Admin\OdpController;
 use App\Http\Controllers\Admin\NetworkMapController;
@@ -198,12 +201,15 @@ Route::prefix('admin')->middleware(['auth'])->name('admin.')->group(function () 
     // Payment Gateway
     Route::prefix('payment-gateways')->name('payment-gateways.')->group(function () {
         Route::get('/', [PaymentGatewayController::class, 'index'])->name('index');
+        Route::get('/create', [PaymentGatewayController::class, 'create'])->name('create');
         Route::post('/', [PaymentGatewayController::class, 'store'])->name('store');
         Route::get('/{gateway}/edit', [PaymentGatewayController::class, 'edit'])->name('edit');
         Route::put('/{gateway}', [PaymentGatewayController::class, 'update'])->name('update');
         Route::delete('/{gateway}', [PaymentGatewayController::class, 'destroy'])->name('destroy');
         Route::post('/{gateway}/toggle', [PaymentGatewayController::class, 'toggleActive'])->name('toggle');
+        Route::post('/{gateway}/toggle-mode', [PaymentGatewayController::class, 'toggleMode'])->name('toggle-mode');
         Route::post('/{gateway}/test', [PaymentGatewayController::class, 'testConnection'])->name('test');
+        Route::get('/{gateway}/documents/{docKey}', [PaymentGatewayController::class, 'downloadDocument'])->name('download-document');
         
         // Sandbox
         Route::get('/sandbox-requests', [PaymentGatewayController::class, 'pendingSandboxRequests'])->name('sandbox-requests');
@@ -227,6 +233,14 @@ Route::prefix('admin')->middleware(['auth'])->name('admin.')->group(function () 
         Route::post('/test-telegram', [NotificationSettingController::class, 'testTelegram'])->name('test-telegram');
     });
 
+    // Notification Logs
+    Route::prefix('notification-logs')->name('notification-logs.')->group(function () {
+        Route::get('/', [NotificationLogController::class, 'index'])->name('index');
+        Route::get('/{notificationLog}', [NotificationLogController::class, 'show'])->name('show');
+        Route::post('/{notificationLog}/resend', [NotificationLogController::class, 'resend'])->name('resend');
+        Route::delete('/cleanup', [NotificationLogController::class, 'destroy'])->name('destroy');
+    });
+
     // Customer Management
     Route::prefix('customers')->name('customers.')->group(function () {
         Route::get('/', [CustomerController::class, 'index'])->name('index');
@@ -244,7 +258,16 @@ Route::prefix('admin')->middleware(['auth'])->name('admin.')->group(function () 
         Route::get('/{customer}/password', [CustomerController::class, 'getPassword'])->name('password');
         Route::post('/{customer}/status', [CustomerController::class, 'changeStatus'])->name('change-status');
         Route::post('/{customer}/sync-mikrotik', [CustomerController::class, 'syncMikrotik'])->name('sync-mikrotik');
+        Route::post('/{customer}/isolir', [CustomerController::class, 'isolir'])->name('isolir');
+        Route::post('/{customer}/buka-isolir', [CustomerController::class, 'bukaIsolir'])->name('buka-isolir');
+        Route::post('/{customer}/generate-portal', [CustomerController::class, 'generatePortalAccount'])->name('generate-portal');
+        Route::get('/{customer}/portal-password', [CustomerController::class, 'getPortalPassword'])->name('portal-password');
+        Route::post('/{customer}/portal-reset-password', [CustomerController::class, 'resetPortalPassword'])->name('portal-reset-password');
+        Route::post('/{customer}/portal-toggle-status', [CustomerController::class, 'togglePortalStatus'])->name('portal-toggle-status');
+        Route::delete('/{customer}/portal-delete', [CustomerController::class, 'deletePortalAccount'])->name('portal-delete');
         Route::post('/bulk-auto-isolir', [CustomerController::class, 'bulkToggleAutoIsolir'])->name('bulk-auto-isolir');
+        Route::post('/bulk-sync-mikrotik', [CustomerController::class, 'bulkSyncMikrotik'])->name('bulk-sync-mikrotik');
+        Route::post('/bulk-generate-portal', [CustomerController::class, 'bulkGeneratePortalAccount'])->name('bulk-generate-portal');
         Route::get('/packages/{router}', [CustomerController::class, 'getPackagesByRouter'])->name('packages-by-router');
         Route::post('/check-username', [CustomerController::class, 'checkUsername'])->name('check-username');
     });
@@ -255,11 +278,14 @@ Route::prefix('admin')->middleware(['auth'])->name('admin.')->group(function () 
         Route::get('/create', [InvoiceController::class, 'create'])->name('create');
         Route::post('/', [InvoiceController::class, 'store'])->name('store');
         Route::post('/generate', [InvoiceController::class, 'generate'])->name('generate');
+        Route::get('/bulk-print', [InvoiceController::class, 'bulkPrintSelect'])->name('bulk-print-select');
+        Route::post('/bulk-print', [InvoiceController::class, 'bulkPrint'])->name('bulk-print');
         Route::get('/{invoice}', [InvoiceController::class, 'show'])->name('show');
         Route::get('/{invoice}/edit', [InvoiceController::class, 'edit'])->name('edit');
         Route::put('/{invoice}', [InvoiceController::class, 'update'])->name('update');
         Route::delete('/{invoice}', [InvoiceController::class, 'destroy'])->name('destroy');
-        Route::get('/{invoice}/print', [InvoiceController::class, 'print'])->name('print');
+        Route::get('/{invoice}/print', [InvoiceController::class, 'printRecord'])->name('print');
+        Route::get('/{invoice}/download-pdf', [InvoiceController::class, 'downloadPdf'])->name('download-pdf');
         Route::post('/{invoice}/mark-paid', [InvoiceController::class, 'markPaid'])->name('mark-paid');
         Route::post('/{invoice}/cancel', [InvoiceController::class, 'cancel'])->name('cancel');
         Route::post('/{invoice}/send-reminder', [InvoiceController::class, 'sendReminder'])->name('send-reminder');
@@ -272,6 +298,8 @@ Route::prefix('admin')->middleware(['auth'])->name('admin.')->group(function () 
         Route::post('/', [SchedulerController::class, 'store'])->name('store');
         Route::get('/logs', [SchedulerController::class, 'logs'])->name('logs');
         Route::post('/clear-logs', [SchedulerController::class, 'clearLogs'])->name('clear-logs');
+        Route::get('/smart-check', [SchedulerController::class, 'smartCheck'])->name('smart-check');
+        Route::post('/smart-check/fix', [SchedulerController::class, 'autoFix'])->name('smart-check.fix');
         Route::get('/{task}', [SchedulerController::class, 'show'])->name('show');
         Route::get('/{task}/edit', [SchedulerController::class, 'edit'])->name('edit');
         Route::put('/{task}', [SchedulerController::class, 'update'])->name('update');
@@ -348,6 +376,28 @@ Route::prefix('admin')->middleware(['auth'])->name('admin.')->group(function () 
         Route::get('/data', [NetworkMapController::class, 'getData'])->name('data');
         Route::get('/stats', [NetworkMapController::class, 'getStats'])->name('stats');
     });
+
+    // Data Kependudukan (Population Data)
+    Route::prefix('residents')->name('residents.')->group(function () {
+        Route::get('/', [ResidentController::class, 'index'])->name('index');
+        Route::post('/preview', [ResidentController::class, 'preview'])->name('preview');
+        Route::post('/import', [ResidentController::class, 'import'])->name('import');
+        Route::get('/search', [ResidentController::class, 'search'])->name('search');
+        Route::get('/check-access', [ResidentController::class, 'checkAccess'])->name('check-access');
+        Route::post('/grant-access', [ResidentController::class, 'grantAccess'])->name('grant-access');
+        Route::post('/revoke-access', [ResidentController::class, 'revokeAccess'])->name('revoke-access');
+        Route::post('/bulk-destroy', [ResidentController::class, 'bulkDestroy'])->name('bulk-destroy');
+        Route::post('/clear-all', [ResidentController::class, 'clearAll'])->name('clear-all');
+        Route::delete('/{resident}', [ResidentController::class, 'destroy'])->name('destroy');
+    });
+
+    // Data Maintenance (dangerous operations)
+    Route::prefix('data-maintenance')->name('data-maintenance.')->group(function () {
+        Route::get('/', [DataMaintenanceController::class, 'index'])->name('index');
+        Route::post('/clear-customers', [DataMaintenanceController::class, 'clearCustomers'])->name('clear-customers');
+        Route::post('/clear-packages', [DataMaintenanceController::class, 'clearPackages'])->name('clear-packages');
+        Route::post('/clear-profiles', [DataMaintenanceController::class, 'clearProfiles'])->name('clear-profiles');
+    });
 });
 
 /*
@@ -382,6 +432,7 @@ Route::prefix('pelanggan')->middleware(['auth', 'role:client'])->name('pelanggan
     // Invoices
     Route::get('/invoices', [PelangganPaymentController::class, 'invoices'])->name('invoices');
     Route::get('/invoice/{invoice}', [PelangganPaymentController::class, 'showInvoice'])->name('invoice');
+    Route::get('/invoice/{invoice}/pdf', [PelangganPaymentController::class, 'downloadPdf'])->name('invoice.pdf');
     Route::post('/invoice/{invoice}/pay', [PelangganPaymentController::class, 'pay'])->name('pay');
     
     // Payments
@@ -389,6 +440,10 @@ Route::prefix('pelanggan')->middleware(['auth', 'role:client'])->name('pelanggan
     Route::get('/payment/{payment}/confirm', [PelangganPaymentController::class, 'confirm'])->name('payment.confirm');
     Route::post('/payment/{payment}/confirm', [PelangganPaymentController::class, 'confirmManual'])->name('payment.confirm-manual');
     Route::post('/payment/{payment}/cancel', [PelangganPaymentController::class, 'cancel'])->name('payment.cancel');
+    
+    // Demo Payment
+    Route::get('/payment/{payment}/demo', [PelangganPaymentController::class, 'demoProcess'])->name('payment.demo-process');
+    Route::post('/payment/{payment}/demo-execute', [PelangganPaymentController::class, 'demoExecute'])->name('payment.demo-execute');
 });
 
 

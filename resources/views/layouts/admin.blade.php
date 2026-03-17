@@ -601,10 +601,40 @@
                                 </a>
                             </li>
                             @endcan
+                            @can('notification-settings.view')
+                            <li class="nav-item">
+                                <a href="{{ route('admin.notification-logs.index') }}" class="nav-link {{ request()->routeIs('admin.notification-logs.*') ? 'active' : '' }}">
+                                    <i class="far fa-circle nav-icon"></i>
+                                    <p>Log Notifikasi</p>
+                                </a>
+                            </li>
+                            @endcan
                         </ul>
                     </li>
                     @endrole
                     @endcanany
+
+                    <!-- Data Kependudukan -->
+                    @role('superadmin')
+                    <li class="nav-header">DATA INDUK</li>
+                    <li class="nav-item">
+                        <a href="{{ route('admin.residents.index') }}" class="nav-link {{ request()->routeIs('admin.residents.*') ? 'active' : '' }}">
+                            <i class="nav-icon fas fa-address-book"></i>
+                            <p>Data Kependudukan</p>
+                        </a>
+                    </li>
+                    @endrole
+
+                    <!-- Data Maintenance -->
+                    @role('superadmin|admin-pop')
+                    <li class="nav-header">PERAWATAN</li>
+                    <li class="nav-item">
+                        <a href="{{ route('admin.data-maintenance.index') }}" class="nav-link {{ request()->routeIs('admin.data-maintenance.*') ? 'active' : '' }}">
+                            <i class="nav-icon fas fa-exclamation-triangle text-danger"></i>
+                            <p>Perawatan Data</p>
+                        </a>
+                    </li>
+                    @endrole
 
                     <!-- Profile -->
                     <li class="nav-header">AKUN</li>

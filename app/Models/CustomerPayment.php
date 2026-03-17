@@ -31,6 +31,8 @@ class CustomerPayment extends Model
         'verified_by',
         'verified_at',
         'created_by',
+        'payment_proof',
+        'cancelled_at',
     ];
 
     protected $casts = [
@@ -103,7 +105,7 @@ class CustomerPayment extends Model
     }
 
     /**
-     * Generate payment number
+     * Generate payment number (use within DB::transaction for safety)
      */
     public static function generatePaymentNumber(string $popId): string
     {
@@ -114,6 +116,7 @@ class CustomerPayment extends Model
         
         $lastPayment = static::where('pop_id', $popId)
             ->whereDate('created_at', today())
+            ->lockForUpdate()
             ->orderBy('payment_number', 'desc')
             ->first();
         
@@ -215,11 +218,14 @@ class CustomerPayment extends Model
 
         // Update invoice if linked
         if ($this->invoice) {
+            $newPaidAmount = $this->invoice->paid_amount + $this->amount;
+
             $this->invoice->update([
-                'paid_amount' => $this->invoice->paid_amount + $this->amount,
+                'paid_amount' => $newPaidAmount,
             ]);
 
-            if ($this->invoice->paid_amount >= $this->invoice->total_amount) {
+            if ($newPaidAmount >= $this->invoice->total_amount) {
+                $this->invoice->refresh();
                 $this->invoice->markAsPaid($this->payment_method, $this->payment_number);
             } else {
                 $this->invoice->update(['status' => 'partial']);

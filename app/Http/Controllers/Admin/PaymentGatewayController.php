@@ -64,7 +64,7 @@ class PaymentGatewayController extends Controller
         
         $availableTypes = PaymentGateway::gatewayTypes();
         $existingTypes = $gateways->pluck('gateway_type')->toArray();
-        $newTypes = array_diff($availableTypes, $existingTypes);
+        $newTypes = array_diff(array_keys($availableTypes), $existingTypes);
         
         // For superadmin
         $popUsers = null;
@@ -89,7 +89,7 @@ class PaymentGatewayController extends Controller
         $gatewayType = $request->query('type');
         $userId = $request->query('user_id');
         
-        if (!$gatewayType || !in_array($gatewayType, PaymentGateway::gatewayTypes())) {
+        if (!$gatewayType || !array_key_exists($gatewayType, PaymentGateway::gatewayTypes())) {
             return response()->json([
                 'success' => false,
                 'message' => 'Tipe gateway tidak valid!',
@@ -142,9 +142,10 @@ class PaymentGatewayController extends Controller
     {
         $request->validate([
             'user_id' => 'nullable|uuid|exists:users,id',
-            'gateway_type' => 'required|string|in:' . implode(',', PaymentGateway::gatewayTypes()),
+            'gateway_type' => 'required|string|in:' . implode(',', array_keys(PaymentGateway::gatewayTypes())),
             'gateway_name' => 'nullable|string|max:100',
             'is_sandbox' => 'boolean',
+            'mode' => 'nullable|in:demo,live',
             'credentials' => 'required|array',
             'fee_paid_by_customer' => 'boolean',
             'additional_fee' => 'nullable|numeric|min:0',
@@ -187,6 +188,7 @@ class PaymentGatewayController extends Controller
             'gateway_type' => $request->gateway_type,
             'gateway_name' => $request->gateway_name,
             'is_sandbox' => $request->boolean('is_sandbox', true),
+            'mode' => $request->input('mode', 'demo'),
             'is_active' => false,
             'credentials' => $request->credentials,
             'fee_paid_by_customer' => $request->boolean('fee_paid_by_customer', true),
@@ -195,8 +197,8 @@ class PaymentGatewayController extends Controller
             'sandbox_status' => $sandboxStatus,
             'webhook_url' => url("/api/webhook/{$request->gateway_type}"),
             'callback_url' => url("/api/callback/{$request->gateway_type}"),
-            'return_url' => url("/payment/success"),
-            'cancel_url' => url("/payment/cancel"),
+            'return_url' => url("/pelanggan/invoices"),
+            'cancel_url' => url("/pelanggan/invoices"),
         ]);
 
         $this->activityLog->logCreate('payment_gateways', "Added payment gateway: {$request->gateway_type}");
@@ -223,16 +225,10 @@ class PaymentGatewayController extends Controller
         $gatewayLabel = PaymentGateway::gatewayLabels()[$gateway->gateway_type];
         $credentials = $gateway->decrypted_credentials ?? [];
         
-        return response()->json([
+        return response()->json(array_merge($gateway->toArray(), [
+            'credentials' => $credentials,
             'success' => true,
-            'html' => view('admin.pop-settings.partials.gateway-form', compact(
-                'gateway',
-                'credentialFields',
-                'requiredDocs',
-                'gatewayLabel',
-                'credentials'
-            ))->render(),
-        ]);
+        ]));
     }
 
     /**
@@ -249,6 +245,7 @@ class PaymentGatewayController extends Controller
         $request->validate([
             'gateway_name' => 'nullable|string|max:100',
             'is_sandbox' => 'boolean',
+            'mode' => 'nullable|in:demo,live',
             'credentials' => 'required|array',
             'fee_paid_by_customer' => 'boolean',
             'additional_fee' => 'nullable|numeric|min:0',
@@ -259,6 +256,7 @@ class PaymentGatewayController extends Controller
 
         $gateway->gateway_name = $request->gateway_name;
         $gateway->is_sandbox = $request->boolean('is_sandbox', true);
+        $gateway->mode = $request->input('mode', $gateway->mode);
         $gateway->credentials = $request->credentials;
         $gateway->fee_paid_by_customer = $request->boolean('fee_paid_by_customer', true);
         $gateway->additional_fee = $request->additional_fee ?? 0;
@@ -301,6 +299,30 @@ class PaymentGatewayController extends Controller
             'success' => true,
             'message' => "Payment gateway berhasil {$status}!",
             'is_active' => $gateway->is_active,
+        ]);
+    }
+
+    /**
+     * Toggle gateway mode (demo/live)
+     */
+    public function toggleMode(PaymentGateway $gateway)
+    {
+        // Authorization check
+        $user = auth()->user();
+        if (!$user->hasRole('superadmin') && $gateway->user_id !== $user->id) {
+            abort(403);
+        }
+
+        $gateway->mode = $gateway->mode === 'demo' ? 'live' : 'demo';
+        $gateway->save();
+
+        $modeLabel = $gateway->mode === 'demo' ? 'Demo (Simulasi)' : 'Live (Produksi)';
+        $this->activityLog->logUpdate('payment_gateways', "Gateway {$gateway->gateway_type} mode changed to {$gateway->mode}");
+
+        return response()->json([
+            'success' => true,
+            'message' => "Mode transaksi diubah ke {$modeLabel}!",
+            'mode' => $gateway->mode,
         ]);
     }
 
@@ -361,16 +383,33 @@ class PaymentGatewayController extends Controller
     protected function testMidtrans(array $credentials, bool $sandbox): array
     {
         $baseUrl = $sandbox ? 'https://api.sandbox.midtrans.com' : 'https://api.midtrans.com';
-        
-        $response = \Illuminate\Support\Facades\Http::withBasicAuth($credentials['server_key'], '')
-            ->get("{$baseUrl}/v2/point_inquiry/{$credentials['merchant_id']}");
+        $serverKey = $credentials['server_key'] ?? '';
 
-        // Even if it returns 404 (no points), it means credentials are valid
-        if ($response->status() === 404 || $response->successful()) {
-            return ['success' => true, 'message' => 'Koneksi berhasil!'];
+        // Use dummy charge request — 401 = bad key, 400/other = key valid (validation error)
+        $response = \Illuminate\Support\Facades\Http::withBasicAuth($serverKey, '')
+            ->timeout(15)
+            ->asJson()
+            ->post("{$baseUrl}/v2/charge", [
+                'payment_type' => 'bank_transfer',
+                'transaction_details' => [
+                    'order_id' => 'test-conn-' . time(),
+                    'gross_amount' => 1,
+                ],
+            ]);
+
+        \Illuminate\Support\Facades\Log::info('Midtrans test connection', [
+            'sandbox' => $sandbox,
+            'status' => $response->status(),
+            'body' => $response->json(),
+            'server_key_prefix' => substr($serverKey, 0, 15) . '...',
+        ]);
+
+        if ($response->status() === 401) {
+            return ['success' => false, 'message' => 'Server Key tidak valid. Pastikan menggunakan Server Key (bukan Client Key).'];
         }
 
-        return ['success' => false, 'message' => 'Kredensial tidak valid atau server error'];
+        // 400, 406, 200, etc = auth OK
+        return ['success' => true, 'message' => 'Koneksi berhasil! Merchant ID: ' . ($credentials['merchant_id'] ?? '-')];
     }
 
     protected function testDuitku(array $credentials, bool $sandbox): array

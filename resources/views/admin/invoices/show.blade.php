@@ -202,6 +202,19 @@
                 <a href="{{ route('admin.invoices.print', $invoice) }}" class="btn btn-secondary btn-block mb-2" target="_blank">
                     <i class="fas fa-print mr-1"></i> Print Invoice
                 </a>
+                <a href="{{ route('admin.invoices.download-pdf', $invoice) }}" class="btn btn-danger btn-block mb-2">
+                    <i class="fas fa-file-pdf mr-1"></i> Download PDF
+                </a>
+                @if($invoice->print_count > 0)
+                <div class="text-center mb-2">
+                    <small class="text-muted">
+                        <i class="fas fa-history mr-1"></i>Dicetak {{ $invoice->print_count }}x
+                        @if($invoice->printed_at)
+                        | Terakhir: {{ $invoice->printed_at->format('d/m/Y H:i') }}
+                        @endif
+                    </small>
+                </div>
+                @endif
                 
                 @if($invoice->status !== 'paid' && $invoice->status !== 'cancelled')
                     @can('invoices.edit')

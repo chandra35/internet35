@@ -21,14 +21,40 @@
                 </div>
             </div>
             <div class="card-body">
+                {{-- ISP Header --}}
+                @if($popSetting?->logo_url || $popSetting?->isp_name)
+                <div class="text-center mb-3 pb-3 border-bottom">
+                    @if($popSetting?->logo_url)
+                    <img src="{{ $popSetting->logo_url }}" alt="Logo" style="max-height: 50px; max-width: 200px;" class="mb-2">
+                    @endif
+                    @if($popSetting?->isp_name)
+                    <div class="font-weight-bold">{{ $popSetting->isp_name }}</div>
+                    @endif
+                    <small class="text-muted">
+                        @if($popSetting?->address){{ $popSetting->address }}<br>@endif
+                        @php
+                            $ispRegion = collect([$popSetting?->village?->name, $popSetting?->district?->name, $popSetting?->city?->name, $popSetting?->province?->name])->filter()->implode(', ');
+                        @endphp
+                        @if($ispRegion){{ $ispRegion }}<br>@endif
+                        @if($popSetting?->phone)Telp: {{ $popSetting->phone }}@endif
+                        @if($popSetting?->phone && $popSetting?->email) | @endif
+                        @if($popSetting?->email){{ $popSetting->email }}@endif
+                    </small>
+                </div>
+                @endif
+
                 <div class="row mb-4">
                     <div class="col-6">
                         <strong>Ditagihkan Kepada:</strong><br>
                         {{ $customer->name }}<br>
                         <small class="text-muted">
-                            {{ $customer->address }}<br>
-                            {{ $customer->village?->name }}, {{ $customer->district?->name }}<br>
-                            {{ $customer->city?->name }}, {{ $customer->province?->name }}
+                            @if($customer->address){{ $customer->address }}<br>@endif
+                            @if($customer->village?->name || $customer->district?->name)
+                                {{ collect([$customer->village?->name, $customer->district?->name])->filter()->implode(', ') }}<br>
+                            @endif
+                            @if($customer->city?->name || $customer->province?->name)
+                                {{ collect([$customer->city?->name, $customer->province?->name])->filter()->implode(', ') }}
+                            @endif
                         </small>
                     </div>
                     <div class="col-6 text-right">
@@ -66,7 +92,7 @@
                         @endif
                         @if($invoice->tax_amount > 0)
                         <tr>
-                            <td>Pajak</td>
+                            <td>PPN {{ ($popSetting?->ppn_percentage ?? 11) }}%</td>
                             <td class="text-right">Rp {{ number_format($invoice->tax_amount, 0, ',', '.') }}</td>
                         </tr>
                         @endif
@@ -135,7 +161,7 @@
             <div class="card-body">
                 <div class="text-center mb-4">
                     <small class="text-muted">Total yang harus dibayar</small>
-                    <h2 class="text-primary mb-0">Rp {{ number_format($invoice->total_amount, 0, ',', '.') }}</h2>
+                    <h2 class="text-primary mb-0">Rp {{ number_format($invoice->remaining_amount, 0, ',', '.') }}</h2>
                 </div>
                 
                 @if($gateways->count() > 0)
@@ -148,12 +174,15 @@
                                    value="{{ $gateway->id }}" class="custom-control-input" 
                                    {{ $loop->first ? 'checked' : '' }}>
                             <label class="custom-control-label d-flex align-items-center" for="gateway_{{ $gateway->id }}">
-                                @if($gateway->logo)
-                                <img src="{{ asset('storage/' . $gateway->logo) }}" height="24" class="mr-2">
+                                @if($gateway->logo_url)
+                                <img src="{{ $gateway->logo_url }}" height="24" class="mr-2">
                                 @endif
-                                {{ $gateway->name }}
-                                @if($gateway->fee > 0)
-                                <small class="text-muted ml-auto">+ Rp {{ number_format($gateway->fee, 0, ',', '.') }}</small>
+                                {{ $gateway->display_name }}
+                                @if($gateway->mode === 'demo')
+                                <span class="badge badge-info badge-sm ml-1">DEMO</span>
+                                @endif
+                                @if($gateway->additional_fee > 0)
+                                <small class="text-muted ml-auto">+ Rp {{ number_format($gateway->additional_fee, 0, ',', '.') }}</small>
                                 @endif
                             </label>
                         </div>
@@ -204,6 +233,9 @@
         
         <a href="{{ route('pelanggan.invoices') }}" class="btn btn-outline-secondary btn-block">
             <i class="fas fa-arrow-left mr-1"></i> Kembali ke Daftar Tagihan
+        </a>
+        <a href="{{ route('pelanggan.invoice.pdf', $invoice) }}" class="btn btn-outline-primary btn-block" target="_blank">
+            <i class="fas fa-file-pdf mr-1"></i> Download PDF
         </a>
     </div>
 </div>

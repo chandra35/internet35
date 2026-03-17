@@ -4,33 +4,48 @@ namespace App\Services;
 
 use App\Models\Customer;
 use App\Models\MessageTemplate;
+use App\Models\NotificationLog;
+use App\Models\NotificationSetting;
 use App\Models\PopSetting;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Http;
 use Symfony\Component\Mailer\Transport\Smtp\EsmtpTransport;
 use Symfony\Component\Mailer\Mailer;
 use Symfony\Component\Mime\Email;
+use Symfony\Component\Mime\Address;
 
 class NotificationService
 {
+    // ─── Main Public API ───────────────────────────────────────
+
     /**
-     * Send notification to customer
+     * Send notification to customer using templates.
+     * Automatically determines which channels are enabled and sends accordingly.
      */
     public function sendToCustomer(
         Customer $customer,
         string $templateCode,
         array $extraVariables = [],
-        array $channels = ['email', 'whatsapp']
+        ?array $forceChannels = null
     ): array {
         $results = [];
         $popSetting = PopSetting::where('user_id', $customer->pop_id)->first();
+        $notifSetting = NotificationSetting::where('user_id', $customer->pop_id)->first();
 
         if (!$popSetting) {
             return ['success' => false, 'message' => 'POP settings not found'];
         }
 
-        // Build base variables
+        // Determine active channels from settings
+        $channels = $forceChannels ?? $this->getActiveChannels($popSetting, $notifSetting);
+
+        // Check if the event is enabled
+        if ($notifSetting && !$this->isEventEnabled($notifSetting, $templateCode)) {
+            Log::info("Notification [{$templateCode}] skipped — event disabled for POP {$customer->pop_id}");
+            return ['success' => true, 'message' => 'Event notification disabled', 'skipped' => true];
+        }
+
+        // Build variables
         $variables = $this->buildCustomerVariables($customer, $popSetting);
         $variables = array_merge($variables, $extraVariables);
 
@@ -48,14 +63,20 @@ class NotificationService
                 $results['email'] = $this->sendEmail(
                     $customer->email,
                     $parsed['subject'],
-                    $parsed['email_body'],
-                    $popSetting
+                    $this->wrapEmailHtml($parsed['email_body'], $popSetting),
+                    $popSetting,
+                    $customer->pop_id,
+                    $customer->id,
+                    $templateCode
                 );
             } elseif ($channel === 'whatsapp' && $customer->phone) {
                 $results['whatsapp'] = $this->sendWhatsApp(
                     $this->formatPhoneNumber($customer->phone),
                     $parsed['wa_body'],
-                    $popSetting
+                    $popSetting,
+                    $customer->pop_id,
+                    $customer->id,
+                    $templateCode
                 );
             }
         }
@@ -64,12 +85,62 @@ class NotificationService
     }
 
     /**
+     * Get active channels based on settings
+     */
+    protected function getActiveChannels(PopSetting $popSetting, ?NotificationSetting $notifSetting): array
+    {
+        $channels = [];
+
+        // Email enabled check
+        $emailEnabled = $notifSetting ? $notifSetting->email_enabled : ($popSetting->smtp_enabled ?? false);
+        if ($emailEnabled && $popSetting->smtp_host) {
+            $channels[] = 'email';
+        }
+
+        // WhatsApp enabled check (toggle on/off)
+        $waEnabled = $notifSetting ? $notifSetting->whatsapp_enabled : ($popSetting->wa_enabled ?? false);
+        if ($waEnabled && ($popSetting->wa_api_url || $popSetting->wa_api_key)) {
+            $channels[] = 'whatsapp';
+        }
+
+        return $channels;
+    }
+
+    /**
+     * Check if a specific event is enabled for notifications
+     */
+    protected function isEventEnabled(NotificationSetting $setting, string $templateCode): bool
+    {
+        $enabledEvents = $setting->enabled_events ?? [];
+
+        $eventMap = [
+            'customer_welcome' => 'customer_registered',
+            'user_created' => 'customer_registered',
+            'invoice_created' => 'invoice_created',
+            'invoice_reminder' => 'invoice_due_reminder',
+            'invoice_overdue' => 'invoice_overdue',
+            'payment_success' => 'payment_received',
+            'service_isolated' => 'customer_suspended',
+            'service_activated' => 'customer_unsuspended',
+            'service_expired' => 'subscription_expired',
+        ];
+
+        $eventName = $eventMap[$templateCode] ?? $templateCode;
+
+        if (empty($enabledEvents)) {
+            return true;
+        }
+
+        return in_array($eventName, $enabledEvents);
+    }
+
+    /**
      * Build customer variables for template
      */
     protected function buildCustomerVariables(Customer $customer, PopSetting $popSetting): array
     {
         $package = $customer->package;
-        
+
         return [
             'customer_name' => $customer->name,
             'customer_id' => $customer->customer_id,
@@ -78,107 +149,109 @@ class NotificationService
             'package_name' => $package->name ?? '',
             'package_price' => $package ? 'Rp ' . number_format($package->price, 0, ',', '.') : '',
             'pppoe_username' => $customer->pppoe_username ?? '',
-            'pppoe_password' => $customer->decrypted_pppoe_password ?? '',
             'isp_name' => $popSetting->isp_name ?? '',
             'isp_phone' => $popSetting->isp_phone ?? '',
             'isp_email' => $popSetting->isp_email ?? '',
             'isp_address' => $popSetting->isp_address ?? '',
             'login_url' => url('/login'),
             'active_until' => $customer->active_until ? $customer->active_until->format('d F Y') : '-',
+            'current_date' => now()->format('d F Y'),
+            'current_time' => now()->format('H:i'),
         ];
     }
 
+    // ─── Email Sending ─────────────────────────────────────────
+
     /**
-     * Send email using POP's SMTP settings
+     * Send email using POP's SMTP settings, with logging
      */
     public function sendEmail(
         string $to,
         string $subject,
         string $htmlBody,
-        PopSetting $popSetting
+        PopSetting $popSetting,
+        ?string $popId = null,
+        ?string $customerId = null,
+        ?string $templateCode = null
     ): array {
         if (!$popSetting->smtp_host) {
-            return ['success' => false, 'message' => 'SMTP not configured'];
+            return $this->logAndReturn('email', $popId, $customerId, $templateCode, $to, $subject, $htmlBody, false, 'SMTP not configured');
         }
 
         try {
-            // Create transport with POP's SMTP settings
+            $encryption = $popSetting->smtp_encryption ?? 'tls';
+            $port = $popSetting->smtp_port ?? 587;
+
             $transport = new EsmtpTransport(
                 $popSetting->smtp_host,
-                $popSetting->smtp_port ?? 587,
-                $popSetting->smtp_encryption === 'tls'
+                $port,
+                $encryption === 'tls'
             );
-            
+
             $transport->setUsername($popSetting->smtp_username);
             $transport->setPassword($popSetting->decrypted_smtp_password);
 
             $mailer = new Mailer($transport);
 
-            // Create email
+            $fromAddress = $popSetting->smtp_from_address ?? $popSetting->smtp_username;
+            $fromName = $popSetting->smtp_from_name ?? $popSetting->isp_name ?? 'Noreply';
+
             $email = (new Email())
-                ->from($popSetting->smtp_from_address ?? $popSetting->smtp_username)
+                ->from(new Address($fromAddress, $fromName))
                 ->to($to)
                 ->subject($subject)
                 ->html($htmlBody);
-
-            // Add from name if set
-            if ($popSetting->smtp_from_name) {
-                $email->from(new \Symfony\Component\Mime\Address(
-                    $popSetting->smtp_from_address ?? $popSetting->smtp_username,
-                    $popSetting->smtp_from_name
-                ));
-            }
 
             $mailer->send($email);
 
             Log::info("Email sent to {$to}: {$subject}");
 
-            return ['success' => true, 'message' => 'Email sent successfully'];
+            return $this->logAndReturn('email', $popId, $customerId, $templateCode, $to, $subject, $htmlBody, true, null);
 
         } catch (\Exception $e) {
             Log::error("Failed to send email to {$to}: " . $e->getMessage());
-            return ['success' => false, 'message' => $e->getMessage()];
+            return $this->logAndReturn('email', $popId, $customerId, $templateCode, $to, $subject, $htmlBody, false, $e->getMessage());
         }
     }
 
+    // ─── WhatsApp Sending ──────────────────────────────────────
+
     /**
-     * Send WhatsApp message using configured API
+     * Send WhatsApp message using configured API, with logging
      */
     public function sendWhatsApp(
         string $to,
         string $message,
-        PopSetting $popSetting
+        PopSetting $popSetting,
+        ?string $popId = null,
+        ?string $customerId = null,
+        ?string $templateCode = null
     ): array {
-        if (!$popSetting->wa_api_url) {
-            return ['success' => false, 'message' => 'WhatsApp API not configured'];
+        if (!$popSetting->wa_api_url && !$popSetting->wa_api_key) {
+            return $this->logAndReturn('whatsapp', $popId, $customerId, $templateCode, $to, null, $message, false, 'WhatsApp API not configured');
         }
 
         try {
-            // Build request based on WA provider
             $provider = $popSetting->wa_provider ?? 'fonnte';
-            
-            switch ($provider) {
-                case 'fonnte':
-                    return $this->sendViaFonnte($to, $message, $popSetting);
-                case 'wablas':
-                    return $this->sendViaWablas($to, $message, $popSetting);
-                case 'dripsender':
-                    return $this->sendViaDripsender($to, $message, $popSetting);
-                case 'custom':
-                    return $this->sendViaCustomApi($to, $message, $popSetting);
-                default:
-                    return $this->sendViaGenericApi($to, $message, $popSetting);
-            }
+
+            $result = match ($provider) {
+                'fonnte' => $this->sendViaFonnte($to, $message, $popSetting),
+                'wablas' => $this->sendViaWablas($to, $message, $popSetting),
+                'dripsender' => $this->sendViaDripsender($to, $message, $popSetting),
+                'custom' => $this->sendViaCustomApi($to, $message, $popSetting),
+                default => $this->sendViaGenericApi($to, $message, $popSetting),
+            };
+
+            return $this->logAndReturn('whatsapp', $popId, $customerId, $templateCode, $to, null, $message, $result['success'], $result['success'] ? null : ($result['message'] ?? 'Failed'));
 
         } catch (\Exception $e) {
             Log::error("Failed to send WhatsApp to {$to}: " . $e->getMessage());
-            return ['success' => false, 'message' => $e->getMessage()];
+            return $this->logAndReturn('whatsapp', $popId, $customerId, $templateCode, $to, null, $message, false, $e->getMessage());
         }
     }
 
-    /**
-     * Send via Fonnte API
-     */
+    // ─── WA Provider Methods ───────────────────────────────────
+
     protected function sendViaFonnte(string $to, string $message, PopSetting $popSetting): array
     {
         $response = Http::withHeaders([
@@ -195,9 +268,6 @@ class NotificationService
         return ['success' => false, 'message' => $response->json('reason') ?? 'Failed to send'];
     }
 
-    /**
-     * Send via Wablas API
-     */
     protected function sendViaWablas(string $to, string $message, PopSetting $popSetting): array
     {
         $response = Http::withHeaders([
@@ -214,9 +284,6 @@ class NotificationService
         return ['success' => false, 'message' => $response->json('message') ?? 'Failed to send'];
     }
 
-    /**
-     * Send via Dripsender API
-     */
     protected function sendViaDripsender(string $to, string $message, PopSetting $popSetting): array
     {
         $response = Http::withHeaders([
@@ -233,9 +300,6 @@ class NotificationService
         return ['success' => false, 'message' => $response->json('error') ?? 'Failed to send'];
     }
 
-    /**
-     * Send via custom API (user configurable)
-     */
     protected function sendViaCustomApi(string $to, string $message, PopSetting $popSetting): array
     {
         $headers = [];
@@ -243,14 +307,12 @@ class NotificationService
             $headers['Authorization'] = $popSetting->wa_api_key;
         }
 
-        // Replace placeholders in URL if any
         $url = str_replace(
             ['{{phone}}', '{{message}}'],
             [urlencode($to), urlencode($message)],
             $popSetting->wa_api_url
         );
 
-        // Build body based on configured field names
         $body = [
             $popSetting->wa_phone_field ?? 'phone' => $to,
             $popSetting->wa_message_field ?? 'message' => $message,
@@ -265,9 +327,6 @@ class NotificationService
         return ['success' => false, 'message' => 'Failed to send: ' . $response->body()];
     }
 
-    /**
-     * Send via generic API (fallback)
-     */
     protected function sendViaGenericApi(string $to, string $message, PopSetting $popSetting): array
     {
         $headers = [];
@@ -287,20 +346,117 @@ class NotificationService
         return ['success' => false, 'message' => 'Failed to send: ' . $response->body()];
     }
 
+    // ─── Logging ───────────────────────────────────────────────
+
     /**
-     * Format phone number to international format
+     * Log notification and return result
      */
+    protected function logAndReturn(
+        string $channel,
+        ?string $popId,
+        ?string $customerId,
+        ?string $templateCode,
+        string $recipient,
+        ?string $subject,
+        ?string $body,
+        bool $success,
+        ?string $errorMessage
+    ): array {
+        if ($popId) {
+            try {
+                NotificationLog::create([
+                    'pop_id' => $popId,
+                    'customer_id' => $customerId,
+                    'channel' => $channel,
+                    'template_code' => $templateCode,
+                    'recipient' => $recipient,
+                    'subject' => $subject,
+                    'body' => mb_substr($body ?? '', 0, 65535),
+                    'status' => $success ? 'sent' : 'failed',
+                    'error_message' => $errorMessage,
+                    'sent_at' => $success ? now() : null,
+                    'metadata' => [
+                        'channel' => $channel,
+                        'timestamp' => now()->toIso8601String(),
+                    ],
+                ]);
+            } catch (\Exception $e) {
+                Log::error("Failed to log notification: " . $e->getMessage());
+            }
+        }
+
+        return [
+            'success' => $success,
+            'message' => $success
+                ? ($channel === 'email' ? 'Email terkirim' : 'WhatsApp terkirim')
+                : ($errorMessage ?? 'Gagal mengirim'),
+        ];
+    }
+
+    // ─── Email HTML Wrapper ────────────────────────────────────
+
+    /**
+     * Wrap plain email body with a nice HTML template
+     */
+    public function wrapEmailHtml(string $body, ?PopSetting $popSetting = null): string
+    {
+        $ispName = $popSetting->isp_name ?? 'ISP';
+        $primaryColor = '#4e73df';
+
+        if (str_contains($body, '<html') || str_contains($body, '<!DOCTYPE')) {
+            return $body;
+        }
+
+        if (!str_contains($body, '<p>') && !str_contains($body, '<div>') && !str_contains($body, '<table')) {
+            $body = nl2br(e($body));
+        }
+
+        return <<<HTML
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  body { margin: 0; padding: 0; background: #f4f6f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+  .wrapper { max-width: 600px; margin: 0 auto; padding: 20px; }
+  .header { background: {$primaryColor}; color: white; padding: 25px 30px; border-radius: 8px 8px 0 0; text-align: center; }
+  .header h1 { margin: 0; font-size: 22px; font-weight: 600; }
+  .content { background: white; padding: 30px; border-radius: 0 0 8px 8px; line-height: 1.7; color: #333; font-size: 14px; }
+  .footer { text-align: center; padding: 20px; color: #999; font-size: 12px; }
+  .footer a { color: {$primaryColor}; text-decoration: none; }
+  code { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+  .btn { display: inline-block; padding: 12px 28px; background: {$primaryColor}; color: white !important; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 10px 0; }
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <div class="header">
+    <h1>{$ispName}</h1>
+  </div>
+  <div class="content">
+    {$body}
+  </div>
+  <div class="footer">
+    <p>&copy; {$ispName} &mdash; Email ini dikirim secara otomatis.</p>
+    <p>Jika Anda merasa tidak seharusnya menerima email ini, silakan abaikan.</p>
+  </div>
+</div>
+</body>
+</html>
+HTML;
+    }
+
+    // ─── Utility Methods ───────────────────────────────────────
+
     protected function formatPhoneNumber(string $phone): string
     {
-        // Remove all non-numeric characters
         $phone = preg_replace('/[^0-9]/', '', $phone);
 
-        // Convert 08xx to 628xx
         if (str_starts_with($phone, '0')) {
             $phone = '62' . substr($phone, 1);
         }
 
-        // Add 62 if not present
         if (!str_starts_with($phone, '62')) {
             $phone = '62' . $phone;
         }
@@ -308,59 +464,45 @@ class NotificationService
         return $phone;
     }
 
-    /**
-     * Send welcome notification to new customer
-     */
-    public function sendWelcome(Customer $customer): array
+    // ─── Convenience Methods ───────────────────────────────────
+
+    public function sendWelcome(Customer $customer, array $extra = []): array
     {
-        return $this->sendToCustomer($customer, MessageTemplate::CODE_CUSTOMER_WELCOME);
+        return $this->sendToCustomer($customer, MessageTemplate::CODE_CUSTOMER_WELCOME, $extra);
     }
 
-    /**
-     * Send invoice created notification
-     */
     public function sendInvoiceCreated(Customer $customer, array $invoiceData): array
     {
         return $this->sendToCustomer($customer, MessageTemplate::CODE_INVOICE_CREATED, $invoiceData);
     }
 
-    /**
-     * Send invoice reminder notification
-     */
     public function sendInvoiceReminder(Customer $customer, array $invoiceData): array
     {
         return $this->sendToCustomer($customer, MessageTemplate::CODE_INVOICE_REMINDER, $invoiceData);
     }
 
-    /**
-     * Send overdue notification
-     */
     public function sendOverdue(Customer $customer, array $invoiceData): array
     {
         return $this->sendToCustomer($customer, MessageTemplate::CODE_INVOICE_OVERDUE, $invoiceData);
     }
 
-    /**
-     * Send payment success notification
-     */
     public function sendPaymentSuccess(Customer $customer, array $paymentData): array
     {
         return $this->sendToCustomer($customer, MessageTemplate::CODE_PAYMENT_SUCCESS, $paymentData);
     }
 
-    /**
-     * Send isolation notification
-     */
     public function sendIsolated(Customer $customer, array $data = []): array
     {
         return $this->sendToCustomer($customer, MessageTemplate::CODE_SERVICE_ISOLATED, $data);
     }
 
-    /**
-     * Send activation notification
-     */
-    public function sendActivated(Customer $customer): array
+    public function sendActivated(Customer $customer, array $data = []): array
     {
-        return $this->sendToCustomer($customer, MessageTemplate::CODE_SERVICE_ACTIVATED);
+        return $this->sendToCustomer($customer, MessageTemplate::CODE_SERVICE_ACTIVATED, $data);
+    }
+
+    public function sendExpired(Customer $customer, array $data = []): array
+    {
+        return $this->sendToCustomer($customer, MessageTemplate::CODE_SERVICE_EXPIRED, $data);
     }
 }

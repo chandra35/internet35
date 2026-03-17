@@ -19,6 +19,8 @@
     .nav-tabs-custom .nav-link { border: none; color: #6c757d; padding: 10px 20px; }
     .nav-tabs-custom .nav-link.active { color: #007bff; border-bottom: 2px solid #007bff; margin-bottom: -2px; background: transparent; }
     #map { height: 300px; border-radius: 8px; }
+    .leaflet-control-layers { border-radius: 8px; }
+    .leaflet-control-layers-toggle { width: 36px; height: 36px; }
     .photo-upload-box { 
         width: 100%; 
         padding-top: 75%; 
@@ -113,8 +115,17 @@
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label>NIK</label>
-                                <input type="text" name="nik" class="form-control @error('nik') is-invalid @enderror" 
-                                       value="{{ old('nik', $customer->nik) }}" maxlength="16">
+                                <div class="input-group">
+                                    <input type="text" name="nik" id="nik" class="form-control @error('nik') is-invalid @enderror" 
+                                           value="{{ old('nik', $customer->nik) }}" maxlength="16">
+                                    @if($hasResidentAccess ?? false)
+                                    <div class="input-group-append">
+                                        <button type="button" class="btn btn-info" id="btnSearchResident" title="Cari Data Penduduk">
+                                            <i class="fas fa-search"></i> Cari Penduduk
+                                        </button>
+                                    </div>
+                                    @endif
+                                </div>
                                 @error('nik')
                                 <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
@@ -302,11 +313,19 @@
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label>Username PPPoE</label>
-                                <input type="text" name="pppoe_username" class="form-control @error('pppoe_username') is-invalid @enderror" 
-                                       value="{{ old('pppoe_username', $customer->pppoe_username) }}">
+                                <div class="input-group">
+                                    <input type="text" name="pppoe_username" id="pppoe_username" class="form-control @error('pppoe_username') is-invalid @enderror" 
+                                           value="{{ old('pppoe_username', $customer->pppoe_username) }}">
+                                    <div class="input-group-append">
+                                        <button type="button" class="btn btn-outline-primary" id="btnBrowseSecrets" title="Assign dari Mikrotik">
+                                            <i class="fas fa-download"></i>
+                                        </button>
+                                    </div>
+                                </div>
                                 @error('pppoe_username')
                                 <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
+                                <small class="text-muted"><i class="fas fa-info-circle mr-1"></i>Klik <i class="fas fa-download"></i> untuk assign PPP Secret dari Mikrotik</small>
                             </div>
                         </div>
                         <div class="col-md-6">
@@ -501,6 +520,12 @@
                     </a>
                 </div>
                 <div class="col text-right">
+                    @if($customer->router_id && $customer->pppoe_username)
+                    <button type="button" class="btn btn-{{ $customer->mikrotik_synced ? 'outline-info' : 'info' }} mr-2" id="btnSyncMikrotik">
+                        <i class="fas fa-sync mr-1"></i>
+                        {{ $customer->mikrotik_synced ? 'Re-sync ke Mikrotik' : 'Sync ke Mikrotik' }}
+                    </button>
+                    @endif
                     <button type="submit" class="btn btn-primary" id="btnSubmit">
                         <i class="fas fa-save mr-1"></i> Simpan Perubahan
                     </button>
@@ -556,6 +581,106 @@
         </div>
     </div>
 </div>
+
+<!-- Browse PPP Secrets Modal -->
+<div class="modal fade" id="pppSecretsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="fas fa-key mr-2"></i>Browse PPP Secret di Mikrotik</h5>
+                <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="p-3 border-bottom bg-light">
+                    <div class="input-group">
+                        <div class="input-group-prepend">
+                            <span class="input-group-text"><i class="fas fa-search"></i></span>
+                        </div>
+                        <input type="text" class="form-control" id="searchSecrets" placeholder="Cari berdasarkan nama, profile, atau comment...">
+                        <div class="input-group-append">
+                            <button type="button" class="btn btn-outline-secondary" id="btnRefreshSecrets" title="Refresh">
+                                <i class="fas fa-sync-alt"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-2">
+                        <small class="text-muted" id="secretsCount">-</small>
+                        <div class="btn-group btn-group-sm">
+                            <button type="button" class="btn btn-outline-secondary active" data-filter="all">Semua</button>
+                            <button type="button" class="btn btn-outline-success" data-filter="active">Aktif</button>
+                            <button type="button" class="btn btn-outline-danger" data-filter="disabled">Disabled</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="secretsLoading" class="text-center py-5">
+                    <i class="fas fa-spinner fa-spin fa-2x text-primary mb-3"></i>
+                    <p class="text-muted">Memuat PPP Secrets dari router...</p>
+                </div>
+                <div id="secretsEmpty" class="text-center py-5 d-none">
+                    <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                    <p class="text-muted">Tidak ada PPP Secret ditemukan</p>
+                </div>
+                <div id="secretsError" class="text-center py-5 d-none">
+                    <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>
+                    <p class="text-danger" id="secretsErrorMsg">Gagal memuat data</p>
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="btnRetrySecrets">
+                        <i class="fas fa-redo mr-1"></i>Coba Lagi
+                    </button>
+                </div>
+                <div id="secretsTableWrapper" class="d-none">
+                    <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                        <table class="table table-hover table-sm mb-0">
+                            <thead class="thead-light" style="position: sticky; top: 0; z-index: 1;">
+                                <tr>
+                                    <th style="width: 30%">Username</th>
+                                    <th style="width: 20%">Profile</th>
+                                    <th style="width: 30%">Comment</th>
+                                    <th style="width: 10%" class="text-center">Status</th>
+                                    <th style="width: 10%" class="text-center">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="secretsTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer justify-content-between">
+                <small class="text-muted"><i class="fas fa-info-circle mr-1"></i>Pilih secret yang ingin di-assign ke pelanggan ini</small>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- Resident Search Modal --}}
+@if($hasResidentAccess ?? false)
+<div class="modal fade" id="residentModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-info">
+                <h5 class="modal-title text-white"><i class="fas fa-address-book mr-1"></i> Cari Data Penduduk</h5>
+                <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
+            </div>
+            <div class="modal-body">
+                <div class="input-group mb-3">
+                    <input type="text" id="residentSearchInput" class="form-control" placeholder="Ketik NIK, Nama, atau No KK..." autofocus>
+                    <div class="input-group-append">
+                        <button class="btn btn-info" id="btnResidentSearch"><i class="fas fa-search"></i></button>
+                    </div>
+                </div>
+                <div id="residentSearchResults">
+                    <p class="text-muted text-center py-3">Ketik minimal 2 karakter untuk mencari</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <small class="text-muted"><i class="fas fa-info-circle mr-1"></i>Pilih penduduk untuk mengisi data pelanggan otomatis</small>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
+
 @endsection
 
 @push('js')
@@ -567,32 +692,137 @@ $(function() {
     const defaultLat = {{ $customer->latitude ?? -6.2088 }};
     const defaultLng = {{ $customer->longitude ?? 106.8456 }};
     const map = L.map('map').setView([defaultLat, defaultLng], 15);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap'
-    }).addTo(map);
-    
+
+    // Tile layers
+    const googleSat = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+        maxZoom: 20, attribution: '© Google Satellite'
+    });
+    const googleHybrid = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+        maxZoom: 20, attribution: '© Google Hybrid'
+    });
+    const googleStreet = L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+        maxZoom: 20, attribution: '© Google Maps'
+    });
+    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19, attribution: '© OpenStreetMap contributors'
+    });
+    googleHybrid.addTo(map);
+
+    L.control.layers({
+        "🛰️ Satelit + Label": googleHybrid,
+        "🛰️ Satelit": googleSat,
+        "🗺️ Street": googleStreet,
+        "🗺️ OpenStreetMap": osm
+    }, null, { position: 'topright' }).addTo(map);
+    L.control.scale({ imperial: false }).addTo(map);
+
+    // Customer marker icon
+    const customerIcon = L.divIcon({
+        className: 'custom-customer-marker',
+        html: '<div style="background:#28a745;color:white;padding:5px 10px;border-radius:5px;font-weight:bold;box-shadow:0 2px 5px rgba(0,0,0,0.3);white-space:nowrap;"><i class="fas fa-user"></i> Pelanggan</div>',
+        iconSize: [90, 30],
+        iconAnchor: [45, 30]
+    });
+
     let marker = null;
+
+    function setMarker(lat, lng) {
+        if (marker) {
+            marker.setLatLng([lat, lng]);
+        } else {
+            marker = L.marker([lat, lng], { icon: customerIcon, draggable: true }).addTo(map);
+            marker.on('dragend', function(e) {
+                const pos = e.target.getLatLng();
+                $('#latitude').val(pos.lat.toFixed(8));
+                $('#longitude').val(pos.lng.toFixed(8));
+            });
+        }
+        $('#latitude').val(parseFloat(lat).toFixed(8));
+        $('#longitude').val(parseFloat(lng).toFixed(8));
+    }
+
     @if($customer->latitude && $customer->longitude)
-    marker = L.marker([defaultLat, defaultLng]).addTo(map);
+    setMarker(defaultLat, defaultLng);
     @endif
 
     map.on('click', function(e) {
-        const lat = e.latlng.lat.toFixed(8);
-        const lng = e.latlng.lng.toFixed(8);
-        
-        if (marker) map.removeLayer(marker);
-        marker = L.marker([lat, lng]).addTo(map);
-        
-        $('#latitude').val(lat);
-        $('#longitude').val(lng);
+        setMarker(e.latlng.lat, e.latlng.lng);
+        map.setView(e.latlng, map.getZoom());
+    });
+
+    // Geolocation button
+    if (navigator.geolocation) {
+        const locateBtn = L.control({ position: 'topleft' });
+        locateBtn.onAdd = function() {
+            const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+            div.innerHTML = '<a href="#" title="Lokasi Saya" style="display:flex;align-items:center;justify-content:center;width:30px;height:30px;background:white;font-size:16px;"><i class="fas fa-crosshairs"></i></a>';
+            div.onclick = function(e) {
+                e.preventDefault();
+                const btn = div.querySelector('a');
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                navigator.geolocation.getCurrentPosition(function(pos) {
+                    map.setView([pos.coords.latitude, pos.coords.longitude], 18);
+                    setMarker(pos.coords.latitude, pos.coords.longitude);
+                    btn.innerHTML = '<i class="fas fa-crosshairs"></i>';
+                    toastr.success('Lokasi ditemukan (akurasi: ' + Math.round(pos.coords.accuracy) + 'm)');
+                }, function(err) {
+                    btn.innerHTML = '<i class="fas fa-crosshairs"></i>';
+                    let msg = 'Tidak dapat mengakses lokasi';
+                    if (err.code === 1) msg = 'Izin lokasi ditolak. Aktifkan GPS dan izinkan akses lokasi di browser.';
+                    else if (err.code === 2) msg = 'Lokasi tidak tersedia. Pastikan GPS aktif.';
+                    else if (err.code === 3) msg = 'Waktu permintaan lokasi habis. Coba lagi.';
+                    toastr.error(msg);
+                }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+                return false;
+            };
+            return div;
+        };
+        locateBtn.addTo(map);
+    }
+
+    // Auto-move map when region changes (geocode village/district name)
+    function geocodeRegion() {
+        // Build query from the most specific selected region
+        let query = '';
+        const village = $('#village_code option:selected').text().trim();
+        const district = $('#district_code option:selected').text().trim();
+        const city = $('#city_code option:selected').text().trim();
+        const province = $('#province_code option:selected').text().trim();
+
+        if (village && !village.startsWith('--')) query = village + ', ';
+        if (district && !district.startsWith('--')) query += district + ', ';
+        if (city && !city.startsWith('--')) query += city + ', ';
+        if (province && !province.startsWith('--')) query += province;
+        query = query.replace(/,\s*$/, '');
+
+        if (!query) return;
+
+        const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=id&q=' + encodeURIComponent(query);
+        $.getJSON(url, function(results) {
+            if (results && results.length > 0) {
+                const r = results[0];
+                map.setView([parseFloat(r.lat), parseFloat(r.lon)], village && !village.startsWith('--') ? 15 : 12);
+            }
+        });
+    }
+
+    $('#village_code').on('change', function() {
+        if (!_skipCascade && $(this).val()) geocodeRegion();
+    });
+    $('#district_code').on('change', function() {
+        if (!_skipCascade && $(this).val() && !$('#village_code').val()) geocodeRegion();
+    });
+    $('#city_code').on('change', function() {
+        if (!_skipCascade && $(this).val() && !$('#district_code').val()) geocodeRegion();
     });
 
     // Fix map display issue when tab is shown
     $('a[href="#tab-address"]').on('shown.bs.tab', function() {
-        map.invalidateSize();
+        setTimeout(function() { map.invalidateSize(); }, 100);
     });
 
     // Region cascade
+    let _skipCascade = false;
     const loadRegion = (url, targetId, callback) => {
         $.get(url, function(data) {
             const $target = $(targetId);
@@ -605,6 +835,7 @@ $(function() {
     };
 
     $('#province_code').on('change', function() {
+        if (_skipCascade) return;
         const code = $(this).val();
         if (code) {
             loadRegion(`/api/wilayah/cities/${code}`, '#city_code');
@@ -613,6 +844,7 @@ $(function() {
     });
 
     $('#city_code').on('change', function() {
+        if (_skipCascade) return;
         const code = $(this).val();
         if (code) {
             loadRegion(`/api/wilayah/districts/${code}`, '#district_code');
@@ -621,6 +853,7 @@ $(function() {
     });
 
     $('#district_code').on('change', function() {
+        if (_skipCascade) return;
         const code = $(this).val();
         if (code) {
             loadRegion(`/api/wilayah/villages/${code}`, '#village_code');
@@ -854,5 +1087,303 @@ function removePhoto(target, event) {
         <small class="text-muted mt-2">Klik untuk upload</small>
     `);
 }
+
+// Browse PPP Secrets
+let pppSecretsData = [];
+
+$('#btnBrowseSecrets').on('click', function() {
+    const routerId = $('#router_id').val();
+    if (!routerId) {
+        toastr.warning('Pilih router terlebih dahulu');
+        return;
+    }
+    $('#pppSecretsModal').modal('show');
+    loadPPPSecrets(routerId);
+});
+
+$('#btnRefreshSecrets, #btnRetrySecrets').on('click', function() {
+    const routerId = $('#router_id').val();
+    if (routerId) loadPPPSecrets(routerId);
+});
+
+$('#searchSecrets').on('input', filterSecretsTable);
+
+$('#pppSecretsModal .btn-group .btn').on('click', function() {
+    $(this).siblings().removeClass('active');
+    $(this).addClass('active');
+    filterSecretsTable();
+});
+
+$(document).on('click', '.btn-select-secret', function() {
+    const secretId = $(this).data('id');
+    const secret = pppSecretsData.find(s => s['.id'] === secretId);
+    if (!secret) return;
+
+    $('#pppoe_username').val(secret.name || '');
+    $('#pppoe_password').val(secret.password || '');
+    $('#pppSecretsModal').modal('hide');
+
+    toastr.success('PPP Secret "' + (secret.name || '') + '" berhasil di-assign.');
+
+    // Highlight fields briefly
+    $('#pppoe_username, #pppoe_password').addClass('border-success');
+    setTimeout(() => { $('#pppoe_username, #pppoe_password').removeClass('border-success'); }, 2000);
+
+    // Try to match profile with package
+    if (secret.profile) {
+        $('#package_id option').each(function() {
+            if ($(this).text().toLowerCase().includes(secret.profile.toLowerCase())) {
+                $('#package_id').val($(this).val()).trigger('change');
+                toastr.info('Profile "' + secret.profile + '" cocok dengan paket "' + $(this).text().trim() + '"');
+                return false;
+            }
+        });
+    }
+});
+
+function loadPPPSecrets(routerId) {
+    $('#secretsLoading').removeClass('d-none');
+    $('#secretsTableWrapper, #secretsEmpty, #secretsError').addClass('d-none');
+    $('#searchSecrets').val('');
+
+    $.ajax({
+        url: '{{ url("admin/routers") }}/' + routerId + '/ppp-secrets',
+        method: 'GET',
+        timeout: 30000,
+        success: function(response) {
+            $('#secretsLoading').addClass('d-none');
+            if (response.success && response.secrets) {
+                pppSecretsData = response.secrets;
+                if (response.secrets.length === 0) {
+                    $('#secretsEmpty').removeClass('d-none');
+                    $('#secretsCount').text('0 PPP Secret');
+                } else {
+                    renderSecretsTable(response.secrets);
+                    $('#secretsTableWrapper').removeClass('d-none');
+                    $('#secretsCount').text(response.secrets.length + ' PPP Secret ditemukan');
+                }
+            } else {
+                $('#secretsError').removeClass('d-none');
+                $('#secretsErrorMsg').text(response.message || 'Gagal memuat PPP Secrets');
+            }
+        },
+        error: function(xhr) {
+            $('#secretsLoading').addClass('d-none');
+            $('#secretsError').removeClass('d-none');
+            $('#secretsErrorMsg').text(xhr.responseJSON?.message || 'Gagal terhubung ke router');
+        }
+    });
+}
+
+function renderSecretsTable(secrets) {
+    let html = '';
+    secrets.forEach(function(secret) {
+        const isDisabled = secret.disabled === 'true';
+        const statusBadge = isDisabled
+            ? '<span class="badge badge-danger">Disabled</span>'
+            : '<span class="badge badge-success">Aktif</span>';
+        const rowClass = isDisabled ? 'table-secondary' : '';
+        const name = escapeHtml(secret.name || '-');
+        const profile = escapeHtml(secret.profile || '-');
+        const comment = escapeHtml(secret.comment || '-');
+
+        html += '<tr class="' + rowClass + '" data-name="' + name.toLowerCase() + '" data-profile="' + profile.toLowerCase() + '" data-comment="' + comment.toLowerCase() + '" data-disabled="' + isDisabled + '">' +
+            '<td><strong>' + name + '</strong></td>' +
+            '<td><span class="badge badge-info">' + profile + '</span></td>' +
+            '<td class="text-muted small">' + comment + '</td>' +
+            '<td class="text-center">' + statusBadge + '</td>' +
+            '<td class="text-center"><button type="button" class="btn btn-sm btn-primary btn-select-secret" data-id="' + secret['.id'] + '" title="Pilih"><i class="fas fa-check"></i></button></td>' +
+            '</tr>';
+    });
+    $('#secretsTableBody').html(html);
+}
+
+function filterSecretsTable() {
+    const search = $('#searchSecrets').val().toLowerCase();
+    const statusFilter = $('#pppSecretsModal .btn-group .btn.active').data('filter') || 'all';
+    let visible = 0;
+    $('#secretsTableBody tr').each(function() {
+        const name = $(this).data('name') || '';
+        const profile = $(this).data('profile') || '';
+        const comment = $(this).data('comment') || '';
+        const isDisabled = $(this).data('disabled');
+        const matchesSearch = !search || name.includes(search) || profile.includes(search) || comment.includes(search);
+        let matchesStatus = true;
+        if (statusFilter === 'active') matchesStatus = !isDisabled;
+        if (statusFilter === 'disabled') matchesStatus = isDisabled;
+        if (matchesSearch && matchesStatus) { $(this).show(); visible++; } else { $(this).hide(); }
+    });
+    $('#secretsCount').text(visible + ' dari ' + pppSecretsData.length + ' PPP Secret');
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Sync ke Mikrotik
+$('#btnSyncMikrotik').on('click', function(e) {
+    e.preventDefault();
+    Swal.fire({
+        title: 'Sync ke Mikrotik?',
+        html: '<p>Sinkronkan PPP Secret <strong>{{ $customer->pppoe_username }}</strong> ke router <strong>{{ $customer->router->name ?? "-" }}</strong>?</p>' +
+              '<p class="text-muted small">Pastikan data layanan sudah disimpan sebelum sync.</p>',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: '<i class="fas fa-sync mr-1"></i> Ya, Sync',
+        cancelButtonText: 'Batal',
+        confirmButtonColor: '#17a2b8',
+        showLoaderOnConfirm: true,
+        preConfirm: () => {
+            return $.ajax({
+                url: '{{ route("admin.customers.sync-mikrotik", $customer) }}',
+                method: 'POST',
+            }).then(response => response).catch(xhr => {
+                Swal.showValidationMessage(xhr.responseJSON?.message || 'Gagal sync ke Mikrotik');
+            });
+        },
+        allowOutsideClick: () => !Swal.isLoading()
+    }).then((result) => {
+        if (result.isConfirmed && result.value) {
+            const icon = result.value.already_exists ? 'info' : 'success';
+            Swal.fire({
+                title: icon === 'success' ? 'Berhasil!' : 'Info',
+                text: result.value.message,
+                icon: icon,
+            }).then(() => location.reload());
+        }
+    });
+});
+
+// ===== Resident Search (Data Kependudukan) =====
+@if($hasResidentAccess ?? false)
+$('#btnSearchResident').on('click', function() {
+    $('#residentSearchInput').val('');
+    $('#residentSearchResults').html('<p class="text-muted text-center py-3">Ketik minimal 2 karakter untuk mencari</p>');
+    $('#residentModal').modal('show');
+    setTimeout(() => $('#residentSearchInput').focus(), 500);
+});
+
+function searchResidents() {
+    let q = $('#residentSearchInput').val().trim();
+    if (q.length < 2) {
+        $('#residentSearchResults').html('<p class="text-muted text-center py-3">Ketik minimal 2 karakter untuk mencari</p>');
+        return;
+    }
+    $('#residentSearchResults').html('<p class="text-center py-3"><i class="fas fa-spinner fa-spin"></i> Mencari...</p>');
+    $.get('{{ route("admin.residents.search") }}', { q: q }, function(res) {
+        if (!res.success || res.data.length === 0) {
+            $('#residentSearchResults').html('<p class="text-muted text-center py-3">Tidak ditemukan</p>');
+            return;
+        }
+        let html = '<div class="table-responsive"><table class="table table-sm table-hover"><thead><tr><th>NIK</th><th>Nama</th><th>JK</th><th>TTL</th><th>Alamat</th><th></th></tr></thead><tbody>';
+        res.data.forEach(function(r) {
+            let ttl = r.tempat_lahir || '';
+            if (r.tanggal_lahir) {
+                let d = new Date(r.tanggal_lahir);
+                ttl += (ttl ? ', ' : '') + d.toLocaleDateString('id-ID');
+            }
+            let alamat = (r.alamat || '') + (r.dusun ? ' Dsn.' + r.dusun : '') + ' RT' + (r.rt||'') + '/RW' + (r.rw||'');
+            html += `<tr>
+                <td><code>${r.nik}</code></td>
+                <td>${r.nama}</td>
+                <td>${r.jenis_kelamin === 'LAKI-LAKI' ? 'L' : 'P'}</td>
+                <td>${ttl}</td>
+                <td>${alamat}</td>
+                <td><button class="btn btn-xs btn-success btn-assign-resident" data-resident='${JSON.stringify(r)}'><i class="fas fa-check"></i> Pilih</button></td>
+            </tr>`;
+        });
+        html += '</tbody></table></div>';
+        $('#residentSearchResults').html(html);
+    }).fail(function(xhr) {
+        $('#residentSearchResults').html('<p class="text-danger text-center py-3">' + (xhr.responseJSON?.message || 'Gagal mencari') + '</p>');
+    });
+}
+
+$('#btnResidentSearch').on('click', searchResidents);
+$('#residentSearchInput').on('keyup', function(e) {
+    if (e.key === 'Enter') searchResidents();
+});
+
+let residentSearchTimer;
+$('#residentSearchInput').on('input', function() {
+    clearTimeout(residentSearchTimer);
+    residentSearchTimer = setTimeout(searchResidents, 400);
+});
+
+$(document).on('click', '.btn-assign-resident', function() {
+    let r = $(this).data('resident');
+
+    // Close modal immediately
+    $('#residentModal').modal('hide');
+
+    // Fill NIK
+    $('input[name="nik"]').val(r.nik);
+    // Fill Name
+    $('input[name="name"]').val(r.nama);
+    // Fill Gender
+    let genderVal = r.jenis_kelamin === 'LAKI-LAKI' ? 'male' : 'female';
+    $('select[name="gender"]').val(genderVal).trigger('change');
+    // Fill Birth Date
+    if (r.tanggal_lahir) {
+        let d = new Date(r.tanggal_lahir);
+        let dateStr = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+        $('input[name="birth_date"]').val(dateStr);
+    }
+    // Fill Address fields
+    if (r.alamat || r.dusun || r.rt || r.rw || r.kelurahan) {
+        let fullAddr = (r.alamat || '');
+        if (r.dusun) fullAddr += (fullAddr ? ', ' : '') + 'Dusun ' + r.dusun;
+        if (r.rt) fullAddr += ' RT ' + r.rt;
+        if (r.rw) fullAddr += '/RW ' + r.rw;
+        if (r.kelurahan) fullAddr += (fullAddr ? ', ' : '') + r.kelurahan;
+        $('textarea[name="address"]').val(fullAddr);
+    }
+
+    // Helper: populate select, set value, and force Select2 to re-read
+    function fillSelect(selector, data, value, placeholder) {
+        let $el = $(selector);
+        // Destroy Select2 temporarily
+        if ($el.hasClass('select2-hidden-accessible')) {
+            $el.select2('destroy');
+        }
+        $el.empty().append(new Option(placeholder || '-- Pilih --', '', false, false));
+        data.forEach(item => {
+            $el.append(new Option(item.name, item.code, false, false));
+        });
+        if (value) {
+            $el.val(value);
+        }
+        // Re-init Select2
+        $el.select2({ theme: 'bootstrap-5' });
+    }
+
+    // Fill Region codes - cascade in sequence
+    if (r.province_code) {
+        _skipCascade = true;
+        $('#province_code').val(r.province_code).trigger('change');
+
+        $.get(`/api/wilayah/cities/${r.province_code}`, function(cities) {
+            fillSelect('#city_code', cities, r.city_code, '-- Pilih Kota --');
+
+            if (r.city_code) {
+                $.get(`/api/wilayah/districts/${r.city_code}`, function(districts) {
+                    fillSelect('#district_code', districts, r.district_code, '-- Pilih Kecamatan --');
+
+                    if (r.district_code) {
+                        $.get(`/api/wilayah/villages/${r.district_code}`, function(villages) {
+                            fillSelect('#village_code', villages, r.village_code, '-- Pilih Kelurahan --');
+                            _skipCascade = false;
+                        });
+                    } else { _skipCascade = false; }
+                });
+            } else { _skipCascade = false; }
+        });
+    }
+
+    toastr.success('Data penduduk berhasil di-assign ke form pelanggan');
+});
+@endif
 </script>
 @endpush

@@ -9,7 +9,7 @@
     <div class="col-lg-8">
         <!-- Connection Status -->
         <div class="card">
-            <div class="card-header bg-{{ $customer->status === 'active' ? 'success' : ($customer->status === 'suspended' ? 'warning' : 'danger') }}">
+            <div class="card-header bg-{{ $customer->status === 'active' ? 'success' : ($customer->status === 'suspended' ? 'warning' : ($customer->status === 'pending' ? 'info' : 'danger')) }}">
                 <h3 class="card-title text-white">
                     <i class="fas fa-{{ $customer->status === 'active' ? 'check-circle' : 'exclamation-circle' }} mr-2"></i>
                     Status Koneksi: {{ $customer->status_label }}
@@ -27,6 +27,12 @@
                     <i class="fas fa-times-circle mr-2"></i>
                     <strong>Koneksi Diterminasi</strong><br>
                     {{ $customer->terminate_reason ?? 'Silakan hubungi admin untuk informasi lebih lanjut.' }}
+                </div>
+                @elseif($customer->status === 'pending')
+                <div class="alert alert-info">
+                    <i class="fas fa-hourglass-half mr-2"></i>
+                    <strong>Menunggu Aktivasi</strong><br>
+                    Koneksi Anda sedang dalam proses aktivasi. Silakan hubungi admin jika memerlukan informasi lebih lanjut.
                 </div>
                 @elseif($customer->active_until && $customer->active_until->isPast())
                 <div class="alert alert-warning">
@@ -178,22 +184,96 @@
                         <td>{{ $customer->installation_date?->format('d M Y') ?? '-' }}</td>
                     </tr>
                     <tr>
+                        <td>Biaya Bulanan</td>
+                        <td><strong>Rp {{ number_format($customer->monthly_fee, 0, ',', '.') }}</strong></td>
+                    </tr>
+                    <tr>
                         <td>Jatuh Tempo</td>
-                        <td>Tanggal {{ $customer->billing_day }} setiap bulan</td>
+                        <td>Tanggal {{ $customer->billing_day ?? '-' }} setiap bulan</td>
                     </tr>
                     <tr>
                         <td>Aktif Sampai</td>
                         <td>
                             @if($customer->active_until)
-                            <span class="{{ $customer->active_until->isPast() ? 'text-danger' : 'text-success' }}">
+                            <span class="{{ $customer->active_until->isPast() ? 'text-danger font-weight-bold' : 'text-success' }}">
                                 {{ $customer->active_until->format('d M Y') }}
                             </span>
+                            @if($customer->active_until->isFuture())
+                            <br><small class="text-muted">{{ (int) now()->diffInDays($customer->active_until, false) }} hari lagi</small>
+                            @elseif($customer->active_until->isPast())
+                            <br><small class="text-danger">Lewat {{ (int) $customer->active_until->diffInDays(now()) }} hari</small>
+                            @endif
                             @else
                             -
                             @endif
                         </td>
                     </tr>
                 </table>
+            </div>
+        </div>
+
+        <!-- Billing Period -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title"><i class="fas fa-clock mr-2"></i>Periode Berjalan</h3>
+            </div>
+            <div class="card-body">
+                <h5 class="text-center mb-2">{{ $billingPeriod['month'] }}</h5>
+                <p class="text-center text-muted small mb-2">{{ $billingPeriod['start'] }} - {{ $billingPeriod['end'] }}</p>
+                <div class="d-flex justify-content-between small mb-1">
+                    <span>Hari ke-{{ $billingPeriod['day_of_period'] }}</span>
+                    <span>{{ $billingPeriod['total_days'] }} hari</span>
+                </div>
+                <div class="progress" style="height: 8px;">
+                    <div class="progress-bar bg-primary" style="width: {{ round(($billingPeriod['day_of_period'] / $billingPeriod['total_days']) * 100) }}%"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Payment Status -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title"><i class="fas fa-receipt mr-2"></i>Status Pembayaran</h3>
+            </div>
+            <div class="card-body">
+                @if($pendingInvoiceCount > 0)
+                <div class="alert alert-{{ $latestInvoice && $latestInvoice->status === 'overdue' ? 'danger' : 'warning' }} py-2 mb-3">
+                    <i class="fas fa-exclamation-triangle mr-1"></i>
+                    <strong>{{ $pendingInvoiceCount }} tagihan</strong> belum lunas
+                </div>
+                @else
+                <div class="alert alert-success py-2 mb-3">
+                    <i class="fas fa-check-circle mr-1"></i>
+                    Semua tagihan lunas
+                </div>
+                @endif
+
+                @if($latestInvoice)
+                <table class="table table-sm table-borderless mb-2">
+                    <tr>
+                        <td class="text-muted">Invoice Terakhir</td>
+                        <td>
+                            <code>{{ $latestInvoice->invoice_number }}</code>
+                            <span class="badge badge-{{ $latestInvoice->status_color }} ml-1">{{ $latestInvoice->status_label }}</span>
+                        </td>
+                    </tr>
+                    @if($latestPayment)
+                    <tr>
+                        <td class="text-muted">Bayar Terakhir</td>
+                        <td>
+                            {{ $latestPayment->paid_at?->format('d M Y') ?? $latestPayment->created_at->format('d M Y') }}
+                            <br><small class="text-muted">Rp {{ number_format($latestPayment->amount, 0, ',', '.') }}</small>
+                        </td>
+                    </tr>
+                    @endif
+                </table>
+                @endif
+
+                @if($pendingInvoiceCount > 0)
+                <a href="{{ route('pelanggan.invoices') }}" class="btn btn-primary btn-sm btn-block">
+                    <i class="fas fa-credit-card mr-1"></i> Bayar Tagihan
+                </a>
+                @endif
             </div>
         </div>
     </div>

@@ -145,6 +145,9 @@ class MikrotikAPI
         foreach ($params as $key => $value) {
             if (is_int($key)) {
                 $attributes[] = $value;
+            } elseif (str_starts_with($key, '?')) {
+                // Query filter word — pass as ?key=value (no = prefix)
+                $attributes[] = $key . '=' . $value;
             } else {
                 $attributes[] = '=' . $key . '=' . $value;
             }
@@ -171,8 +174,9 @@ class MikrotikAPI
             } elseif ($line === '!done') {
                 if (!empty($current)) {
                     $result[] = $current;
+                    $current = [];
                 }
-                break;
+                // Don't break — collect done-sentence attributes (e.g. =ret=*ID)
             } elseif ($line === '!trap') {
                 $current['_error'] = true;
             } elseif (strpos($line, '=') === 0) {
@@ -181,6 +185,11 @@ class MikrotikAPI
                     $current[$parts[0]] = $parts[1];
                 }
             }
+        }
+
+        // Collect any remaining attributes (e.g. =ret= after !done)
+        if (!empty($current)) {
+            $result[] = $current;
         }
 
         return $result;
@@ -269,7 +278,9 @@ class MikrotikAPI
                 }
                 $response[] = $line;
             } else {
-                if (end($response) === '!done' || end($response) === '!trap' || end($response) === '!fatal') {
+                // Zero-length word = end of sentence
+                // Break if we've received a terminal reply (!done, !trap, !fatal)
+                if (in_array('!done', $response, true) || in_array('!trap', $response, true) || in_array('!fatal', $response, true)) {
                     break;
                 }
             }

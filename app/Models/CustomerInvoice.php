@@ -31,6 +31,10 @@ class CustomerInvoice extends Model
         'payment_method',
         'payment_reference',
         'created_by',
+        'printed_at',
+        'print_count',
+        'printed_by',
+        'pdf_path',
     ];
 
     protected $casts = [
@@ -45,6 +49,8 @@ class CustomerInvoice extends Model
         'paid_amount' => 'decimal:2',
         'items' => 'array',
         'paid_at' => 'datetime',
+        'printed_at' => 'datetime',
+        'print_count' => 'integer',
     ];
 
     protected $appends = ['status_label', 'status_color', 'remaining_amount'];
@@ -100,7 +106,7 @@ class CustomerInvoice extends Model
     public static function generateInvoiceNumber(string $popId): string
     {
         $popSetting = PopSetting::where('user_id', $popId)->first();
-        $prefix = $popSetting?->invoice_prefix ?? 'INV';
+        $prefix = rtrim($popSetting?->invoice_prefix ?? 'INV', '-');
         
         $year = date('Y');
         $month = date('m');
@@ -143,6 +149,24 @@ class CustomerInvoice extends Model
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function printer()
+    {
+        return $this->belongsTo(User::class, 'printed_by');
+    }
+
+    /**
+     * Record that this invoice was printed
+     */
+    public function recordPrint(?string $pdfPath = null): void
+    {
+        $this->update([
+            'printed_at' => now(),
+            'print_count' => $this->print_count + 1,
+            'printed_by' => auth()->id(),
+            'pdf_path' => $pdfPath ?? $this->pdf_path,
+        ]);
     }
 
     // Scopes

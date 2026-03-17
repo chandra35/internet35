@@ -146,6 +146,19 @@
                         </span>
                     </div>
 
+                    {{-- Default package selector --}}
+                    <div class="card card-outline card-info mb-3" id="defaultPackageCard">
+                        <div class="card-body py-2 px-3">
+                            <div class="form-group mb-0">
+                                <label class="mb-1"><i class="fas fa-cube mr-1 text-info"></i> Default Paket Layanan</label>
+                                <select class="form-control select2" id="defaultPackageId" data-placeholder="-- Pilih paket default (opsional) --">
+                                    <option value="">-- Tanpa default paket --</option>
+                                </select>
+                                <small class="text-muted">Paket ini akan digunakan untuk baris yang tidak memiliki kolom paket/router di Excel.</small>
+                            </div>
+                        </div>
+                    </div>
+
                     {{-- Preview table --}}
                     <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
                         <table class="table table-sm table-bordered preview-table" id="previewTable">
@@ -305,12 +318,12 @@
                 <div class="mb-2">
                     <span class="badge badge-danger">nama</span>
                     <span class="badge badge-danger">telepon</span>
-                    <span class="badge badge-danger">pppoe_username</span>
-                    <span class="badge badge-danger">pppoe_password</span>
                 </div>
 
                 <h6><i class="fas fa-columns mr-1 text-secondary"></i> Kolom Opsional:</h6>
                 <div>
+                    <span class="badge badge-secondary">pppoe_username</span>
+                    <span class="badge badge-secondary">pppoe_password</span>
                     <span class="badge badge-secondary">router</span>
                     <span class="badge badge-secondary">paket</span>
                     <span class="badge badge-secondary">email</span>
@@ -334,8 +347,15 @@
                             <li>Status import: <strong>Pending</strong></li>
                             <li>Tidak otomatis sync ke Mikrotik</li>
                             <li>Telepon duplikat di POP sama dilewati</li>
-                            <li>Username PPPoE harus unik</li>
+                            <li>Username PPPoE harus unik (jika diisi)</li>
                         </ul>
+                    </small>
+                </div>
+                <div class="callout callout-info p-2 mt-2">
+                    <small>
+                        <i class="fas fa-info-circle mr-1"></i>
+                        <strong>Migrasi:</strong> Jika username/password dikosongkan, data akan diimport tanpa sync ke Mikrotik.
+                        Gunakan fitur <strong>Bulk Sync ke Mikrotik</strong> di halaman daftar pelanggan untuk sync setelah import.
                     </small>
                 </div>
             </div>
@@ -474,6 +494,22 @@ $(function() {
         $('#badgeTotal span').text(summary.total);
         $('#importCount').text(summary.valid);
 
+        // Populate default package selector
+        if (response.packages && response.packages.length > 0) {
+            let pkgHtml = '<option value="">-- Tanpa default paket --</option>';
+            response.packages.forEach(function(pkg) {
+                const price = new Intl.NumberFormat('id-ID').format(pkg.price || 0);
+                pkgHtml += `<option value="${pkg.id}">${pkg.name} (${pkg.router_name || '-'}) — Rp ${price}</option>`;
+            });
+            $('#defaultPackageId').html(pkgHtml);
+            if ($.fn.select2) {
+                $('#defaultPackageId').select2({ width: '100%', placeholder: '-- Pilih paket default (opsional) --' });
+            }
+            $('#defaultPackageCard').show();
+        } else {
+            $('#defaultPackageCard').hide();
+        }
+
         // Build table
         let html = '';
         preview.forEach(function(row) {
@@ -572,6 +608,11 @@ $(function() {
         @if(isset($popUsers))
         formData.append('pop_id', $('#pop_id').val());
         @endif
+        // Include default package if selected
+        const defaultPkgId = $('#defaultPackageId').val();
+        if (defaultPkgId) {
+            formData.append('default_package_id', defaultPkgId);
+        }
 
         $.ajax({
             url: '{{ route("admin.customers.process-import") }}',

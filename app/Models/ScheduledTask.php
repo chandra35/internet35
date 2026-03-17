@@ -70,8 +70,8 @@ class ScheduledTask extends Model
         return [
             'billing:generate' => [
                 'name' => 'Generate Invoice',
-                'description' => 'Generate invoice bulanan untuk pelanggan aktif',
-                'recommended_schedule' => 'monthlyOn:1',
+                'description' => 'Generate invoice harian berdasarkan billing_day masing-masing pelanggan',
+                'recommended_schedule' => 'daily',
             ],
             'billing:reminder' => [
                 'name' => 'Kirim Reminder',

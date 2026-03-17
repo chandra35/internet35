@@ -4,8 +4,8 @@ namespace App\Console\Commands;
 
 use App\Models\Customer;
 use App\Models\CustomerInvoice;
+use App\Models\NotificationSetting;
 use App\Models\PopSetting;
-use App\Models\User;
 use App\Services\NotificationService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
@@ -55,6 +55,7 @@ class BillingReminder extends Command
         $this->info("Found {$invoices->count()} invoices to remind");
         
         $sent = 0;
+        $skipped = 0;
         $failed = 0;
         
         foreach ($invoices as $invoice) {
@@ -65,21 +66,39 @@ class BillingReminder extends Command
                 continue;
             }
             
-            $daysUntilDue = now()->diffInDays($invoice->due_date, false);
-            $status = $daysUntilDue < 0 ? 'OVERDUE' : ($daysUntilDue == 0 ? 'TODAY' : "{$daysUntilDue} days");
+            // Check if reminder is enabled for this POP
+            $popSetting = PopSetting::where('user_id', $invoice->pop_id)->first();
+            if ($popSetting && !($popSetting->reminder_enabled ?? true)) {
+                $skipped++;
+                continue;
+            }
+            
+            // Check NotificationSetting reminder_days_before
+            $notifSetting = NotificationSetting::where('user_id', $invoice->pop_id)->first();
+            $reminderDays = $notifSetting?->reminder_days_before ?? [1, 3, 7];
+            $daysUntilDue = (int) now()->diffInDays($invoice->due_date, false);
+            
+            // Only send if today matches one of the reminder_days_before OR if overdue
+            $shouldSend = $daysUntilDue < 0 || in_array(abs($daysUntilDue), $reminderDays);
+            
+            if (!$shouldSend) {
+                $skipped++;
+                continue;
+            }
+            
+            $statusText = $daysUntilDue < 0 ? 'OVERDUE' : ($daysUntilDue == 0 ? 'TODAY' : "H-{$daysUntilDue}");
             
             if ($dryRun) {
                 $this->line("  - {$customer->name} ({$invoice->invoice_number}): Rp " . 
-                           number_format($invoice->remaining_amount) . " - Due: {$status}");
+                           number_format($invoice->remaining_amount) . " - Due: {$statusText}");
+                $sent++;
                 continue;
             }
             
             try {
-                // Send reminder notification
-                // This would integrate with NotificationService
-                $this->sendReminder($invoice, $customer);
+                $this->sendReminder($invoice, $customer, $daysUntilDue);
                 
-                $this->line("  - Sent reminder to {$customer->name} ({$customer->phone})");
+                $this->line("  - Sent reminder to {$customer->name} ({$statusText})");
                 $sent++;
                 
             } catch (\Exception $e) {
@@ -91,13 +110,10 @@ class BillingReminder extends Command
         
         $this->newLine();
         if ($dryRun) {
-            $this->info("Dry run completed. Would send {$invoices->count()} reminders.");
+            $this->info("Dry run completed. Would send {$sent} reminders (skipped {$skipped}).");
         } else {
             $this->info("Reminder process completed!");
-            $this->info("Sent: {$sent} reminders");
-            if ($failed > 0) {
-                $this->warn("Failed: {$failed} reminders");
-            }
+            $this->info("Sent: {$sent} | Skipped: {$skipped} | Failed: {$failed}");
         }
         
         // Update overdue invoices
@@ -107,34 +123,27 @@ class BillingReminder extends Command
     }
     
     /**
-     * Send reminder notification
+     * Send reminder notification via NotificationService
      */
-    protected function sendReminder(CustomerInvoice $invoice, Customer $customer): void
+    protected function sendReminder(CustomerInvoice $invoice, Customer $customer, int $daysUntilDue): void
     {
-        // Get POP settings for notification channels
-        $popSetting = PopSetting::where('user_id', $invoice->pop_id)->first();
-        
-        // Build message
-        $daysUntilDue = now()->diffInDays($invoice->due_date, false);
+        $invoiceData = [
+            'invoice_number' => $invoice->invoice_number,
+            'due_date' => $invoice->due_date->format('d F Y'),
+            'amount' => 'Rp ' . number_format($invoice->remaining_amount, 0, ',', '.'),
+            'total_amount' => 'Rp ' . number_format($invoice->total_amount, 0, ',', '.'),
+            'days_left' => abs($daysUntilDue),
+            'days_overdue' => $daysUntilDue < 0 ? abs($daysUntilDue) : 0,
+            'payment_url' => route('pelanggan.invoice', $invoice->id),
+        ];
         
         if ($daysUntilDue < 0) {
-            $message = "Tagihan Anda {$invoice->invoice_number} sudah melewati jatuh tempo. ";
-            $message .= "Mohon segera lakukan pembayaran sebesar Rp " . number_format($invoice->remaining_amount, 0, ',', '.') . " ";
-            $message .= "untuk menghindari pemutusan layanan.";
-        } elseif ($daysUntilDue == 0) {
-            $message = "Tagihan Anda {$invoice->invoice_number} jatuh tempo HARI INI. ";
-            $message .= "Mohon segera lakukan pembayaran sebesar Rp " . number_format($invoice->remaining_amount, 0, ',', '.') . ".";
+            // Overdue notification
+            app(NotificationService::class)->sendOverdue($customer, $invoiceData);
         } else {
-            $message = "Pengingat: Tagihan Anda {$invoice->invoice_number} akan jatuh tempo dalam {$daysUntilDue} hari. ";
-            $message .= "Total tagihan: Rp " . number_format($invoice->remaining_amount, 0, ',', '.') . ".";
+            // Reminder notification
+            app(NotificationService::class)->sendInvoiceReminder($customer, $invoiceData);
         }
-        
-        // TODO: Integrate with actual notification service
-        // For now, just log the message
-        Log::info("Payment reminder for {$customer->name}: {$message}");
-        
-        // You would call your notification service here:
-        // app(NotificationService::class)->sendPaymentReminder($customer, $invoice, $message);
     }
     
     /**

@@ -102,6 +102,34 @@ class Customer extends Model
     protected $appends = ['photo_ktp_url', 'photo_selfie_url', 'photo_house_url', 'status_label', 'status_color'];
 
     /**
+     * Fields considered for data completeness
+     */
+    public function getDataCompletenessAttribute(): array
+    {
+        $fields = [
+            'email' => 'Email',
+            'nik' => 'NIK',
+            'address' => 'Alamat',
+            'village_code' => 'Kelurahan',
+            'pppoe_username' => 'Username PPPoE',
+            'package_id' => 'Paket',
+        ];
+
+        $missing = [];
+        foreach ($fields as $field => $label) {
+            if (empty($this->$field)) {
+                $missing[] = $label;
+            }
+        }
+
+        return [
+            'complete' => empty($missing),
+            'percentage' => round((count($fields) - count($missing)) / count($fields) * 100),
+            'missing' => $missing,
+        ];
+    }
+
+    /**
      * Status labels
      */
     public static function statusLabels(): array

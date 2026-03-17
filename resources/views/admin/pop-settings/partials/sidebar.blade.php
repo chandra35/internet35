@@ -36,6 +36,18 @@
                     <i class="fas fa-bell mr-2"></i> Notifikasi
                 </a>
             </li>
+            <li class="nav-item">
+                <a href="{{ route('admin.message-templates.index', request()->only('user_id')) }}" 
+                   class="nav-link {{ request()->routeIs('admin.message-templates.*') ? 'active' : '' }}">
+                    <i class="fas fa-envelope-open-text mr-2"></i> Template Pesan
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{{ route('admin.notification-logs.index', request()->only('user_id')) }}" 
+                   class="nav-link {{ request()->routeIs('admin.notification-logs.*') ? 'active' : '' }}">
+                    <i class="fas fa-history mr-2"></i> Log Notifikasi
+                </a>
+            </li>
         </ul>
     </div>
 </div>

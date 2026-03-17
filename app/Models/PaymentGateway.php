@@ -19,6 +19,7 @@ class PaymentGateway extends Model
         'gateway_name',
         'is_active',
         'is_sandbox',
+        'mode',
         'sort_order',
         'credentials',
         'webhook_url',

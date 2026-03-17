@@ -6,11 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Models\Odp;
 use App\Models\Package;
+use App\Models\PopResidentAccess;
 use App\Models\PopSetting;
 use App\Models\Router;
 use App\Models\User;
 use App\Services\ActivityLogService;
 use App\Helpers\Mikrotik\MikrotikService;
+use App\Services\CustomerUnsuspendService;
+use App\Services\NotificationService;
 use App\Services\RadiusService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -34,7 +37,7 @@ class CustomerController extends Controller implements HasMiddleware
         return [
             new Middleware('permission:customers.view', only: ['index', 'show', 'getData']),
             new Middleware('permission:customers.create', only: ['create', 'store', 'import', 'processImport', 'previewImport', 'downloadTemplate']),
-            new Middleware('permission:customers.edit', only: ['edit', 'update', 'syncMikrotik', 'bulkToggleAutoIsolir']),
+            new Middleware('permission:customers.edit', only: ['edit', 'update', 'syncMikrotik', 'bulkToggleAutoIsolir', 'isolir', 'bukaIsolir']),
             new Middleware('permission:customers.delete', only: ['destroy']),
         ];
     }
@@ -206,7 +209,11 @@ class CustomerController extends Controller implements HasMiddleware
                 })->keyBy('port');
             });
         
-        return view('admin.customers.create', compact('routers', 'packages', 'provinces', 'nextCustomerId', 'popId', 'popSetting', 'odps', 'usedOdpPorts'));
+        // Check if POP has resident data access
+        $user = auth()->user();
+        $hasResidentAccess = $user->hasRole('superadmin') || PopResidentAccess::where('pop_id', $popId)->exists();
+
+        return view('admin.customers.create', compact('routers', 'packages', 'provinces', 'nextCustomerId', 'popId', 'popSetting', 'odps', 'usedOdpPorts', 'hasResidentAccess'));
     }
 
     /**
@@ -284,16 +291,17 @@ class CustomerController extends Controller implements HasMiddleware
             // Get POP settings for sync options
             $popSetting = PopSetting::where('user_id', $popId)->first();
             $prefix = $popSetting?->pop_prefix ?? '';
+            $usePrefix = $request->use_prefix !== '0'; // default true
             
-            // PPPoE username - format: PREFIX-username
+            // PPPoE username - format: PREFIX-username (unless use_prefix is disabled)
             $pppoeUsername = $request->pppoe_username;
             if (!$pppoeUsername) {
                 // Auto-generate: PREFIX-123456
                 $randomDigits = str_pad(mt_rand(0, 999999), 6, '0', STR_PAD_LEFT);
-                $pppoeUsername = $prefix ? $prefix . '-' . $randomDigits : $randomDigits;
+                $pppoeUsername = ($usePrefix && $prefix) ? $prefix . '-' . $randomDigits : $randomDigits;
             } else {
-                // Add prefix if not already present (format: PREFIX-username)
-                if ($prefix && !str_starts_with($pppoeUsername, $prefix . '-')) {
+                // Add prefix if not already present and prefix is enabled
+                if ($usePrefix && $prefix && !str_starts_with($pppoeUsername, $prefix . '-')) {
                     $pppoeUsername = $prefix . '-' . $pppoeUsername;
                 }
             }
@@ -437,14 +445,26 @@ class CustomerController extends Controller implements HasMiddleware
                             
                             $mikrotikResult = $mikrotikService->addPppSecret($params);
                             
-                            // Response is nested array: [0 => ['ret' => '*XX']]
-                            if (isset($mikrotikResult[0]['ret']) || isset($mikrotikResult['ret'])) {
+                            // Check for success: response contains ret=*ID from !done sentence
+                            // Check for error: response contains _error from !trap sentence
+                            $hasError = isset($mikrotikResult[0]['_error']) || isset($mikrotikResult[0]['error']);
+                            $hasRet = isset($mikrotikResult[0]['ret']) || isset($mikrotikResult['ret']);
+                            
+                            if ($hasRet && !$hasError) {
+                                $syncResults['mikrotik'] = 'success';
+                                $customer->update(['mikrotik_synced' => true, 'mikrotik_synced_at' => now()]);
+                            } elseif ($hasError) {
+                                $errorMsg = $mikrotikResult[0]['message'] ?? ($mikrotikResult[0]['detail'] ?? 'Router returned an error');
+                                $syncResults['mikrotik'] = 'failed: ' . $errorMsg;
+                                Log::warning("Mikrotik sync failed for customer {$customer->id}: {$errorMsg}");
+                            } elseif (empty($mikrotikResult)) {
+                                // Empty result but no error — likely success (some ROS versions)
                                 $syncResults['mikrotik'] = 'success';
                                 $customer->update(['mikrotik_synced' => true, 'mikrotik_synced_at' => now()]);
                             } else {
-                                $errorMsg = $mikrotikResult[0]['message'] ?? ($mikrotikResult['message'] ?? 'Unknown error');
+                                $errorMsg = $mikrotikResult[0]['message'] ?? 'Unexpected response';
                                 $syncResults['mikrotik'] = 'failed: ' . $errorMsg;
-                                Log::warning("Mikrotik sync failed for customer {$customer->id}: {$errorMsg}");
+                                Log::warning("Mikrotik sync unexpected response for customer {$customer->id}: " . json_encode($mikrotikResult));
                             }
                         }
                     }
@@ -493,6 +513,13 @@ class CustomerController extends Controller implements HasMiddleware
                 $syncMessages[] = 'Radius: ' . $syncResults['radius'];
             }
             $message .= '. Sync: ' . implode(', ', $syncMessages);
+        }
+
+        // Send welcome notification to new customer
+        try {
+            app(NotificationService::class)->sendWelcome($customer);
+        } catch (\Exception $e) {
+            Log::warning('Failed to send welcome notification: ' . $e->getMessage());
         }
 
         return response()->json([
@@ -567,7 +594,11 @@ class CustomerController extends Controller implements HasMiddleware
                 })->keyBy('port');
             });
         
-        return view('admin.customers.edit', compact('customer', 'routers', 'packages', 'provinces', 'cities', 'districts', 'villages', 'odps', 'usedOdpPorts'));
+        // Check if POP has resident data access
+        $user = auth()->user();
+        $hasResidentAccess = $user->hasRole('superadmin') || PopResidentAccess::where('pop_id', $customer->pop_id)->exists();
+
+        return view('admin.customers.edit', compact('customer', 'routers', 'packages', 'provinces', 'cities', 'districts', 'villages', 'odps', 'usedOdpPorts', 'hasResidentAccess'));
     }
 
     /**
@@ -687,7 +718,7 @@ class CustomerController extends Controller implements HasMiddleware
             $customer->update($data);
 
             // Update linked user if exists
-            if ($customer->user && $request->email !== $customer->user->email) {
+            if ($customer->user && $request->filled('email') && $request->email !== $customer->user->email) {
                 $customer->user->update(['email' => $request->email]);
             }
 
@@ -780,6 +811,127 @@ class CustomerController extends Controller implements HasMiddleware
     }
 
     /**
+     * Isolir customer: change PPPoE profile to 'isolir' and disconnect
+     */
+    public function isolir(Request $request, Customer $customer)
+    {
+        $this->authorizeCustomer($customer);
+
+        $request->validate([
+            'reason' => 'nullable|string|max:500',
+        ]);
+
+        if ($customer->status === 'suspended') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pelanggan sudah dalam status suspended/isolir.',
+            ], 400);
+        }
+
+        if (!$customer->router_id || !$customer->pppoe_username) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pelanggan belum memiliki konfigurasi router/PPPoE.',
+            ], 400);
+        }
+
+        $service = app(CustomerUnsuspendService::class);
+        $result = $service->isolir($customer);
+
+        $resultMessages = [
+            'isolated' => 'Pelanggan berhasil di-isolir. Profile PPPoE diubah ke isolir dan koneksi diputus.',
+            'no_router' => 'Router tidak tersedia atau tidak aktif.',
+            'not_found' => 'PPP Secret tidak ditemukan di Mikrotik.',
+            'not_connected' => 'Tidak dapat terhubung ke router.',
+            'error' => 'Terjadi error saat melakukan isolir di Mikrotik.',
+        ];
+
+        if ($result === 'isolated') {
+            // Update customer status to suspended
+            $customer->update([
+                'status' => 'suspended',
+                'suspended_at' => now(),
+                'suspend_reason' => $request->reason ?? 'Isolir manual oleh admin',
+            ]);
+
+            $this->activityLog->log('customers', "Isolir pelanggan {$customer->name} ({$customer->pppoe_username}) — profile diubah ke isolir");
+
+            // Send isolation notification
+            try {
+                app(NotificationService::class)->sendIsolated($customer, [
+                    'isolate_reason' => $request->reason ?? 'Isolir manual oleh admin',
+                    'isolate_date' => now()->format('d F Y H:i'),
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('Failed to send isolir notification: ' . $e->getMessage());
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => $resultMessages[$result],
+                'mikrotik_result' => $result,
+            ]);
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => $resultMessages[$result] ?? 'Gagal melakukan isolir.',
+            'mikrotik_result' => $result,
+        ], 500);
+    }
+
+    /**
+     * Buka isolir customer: restore PPPoE profile to package profile and reconnect
+     */
+    public function bukaIsolir(Customer $customer)
+    {
+        $this->authorizeCustomer($customer);
+
+        if ($customer->status !== 'suspended') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pelanggan tidak dalam status suspended/isolir.',
+            ], 400);
+        }
+
+        if (!$customer->router_id || !$customer->pppoe_username) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pelanggan belum memiliki konfigurasi router/PPPoE.',
+            ], 400);
+        }
+
+        $service = app(CustomerUnsuspendService::class);
+        $result = $service->unsuspend($customer);
+
+        $resultMessages = [
+            'unsuspended' => 'Isolir berhasil dibuka. Profile PPPoE dikembalikan ke paket semula dan koneksi diputus untuk reconnect.',
+            'no_router' => 'Router tidak tersedia atau tidak aktif. Status DB tetap diubah ke aktif.',
+            'not_found' => 'PPP Secret tidak ditemukan di Mikrotik. Status DB tetap diubah ke aktif.',
+            'not_connected' => 'Tidak dapat terhubung ke router. Status DB tetap diubah ke aktif.',
+            'error' => 'Terjadi error di Mikrotik. Status DB tetap diubah ke aktif.',
+        ];
+
+        $this->activityLog->log('customers', "Buka isolir pelanggan {$customer->name} ({$customer->pppoe_username}) — [mikrotik: {$result}]");
+
+        // Send activation notification
+        try {
+            app(NotificationService::class)->sendActivated($customer, [
+                'activation_date' => now()->format('d F Y H:i'),
+            ]);
+        } catch (\Exception $e) {
+            Log::warning('Failed to send buka isolir notification: ' . $e->getMessage());
+        }
+
+        return response()->json([
+            'success' => $result === 'unsuspended',
+            'message' => $resultMessages[$result] ?? 'Isolir berhasil dibuka.',
+            'mikrotik_result' => $result,
+            'partial' => $result !== 'unsuspended',
+        ]);
+    }
+
+    /**
      * Bulk toggle auto-isolir for multiple customers
      */
     public function bulkToggleAutoIsolir(Request $request)
@@ -813,6 +965,136 @@ class CustomerController extends Controller implements HasMiddleware
     }
 
     /**
+     * Bulk sync customers to Mikrotik
+     */
+    public function bulkSyncMikrotik(Request $request)
+    {
+        $user = auth()->user();
+        $customerIds = $request->customer_ids ?? [];
+
+        if (empty($customerIds)) {
+            return response()->json(['success' => false, 'message' => 'Tidak ada pelanggan dipilih'], 422);
+        }
+
+        $query = Customer::with(['router', 'package'])->whereIn('id', $customerIds);
+        if (!$user->hasRole('superadmin')) {
+            $query->where('pop_id', $user->id);
+        }
+
+        $customers = $query->get();
+        $details = [];
+        $successCount = 0;
+        $failCount = 0;
+
+        // Group by router to reuse connections
+        $grouped = $customers->groupBy('router_id');
+
+        foreach ($grouped as $routerId => $group) {
+            if (!$routerId) {
+                foreach ($group as $customer) {
+                    $details[] = ['name' => $customer->name, 'success' => false, 'status' => 'Belum ada router'];
+                    $failCount++;
+                }
+                continue;
+            }
+
+            $router = $group->first()->router;
+            $popSetting = PopSetting::where('user_id', $group->first()->pop_id)->first();
+
+            if (!$popSetting?->mikrotik_sync_enabled) {
+                foreach ($group as $customer) {
+                    $details[] = ['name' => $customer->name, 'success' => false, 'status' => 'Mikrotik sync tidak aktif'];
+                    $failCount++;
+                }
+                continue;
+            }
+
+            try {
+                $mikrotikService = new MikrotikService();
+                if (!$mikrotikService->connectRouter($router)) {
+                    foreach ($group as $customer) {
+                        $details[] = ['name' => $customer->name, 'success' => false, 'status' => 'Gagal terhubung ke router'];
+                        $failCount++;
+                    }
+                    continue;
+                }
+
+                foreach ($group as $customer) {
+                    // Skip if already synced
+                    if ($customer->mikrotik_synced) {
+                        $details[] = ['name' => $customer->name, 'success' => true, 'status' => 'Sudah tersinkronisasi'];
+                        $successCount++;
+                        continue;
+                    }
+
+                    // Skip if no username
+                    if (empty($customer->pppoe_username)) {
+                        $details[] = ['name' => $customer->name, 'success' => false, 'status' => 'Username PPPoE kosong'];
+                        $failCount++;
+                        continue;
+                    }
+
+                    try {
+                        // Check if already exists in Mikrotik
+                        if ($mikrotikService->pppSecretExists($customer->pppoe_username)) {
+                            $customer->update([
+                                'mikrotik_synced' => true,
+                                'mikrotik_synced_at' => now(),
+                                'last_sync_error' => null,
+                            ]);
+                            $details[] = ['name' => $customer->name, 'success' => true, 'status' => 'Sudah ada di Mikrotik, ditandai synced'];
+                            $successCount++;
+                            continue;
+                        }
+
+                        // Create PPP Secret
+                        $profileName = $customer->package?->mikrotik_profile_name ?? $customer->package?->name ?? 'default';
+                        $params = [
+                            'name' => $customer->pppoe_username,
+                            'password' => $customer->pppoe_password ?? '12345',
+                            'profile' => $profileName,
+                            'comment' => $customer->address ?? $customer->name,
+                        ];
+
+                        $result = $mikrotikService->addPppSecret($params);
+
+                        if (isset($result[0]['ret']) || isset($result['ret'])) {
+                            $customer->update([
+                                'mikrotik_synced' => true,
+                                'mikrotik_synced_at' => now(),
+                                'last_sync_error' => null,
+                            ]);
+                            $details[] = ['name' => $customer->name, 'success' => true, 'status' => 'PPP Secret berhasil dibuat'];
+                            $successCount++;
+                        } else {
+                            $errorMsg = $result[0]['message'] ?? 'Unknown error';
+                            $customer->update(['last_sync_error' => $errorMsg]);
+                            $details[] = ['name' => $customer->name, 'success' => false, 'status' => $errorMsg];
+                            $failCount++;
+                        }
+                    } catch (\Exception $e) {
+                        $details[] = ['name' => $customer->name, 'success' => false, 'status' => $e->getMessage()];
+                        $failCount++;
+                    }
+                }
+            } catch (\Exception $e) {
+                foreach ($group as $customer) {
+                    $details[] = ['name' => $customer->name, 'success' => false, 'status' => 'Error: ' . $e->getMessage()];
+                    $failCount++;
+                }
+            }
+        }
+
+        $this->activityLog->log('customers', "Bulk sync Mikrotik: {$successCount} berhasil, {$failCount} gagal dari " . count($customers) . " pelanggan");
+
+        return response()->json([
+            'success' => $failCount === 0,
+            'message' => "Sync selesai: {$successCount} berhasil, {$failCount} gagal.",
+            'details' => $details,
+        ]);
+    }
+
+    /**
      * Get packages by router
      */
     public function getPackagesByRouter(Router $router)
@@ -834,9 +1116,10 @@ class CustomerController extends Controller implements HasMiddleware
         $popSetting = PopSetting::where('user_id', $popId)->first();
         $prefix = $popSetting?->pop_prefix ?? '';
 
-        // Build full username with prefix
+        // Build full username with prefix (unless use_prefix=0)
         $username = $request->username;
-        if ($prefix && !str_starts_with($username, $prefix . '-')) {
+        $usePrefix = $request->use_prefix !== '0'; // default true
+        if ($usePrefix && $prefix && !str_starts_with($username, $prefix . '-')) {
             $fullUsername = $prefix . '-' . $username;
         } else {
             $fullUsername = $username;
@@ -849,20 +1132,23 @@ class CustomerController extends Controller implements HasMiddleware
             'full_username' => $fullUsername,
         ];
 
-        // 1. Check database
-        $existingCustomer = Customer::withTrashed()
-            ->where('pppoe_username', $fullUsername)
+        // 1. Check database (only active customers block registration)
+        $existingCustomer = Customer::where('pppoe_username', $fullUsername)
             ->when($request->exclude_id, fn($q, $id) => $q->where('id', '!=', $id))
             ->first();
 
         if ($existingCustomer) {
             $response['available'] = false;
             $response['db_exists'] = true;
-            if ($existingCustomer->trashed()) {
-                $response['message'] = 'Username ini pernah digunakan oleh pelanggan yang sudah dihapus';
+            $response['message'] = 'Username sudah digunakan oleh: ' . $existingCustomer->name . ' (' . $existingCustomer->customer_id . ')';
+        } else {
+            // Check soft-deleted — informational only, doesn't block
+            $trashedCustomer = Customer::onlyTrashed()
+                ->where('pppoe_username', $fullUsername)
+                ->first();
+            if ($trashedCustomer) {
                 $response['was_deleted'] = true;
-            } else {
-                $response['message'] = 'Username sudah digunakan oleh: ' . $existingCustomer->name . ' (' . $existingCustomer->customer_id . ')';
+                $response['deleted_info'] = 'Username ini pernah digunakan oleh pelanggan yang sudah dihapus';
             }
         }
 
@@ -972,6 +1258,17 @@ class CustomerController extends Controller implements HasMiddleware
             $preview = $import->getPreviewRows();
             $results = $import->getResults();
 
+            // Collect available packages for default selection
+            $routers = Router::where('pop_id', $popId)->pluck('id');
+            $availablePackages = Package::whereIn('router_id', $routers)
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name', 'price', 'router_id'])
+                ->map(function ($pkg) {
+                    $pkg->router_name = Router::find($pkg->router_id)?->name;
+                    return $pkg;
+                });
+
             return response()->json([
                 'success' => true,
                 'preview' => $preview,
@@ -982,6 +1279,7 @@ class CustomerController extends Controller implements HasMiddleware
                     'total' => $results['total_processed'],
                 ],
                 'errors' => $results['errors'],
+                'packages' => $availablePackages,
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -1022,7 +1320,8 @@ class CustomerController extends Controller implements HasMiddleware
         }
 
         try {
-            $import = new CustomerImport($popId);
+            $defaultPackageId = $request->default_package_id ?: null;
+            $import = new CustomerImport($popId, false, $defaultPackageId);
             Excel::import($import, $request->file('file'));
 
             $results = $import->getResults();
@@ -1237,5 +1536,237 @@ class CustomerController extends Controller implements HasMiddleware
         Storage::put("public/{$path}/{$filename}", $image);
         
         return $filename;
+    }
+
+    /**
+     * Generate portal account for a single customer
+     */
+    public function generatePortalAccount(Customer $customer)
+    {
+        $this->authorizeCustomer($customer);
+
+        if ($customer->user_id) {
+            return response()->json(['success' => false, 'message' => 'Pelanggan sudah memiliki akun portal.'], 422);
+        }
+
+        // Use email if available, otherwise generate from customer_id
+        $email = $customer->email ?: $customer->customer_id . '@portal.local';
+
+        // Check if email already used by another user
+        if (User::where('email', $email)->exists()) {
+            return response()->json(['success' => false, 'message' => "Email {$email} sudah digunakan oleh akun lain."], 422);
+        }
+
+        $password = $customer->decrypted_pppoe_password ?: Str::random(8);
+        $loginId = $customer->customer_id;
+
+        try {
+            DB::beginTransaction();
+
+            $user = User::create([
+                'name' => $customer->name,
+                'email' => $email,
+                'phone' => $customer->phone,
+                'password' => Hash::make($password),
+                'plain_password' => $password,
+                'is_active' => true,
+                'created_by' => auth()->id(),
+            ]);
+
+            $user->assignRole('client');
+            $customer->update(['user_id' => $user->id]);
+
+            $this->activityLog->log('customers', "Generate akun portal: {$customer->name} (Login: {$loginId})");
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => "Akun portal berhasil dibuat. Login menggunakan ID Pelanggan: {$loginId}",
+                'login_id' => $loginId,
+                'password' => $password,
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error("Generate portal account error: " . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Gagal membuat akun portal: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Get portal account password
+     */
+    public function getPortalPassword(Customer $customer)
+    {
+        $this->authorizeCustomer($customer);
+
+        if (!$customer->user_id) {
+            return response()->json(['success' => false, 'message' => 'Pelanggan belum memiliki akun portal.']);
+        }
+
+        $password = $customer->user->decrypted_password;
+
+        if (!$password) {
+            return response()->json(['success' => false, 'message' => 'Password tidak tersedia.']);
+        }
+
+        $this->activityLog->log('customers', "Lihat password portal: {$customer->name}");
+
+        return response()->json(['success' => true, 'password' => $password]);
+    }
+
+    /**
+     * Reset portal account password
+     */
+    public function resetPortalPassword(Customer $customer)
+    {
+        $this->authorizeCustomer($customer);
+
+        if (!$customer->user_id || !$customer->user) {
+            return response()->json(['success' => false, 'message' => 'Pelanggan belum memiliki akun portal.'], 422);
+        }
+
+        $syncPppoe = request()->boolean('sync_pppoe');
+        $password = $syncPppoe ? ($customer->decrypted_pppoe_password ?: Str::random(8)) : Str::random(8);
+
+        $customer->user->update([
+            'password' => Hash::make($password),
+            'plain_password' => $password,
+        ]);
+
+        $this->activityLog->log('customers', "Reset password portal: {$customer->name}");
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Password portal berhasil direset.',
+            'password' => $password,
+        ]);
+    }
+
+    /**
+     * Toggle portal account active/inactive
+     */
+    public function togglePortalStatus(Customer $customer)
+    {
+        $this->authorizeCustomer($customer);
+
+        if (!$customer->user_id || !$customer->user) {
+            return response()->json(['success' => false, 'message' => 'Pelanggan belum memiliki akun portal.'], 422);
+        }
+
+        $user = $customer->user;
+        $user->update(['is_active' => !$user->is_active]);
+
+        $status = $user->is_active ? 'diaktifkan' : 'dinonaktifkan';
+        $this->activityLog->log('customers', "Akun portal {$status}: {$customer->name}");
+
+        return response()->json([
+            'success' => true,
+            'message' => "Akun portal berhasil {$status}.",
+        ]);
+    }
+
+    /**
+     * Delete portal account
+     */
+    public function deletePortalAccount(Customer $customer)
+    {
+        $this->authorizeCustomer($customer);
+
+        if (!$customer->user_id || !$customer->user) {
+            return response()->json(['success' => false, 'message' => 'Pelanggan belum memiliki akun portal.'], 422);
+        }
+
+        try {
+            DB::beginTransaction();
+            $userName = $customer->user->name;
+            $customer->user->delete();
+            $customer->update(['user_id' => null]);
+            $this->activityLog->log('customers', "Hapus akun portal: {$userName} ({$customer->customer_id})");
+            DB::commit();
+
+            return response()->json(['success' => true, 'message' => 'Akun portal berhasil dihapus.']);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['success' => false, 'message' => 'Gagal menghapus akun portal.'], 500);
+        }
+    }
+
+    /**
+     * Bulk generate portal accounts
+     */
+    public function bulkGeneratePortalAccount(Request $request)
+    {
+        $request->validate(['customer_ids' => 'required|array', 'customer_ids.*' => 'string']);
+
+        $user = auth()->user();
+        $query = Customer::whereIn('id', $request->customer_ids);
+
+        if (!$user->hasRole('superadmin')) {
+            $query->where('pop_id', $user->id);
+        }
+
+        $customers = $query->get();
+
+        if ($customers->isEmpty()) {
+            return response()->json(['success' => false, 'message' => 'Tidak ada pelanggan yang ditemukan.'], 422);
+        }
+
+        $details = [];
+        $successCount = 0;
+        $skippedCount = 0;
+
+        foreach ($customers as $customer) {
+            // Skip yang sudah punya akun portal
+            if ($customer->user_id) {
+                $details[] = ['name' => $customer->name, 'success' => false, 'status' => 'Sudah punya akun portal'];
+                $skippedCount++;
+                continue;
+            }
+
+            $email = $customer->email ?: $customer->customer_id . '@portal.local';
+
+            // Skip if email already used
+            if (User::where('email', $email)->exists()) {
+                $details[] = ['name' => $customer->name, 'success' => false, 'status' => "Email/ID {$email} sudah digunakan"];
+                continue;
+            }
+
+            try {
+                $password = $customer->decrypted_pppoe_password ?: Str::random(8);
+
+                $portalUser = User::create([
+                    'name' => $customer->name,
+                    'email' => $email,
+                    'phone' => $customer->phone,
+                    'password' => Hash::make($password),
+                    'plain_password' => $password,
+                    'is_active' => true,
+                    'created_by' => auth()->id(),
+                ]);
+
+                $portalUser->assignRole('client');
+                $customer->update(['user_id' => $portalUser->id]);
+
+                $details[] = ['name' => $customer->name, 'success' => true, 'status' => 'Akun dibuat'];
+                $successCount++;
+            } catch (\Exception $e) {
+                $details[] = ['name' => $customer->name, 'success' => false, 'status' => $e->getMessage()];
+            }
+        }
+
+        $this->activityLog->log('customers', "Bulk generate akun portal: {$successCount} berhasil, {$skippedCount} dilewati");
+
+        $total = $customers->count();
+        $message = "{$successCount} akun portal berhasil dibuat.";
+        if ($skippedCount > 0) {
+            $message .= " {$skippedCount} dilewati (sudah punya akun).";
+        }
+
+        return response()->json([
+            'success' => $successCount > 0,
+            'message' => $message,
+            'details' => $details,
+        ]);
     }
 }

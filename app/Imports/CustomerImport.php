@@ -4,7 +4,6 @@ namespace App\Imports;
 
 use App\Models\Customer;
 use App\Models\Package;
-use App\Models\PopSetting;
 use App\Models\Router;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
@@ -24,11 +23,13 @@ class CustomerImport implements ToCollection, WithHeadingRow, SkipsEmptyRows
     protected array $packageCache = [];
     protected bool $previewMode = false;
     protected array $previewRows = [];
+    protected ?string $defaultPackageId = null;
 
-    public function __construct(string $popId, bool $previewMode = false)
+    public function __construct(string $popId, bool $previewMode = false, ?string $defaultPackageId = null)
     {
         $this->popId = $popId;
         $this->previewMode = $previewMode;
+        $this->defaultPackageId = $defaultPackageId;
     }
 
     /**
@@ -109,16 +110,12 @@ class CustomerImport implements ToCollection, WithHeadingRow, SkipsEmptyRows
             return;
         }
 
-        // Validate required fields: nama, telepon, username, password
+        // Validate required fields: nama, telepon
         if (empty($phone)) {
             throw new \Exception("Kolom telepon wajib diisi");
         }
-        if (empty($pppoeUsername)) {
-            throw new \Exception("Kolom username (pppoe_username) wajib diisi");
-        }
-        if (empty($pppoePassword)) {
-            throw new \Exception("Kolom password (pppoe_password) wajib diisi");
-        }
+        // Username & password opsional (untuk migrasi, bisa diisi nanti)
+        $needsCredentials = empty($pppoeUsername) || empty($pppoePassword);
 
         // Optional: router & paket
         $routerName = trim($row['router'] ?? $row['router_name'] ?? '');
@@ -146,8 +143,16 @@ class CustomerImport implements ToCollection, WithHeadingRow, SkipsEmptyRows
             }
         }
 
-        // Check duplicate PPPoE username
-        if (Customer::where('pppoe_username', $pppoeUsername)->exists()) {
+        // Apply default package if row has no package
+        if (!$package && $this->defaultPackageId) {
+            $package = $this->packageCache[$this->defaultPackageId] ?? Package::find($this->defaultPackageId);
+            if ($package && !$router) {
+                $router = $this->routerCache[$package->router_id] ?? Router::find($package->router_id);
+            }
+        }
+
+        // Check duplicate PPPoE username (only when username is provided)
+        if (!empty($pppoeUsername) && Customer::where('pppoe_username', $pppoeUsername)->exists()) {
             throw new \Exception("PPPoE username '{$pppoeUsername}' sudah digunakan");
         }
 
@@ -178,19 +183,8 @@ class CustomerImport implements ToCollection, WithHeadingRow, SkipsEmptyRows
             return;
         }
 
-        // Apply POP prefix to username if needed
-        $popSetting = PopSetting::where('user_id', $this->popId)->first();
-        $prefix = $popSetting?->pop_prefix ?? '';
-
+        // Username digunakan apa adanya dari Excel (tanpa menambah prefix)
         $finalUsername = $pppoeUsername;
-        if ($prefix && !str_starts_with($pppoeUsername, $prefix . '-')) {
-            $finalUsername = $prefix . '-' . $pppoeUsername;
-        }
-
-        // Ensure unique username after prefix
-        if ($finalUsername !== $pppoeUsername && Customer::where('pppoe_username', $finalUsername)->exists()) {
-            throw new \Exception("PPPoE username '{$finalUsername}' (dengan prefix) sudah digunakan");
-        }
 
         // Parse optional fields
         $email = trim($row['email'] ?? '');
@@ -259,8 +253,8 @@ class CustomerImport implements ToCollection, WithHeadingRow, SkipsEmptyRows
             'address' => $address ?: null,
             'router_id' => $router?->id,
             'package_id' => $package?->id,
-            'pppoe_username' => $finalUsername,
-            'pppoe_password' => $pppoePassword,
+            'pppoe_username' => $finalUsername ?: null,
+            'pppoe_password' => $pppoePassword ?: null,
             'service_type' => $serviceType,
             'installation_date' => $installationDate,
             'monthly_fee' => is_numeric($monthlyFee) ? $monthlyFee : ($package->price ?? 0),
@@ -268,7 +262,8 @@ class CustomerImport implements ToCollection, WithHeadingRow, SkipsEmptyRows
             'billing_day' => is_numeric($billingDay) && $billingDay >= 1 && $billingDay <= 28 ? (int)$billingDay : 1,
             'status' => 'pending',
             'notes' => $notes ?: null,
-            'internal_notes' => '[IMPORT] Diimport dari file Excel pada ' . now()->format('d/m/Y H:i'),
+            'internal_notes' => '[IMPORT] Diimport dari file Excel pada ' . now()->format('d/m/Y H:i')
+                . ($needsCredentials ? ' — ⚠️ Username/password belum diisi, perlu sync ke Mikrotik' : ''),
             'registered_by' => auth()->id(),
             'created_by' => auth()->id(),
         ]);

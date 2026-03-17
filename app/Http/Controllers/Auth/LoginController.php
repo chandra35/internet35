@@ -42,11 +42,10 @@ class LoginController extends Controller implements HasMiddleware
     {
         $request->validate([
             'login' => 'required|string',
-            'password' => 'required|string|min:6',
+            'password' => 'required|string',
         ], [
             'login.required' => 'Email atau ID Pelanggan wajib diisi.',
             'password.required' => 'Password wajib diisi.',
-            'password.min' => 'Password minimal 6 karakter.',
         ]);
 
         $login = $request->input('login');

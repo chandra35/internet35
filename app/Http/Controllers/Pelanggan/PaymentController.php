@@ -6,12 +6,26 @@ use App\Http\Controllers\Controller;
 use App\Models\CustomerInvoice;
 use App\Models\CustomerPayment;
 use App\Models\PaymentGateway;
+use App\Services\PaymentGatewayService;
+use App\Services\CustomerUnsuspendService;
+use App\Services\InvoicePdfService;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class PaymentController extends Controller
 {
+    protected PaymentGatewayService $paymentService;
+    protected CustomerUnsuspendService $unsuspendService;
+
+    public function __construct(PaymentGatewayService $paymentService, CustomerUnsuspendService $unsuspendService)
+    {
+        $this->paymentService = $paymentService;
+        $this->unsuspendService = $unsuspendService;
+    }
+
     /**
      * Show invoices list
      */
@@ -46,12 +60,29 @@ class PaymentController extends Controller
         
         $invoice->load(['customer', 'payments']);
         
-        // Get available payment gateways
+        // Get available payment gateways for this POP
         $gateways = PaymentGateway::where('is_active', true)
-            ->where('pop_id', $customer->pop_id)
+            ->where('user_id', $customer->pop_id)
             ->get();
-        
-        return view('pelanggan.invoice-detail', compact('customer', 'invoice', 'gateways'));
+
+        $popSetting = \App\Models\PopSetting::where('user_id', $customer->pop_id)->first();
+
+        return view('pelanggan.invoice-detail', compact('customer', 'invoice', 'gateways', 'popSetting'));
+    }
+
+    /**
+     * Download invoice as PDF
+     */
+    public function downloadPdf(CustomerInvoice $invoice)
+    {
+        $user = Auth::user();
+        $customer = $user->customerProfile;
+
+        if (!$customer || $invoice->customer_id !== $customer->id) {
+            abort(403);
+        }
+
+        return app(InvoicePdfService::class)->download($invoice);
     }
 
     /**
@@ -105,39 +136,36 @@ class PaymentController extends Controller
                 'invoice_id' => $invoice->id,
                 'pop_id' => $customer->pop_id,
                 'payment_gateway_id' => $gateway->id,
-                'payment_method' => $gateway->type,
-                'amount' => $invoice->total_amount,
+                'payment_number' => CustomerPayment::generatePaymentNumber($customer->pop_id),
+                'payment_method' => $gateway->gateway_type,
+                'amount' => $invoice->remaining_amount ?? $invoice->total_amount,
                 'status' => 'pending',
                 'external_id' => 'PAY-' . strtoupper(uniqid()),
+                'expired_at' => now()->addHours(24),
             ]);
             
-            // Here you would integrate with actual payment gateway
-            // For now, we'll return the payment page info
-            $paymentUrl = $this->getPaymentUrl($gateway, $payment);
+            // Use PaymentGatewayService to create transaction
+            $result = $this->paymentService->createTransaction($gateway, $payment, $customer);
+            
+            if (!$result['success']) {
+                DB::rollBack();
+                return response()->json(['error' => $result['message']], 500);
+            }
             
             DB::commit();
             
             return response()->json([
                 'success' => true,
                 'payment_id' => $payment->id,
-                'payment_url' => $paymentUrl,
-                'message' => 'Silakan lanjutkan pembayaran',
+                'payment_url' => $result['payment_url'],
+                'message' => $result['message'],
+                'is_demo' => $result['is_demo'] ?? false,
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['error' => $e->getMessage()], 500);
+            Log::error('Payment creation failed: ' . $e->getMessage());
+            return response()->json(['error' => 'Terjadi kesalahan saat memproses pembayaran'], 500);
         }
-    }
-
-    /**
-     * Get payment URL for gateway
-     */
-    protected function getPaymentUrl(PaymentGateway $gateway, CustomerPayment $payment): string
-    {
-        // TODO: Implement actual payment gateway integration
-        // This is a placeholder that returns a confirmation page
-        
-        return route('pelanggan.payment.confirm', $payment);
     }
 
     /**
@@ -158,7 +186,126 @@ class PaymentController extends Controller
     }
 
     /**
-     * Mark payment as confirmed (manual confirmation)
+     * Demo payment process page - simulates payment gateway
+     */
+    public function demoProcess(CustomerPayment $payment)
+    {
+        $user = Auth::user();
+        $customer = $user->customerProfile;
+        
+        if (!$customer || $payment->customer_id !== $customer->id) {
+            abort(403);
+        }
+        
+        $payment->load(['invoice', 'paymentGateway']);
+        
+        // Only allow demo processing for demo mode gateways
+        if (!$payment->paymentGateway || $payment->paymentGateway->mode !== 'demo') {
+            return redirect()->route('pelanggan.payment.confirm', $payment)
+                ->with('error', 'Halaman ini hanya tersedia untuk mode demo');
+        }
+        
+        if ($payment->status === 'success') {
+            return redirect()->route('pelanggan.payment.confirm', $payment)
+                ->with('success', 'Pembayaran sudah berhasil');
+        }
+        
+        return view('pelanggan.payment-demo', compact('customer', 'payment'));
+    }
+
+    /**
+     * Execute demo payment - simulate payment success
+     */
+    public function demoExecute(CustomerPayment $payment)
+    {
+        $user = Auth::user();
+        $customer = $user->customerProfile;
+        
+        if (!$customer || $payment->customer_id !== $customer->id) {
+            return response()->json(['error' => 'Tidak ditemukan'], 404);
+        }
+        
+        if (!$payment->paymentGateway || $payment->paymentGateway->mode !== 'demo') {
+            return response()->json(['error' => 'Hanya tersedia untuk mode demo'], 422);
+        }
+        
+        if ($payment->status !== 'pending') {
+            return response()->json(['error' => 'Pembayaran tidak dalam status pending'], 422);
+        }
+        
+        try {
+            // Generate demo callback response
+            $callbackData = $this->paymentService->processDemoCallback(
+                $payment->paymentGateway,
+                $payment
+            );
+            
+            // Store callback data
+            $payment->update([
+                'gateway_response' => $callbackData,
+            ]);
+            
+            // Mark as success
+            $payment->markAsSuccess($callbackData['reference'] ?? $callbackData['transaction_id'] ?? 'DEMO-' . time());
+            
+            // Auto unsuspend if customer is suspended
+            $unsuspendResult = null;
+            if ($customer->status === 'suspended') {
+                // Check if all overdue invoices are now paid
+                $hasOverdueInvoices = $customer->invoices()
+                    ->whereIn('status', ['pending', 'overdue'])
+                    ->where('due_date', '<', now())
+                    ->exists();
+                
+                if (!$hasOverdueInvoices) {
+                    $unsuspendResult = $this->unsuspendService->unsuspend($customer);
+                }
+            }
+            
+            // Update gateway stats
+            if ($payment->payment_gateway_id) {
+                $gateway = $payment->paymentGateway;
+                if ($gateway) {
+                    $gateway->increment('total_transactions');
+                    $gateway->increment('total_amount', $payment->amount);
+                    $gateway->update(['last_transaction_at' => now()]);
+                }
+            }
+            
+            Log::info("[DEMO] Payment {$payment->payment_number} marked as success", [
+                'customer' => $customer->customer_id,
+                'amount' => $payment->amount,
+                'unsuspend' => $unsuspendResult,
+            ]);
+
+            // Send payment success notification
+            try {
+                app(NotificationService::class)->sendPaymentSuccess($customer, [
+                    'invoice_number' => $payment->invoice?->invoice_number ?? '-',
+                    'payment_number' => $payment->payment_number,
+                    'amount' => 'Rp ' . number_format($payment->amount, 0, ',', '.'),
+                    'payment_date' => now()->format('d F Y H:i'),
+                    'payment_method' => $payment->payment_method ?? 'Demo',
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('Failed to send payment success notification: ' . $e->getMessage());
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => '[DEMO] Pembayaran berhasil! ' . 
+                    ($unsuspendResult === 'unsuspended' ? 'Isolir berhasil dibuka otomatis.' : ''),
+                'unsuspended' => $unsuspendResult === 'unsuspended',
+                'callback_data' => $callbackData,
+            ]);
+        } catch (\Exception $e) {
+            Log::error("[DEMO] Payment execution failed: " . $e->getMessage());
+            return response()->json(['error' => 'Gagal memproses pembayaran demo: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Mark payment as confirmed (manual confirmation with proof upload)
      */
     public function confirmManual(Request $request, CustomerPayment $payment)
     {

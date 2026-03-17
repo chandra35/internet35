@@ -42,7 +42,7 @@
             <div class="inner">
                 @if($customer->active_until)
                 <h3>{{ $customer->active_until->format('d M') }}</h3>
-                <p>Aktif Sampai {{ $daysUntilDue !== null ? ($daysUntilDue > 0 ? "($daysUntilDue hari lagi)" : '(Jatuh tempo)') : '' }}</p>
+                <p>Aktif Sampai {{ $daysUntilDue !== null ? ($daysUntilDue > 0 ? "($daysUntilDue hari lagi)" : ($daysUntilDue == 0 ? '(Hari ini!)' : '(Lewat ' . abs($daysUntilDue) . ' hari)')) : '' }}</p>
                 @else
                 <h3>-</h3>
                 <p>Aktif Sampai</p>
@@ -58,17 +58,58 @@
     </div>
     
     <div class="col-lg-3 col-6">
-        <div class="small-box bg-secondary">
+        <div class="small-box {{ $totalUnpaid > 0 ? 'bg-danger' : 'bg-success' }}">
             <div class="inner">
-                <h3>Rp {{ number_format($customer->monthly_fee, 0, ',', '.') }}</h3>
-                <p>Biaya Bulanan</p>
+                @if($totalUnpaid > 0)
+                <h3>Rp {{ number_format($totalUnpaid, 0, ',', '.') }}</h3>
+                <p>Tagihan Belum Lunas</p>
+                @else
+                <h3><i class="fas fa-check"></i> Lunas</h3>
+                <p>Tidak Ada Tagihan</p>
+                @endif
             </div>
             <div class="icon">
                 <i class="fas fa-money-bill"></i>
             </div>
             <a href="{{ route('pelanggan.invoices') }}" class="small-box-footer">
-                Bayar Sekarang <i class="fas fa-arrow-circle-right"></i>
+                {{ $totalUnpaid > 0 ? 'Bayar Sekarang' : 'Lihat Tagihan' }} <i class="fas fa-arrow-circle-right"></i>
             </a>
+        </div>
+    </div>
+</div>
+
+<!-- Billing Period Info -->
+<div class="row">
+    <div class="col-12">
+        <div class="card card-outline card-primary">
+            <div class="card-body py-3">
+                <div class="row align-items-center">
+                    <div class="col-md-3">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-calendar-check fa-2x text-primary mr-3"></i>
+                            <div>
+                                <small class="text-muted d-block">Periode Berjalan</small>
+                                <strong>{{ $billingPeriod['month'] }}</strong>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <small class="text-muted d-block">Tanggal Periode</small>
+                        <span>{{ $billingPeriod['start'] }} - {{ $billingPeriod['end'] }}</span>
+                    </div>
+                    <div class="col-md-3">
+                        <small class="text-muted d-block">Hari ke</small>
+                        <span>{{ $billingPeriod['day_of_period'] }} dari {{ $billingPeriod['total_days'] }} hari</span>
+                        <div class="progress progress-sm mt-1" style="height: 4px;">
+                            <div class="progress-bar bg-primary" style="width: {{ round(($billingPeriod['day_of_period'] / $billingPeriod['total_days']) * 100) }}%"></div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <small class="text-muted d-block">Jatuh Tempo</small>
+                        <strong>Tanggal {{ $customer->billing_day ?? '-' }} setiap bulan</strong>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>

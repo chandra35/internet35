@@ -66,6 +66,8 @@ class PopSetting extends Model
         'invoice_footer',
         'invoice_terms',
         'bank_accounts',
+        // Reminder
+        'reminder_enabled',
         // Tax
         'ppn_enabled',
         'ppn_percentage',
@@ -122,6 +124,7 @@ class PopSetting extends Model
         'smtp_port' => 'integer',
         'wa_enabled' => 'boolean',
         'sms_enabled' => 'boolean',
+        'reminder_enabled' => 'boolean',
     ];
 
     /**

@@ -301,7 +301,7 @@ $(function() {
 });
 
 function loadCities(provinceCode, selected = null) {
-    $.get('/admin/pop-settings/cities/' + provinceCode, function(data) {
+    $.get('/api/wilayah/cities/' + provinceCode, function(data) {
         let options = '<option value="">Pilih Kota</option>';
         data.forEach(function(item) {
             options += '<option value="' + item.code + '"' + (selected == item.code ? ' selected' : '') + '>' + item.name + '</option>';
@@ -311,7 +311,7 @@ function loadCities(provinceCode, selected = null) {
 }
 
 function loadDistricts(cityCode, selected = null) {
-    $.get('/admin/pop-settings/districts/' + cityCode, function(data) {
+    $.get('/api/wilayah/districts/' + cityCode, function(data) {
         let options = '<option value="">Pilih Kecamatan</option>';
         data.forEach(function(item) {
             options += '<option value="' + item.code + '"' + (selected == item.code ? ' selected' : '') + '>' + item.name + '</option>';
@@ -321,7 +321,7 @@ function loadDistricts(cityCode, selected = null) {
 }
 
 function loadVillages(districtCode, selected = null) {
-    $.get('/admin/pop-settings/villages/' + districtCode, function(data) {
+    $.get('/api/wilayah/villages/' + districtCode, function(data) {
         let options = '<option value="">Pilih Kelurahan</option>';
         data.forEach(function(item) {
             options += '<option value="' + item.code + '"' + (selected == item.code ? ' selected' : '') + '>' + item.name + '</option>';

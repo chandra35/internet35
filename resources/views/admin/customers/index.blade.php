@@ -214,11 +214,17 @@
                 <span id="selectedCount">0</span> pelanggan dipilih
             </div>
             <div class="btn-group">
+                <button type="button" class="btn btn-info btn-sm" id="btnBulkSyncMikrotik">
+                    <i class="fas fa-sync mr-1"></i> Sync ke Mikrotik
+                </button>
                 <button type="button" class="btn btn-success btn-sm" id="btnBulkEnableIsolir">
                     <i class="fas fa-shield-alt mr-1"></i> Aktifkan Auto Isolir
                 </button>
                 <button type="button" class="btn btn-outline-light btn-sm" id="btnBulkDisableIsolir">
                     <i class="fas fa-unlock mr-1"></i> Nonaktifkan Auto Isolir
+                </button>
+                <button type="button" class="btn btn-success btn-sm" id="btnBulkGeneratePortal">
+                    <i class="fas fa-user-plus mr-1"></i> Buat Akun Portal
                 </button>
             </div>
         </div>
@@ -251,6 +257,7 @@
                         <th>Paket</th>
                         <th>PPPoE</th>
                         <th class="text-center">Status</th>
+                        <th class="text-center">Data</th>
                         <th>Aktif s/d</th>
                         <th width="150">Aksi</th>
                     </tr>
@@ -327,6 +334,18 @@
                             </span>
                             @endif
                         </td>
+                        <td class="text-center">
+                            @php $completeness = $customer->data_completeness; @endphp
+                            @if($completeness['complete'])
+                            <span class="badge badge-success" title="Data lengkap">
+                                <i class="fas fa-check-circle mr-1"></i>Lengkap
+                            </span>
+                            @else
+                            <span class="badge badge-warning" title="Kurang: {{ implode(', ', $completeness['missing']) }}" style="cursor:help">
+                                <i class="fas fa-exclamation-circle mr-1"></i>{{ $completeness['percentage'] }}%
+                            </span>
+                            @endif
+                        </td>
                         <td>
                             @if($customer->active_until)
                             <span class="{{ $customer->active_until->isPast() ? 'text-danger' : '' }}">
@@ -362,6 +381,18 @@
                                         <a class="dropdown-item btn-change-status" href="#" data-id="{{ $customer->id }}" data-status="suspended">
                                             <i class="fas fa-ban text-warning mr-2"></i> Suspend
                                         </a>
+                                        @if($customer->router_id && $customer->pppoe_username)
+                                        <div class="dropdown-divider"></div>
+                                        @if($customer->status === 'suspended')
+                                        <a class="dropdown-item btn-buka-isolir" href="#" data-id="{{ $customer->id }}" data-name="{{ $customer->name }}" data-package="{{ $customer->package?->name ?? '-' }}">
+                                            <i class="fas fa-unlock text-success mr-2"></i> Buka Isolir
+                                        </a>
+                                        @else
+                                        <a class="dropdown-item btn-isolir" href="#" data-id="{{ $customer->id }}" data-name="{{ $customer->name }}" data-username="{{ $customer->pppoe_username }}">
+                                            <i class="fas fa-ban text-orange mr-2"></i> Isolir (PPPoE)
+                                        </a>
+                                        @endif
+                                        @endif
                                         <div class="dropdown-divider"></div>
                                         @can('customers.delete')
                                         <a class="dropdown-item text-danger btn-delete" href="#" data-id="{{ $customer->id }}" data-name="{{ $customer->name }}">
@@ -474,6 +505,55 @@ $(function() {
         });
     });
 
+    // Bulk sync to Mikrotik
+    $('#btnBulkSyncMikrotik').on('click', function() {
+        const ids = getSelectedIds();
+        if (ids.length === 0) return;
+        Swal.fire({
+            title: 'Sync ke Mikrotik?',
+            html: `<p>Sync <strong>${ids.length}</strong> pelanggan ke Mikrotik?</p>
+                   <small class="text-muted">PPP Secret akan dibuat di router masing-masing pelanggan. Pelanggan yang sudah tersinkronisasi akan dilewati.</small>`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: '<i class="fas fa-sync mr-1"></i> Ya, Sync',
+            cancelButtonText: 'Batal',
+            confirmButtonColor: '#17a2b8',
+        }).then(result => {
+            if (result.isConfirmed) bulkSyncMikrotik(ids);
+        });
+    });
+
+    function bulkSyncMikrotik(ids) {
+        Swal.fire({ title: 'Memproses sync...', html: 'Mohon tunggu, proses sync ke Mikrotik sedang berjalan...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        $.ajax({
+            url: '{{ route("admin.customers.bulk-sync-mikrotik") }}',
+            method: 'POST',
+            data: {
+                _token: '{{ csrf_token() }}',
+                customer_ids: ids,
+            },
+            success: function(response) {
+                let html = `<p>${response.message}</p>`;
+                if (response.details) {
+                    html += '<div class="text-left" style="max-height:200px;overflow-y:auto;"><small>';
+                    response.details.forEach(d => {
+                        const icon = d.success ? '✅' : '❌';
+                        html += `${icon} ${d.name}: ${d.status}<br>`;
+                    });
+                    html += '</small></div>';
+                }
+                Swal.fire({
+                    icon: response.success ? 'success' : 'warning',
+                    title: response.success ? 'Berhasil!' : 'Selesai',
+                    html: html,
+                }).then(() => location.reload());
+            },
+            error: function(xhr) {
+                Swal.fire('Error', xhr.responseJSON?.message || 'Gagal memproses sync', 'error');
+            }
+        });
+    }
+
     function bulkAutoIsolir(ids, enable) {
         Swal.fire({ title: 'Memproses...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
         $.ajax({
@@ -495,6 +575,52 @@ $(function() {
             },
             error: function(xhr) {
                 Swal.fire('Error', xhr.responseJSON?.message || 'Gagal memproses', 'error');
+            }
+        });
+    }
+
+    // Bulk generate portal account
+    $('#btnBulkGeneratePortal').on('click', function() {
+        const ids = getSelectedIds();
+        if (ids.length === 0) return;
+        Swal.fire({
+            title: 'Buat Akun Portal?',
+            html: `<p>Buat akun portal untuk <strong>${ids.length}</strong> pelanggan?</p>
+                   <small class="text-muted">Hanya pelanggan yang sudah punya email dan belum punya akun yang akan diproses. Password menggunakan password PPPoE atau di-generate otomatis.</small>`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: '<i class="fas fa-user-plus mr-1"></i> Ya, Buat Akun',
+            cancelButtonText: 'Batal',
+            confirmButtonColor: '#28a745',
+        }).then(result => {
+            if (result.isConfirmed) bulkGeneratePortal(ids);
+        });
+    });
+
+    function bulkGeneratePortal(ids) {
+        Swal.fire({ title: 'Membuat akun portal...', html: 'Mohon tunggu...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        $.ajax({
+            url: '{{ route("admin.customers.bulk-generate-portal") }}',
+            method: 'POST',
+            data: { _token: '{{ csrf_token() }}', customer_ids: ids },
+            success: function(response) {
+                let html = `<p>${response.message}</p>`;
+                if (response.details) {
+                    html += '<div class="text-left" style="max-height:200px;overflow-y:auto;"><small>';
+                    response.details.forEach(d => {
+                        const icon = d.success ? '✅' : '❌';
+                        html += `${icon} ${d.name}: ${d.status}<br>`;
+                    });
+                    html += '</small></div>';
+                }
+                Swal.fire({
+                    icon: response.success ? 'success' : 'warning',
+                    title: response.success ? 'Berhasil!' : 'Selesai',
+                    html: html,
+                }).then(() => location.reload());
+            },
+            error: function(xhr) {
+                Swal.fire('Error', xhr.responseJSON?.message || 'Gagal membuat akun portal', 'error');
             }
         });
     }
@@ -648,6 +774,88 @@ $(function() {
                         toastr.error(xhr.responseJSON?.message || 'Gagal menghapus pelanggan');
                     }
                 });
+            }
+        });
+    });
+
+    // Isolir pelanggan (PPPoE profile change)
+    $(document).on('click', '.btn-isolir', function(e) {
+        e.preventDefault();
+        const id = $(this).data('id');
+        const name = $(this).data('name');
+        const username = $(this).data('username');
+
+        Swal.fire({
+            title: '<i class="fas fa-ban text-warning"></i> Isolir Pelanggan?',
+            html: `<p>Isolir pelanggan <strong>${name}</strong> (<code>${username}</code>)?</p>
+                   <p class="text-muted small mb-2">Profile PPPoE akan diubah ke <code>isolir</code> dan koneksi aktif akan diputus.</p>
+                   <div class="form-group text-left">
+                       <label>Alasan isolir:</label>
+                       <textarea id="isolirReason" class="form-control form-control-sm" rows="2" placeholder="Contoh: Belum bayar bulan ini">Isolir manual oleh admin</textarea>
+                   </div>`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: '<i class="fas fa-ban mr-1"></i> Ya, Isolir',
+            cancelButtonText: 'Batal',
+            confirmButtonColor: '#e6a817',
+            showLoaderOnConfirm: true,
+            preConfirm: () => {
+                const reason = $('#isolirReason').val() || 'Isolir manual oleh admin';
+                return $.ajax({
+                    url: `{{ url('admin/customers') }}/${id}/isolir`,
+                    method: 'POST',
+                    data: { _token: '{{ csrf_token() }}', reason: reason },
+                }).then(response => response).catch(xhr => {
+                    Swal.showValidationMessage(xhr.responseJSON?.message || 'Gagal melakukan isolir');
+                });
+            },
+            allowOutsideClick: () => !Swal.isLoading()
+        }).then((result) => {
+            if (result.isConfirmed && result.value) {
+                Swal.fire({
+                    title: 'Berhasil!',
+                    text: result.value.message,
+                    icon: 'success',
+                }).then(() => location.reload());
+            }
+        });
+    });
+
+    // Buka isolir pelanggan
+    $(document).on('click', '.btn-buka-isolir', function(e) {
+        e.preventDefault();
+        const id = $(this).data('id');
+        const name = $(this).data('name');
+        const pkg = $(this).data('package');
+
+        Swal.fire({
+            title: '<i class="fas fa-unlock text-success"></i> Buka Isolir?',
+            html: `<p>Buka isolir pelanggan <strong>${name}</strong>?</p>
+                   <p class="text-muted small">Profile PPPoE dikembalikan ke paket <strong>${pkg}</strong> dan koneksi di-reconnect.</p>`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: '<i class="fas fa-unlock mr-1"></i> Ya, Buka Isolir',
+            cancelButtonText: 'Batal',
+            confirmButtonColor: '#28a745',
+            showLoaderOnConfirm: true,
+            preConfirm: () => {
+                return $.ajax({
+                    url: `{{ url('admin/customers') }}/${id}/buka-isolir`,
+                    method: 'POST',
+                    data: { _token: '{{ csrf_token() }}' },
+                }).then(response => response).catch(xhr => {
+                    Swal.showValidationMessage(xhr.responseJSON?.message || 'Gagal membuka isolir');
+                });
+            },
+            allowOutsideClick: () => !Swal.isLoading()
+        }).then((result) => {
+            if (result.isConfirmed && result.value) {
+                const icon = result.value.partial ? 'warning' : 'success';
+                Swal.fire({
+                    title: result.value.partial ? 'Sebagian Berhasil' : 'Berhasil!',
+                    text: result.value.message,
+                    icon: icon,
+                }).then(() => location.reload());
             }
         });
     });

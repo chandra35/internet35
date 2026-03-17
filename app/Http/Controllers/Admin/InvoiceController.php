@@ -9,11 +9,14 @@ use App\Models\CustomerPayment;
 use App\Models\PopSetting;
 use App\Models\User;
 use App\Services\ActivityLogService;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class InvoiceController extends Controller implements HasMiddleware
 {
@@ -22,8 +25,8 @@ class InvoiceController extends Controller implements HasMiddleware
     public static function middleware(): array
     {
         return [
-            new Middleware('permission:invoices.view', only: ['index', 'show']),
-            new Middleware('permission:invoices.create', only: ['create', 'store']),
+            new Middleware('permission:invoices.view', only: ['index', 'show', 'bulkPrintSelect', 'downloadPdf', 'printRecord']),
+            new Middleware('permission:invoices.create', only: ['create', 'store', 'bulkPrint']),
             new Middleware('permission:invoices.edit', only: ['edit', 'update']),
             new Middleware('permission:invoices.delete', only: ['destroy']),
         ];
@@ -204,7 +207,20 @@ class InvoiceController extends Controller implements HasMiddleware
             DB::commit();
             
             $this->activityLog->logCreate('invoices', "Created invoice {$invoice->invoice_number}");
-            
+
+            // Send invoice notification
+            try {
+                app(NotificationService::class)->sendInvoiceCreated($customer, [
+                    'invoice_number' => $invoice->invoice_number,
+                    'invoice_date' => $invoice->invoice_date->format('d F Y'),
+                    'due_date' => $invoice->due_date->format('d F Y'),
+                    'total_amount' => 'Rp ' . number_format($invoice->total_amount, 0, ',', '.'),
+                    'period' => $invoice->period_start->format('d M Y') . ' - ' . $invoice->period_end->format('d M Y'),
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('Failed to send invoice notification: ' . $e->getMessage());
+            }
+
             return redirect()->route('admin.invoices.show', $invoice)
                 ->with('success', 'Invoice berhasil dibuat!');
                 
@@ -495,6 +511,19 @@ class InvoiceController extends Controller implements HasMiddleware
                     'created_by' => auth()->id(),
                 ]);
                 
+                // Send invoice notification
+                try {
+                    app(NotificationService::class)->sendInvoiceCreated($customer, [
+                        'invoice_number' => CustomerInvoice::where('customer_id', $customer->id)->latest()->first()->invoice_number ?? '-',
+                        'invoice_date' => now()->format('d F Y'),
+                        'due_date' => now()->addDays($dueDays)->format('d F Y'),
+                        'total_amount' => 'Rp ' . number_format($totalAmount, 0, ',', '.'),
+                        'period' => $validated['period_start'] . ' - ' . $validated['period_end'],
+                    ]);
+                } catch (\Exception $e) {
+                    Log::warning("Failed to send invoice notification to {$customer->customer_id}: " . $e->getMessage());
+                }
+
                 $generated++;
             }
             
@@ -521,6 +550,9 @@ class InvoiceController extends Controller implements HasMiddleware
         $invoice->load(['customer.package', 'payments']);
         $popSetting = PopSetting::where('user_id', $invoice->pop_id)->first();
         
+        // Record print
+        $invoice->recordPrint();
+        
         return view('admin.invoices.print', compact('invoice', 'popSetting'));
     }
 
@@ -533,5 +565,228 @@ class InvoiceController extends Controller implements HasMiddleware
         // This will integrate with message templates and notification channels
         
         return back()->with('success', 'Reminder berhasil dikirim!');
+    }
+
+    /**
+     * Show bulk print selection page
+     */
+    public function bulkPrintSelect(Request $request)
+    {
+        $popId = $this->getPopId($request);
+
+        if (!$popId) {
+            return redirect()->route('admin.invoices.index')
+                ->with('error', 'Pilih POP terlebih dahulu');
+        }
+
+        $popSetting = PopSetting::where('user_id', $popId)->first();
+
+        // Get all customers with their latest invoice for the selected period
+        $month = $request->input('month', now()->month);
+        $year = $request->input('year', now()->year);
+
+        $customers = Customer::where('pop_id', $popId)
+            ->where('status', 'active')
+            ->whereNotNull('package_id')
+            ->with(['package', 'invoices' => function ($q) use ($month, $year) {
+                $q->whereMonth('period_start', $month)
+                  ->whereYear('period_start', $year);
+            }])
+            ->orderBy('name')
+            ->get();
+
+        // Separate customers: those with invoices and those without
+        $customersWithInvoices = $customers->filter(fn($c) => $c->invoices->isNotEmpty());
+        $customersWithoutInvoices = $customers->filter(fn($c) => $c->invoices->isEmpty());
+
+        // Get POP users for superadmin
+        $popUsers = null;
+        if (auth()->user()->hasRole('superadmin')) {
+            $popUsers = User::role('admin-pop')->orderBy('name')->get();
+        }
+
+        return view('admin.invoices.bulk-print', compact(
+            'popId', 'popSetting', 'customers', 'customersWithInvoices',
+            'customersWithoutInvoices', 'month', 'year', 'popUsers'
+        ));
+    }
+
+    /**
+     * Generate & print selected invoices in bulk
+     */
+    public function bulkPrint(Request $request)
+    {
+        $validated = $request->validate([
+            'invoice_ids' => 'required_without:customer_ids|array',
+            'invoice_ids.*' => 'exists:customer_invoices,id',
+            'customer_ids' => 'required_without:invoice_ids|array',
+            'customer_ids.*' => 'exists:customers,id',
+            'period_start' => 'nullable|date',
+            'period_end' => 'nullable|date',
+            'output' => 'in:print,pdf',
+        ]);
+
+        $popId = $this->getPopId($request);
+        $popSetting = PopSetting::where('user_id', $popId)->first();
+        $output = $validated['output'] ?? 'print';
+
+        $invoices = collect();
+
+        // Gather existing invoices by ID
+        if (!empty($validated['invoice_ids'])) {
+            $invoices = CustomerInvoice::with(['customer.package', 'payments'])
+                ->whereIn('id', $validated['invoice_ids'])
+                ->get();
+        }
+
+        // For customers without invoices, generate them first
+        if (!empty($validated['customer_ids'])) {
+            $periodStart = $validated['period_start'] ?? now()->startOfMonth()->format('Y-m-d');
+            $periodEnd = $validated['period_end'] ?? now()->endOfMonth()->format('Y-m-d');
+            $dueDays = $popSetting?->invoice_due_days ?? 7;
+
+            DB::beginTransaction();
+            try {
+                $customerIds = $validated['customer_ids'];
+                $customers = Customer::with('package')
+                    ->whereIn('id', $customerIds)
+                    ->get();
+
+                foreach ($customers as $customer) {
+                    if (!$customer->package) continue;
+
+                    // Check if invoice already exists for this period
+                    $existingInvoice = CustomerInvoice::where('customer_id', $customer->id)
+                        ->where('period_start', $periodStart)
+                        ->where('period_end', $periodEnd)
+                        ->first();
+
+                    if ($existingInvoice) {
+                        $invoices->push($existingInvoice);
+                        continue;
+                    }
+
+                    $subtotal = $customer->package->price;
+                    $taxAmount = 0;
+
+                    if ($popSetting?->ppn_enabled) {
+                        $taxAmount = $subtotal * ($popSetting->ppn_percentage / 100);
+                    }
+
+                    $totalAmount = $subtotal + $taxAmount;
+
+                    $invoice = CustomerInvoice::create([
+                        'customer_id' => $customer->id,
+                        'pop_id' => $popId,
+                        'invoice_number' => CustomerInvoice::generateInvoiceNumber($popId),
+                        'invoice_date' => now(),
+                        'due_date' => now()->addDays($dueDays),
+                        'period_start' => $periodStart,
+                        'period_end' => $periodEnd,
+                        'items' => [
+                            [
+                                'description' => 'Layanan Internet ' . $customer->package->name,
+                                'amount' => $subtotal,
+                            ]
+                        ],
+                        'subtotal' => $subtotal,
+                        'discount_amount' => 0,
+                        'tax_amount' => $taxAmount,
+                        'total_amount' => $totalAmount,
+                        'paid_amount' => 0,
+                        'status' => 'pending',
+                        'notes' => $popSetting?->invoice_notes,
+                        'created_by' => auth()->id(),
+                    ]);
+
+                    $invoice->load(['customer.package', 'payments']);
+                    $invoices->push($invoice);
+                }
+
+                DB::commit();
+            } catch (\Exception $e) {
+                DB::rollBack();
+                Log::error('Bulk print - failed to generate invoices: ' . $e->getMessage());
+                return back()->with('error', 'Gagal membuat invoice: ' . $e->getMessage());
+            }
+        }
+
+        if ($invoices->isEmpty()) {
+            return back()->with('error', 'Tidak ada invoice yang dipilih');
+        }
+
+        // Record print for all invoices
+        foreach ($invoices as $inv) {
+            $inv->recordPrint();
+        }
+
+        $this->activityLog->logCreate('invoices', "Bulk printed {$invoices->count()} invoices");
+
+        if ($output === 'pdf') {
+            return $this->generateBulkPdf($invoices, $popSetting);
+        }
+
+        // For print output, return a multi-invoice print view
+        return view('admin.invoices.bulk-print-view', compact('invoices', 'popSetting'));
+    }
+
+    /**
+     * Generate a combined PDF for multiple invoices
+     */
+    protected function generateBulkPdf($invoices, $popSetting)
+    {
+        $pdf = Pdf::loadView('admin.invoices.bulk-print-pdf', [
+            'invoices' => $invoices,
+            'popSetting' => $popSetting,
+        ])->setPaper('a4');
+
+        // Save PDF to storage
+        $filename = 'invoices/bulk_' . now()->format('Ymd_His') . '_' . $invoices->count() . 'inv.pdf';
+        Storage::disk('public')->put($filename, $pdf->output());
+
+        // Update pdf_path for all invoices
+        foreach ($invoices as $inv) {
+            $inv->update(['pdf_path' => $filename]);
+        }
+
+        return $pdf->download('invoices_' . now()->format('Y-m-d') . '.pdf');
+    }
+
+    /**
+     * Download a previously generated PDF invoice
+     */
+    public function downloadPdf(CustomerInvoice $invoice)
+    {
+        // Generate fresh PDF for this single invoice
+        $invoice->load(['customer.package', 'payments']);
+        $popSetting = PopSetting::where('user_id', $invoice->pop_id)->first();
+
+        $pdf = Pdf::loadView('admin.invoices.bulk-print-pdf', [
+            'invoices' => collect([$invoice]),
+            'popSetting' => $popSetting,
+        ])->setPaper('a4');
+
+        // Save path
+        $filename = 'invoices/' . $invoice->invoice_number . '.pdf';
+        Storage::disk('public')->put($filename, $pdf->output());
+
+        $invoice->update(['pdf_path' => $filename]);
+        $invoice->recordPrint();
+
+        return $pdf->download($invoice->invoice_number . '.pdf');
+    }
+
+    /**
+     * Print invoice & record it (updated single print)
+     */
+    public function printRecord(CustomerInvoice $invoice)
+    {
+        $invoice->load(['customer.package', 'payments']);
+        $popSetting = PopSetting::where('user_id', $invoice->pop_id)->first();
+
+        // Record this print action
+        $invoice->recordPrint();
+
+        return view('admin.invoices.print', compact('invoice', 'popSetting'));
     }
 }

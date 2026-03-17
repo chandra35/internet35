@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\WebhookController;
 use Laravolt\Indonesia\Models\City;
 use Laravolt\Indonesia\Models\District;
 use Laravolt\Indonesia\Models\Village;
@@ -13,6 +14,24 @@ use Laravolt\Indonesia\Models\Village;
 | Here is where you can register API routes for your application.
 |
 */
+
+// Payment Gateway Webhooks (no CSRF, no auth)
+Route::prefix('webhook')->group(function () {
+    Route::post('/tripay', [WebhookController::class, 'tripay']);
+    Route::post('/midtrans', [WebhookController::class, 'midtrans']);
+    Route::post('/xendit', [WebhookController::class, 'xendit']);
+    Route::post('/duitku', [WebhookController::class, 'duitku']);
+    Route::post('/ipaymu', [WebhookController::class, 'ipaymu']);
+});
+
+// Alias: callback routes (some gateways use /callback/ instead of /webhook/)
+Route::prefix('callback')->group(function () {
+    Route::post('/tripay', [WebhookController::class, 'tripay']);
+    Route::post('/midtrans', [WebhookController::class, 'midtrans']);
+    Route::post('/xendit', [WebhookController::class, 'xendit']);
+    Route::post('/duitku', [WebhookController::class, 'duitku']);
+    Route::post('/ipaymu', [WebhookController::class, 'ipaymu']);
+});
 
 // Wilayah Indonesia API
 Route::prefix('wilayah')->group(function () {

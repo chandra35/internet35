@@ -127,7 +127,12 @@ class MikrotikService
             $byte = ord(fread($this->socket, 1));
             
             if ($byte === 0) {
-                break;
+                // Zero-length word = end of sentence
+                // Break if we've received a terminal reply (!done, !trap, !fatal)
+                if (in_array('!done', $response, true) || in_array('!trap', $response, true) || in_array('!fatal', $response, true)) {
+                    break;
+                }
+                continue; // More sentences to read
             }
             
             // Determine length
@@ -145,10 +150,6 @@ class MikrotikService
             
             $word = fread($this->socket, $length);
             $response[] = $word;
-            
-            if ($word === '!done' || $word === '!trap' || $word === '!fatal') {
-                break;
-            }
         }
         
         return $response;
@@ -166,7 +167,12 @@ class MikrotikService
                 $this->write($value, $key === array_key_last($params));
             } else {
                 $isLast = $key === array_key_last(array_keys($params));
-                $this->write('=' . $key . '=' . $value, $isLast);
+                if (str_starts_with($key, '?')) {
+                    // Query filter word — pass as ?key=value (no = prefix)
+                    $this->write($key . '=' . $value, $isLast);
+                } else {
+                    $this->write('=' . $key . '=' . $value, $isLast);
+                }
             }
         }
         
@@ -195,10 +201,17 @@ class MikrotikService
             } elseif ($word === '!done') {
                 if (!empty($current)) {
                     $result[] = $current;
+                    $current = [];
                 }
+                // Don't break — collect done-sentence attributes (e.g. =ret=*ID)
             } elseif ($word === '!trap') {
                 $current['error'] = true;
             }
+        }
+        
+        // Collect any remaining attributes (e.g. =ret= after !done)
+        if (!empty($current)) {
+            $result[] = $current;
         }
         
         return $result;

@@ -106,6 +106,18 @@
         <div class="col-auto">
             <div class="btn-group">
                 @can('customers.edit')
+                {{-- Isolir / Buka Isolir Button --}}
+                @if($customer->router_id && $customer->pppoe_username)
+                    @if($customer->status === 'suspended')
+                    <button type="button" class="btn btn-success" id="btnBukaIsolir" title="Buka Isolir — kembalikan profile PPPoE ke paket semula">
+                        <i class="fas fa-unlock mr-1"></i> Buka Isolir
+                    </button>
+                    @else
+                    <button type="button" class="btn btn-warning" id="btnIsolir" title="Isolir — ubah profile PPPoE ke isolir dan putus koneksi">
+                        <i class="fas fa-ban mr-1"></i> Isolir
+                    </button>
+                    @endif
+                @endif
                 <a href="{{ route('admin.customers.edit', $customer) }}" class="btn btn-light">
                     <i class="fas fa-edit mr-1"></i> Edit
                 </a>
@@ -118,6 +130,11 @@
                     @if(!$customer->mikrotik_synced && $customer->router_id && $customer->pppoe_username)
                     <a class="dropdown-item" href="#" id="btnSyncMikrotik">
                         <i class="fas fa-sync text-info mr-2"></i> Sync ke Mikrotik
+                    </a>
+                    @endif
+                    @if(!$customer->user_id)
+                    <a class="dropdown-item" href="#" id="btnGeneratePortal">
+                        <i class="fas fa-user-plus text-success mr-2"></i> Buat Akun Portal
                     </a>
                     @endif
                     <div class="dropdown-divider"></div>
@@ -364,15 +381,59 @@
             </div>
             <div class="card-body">
                 @if($customer->user)
-                <div class="alert alert-success mb-0">
-                    <i class="fas fa-check-circle mr-2"></i>
-                    <strong>Akun Aktif</strong><br>
-                    <small>{{ $customer->user->email }}</small>
+                <table class="table table-sm table-borderless mb-2">
+                    <tr>
+                        <td class="text-muted" width="35%">Status</td>
+                        <td>
+                            @if($customer->user->is_active)
+                            <span class="badge badge-success"><i class="fas fa-check-circle mr-1"></i>Aktif</span>
+                            @else
+                            <span class="badge badge-danger"><i class="fas fa-times-circle mr-1"></i>Nonaktif</span>
+                            @endif
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">ID Login</td>
+                        <td><code>{{ $customer->customer_id }}</code></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Email</td>
+                        <td>{{ $customer->user->email }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Password</td>
+                        <td>
+                            <span id="portalPasswordDisplay">••••••••</span>
+                            <button class="btn btn-xs btn-outline-secondary ml-1" id="btnShowPortalPassword" title="Lihat Password">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="btn btn-xs btn-outline-secondary ml-1 d-none" id="btnCopyPortalPassword" title="Salin Password">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Dibuat</td>
+                        <td>{{ $customer->user->created_at->format('d M Y H:i') }}</td>
+                    </tr>
+                </table>
+                <div class="d-flex flex-wrap gap-1" style="gap: 5px;">
+                    <button class="btn btn-sm btn-outline-warning" id="btnResetPortalPassword">
+                        <i class="fas fa-key mr-1"></i> Reset Password
+                    </button>
+                    <button class="btn btn-sm btn-outline-{{ $customer->user->is_active ? 'danger' : 'success' }}" id="btnTogglePortalStatus" data-active="{{ $customer->user->is_active ? 1 : 0 }}">
+                        <i class="fas fa-{{ $customer->user->is_active ? 'ban' : 'check-circle' }} mr-1"></i> {{ $customer->user->is_active ? 'Nonaktifkan' : 'Aktifkan' }}
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" id="btnDeletePortalAccount">
+                        <i class="fas fa-trash mr-1"></i> Hapus Akun
+                    </button>
                 </div>
                 @else
-                <div class="alert alert-secondary mb-0">
-                    <i class="fas fa-info-circle mr-2"></i>
-                    Belum memiliki akun portal
+                <div class="alert alert-secondary mb-0 d-flex align-items-center justify-content-between">
+                    <span><i class="fas fa-info-circle mr-2"></i>Belum memiliki akun portal</span>
+                    <button type="button" class="btn btn-sm btn-success" id="btnGeneratePortal2">
+                        <i class="fas fa-user-plus mr-1"></i> Buat Akun
+                    </button>
                 </div>
                 @endif
             </div>
@@ -490,6 +551,202 @@ $(function() {
         });
     });
 
+    // Generate portal account
+    function doGeneratePortal() {
+        Swal.fire({
+            title: 'Buat Akun Portal?',
+            html: '<p>Buat akun portal untuk <strong>{{ $customer->name }}</strong>?</p>' +
+                  '<p class="small text-muted">Login: <strong>{{ $customer->customer_id }}</strong>' +
+                  @if($customer->email)' (atau {{ $customer->email }})' + @endif
+                  '<br>Password akan menggunakan password PPPoE atau di-generate otomatis.</p>',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: '<i class="fas fa-user-plus mr-1"></i> Ya, Buat Akun',
+            cancelButtonText: 'Batal',
+            confirmButtonColor: '#28a745',
+            showLoaderOnConfirm: true,
+            preConfirm: () => {
+                return $.ajax({
+                    url: '{{ route("admin.customers.generate-portal", $customer) }}',
+                    method: 'POST',
+                }).then(response => response).catch(xhr => {
+                    Swal.showValidationMessage(xhr.responseJSON?.message || 'Gagal membuat akun portal');
+                });
+            },
+            allowOutsideClick: () => !Swal.isLoading()
+        }).then((result) => {
+            if (result.isConfirmed && result.value?.success) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Akun Portal Dibuat!',
+                    html: `<p>${result.value.message}</p>
+                           <div class="input-group input-group-sm mt-2">
+                               <div class="input-group-prepend"><span class="input-group-text">ID Login</span></div>
+                               <input type="text" class="form-control" value="${result.value.login_id}" readonly>
+                               <div class="input-group-append">
+                                   <button class="btn btn-outline-primary" onclick="navigator.clipboard.writeText('${result.value.login_id}'); toastr.success('Tersalin!');">
+                                       <i class="fas fa-copy"></i>
+                                   </button>
+                               </div>
+                           </div>
+                           <div class="input-group input-group-sm mt-2">
+                               <div class="input-group-prepend"><span class="input-group-text">Password</span></div>
+                               <input type="text" class="form-control" value="${result.value.password}" readonly>
+                               <div class="input-group-append">
+                                   <button class="btn btn-outline-primary" onclick="navigator.clipboard.writeText('${result.value.password}'); toastr.success('Tersalin!');">
+                                       <i class="fas fa-copy"></i>
+                                   </button>
+                               </div>
+                           </div>
+                           <small class="text-muted d-block mt-2">Simpan kredensial ini, hanya ditampilkan sekali.</small>`,
+                    showCloseButton: true,
+                }).then(() => location.reload());
+            }
+        });
+    }
+
+    $('#btnGeneratePortal, #btnGeneratePortal2').on('click', function(e) {
+        e.preventDefault();
+        doGeneratePortal();
+    });
+
+    // === Portal Account Management ===
+    @if($customer->user)
+    // Show portal password
+    $('#btnShowPortalPassword').on('click', function() {
+        const btn = $(this);
+        btn.prop('disabled', true).find('i').removeClass('fa-eye').addClass('fa-spinner fa-spin');
+        $.get('{{ route("admin.customers.portal-password", $customer) }}', function(res) {
+            if (res.success) {
+                $('#portalPasswordDisplay').text(res.password);
+                btn.hide();
+                $('#btnCopyPortalPassword').removeClass('d-none');
+            } else {
+                toastr.error(res.message || 'Gagal mengambil password');
+            }
+        }).fail(function(xhr) {
+            toastr.error(xhr.responseJSON?.message || 'Gagal mengambil password');
+        }).always(function() {
+            btn.prop('disabled', false).find('i').removeClass('fa-spinner fa-spin').addClass('fa-eye');
+        });
+    });
+
+    // Copy portal password
+    $('#btnCopyPortalPassword').on('click', function() {
+        const pw = $('#portalPasswordDisplay').text();
+        if (pw && pw !== '••••••••') {
+            navigator.clipboard.writeText(pw);
+            toastr.success('Password tersalin!');
+        }
+    });
+
+    // Reset portal password
+    $('#btnResetPortalPassword').on('click', function() {
+        Swal.fire({
+            title: 'Reset Password Portal?',
+            html: '<p>Password baru akan di-generate otomatis.</p>' +
+                  '<div class="form-group text-left mt-3">' +
+                  '<label><input type="checkbox" id="chkSyncPppoe" checked> Samakan dengan password PPPoE</label>' +
+                  '</div>',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: '<i class="fas fa-key mr-1"></i> Reset',
+            cancelButtonText: 'Batal',
+            confirmButtonColor: '#ffc107',
+            showLoaderOnConfirm: true,
+            preConfirm: () => {
+                const syncPppoe = $('#chkSyncPppoe').is(':checked');
+                return $.ajax({
+                    url: '{{ route("admin.customers.portal-reset-password", $customer) }}',
+                    method: 'POST',
+                    data: { sync_pppoe: syncPppoe ? 1 : 0 },
+                }).then(r => r).catch(xhr => {
+                    Swal.showValidationMessage(xhr.responseJSON?.message || 'Gagal reset password');
+                });
+            },
+            allowOutsideClick: () => !Swal.isLoading()
+        }).then((result) => {
+            if (result.isConfirmed && result.value?.success) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Password Direset!',
+                    html: `<div class="input-group input-group-sm mt-2">
+                               <div class="input-group-prepend"><span class="input-group-text">Password Baru</span></div>
+                               <input type="text" class="form-control" value="${result.value.password}" readonly>
+                               <div class="input-group-append">
+                                   <button class="btn btn-outline-primary" onclick="navigator.clipboard.writeText('${result.value.password}'); toastr.success('Tersalin!');">
+                                       <i class="fas fa-copy"></i>
+                                   </button>
+                               </div>
+                           </div>
+                           <small class="text-muted d-block mt-2">Simpan password ini, hanya ditampilkan sekali.</small>`,
+                    showCloseButton: true,
+                }).then(() => location.reload());
+            }
+        });
+    });
+
+    // Toggle portal status (activate/deactivate)
+    $('#btnTogglePortalStatus').on('click', function() {
+        const isActive = $(this).data('active');
+        const action = isActive ? 'menonaktifkan' : 'mengaktifkan';
+        Swal.fire({
+            title: `${isActive ? 'Nonaktifkan' : 'Aktifkan'} Akun Portal?`,
+            html: `<p>Anda yakin ingin ${action} akun portal <strong>{{ $customer->name }}</strong>?</p>` +
+                  (isActive ? '<p class="text-danger small">Pelanggan tidak akan bisa login ke portal.</p>' : ''),
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: `<i class="fas fa-${isActive ? 'ban' : 'check-circle'} mr-1"></i> Ya, ${isActive ? 'Nonaktifkan' : 'Aktifkan'}`,
+            cancelButtonText: 'Batal',
+            confirmButtonColor: isActive ? '#dc3545' : '#28a745',
+            showLoaderOnConfirm: true,
+            preConfirm: () => {
+                return $.ajax({
+                    url: '{{ route("admin.customers.portal-toggle-status", $customer) }}',
+                    method: 'POST',
+                }).then(r => r).catch(xhr => {
+                    Swal.showValidationMessage(xhr.responseJSON?.message || 'Gagal mengubah status');
+                });
+            },
+            allowOutsideClick: () => !Swal.isLoading()
+        }).then((result) => {
+            if (result.isConfirmed && result.value?.success) {
+                toastr.success(result.value.message);
+                location.reload();
+            }
+        });
+    });
+
+    // Delete portal account
+    $('#btnDeletePortalAccount').on('click', function() {
+        Swal.fire({
+            title: 'Hapus Akun Portal?',
+            html: '<p>Akun portal <strong>{{ $customer->name }}</strong> akan dihapus permanen.</p>' +
+                  '<p class="text-danger small">Pelanggan tidak akan bisa login ke portal lagi. Akun bisa dibuat ulang.</p>',
+            icon: 'error',
+            showCancelButton: true,
+            confirmButtonText: '<i class="fas fa-trash mr-1"></i> Ya, Hapus',
+            cancelButtonText: 'Batal',
+            confirmButtonColor: '#dc3545',
+            showLoaderOnConfirm: true,
+            preConfirm: () => {
+                return $.ajax({
+                    url: '{{ route("admin.customers.portal-delete", $customer) }}',
+                    method: 'DELETE',
+                }).then(r => r).catch(xhr => {
+                    Swal.showValidationMessage(xhr.responseJSON?.message || 'Gagal menghapus akun');
+                });
+            },
+            allowOutsideClick: () => !Swal.isLoading()
+        }).then((result) => {
+            if (result.isConfirmed && result.value?.success) {
+                toastr.success(result.value.message);
+                location.reload();
+            }
+        });
+    });
+    @endif
+
     // Sync Mikrotik
     $('#btnSyncMikrotik').on('click', function(e) {
         e.preventDefault();
@@ -561,6 +818,80 @@ $(function() {
                 }).fail(function(xhr) {
                     toastr.error(xhr.responseJSON?.message || 'Gagal');
                 });
+            }
+        });
+    });
+
+    // Isolir pelanggan
+    $('#btnIsolir').on('click', function(e) {
+        e.preventDefault();
+        Swal.fire({
+            title: '<i class="fas fa-ban text-warning"></i> Isolir Pelanggan?',
+            html: `<p>Anda akan melakukan <strong>isolir</strong> pelanggan <strong>{{ $customer->name }}</strong>.</p>
+                   <p class="text-muted small mb-2">Profile PPPoE akan diubah ke <code>isolir</code> dan koneksi aktif akan diputus.</p>
+                   <div class="form-group text-left">
+                       <label>Alasan isolir:</label>
+                       <textarea id="isolirReason" class="form-control" rows="2" placeholder="Contoh: Belum bayar bulan ini">Isolir manual oleh admin</textarea>
+                   </div>`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: '<i class="fas fa-ban mr-1"></i> Ya, Isolir',
+            cancelButtonText: 'Batal',
+            confirmButtonColor: '#e6a817',
+            showLoaderOnConfirm: true,
+            preConfirm: () => {
+                const reason = $('#isolirReason').val() || 'Isolir manual oleh admin';
+                return $.ajax({
+                    url: '{{ route("admin.customers.isolir", $customer) }}',
+                    method: 'POST',
+                    data: { _token: '{{ csrf_token() }}', reason: reason },
+                }).then(response => response).catch(xhr => {
+                    Swal.showValidationMessage(xhr.responseJSON?.message || 'Gagal melakukan isolir');
+                });
+            },
+            allowOutsideClick: () => !Swal.isLoading()
+        }).then((result) => {
+            if (result.isConfirmed && result.value) {
+                Swal.fire({
+                    title: 'Berhasil!',
+                    text: result.value.message,
+                    icon: 'success',
+                }).then(() => location.reload());
+            }
+        });
+    });
+
+    // Buka isolir pelanggan
+    $('#btnBukaIsolir').on('click', function(e) {
+        e.preventDefault();
+        Swal.fire({
+            title: '<i class="fas fa-unlock text-success"></i> Buka Isolir?',
+            html: `<p>Anda akan <strong>membuka isolir</strong> pelanggan <strong>{{ $customer->name }}</strong>.</p>
+                   <p class="text-muted small">Profile PPPoE akan dikembalikan ke paket <strong>{{ $customer->package?->name ?? '-' }}</strong> dan koneksi akan di-reconnect.</p>`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: '<i class="fas fa-unlock mr-1"></i> Ya, Buka Isolir',
+            cancelButtonText: 'Batal',
+            confirmButtonColor: '#28a745',
+            showLoaderOnConfirm: true,
+            preConfirm: () => {
+                return $.ajax({
+                    url: '{{ route("admin.customers.buka-isolir", $customer) }}',
+                    method: 'POST',
+                    data: { _token: '{{ csrf_token() }}' },
+                }).then(response => response).catch(xhr => {
+                    Swal.showValidationMessage(xhr.responseJSON?.message || 'Gagal membuka isolir');
+                });
+            },
+            allowOutsideClick: () => !Swal.isLoading()
+        }).then((result) => {
+            if (result.isConfirmed && result.value) {
+                const icon = result.value.partial ? 'warning' : 'success';
+                Swal.fire({
+                    title: result.value.partial ? 'Sebagian Berhasil' : 'Berhasil!',
+                    text: result.value.message,
+                    icon: icon,
+                }).then(() => location.reload());
             }
         });
     });

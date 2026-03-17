@@ -138,7 +138,16 @@
                                 <div class="col-md-6">
                                     <div class="form-group">
                                         <label>NIK (No. KTP)</label>
-                                        <input type="text" name="nik" class="form-control" maxlength="16" placeholder="16 digit NIK">
+                                        <div class="input-group">
+                                            <input type="text" name="nik" id="nik" class="form-control" maxlength="16" placeholder="16 digit NIK">
+                                            @if($hasResidentAccess ?? false)
+                                            <div class="input-group-append">
+                                                <button type="button" class="btn btn-info" id="btnSearchResident" title="Cari Data Penduduk">
+                                                    <i class="fas fa-search"></i> Cari Penduduk
+                                                </button>
+                                            </div>
+                                            @endif
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="col-md-6">
@@ -526,13 +535,23 @@
 
                     {{-- PPPoE Credentials (shown when Buat PPP Secret checked OR import mode) --}}
                     <div id="pppCredentialsSection" class="mt-2 mb-3 p-3 bg-light rounded border" style="{{ $popSetting->mikrotik_auto_sync ? '' : 'display:none' }}">
+                        @if($popSetting?->pop_prefix)
+                        {{-- Prefix toggle --}}
+                        <div class="custom-control custom-checkbox mb-2">
+                            <input type="checkbox" class="custom-control-input" id="use_prefix" name="use_prefix" value="1" checked>
+                            <label class="custom-control-label" for="use_prefix">
+                                Gunakan prefix <strong>{{ $popSetting->pop_prefix }}-</strong>
+                            </label>
+                            <small class="text-muted d-block">Nonaktifkan jika data migrasi sudah memiliki username lengkap di Mikrotik</small>
+                        </div>
+                        @endif
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="form-group mb-2">
                                     <label class="mb-1">Username PPPoE <span class="text-danger" id="usernameRequired">*</span></label>
                                     <div class="input-group input-group-sm">
                                         @if($popSetting?->pop_prefix)
-                                        <div class="input-group-prepend">
+                                        <div class="input-group-prepend" id="prefixPrepend">
                                             <span class="input-group-text">{{ $popSetting->pop_prefix }}-</span>
                                         </div>
                                         @endif
@@ -543,7 +562,7 @@
                                             </button>
                                         </div>
                                     </div>
-                                    <small class="text-muted" id="usernameStatus">
+                                    <small class="text-muted" id="usernameStatus" data-username-state="unchecked">
                                         <i class="fas fa-info-circle mr-1"></i>Format: {{ $popSetting?->pop_prefix ? $popSetting->pop_prefix . '-' : '' }}username
                                     </small>
                                 </div>
@@ -658,9 +677,12 @@
                         <strong>Mode Import:</strong> PPP Secret diambil dari Mikrotik. Data tidak akan dibuat ulang.
                     </div>
                     
-                    <button type="submit" class="btn btn-light btn-lg btn-block" id="btnSubmit">
+                    <button type="submit" class="btn btn-light btn-lg btn-block" id="btnSubmit" disabled>
                         <i class="fas fa-save mr-2"></i>Simpan Pelanggan
                     </button>
+                    <small class="text-white-50 d-block text-center mt-1" id="btnSubmitHint">
+                        <i class="fas fa-info-circle mr-1"></i>Lengkapi data wajib untuk mengaktifkan tombol simpan
+                    </small>
                     <a href="{{ route('admin.customers.index') }}" class="btn btn-outline-light btn-block mt-2">
                         <i class="fas fa-times mr-2"></i>Batal
                     </a>
@@ -808,6 +830,35 @@
     </div>
 </div>
 
+{{-- Resident Search Modal --}}
+@if($hasResidentAccess ?? false)
+<div class="modal fade" id="residentModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-info">
+                <h5 class="modal-title text-white"><i class="fas fa-address-book mr-1"></i> Cari Data Penduduk</h5>
+                <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
+            </div>
+            <div class="modal-body">
+                <div class="input-group mb-3">
+                    <input type="text" id="residentSearchInput" class="form-control" placeholder="Ketik NIK, Nama, atau No KK..." autofocus>
+                    <div class="input-group-append">
+                        <button class="btn btn-info" id="btnResidentSearch"><i class="fas fa-search"></i></button>
+                    </div>
+                </div>
+                <div id="residentSearchResults">
+                    <p class="text-muted text-center py-3">Ketik minimal 2 karakter untuk mencari</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <small class="text-muted"><i class="fas fa-info-circle mr-1"></i>Pilih penduduk untuk mengisi data pelanggan otomatis</small>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
+
 @endsection
 
 @push('js')
@@ -819,6 +870,45 @@ let currentPhotoTarget = null;
 let cameraStream = null;
 let packagesData = [];
 let pppSecretsData = []; // Store PPP Secrets from Mikrotik
+
+// Validate form completeness - enable/disable submit button
+function validateForm() {
+    const name = $('input[name="name"]').val()?.trim();
+    const phone = $('input[name="phone"]').val()?.trim();
+    const routerId = $('#router_id').val();
+    const packageId = $('#package_id').val();
+    const syncMikrotik = $('#sync_mikrotik').is(':checked');
+    const importedFromMikrotik = $('#imported_from_mikrotik').val() === '1';
+    const pppoeUsername = $('#pppoe_username').val()?.trim();
+    const usernameState = $('#usernameStatus').data('username-state');
+    
+    let missing = [];
+    if (!name) missing.push('Nama Lengkap');
+    if (!phone) missing.push('No. Telepon');
+    if (!routerId) missing.push('Router');
+    if (!packageId) missing.push('Paket Layanan');
+    
+    // PPPoE username required when sync_mikrotik is checked or import mode
+    if ((syncMikrotik || importedFromMikrotik) && !pppoeUsername) {
+        missing.push('Username PPPoE');
+    }
+    
+    // Check username availability state
+    if (usernameState === 'unavailable') {
+        missing.push('Username tersedia (username saat ini sudah digunakan)');
+    }
+    
+    const btn = $('#btnSubmit');
+    const hint = $('#btnSubmitHint');
+    
+    if (missing.length === 0) {
+        btn.prop('disabled', false).removeClass('btn-secondary').addClass('btn-light');
+        hint.html('<i class="fas fa-check-circle mr-1"></i>Data lengkap, siap disimpan').removeClass('text-white-50').addClass('text-white');
+    } else {
+        btn.prop('disabled', true).removeClass('btn-light').addClass('btn-secondary');
+        hint.html('<i class="fas fa-info-circle mr-1"></i>Belum lengkap: ' + missing.join(', ')).removeClass('text-white').addClass('text-white-50');
+    }
+}
 
 $(function() {
     // Select2 sudah diinisialisasi secara global di layout admin
@@ -1013,6 +1103,8 @@ $(function() {
             checkUsername(secret.name);
         }
 
+        validateForm();
+
         // Try to match profile with package
         if (secret.profile) {
             const matchingPkg = packagesData.find(p => 
@@ -1048,9 +1140,11 @@ $(function() {
         // Clear username/password
         $('#pppoe_username').val('');
         $('#pppoe_password').val('');
-        $('#usernameStatus').html('<i class="fas fa-info-circle mr-1"></i>Format: {{ $popSetting?->pop_prefix ? $popSetting->pop_prefix . "-" : "" }}username');
+        $('#usernameStatus').html('<i class="fas fa-info-circle mr-1"></i>Format: {{ $popSetting?->pop_prefix ? $popSetting->pop_prefix . "-" : "" }}username')
+            .data('username-state', 'unchecked');
         
         toastr.info('Import dibatalkan');
+        validateForm();
     });
 
     // ── Sync checkbox mutual exclusivity ──
@@ -1069,6 +1163,20 @@ $(function() {
         }
     });
 
+    // ── Prefix toggle ──
+    $('#use_prefix').on('change', function() {
+        if ($(this).is(':checked')) {
+            $('#prefixPrepend').show();
+        } else {
+            $('#prefixPrepend').hide();
+        }
+        // Re-check username with new prefix setting
+        const username = $('#pppoe_username').val()?.trim();
+        if (username && username.length >= 3) {
+            checkUsername(username);
+        }
+    });
+
     // Initial state: if sync_mikrotik is checked on load, hide import section & show credentials
     if ($('#sync_mikrotik').is(':checked')) {
         $('#importMikrotikSection').hide();
@@ -1079,6 +1187,14 @@ $(function() {
         $('#pppoe_username').prop('required', false);
     }
 
+    // ── Form validation listeners ──
+    $('input[name="name"], input[name="phone"], #pppoe_username').on('input', function() { validateForm(); });
+    $('#router_id, #package_id').on('change', function() { validateForm(); });
+    $('#sync_mikrotik').on('change', function() { validateForm(); });
+    
+    // Initial validation check
+    validateForm();
+
     $('#sync_radius').on('change', function() {
         if ($(this).is(':checked')) {
             checkAndGenerateCredentials('FreeRadius');
@@ -1086,7 +1202,10 @@ $(function() {
     });
 
     // Region cascade
+    let _skipCascade = false;
+
     $('#province_code').on('change', function() {
+        if (_skipCascade) return;
         const val = $(this).val();
         $('#city_code').html('<option value="">Pilih Provinsi dulu...</option>').prop('disabled', !val);
         $('#district_code').html('<option value="">Pilih Kota dulu...</option>').prop('disabled', true);
@@ -1098,6 +1217,7 @@ $(function() {
     });
 
     $('#city_code').on('change', function() {
+        if (_skipCascade) return;
         const val = $(this).val();
         $('#district_code').html('<option value="">Pilih Kota dulu...</option>').prop('disabled', !val);
         $('#village_code').html('<option value="">Pilih Kecamatan dulu...</option>').prop('disabled', true);
@@ -1108,6 +1228,7 @@ $(function() {
     });
 
     $('#district_code').on('change', function() {
+        if (_skipCascade) return;
         const val = $(this).val();
         $('#village_code').html('<option value="">Pilih Kecamatan dulu...</option>').prop('disabled', !val);
         
@@ -1293,68 +1414,104 @@ $(function() {
     $('#customerForm').on('submit', function(e) {
         e.preventDefault();
         
-        // Block submit if username status shows unavailable
+        // Block submit if username is definitively unavailable
         const usernameStatusEl = $('#usernameStatus');
-        if (usernameStatusEl.hasClass('text-danger') || usernameStatusEl.hasClass('text-warning')) {
+        const usernameState = usernameStatusEl.data('username-state');
+        
+        // Only block when definitely unavailable (exists in DB as active customer)
+        if (usernameState === 'unavailable') {
             Swal.fire({
                 icon: 'warning',
                 title: 'Username Tidak Tersedia',
-                text: 'Username PPPoE yang dipilih sudah digunakan. Silakan ganti username terlebih dahulu.',
+                text: 'Username PPPoE yang dipilih sudah digunakan oleh pelanggan lain. Silakan ganti username terlebih dahulu.',
             });
             return;
         }
         
-        const btn = $('#btnSubmit');
-        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-2"></i>Menyimpan...');
-
-        $.ajax({
-            url: '{{ route("admin.customers.store") }}',
-            type: 'POST',
-            data: $(this).serialize(),
-            timeout: 60000, // 60 second timeout
-            success: function(response) {
-                if (response.success) {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Berhasil!',
-                        text: response.message,
-                        timer: 2000,
-                        showConfirmButton: true
-                    }).then(() => {
-                        window.location.href = '{{ route("admin.customers.index") }}';
-                    });
-                } else {
-                    toastr.error(response.message);
+        // Warn if username exists in Mikrotik only (orphaned) but allow proceeding
+        if (usernameState === 'mikrotik-only') {
+            Swal.fire({
+                icon: 'question',
+                title: 'Username Ada di Mikrotik',
+                text: 'Username ini sudah ada di Mikrotik sebagai PPP Secret yang belum terdaftar. Lanjutkan simpan? (Secret di Mikrotik tidak akan dibuat ulang)',
+                showCancelButton: true,
+                confirmButtonText: 'Ya, Lanjutkan',
+                cancelButtonText: 'Batal',
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    doSubmit();
                 }
-            },
-            error: function(xhr) {
-                if (xhr.statusText === 'timeout') {
-                    Swal.fire({
-                        icon: 'warning',
-                        title: 'Timeout',
-                        text: 'Request memakan waktu terlalu lama. Silakan cek apakah pelanggan sudah tersimpan.',
-                    });
-                } else if (xhr.status === 422) {
-                    const errors = xhr.responseJSON.errors;
-                    let errorMsg = '';
-                    for (const key in errors) {
-                        errorMsg += errors[key].join('<br>') + '<br>';
-                    }
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Validasi Gagal',
-                        html: errorMsg
-                    });
-                } else {
-                    toastr.error(xhr.responseJSON?.message || 'Terjadi kesalahan');
-                }
-            },
-            complete: function() {
-                btn.prop('disabled', false).html('<i class="fas fa-save mr-2"></i>Simpan Pelanggan');
-            }
-        });
+            });
+            return;
+        }
+        
+        // Check that PPPoE username is filled when sync_mikrotik is checked
+        if ($('#sync_mikrotik').is(':checked') && !$('#pppoe_username').val().trim()) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Username PPPoE Kosong',
+                text: 'Silakan isi username PPPoE atau generate otomatis.',
+            });
+            return;
+        }
+        
+        doSubmit();
     });
 });
+
+// Perform the actual form submission via AJAX
+function doSubmit() {
+    const btn = $('#btnSubmit');
+    const form = $('#customerForm');
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-2"></i>Menyimpan...');
+
+    $.ajax({
+        url: '{{ route("admin.customers.store") }}',
+        type: 'POST',
+        data: form.serialize(),
+        timeout: 60000, // 60 second timeout
+        success: function(response) {
+            if (response.success) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Berhasil!',
+                    text: response.message,
+                    timer: 2000,
+                    showConfirmButton: true
+                }).then(() => {
+                    window.location.href = '{{ route("admin.customers.index") }}';
+                });
+            } else {
+                toastr.error(response.message);
+            }
+        },
+        error: function(xhr) {
+            if (xhr.statusText === 'timeout') {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Timeout',
+                    text: 'Request memakan waktu terlalu lama. Silakan cek apakah pelanggan sudah tersimpan.',
+                });
+            } else if (xhr.status === 422) {
+                const errors = xhr.responseJSON.errors;
+                let errorMsg = '';
+                for (const key in errors) {
+                    errorMsg += errors[key].join('<br>') + '<br>';
+                }
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Validasi Gagal',
+                    html: errorMsg
+                });
+            } else {
+                toastr.error(xhr.responseJSON?.message || 'Terjadi kesalahan');
+            }
+        },
+        complete: function() {
+            btn.prop('disabled', false).html('<i class="fas fa-save mr-2"></i>Simpan Pelanggan');
+        }
+    });
+}
 
 // Helper functions
 function setMarker(lat, lng) {
@@ -1491,7 +1648,7 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-function loadCities(provinceCode) {
+function loadCities(provinceCode, callback) {
     $('#city_code').html('<option value="">Memuat...</option>');
     $.get(`{{ url('admin/pop-settings/cities') }}/${provinceCode}`, function(data) {
         let html = '<option value="">-- Pilih Kota --</option>';
@@ -1499,10 +1656,11 @@ function loadCities(provinceCode) {
             html += `<option value="${city.code}">${city.name}</option>`;
         });
         $('#city_code').html(html).prop('disabled', false);
+        if (callback) callback();
     });
 }
 
-function loadDistricts(cityCode) {
+function loadDistricts(cityCode, callback) {
     $('#district_code').html('<option value="">Memuat...</option>');
     $.get(`{{ url('admin/pop-settings/districts') }}/${cityCode}`, function(data) {
         let html = '<option value="">-- Pilih Kecamatan --</option>';
@@ -1510,10 +1668,11 @@ function loadDistricts(cityCode) {
             html += `<option value="${district.code}">${district.name}</option>`;
         });
         $('#district_code').html(html).prop('disabled', false);
+        if (callback) callback();
     });
 }
 
-function loadVillages(districtCode) {
+function loadVillages(districtCode, callback) {
     $('#village_code').html('<option value="">Memuat...</option>');
     $.get(`{{ url('admin/pop-settings/villages') }}/${districtCode}`, function(data) {
         let html = '<option value="">-- Pilih Kelurahan --</option>';
@@ -1521,6 +1680,7 @@ function loadVillages(districtCode) {
             html += `<option value="${village.code}">${village.name}</option>`;
         });
         $('#village_code').html(html).prop('disabled', false);
+        if (callback) callback();
     });
 }
 
@@ -1538,22 +1698,28 @@ function loadPackages(routerId) {
 
 function checkUsername(username) {
     const routerId = $('#router_id').val();
+    const usePrefix = $('#use_prefix').is(':checked') ? '1' : '0';
     
     // Show checking indicator
-    $('#usernameStatus').html('<i class="fas fa-spinner fa-spin"></i> Memeriksa ketersediaan...').removeClass('text-danger text-success text-warning').addClass('text-info');
+    $('#usernameStatus').html('<i class="fas fa-spinner fa-spin"></i> Memeriksa ketersediaan...')
+        .removeClass('text-danger text-success text-warning').addClass('text-info')
+        .data('username-state', 'checking');
     
     $.post('{{ route("admin.customers.check-username") }}', {
         _token: '{{ csrf_token() }}',
         username: username,
         router_id: routerId,
-        exclude_id: null
+        exclude_id: null,
+        use_prefix: usePrefix
     }, function(response) {
         let html = '';
         let statusClass = '';
+        let state = 'available';
         
         if (response.available) {
             html = '<i class="fas fa-check-circle text-success"></i> Username tersedia';
             statusClass = 'text-success';
+            state = 'available';
             
             // Show Mikrotik check status
             if (response.mikrotik_checked === true) {
@@ -1561,21 +1727,31 @@ function checkUsername(username) {
             } else if (response.mikrotik_checked === false && response.mikrotik_error) {
                 html += ` <span class="badge badge-warning" title="${response.mikrotik_error}"><i class="fas fa-exclamation-triangle"></i> Mikrotik tidak dicek</span>`;
             }
-        } else {
-            statusClass = 'text-danger';
             
+            // Info about previously deleted username (not blocking)
+            if (response.was_deleted) {
+                html += `<br><small class="text-muted"><i class="fas fa-info-circle"></i> ${response.deleted_info}</small>`;
+            }
+        } else {
             if (response.mikrotik_only) {
-                // Exists only in Mikrotik (orphaned secret)
+                // Exists only in Mikrotik (orphaned secret) - warning but allow if importing
                 html = '<i class="fas fa-exclamation-triangle text-warning"></i> <strong>' + response.message + '</strong>';
                 statusClass = 'text-warning';
-            } else if (response.db_exists && response.mikrotik_exists) {
-                html = '<i class="fas fa-times-circle text-danger"></i> ' + response.message;
+                // Allow submit if user is in import mode
+                state = $('#imported_from_mikrotik').val() === '1' ? 'available' : 'mikrotik-only';
             } else if (response.db_exists) {
+                // Definitively unavailable - active customer has this username
+                statusClass = 'text-danger';
+                state = 'unavailable';
                 html = '<i class="fas fa-times-circle text-danger"></i> ' + (response.message || 'Username sudah digunakan di database');
                 if (response.mikrotik_checked === true && !response.mikrotik_exists) {
                     html += ' <span class="badge badge-info"><i class="fas fa-server"></i> Belum ada di Mikrotik</span>';
+                } else if (response.mikrotik_exists) {
+                    html += ' <span class="badge badge-danger"><i class="fas fa-server"></i> Juga ada di Mikrotik</span>';
                 }
             } else {
+                statusClass = 'text-danger';
+                state = 'unavailable';
                 html = '<i class="fas fa-times-circle text-danger"></i> ' + (response.message || 'Username tidak tersedia');
             }
         }
@@ -1585,9 +1761,17 @@ function checkUsername(username) {
             html += `<br><small class="text-muted">Username lengkap: <code>${response.full_username}</code></small>`;
         }
         
-        $('#usernameStatus').html(html).removeClass('text-danger text-success text-warning text-info').addClass(statusClass);
+        $('#usernameStatus').html(html)
+            .removeClass('text-danger text-success text-warning text-info')
+            .addClass(statusClass)
+            .data('username-state', state);
+        
+        validateForm();
     }).fail(function() {
-        $('#usernameStatus').html('<i class="fas fa-exclamation-triangle text-warning"></i> Gagal memeriksa username').removeClass('text-danger text-success text-info').addClass('text-warning');
+        $('#usernameStatus').html('<i class="fas fa-exclamation-triangle text-warning"></i> Gagal memeriksa username (tidak memblokir penyimpanan)')
+            .removeClass('text-danger text-success text-info').addClass('text-warning')
+            .data('username-state', 'error');
+        validateForm();
     });
 }
 
@@ -1700,5 +1884,127 @@ function checkAndGenerateCredentials(syncType) {
     
     toastr.info(message);
 }
+
+// ===== Resident Search (Data Kependudukan) =====
+@if($hasResidentAccess ?? false)
+$('#btnSearchResident').on('click', function() {
+    $('#residentSearchInput').val('');
+    $('#residentSearchResults').html('<p class="text-muted text-center py-3">Ketik minimal 2 karakter untuk mencari</p>');
+    $('#residentModal').modal('show');
+    setTimeout(() => $('#residentSearchInput').focus(), 500);
+});
+
+function searchResidents() {
+    let q = $('#residentSearchInput').val().trim();
+    if (q.length < 2) {
+        $('#residentSearchResults').html('<p class="text-muted text-center py-3">Ketik minimal 2 karakter untuk mencari</p>');
+        return;
+    }
+    $('#residentSearchResults').html('<p class="text-center py-3"><i class="fas fa-spinner fa-spin"></i> Mencari...</p>');
+    $.get('{{ route("admin.residents.search") }}', { q: q }, function(res) {
+        if (!res.success || res.data.length === 0) {
+            $('#residentSearchResults').html('<p class="text-muted text-center py-3">Tidak ditemukan</p>');
+            return;
+        }
+        let html = '<div class="table-responsive"><table class="table table-sm table-hover"><thead><tr><th>NIK</th><th>Nama</th><th>JK</th><th>TTL</th><th>Alamat</th><th></th></tr></thead><tbody>';
+        res.data.forEach(function(r) {
+            let ttl = r.tempat_lahir || '';
+            if (r.tanggal_lahir) {
+                let d = new Date(r.tanggal_lahir);
+                ttl += (ttl ? ', ' : '') + d.toLocaleDateString('id-ID');
+            }
+            let alamat = (r.alamat || '') + (r.dusun ? ' Dsn.' + r.dusun : '') + ' RT' + (r.rt||'') + '/RW' + (r.rw||'');
+            html += `<tr>
+                <td><code>${r.nik}</code></td>
+                <td>${r.nama}</td>
+                <td>${r.jenis_kelamin === 'LAKI-LAKI' ? 'L' : 'P'}</td>
+                <td>${ttl}</td>
+                <td>${alamat}</td>
+                <td><button class="btn btn-xs btn-success btn-assign-resident" data-resident='${JSON.stringify(r)}'><i class="fas fa-check"></i> Pilih</button></td>
+            </tr>`;
+        });
+        html += '</tbody></table></div>';
+        $('#residentSearchResults').html(html);
+    }).fail(function(xhr) {
+        $('#residentSearchResults').html('<p class="text-danger text-center py-3">' + (xhr.responseJSON?.message || 'Gagal mencari') + '</p>');
+    });
+}
+
+$('#btnResidentSearch').on('click', searchResidents);
+$('#residentSearchInput').on('keyup', function(e) {
+    if (e.key === 'Enter') searchResidents();
+});
+
+let residentSearchTimer;
+$('#residentSearchInput').on('input', function() {
+    clearTimeout(residentSearchTimer);
+    residentSearchTimer = setTimeout(searchResidents, 400);
+});
+
+$(document).on('click', '.btn-assign-resident', function() {
+    let r = $(this).data('resident');
+
+    // Close modal immediately
+    $('#residentModal').modal('hide');
+
+    $('input[name="nik"]').val(r.nik);
+    $('input[name="name"]').val(r.nama);
+    let genderVal = r.jenis_kelamin === 'LAKI-LAKI' ? 'male' : 'female';
+    $('select[name="gender"]').val(genderVal).trigger('change');
+    if (r.tanggal_lahir) {
+        let d = new Date(r.tanggal_lahir);
+        let dateStr = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+        $('input[name="birth_date"]').val(dateStr);
+    }
+    if (r.alamat || r.dusun || r.rt || r.rw || r.kelurahan) {
+        let fullAddr = (r.alamat || '');
+        if (r.dusun) fullAddr += (fullAddr ? ', ' : '') + 'Dusun ' + r.dusun;
+        if (r.rt) fullAddr += ' RT ' + r.rt;
+        if (r.rw) fullAddr += '/RW ' + r.rw;
+        if (r.kelurahan) fullAddr += (fullAddr ? ', ' : '') + r.kelurahan;
+        $('textarea[name="address"]').val(fullAddr);
+    }
+
+    // Helper: populate select, set value, and force Select2 to re-read
+    function fillSelect(selector, data, value, placeholder) {
+        let $el = $(selector);
+        if ($el.hasClass('select2-hidden-accessible')) {
+            $el.select2('destroy');
+        }
+        $el.empty().append(new Option(placeholder || '-- Pilih --', '', false, false));
+        data.forEach(item => {
+            $el.append(new Option(item.name, item.code, false, false));
+        });
+        if (value) {
+            $el.val(value);
+        }
+        $el.select2({ theme: 'bootstrap-5' }).prop('disabled', false);
+    }
+
+    // Fill Region codes - cascade in sequence
+    if (r.province_code) {
+        _skipCascade = true;
+        $('#province_code').val(r.province_code).trigger('change');
+
+        $.get(`{{ url('admin/pop-settings/cities') }}/${r.province_code}`, function(cities) {
+            fillSelect('#city_code', cities, r.city_code, '-- Pilih Kota --');
+
+            if (r.city_code) {
+                $.get(`{{ url('admin/pop-settings/districts') }}/${r.city_code}`, function(districts) {
+                    fillSelect('#district_code', districts, r.district_code, '-- Pilih Kecamatan --');
+
+                    if (r.district_code) {
+                        $.get(`{{ url('admin/pop-settings/villages') }}/${r.district_code}`, function(villages) {
+                            fillSelect('#village_code', villages, r.village_code, '-- Pilih Kelurahan --');
+                            _skipCascade = false;
+                        });
+                    } else { _skipCascade = false; }
+                });
+            } else { _skipCascade = false; }
+        });
+    }
+    toastr.success('Data penduduk berhasil di-assign ke form pelanggan');
+});
+@endif
 </script>
 @endpush

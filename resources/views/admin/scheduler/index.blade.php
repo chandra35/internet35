@@ -39,6 +39,122 @@
         0%, 100% { opacity: 1; }
         50% { opacity: 0.5; }
     }
+    /* Smart Check Modal */
+    .sc-item {
+        display: flex;
+        align-items: flex-start;
+        padding: 10px 15px;
+        border-bottom: 1px solid #f0f0f0;
+        animation: scSlideIn 0.3s ease-out;
+    }
+    .sc-item:last-child { border-bottom: none; }
+    .sc-item:hover { background: #f8f9fa; }
+    .sc-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        margin-right: 12px;
+        font-size: 13px;
+    }
+    .sc-icon.success { background: #d4edda; color: #155724; }
+    .sc-icon.danger { background: #f8d7da; color: #721c24; }
+    .sc-icon.warning { background: #fff3cd; color: #856404; }
+    .sc-icon.info { background: #d1ecf1; color: #0c5460; }
+    .sc-content { flex: 1; min-width: 0; }
+    .sc-label { font-weight: 600; font-size: 0.9rem; margin-bottom: 2px; }
+    .sc-detail { font-size: 0.8rem; color: #6c757d; }
+    .sc-action { flex-shrink: 0; margin-left: 10px; }
+    .sc-category-header {
+        background: #f4f6f9;
+        padding: 8px 15px;
+        font-weight: 700;
+        font-size: 0.85rem;
+        color: #495057;
+        border-bottom: 2px solid #dee2e6;
+        animation: scSlideIn 0.2s ease-out;
+    }
+    .sc-summary-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+    @keyframes scSlideIn {
+        from { opacity: 0; transform: translateY(-8px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .sc-steps-bar {
+        display: flex;
+        gap: 0;
+        margin-bottom: 20px;
+    }
+    .sc-step {
+        flex: 1;
+        text-align: center;
+        padding: 10px 5px;
+        position: relative;
+        font-size: 0.78rem;
+        color: #adb5bd;
+        transition: all 0.3s;
+    }
+    .sc-step .sc-step-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: #e9ecef;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 5px;
+        font-size: 14px;
+        transition: all 0.3s;
+    }
+    .sc-step.active .sc-step-icon {
+        background: #007bff;
+        color: #fff;
+        box-shadow: 0 0 0 4px rgba(0,123,255,0.2);
+        animation: scPulse 1.5s infinite;
+    }
+    .sc-step.active { color: #007bff; font-weight: 600; }
+    .sc-step.done .sc-step-icon {
+        background: #28a745;
+        color: #fff;
+    }
+    .sc-step.done { color: #28a745; }
+    .sc-step.error .sc-step-icon {
+        background: #dc3545;
+        color: #fff;
+    }
+    @keyframes scPulse {
+        0%, 100% { box-shadow: 0 0 0 4px rgba(0,123,255,0.2); }
+        50% { box-shadow: 0 0 0 8px rgba(0,123,255,0.1); }
+    }
+    .sc-results-area {
+        max-height: 400px;
+        overflow-y: auto;
+        border: 1px solid #e9ecef;
+        border-radius: 6px;
+    }
+    .sc-progress-text {
+        font-size: 0.85rem;
+        color: #495057;
+        margin-bottom: 8px;
+        min-height: 22px;
+    }
+    #smartCheckModal .modal-body {
+        padding: 20px 25px;
+    }
+    #smartCheckModal .modal-footer {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
 </style>
 @endpush
 
@@ -137,6 +253,19 @@
                 Tambah <i class="fas fa-arrow-circle-right"></i>
             </a>
         </div>
+    </div>
+</div>
+
+<!-- Smart Check Trigger -->
+<div class="callout callout-primary mb-3" style="cursor:pointer;" onclick="openSmartCheck()">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h5 class="mb-0"><i class="fas fa-stethoscope mr-2"></i>Smart Check — Diagnostik Sistem</h5>
+            <small class="text-muted">Cek semua komponen billing, notifikasi, dan server dalam sekali klik</small>
+        </div>
+        <button class="btn btn-primary">
+            <i class="fas fa-play mr-1"></i> Mulai Cek
+        </button>
     </div>
 </div>
 
@@ -295,18 +424,51 @@
         <div class="card">
             <div class="card-header bg-info">
                 <h3 class="card-title text-white">
-                    <i class="fas fa-info-circle mr-2"></i>Informasi
+                    <i class="fas fa-info-circle mr-2"></i>Setup Scheduler
                 </h3>
             </div>
             <div class="card-body">
-                <p class="small mb-2">
-                    <strong>Catatan:</strong> Scheduler membutuhkan cron job di server production:
-                </p>
-                <pre class="bg-dark text-white p-2 rounded small">* * * * * cd /path-to-project && php artisan schedule:run >> /dev/null 2>&1</pre>
-                <p class="small mb-0 mt-2">
-                    <strong>Untuk Windows (development):</strong><br>
-                    Jalankan <code>php artisan schedule:work</code>
-                </p>
+                @php
+                    $isWindows = strtoupper(substr(PHP_OS, 0, 3)) === 'WIN';
+                    $projectPath = base_path();
+                    $phpBin = PHP_BINARY ?: 'php';
+                @endphp
+
+                <div class="mb-2">
+                    <span class="badge badge-{{ $isWindows ? 'primary' : 'success' }}">
+                        <i class="fas fa-{{ $isWindows ? 'windows' : 'linux' }} mr-1"></i>
+                        {{ PHP_OS }}
+                    </span>
+                    <small class="text-muted ml-1">Terdeteksi otomatis</small>
+                </div>
+
+                @if($isWindows)
+                    <p class="small mb-2"><strong>Windows Task Scheduler:</strong></p>
+                    <pre class="bg-dark text-white p-2 rounded small mb-2" style="white-space: pre-wrap; word-break: break-all;">schtasks /create /sc minute /mo 1 /tn "LaravelScheduler" /tr "\"{{ $phpBin }}\" \"{{ $projectPath }}\artisan\" schedule:run"</pre>
+
+                    <p class="small mb-2"><strong>Atau jalankan langsung (development):</strong></p>
+                    <pre class="bg-dark text-white p-2 rounded small mb-2">cd "{{ $projectPath }}"
+php artisan schedule:work</pre>
+
+                    <p class="small mb-2"><strong>Atau di PowerShell (background):</strong></p>
+                    <pre class="bg-dark text-white p-2 rounded small mb-0" style="white-space: pre-wrap; word-break: break-all;">Start-Process -NoNewWindow -FilePath "{{ $phpBin }}" -ArgumentList "\"{{ $projectPath }}\artisan\", schedule:work"</pre>
+                @else
+                    <p class="small mb-2"><strong>Tambahkan di crontab:</strong></p>
+                    <pre class="bg-dark text-white p-2 rounded small mb-2" style="white-space: pre-wrap; word-break: break-all;">* * * * * cd {{ $projectPath }} && {{ $phpBin }} artisan schedule:run >> /dev/null 2>&1</pre>
+
+                    <p class="small mb-2"><strong>Perintah edit crontab:</strong></p>
+                    <pre class="bg-dark text-white p-2 rounded small mb-2">crontab -e</pre>
+
+                    <p class="small mb-2"><strong>Atau untuk development:</strong></p>
+                    <pre class="bg-dark text-white p-2 rounded small mb-0">cd {{ $projectPath }} && php artisan schedule:work</pre>
+                @endif
+
+                <hr>
+                <div class="small text-muted">
+                    <i class="fas fa-lightbulb text-warning mr-1"></i>
+                    Task yang dibuat di halaman ini otomatis terdaftar di Laravel Scheduler.
+                    Pastikan <code>schedule:run</code> aktif di server production.
+                </div>
             </div>
         </div>
     </div>
@@ -418,9 +580,51 @@
         </div>
     </div>
 </div>
+
+<!-- Smart Check Modal -->
+<div class="modal fade" id="smartCheckModal" tabindex="-1" data-backdrop="static" data-keyboard="false">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-primary">
+                <h5 class="modal-title text-white">
+                    <i class="fas fa-stethoscope mr-2"></i>Smart Check — Diagnostik Sistem
+                </h5>
+                <button type="button" class="close text-white" id="scCloseBtn" data-dismiss="modal" disabled>
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <!-- Step Progress Indicators -->
+                <div class="sc-steps-bar" id="scStepsBar"></div>
+
+                <!-- Progress Bar -->
+                <div class="sc-progress-text" id="scProgressText">Mempersiapkan diagnostik...</div>
+                <div class="progress mb-3" style="height: 6px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" id="scProgressBar" style="width: 0%; transition: width 0.4s ease;"></div>
+                </div>
+
+                <!-- Results Area -->
+                <div class="sc-results-area" id="scResultsBody"></div>
+            </div>
+            <div class="modal-footer" id="scModalFooter" style="display:none;">
+                <div class="w-100 d-flex justify-content-between align-items-center flex-wrap">
+                    <div id="scSummaryBadges"></div>
+                    <div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary mr-1" onclick="openSmartCheck()">
+                            <i class="fas fa-sync-alt mr-1"></i> Ulangi
+                        </button>
+                        <button type="button" class="btn btn-sm btn-primary" id="scFixAllBtn" onclick="fixAll()" style="display:none;">
+                            <i class="fas fa-magic mr-1"></i> Perbaiki Semua
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
-@push('scripts')
+@push('js')
 <script>
 function changePop(popId) {
     window.location.href = '{{ route('admin.scheduler.index') }}?pop_id=' + popId;
@@ -454,5 +658,241 @@ $(document).ready(function() {
         $('input[name="command"]').val($(this).val());
     });
 });
+
+/**
+ * Smart Check — Streaming Modal
+ */
+let scAllChecks = [];
+let scSteps = [];
+
+function openSmartCheck() {
+    scAllChecks = [];
+    scSteps = [];
+    $('#scStepsBar').html('');
+    $('#scResultsBody').html('');
+    $('#scProgressBar').css('width', '0%').removeClass('bg-success bg-danger');
+    $('#scProgressText').text('Mempersiapkan diagnostik...');
+    $('#scModalFooter').hide();
+    $('#scSummaryBadges').html('');
+    $('#scFixAllBtn').hide();
+    $('#scCloseBtn').attr('disabled', true);
+    $('#smartCheckModal').modal('show');
+
+    // Step 1: fetch available steps
+    $.get('{{ route("admin.scheduler.smart-check") }}', function(resp) {
+        if (!resp.success || !resp.steps) {
+            showSmartCheckError('Gagal memuat langkah diagnostik.');
+            return;
+        }
+        scSteps = resp.steps;
+        renderStepIndicators();
+        runNextStep(0);
+    }).fail(function() {
+        showSmartCheckError('Tidak dapat terhubung ke server.');
+    });
+}
+
+function renderStepIndicators() {
+    let html = '';
+    scSteps.forEach(function(step, i) {
+        html += `<div class="sc-step" id="scStep_${step.key}">
+            <div class="sc-step-icon"><i class="fas ${step.icon}"></i></div>
+            <div>${step.label}</div>
+        </div>`;
+    });
+    $('#scStepsBar').html(html);
+}
+
+function runNextStep(index) {
+    if (index >= scSteps.length) {
+        finishSmartCheck();
+        return;
+    }
+
+    const step = scSteps[index];
+    const pct = Math.round(((index) / scSteps.length) * 100);
+    const pctNext = Math.round(((index + 1) / scSteps.length) * 100);
+
+    // Mark current step as active
+    $('#scStep_' + step.key).addClass('active');
+    $('#scProgressBar').css('width', pct + '%');
+    $('#scProgressText').html(`<i class="fas fa-spinner fa-spin mr-1"></i> Memeriksa <strong>${step.label}</strong>...`);
+
+    $.get('{{ route("admin.scheduler.smart-check") }}', { step: step.key }, function(resp) {
+        // Mark step as done
+        $('#scStep_' + step.key).removeClass('active').addClass('done');
+        $('#scProgressBar').css('width', pctNext + '%');
+
+        if (resp.success && resp.checks) {
+            scAllChecks = scAllChecks.concat(resp.checks);
+            appendCheckResults(step, resp.checks);
+        }
+
+        // Small delay for visual streaming effect, then next step
+        setTimeout(function() {
+            runNextStep(index + 1);
+        }, 200);
+    }).fail(function() {
+        $('#scStep_' + step.key).removeClass('active').addClass('error');
+        appendStepError(step);
+        setTimeout(function() {
+            runNextStep(index + 1);
+        }, 200);
+    });
+}
+
+function appendCheckResults(step, checks) {
+    const $body = $('#scResultsBody');
+    const iconMap = {success: 'fa-check', danger: 'fa-times', warning: 'fa-exclamation-triangle', info: 'fa-info'};
+
+    // Category header
+    $body.append(`<div class="sc-category-header"><i class="fas ${step.icon} mr-1"></i> ${step.label}</div>`);
+
+    if (checks.length === 0) {
+        $body.append(`<div class="sc-item">
+            <div class="sc-icon success"><i class="fas fa-check"></i></div>
+            <div class="sc-content">
+                <div class="sc-label">Semua OK</div>
+                <div class="sc-detail">Tidak ditemukan masalah pada ${step.label}.</div>
+            </div>
+        </div>`);
+        return;
+    }
+
+    checks.forEach(function(item, idx) {
+        const delay = idx * 80;
+        const $item = $(`<div class="sc-item" style="opacity:0;">
+            <div class="sc-icon ${item.status}">
+                <i class="fas ${iconMap[item.status] || 'fa-circle'}"></i>
+            </div>
+            <div class="sc-content">
+                <div class="sc-label">${item.label}</div>
+                <div class="sc-detail">${item.detail}</div>
+            </div>
+            ${item.fixable ? `<div class="sc-action">
+                <button class="btn btn-sm btn-outline-primary" onclick="fixItem('${item.fix_action}', ${JSON.stringify(JSON.stringify(item.fix_data))})">
+                    <i class="fas fa-wrench mr-1"></i>Perbaiki
+                </button>
+            </div>` : ''}
+        </div>`);
+        $body.append($item);
+        setTimeout(function() {
+            $item.css({opacity: 1, transition: 'opacity 0.3s ease, transform 0.3s ease', transform: 'translateY(0)'});
+        }, delay);
+    });
+
+    // Auto-scroll to bottom
+    $body.scrollTop($body[0].scrollHeight);
+}
+
+function appendStepError(step) {
+    const $body = $('#scResultsBody');
+    $body.append(`<div class="sc-category-header bg-danger text-white"><i class="fas ${step.icon} mr-1"></i> ${step.label}</div>`);
+    $body.append(`<div class="sc-item">
+        <div class="sc-icon danger"><i class="fas fa-times"></i></div>
+        <div class="sc-content">
+            <div class="sc-label">Gagal memeriksa</div>
+            <div class="sc-detail">Terjadi error saat memeriksa ${step.label}. Coba ulangi.</div>
+        </div>
+    </div>`);
+}
+
+function finishSmartCheck() {
+    // Progress complete
+    const hasDanger = scAllChecks.some(c => c.status === 'danger');
+    $('#scProgressBar')
+        .css('width', '100%')
+        .removeClass('progress-bar-animated progress-bar-striped')
+        .addClass(hasDanger ? 'bg-danger' : 'bg-success');
+    $('#scProgressText').html(hasDanger
+        ? '<i class="fas fa-exclamation-triangle text-danger mr-1"></i> <strong>Ditemukan masalah yang perlu diperbaiki</strong>'
+        : '<i class="fas fa-check-circle text-success mr-1"></i> <strong>Diagnostik selesai</strong>');
+
+    // Enable close
+    $('#scCloseBtn').attr('disabled', false);
+
+    // Summary badges
+    const counts = {success: 0, warning: 0, danger: 0, info: 0, fixable: 0};
+    scAllChecks.forEach(function(c) {
+        counts[c.status] = (counts[c.status] || 0) + 1;
+        if (c.fixable) counts.fixable++;
+    });
+
+    let badgeHtml = '';
+    if (counts.success) badgeHtml += `<span class="sc-summary-badge bg-success text-white"><i class="fas fa-check"></i> ${counts.success} OK</span> `;
+    if (counts.warning) badgeHtml += `<span class="sc-summary-badge bg-warning text-dark"><i class="fas fa-exclamation-triangle"></i> ${counts.warning} Peringatan</span> `;
+    if (counts.danger)  badgeHtml += `<span class="sc-summary-badge bg-danger text-white"><i class="fas fa-times"></i> ${counts.danger} Masalah</span> `;
+    if (counts.info)    badgeHtml += `<span class="sc-summary-badge bg-info text-white"><i class="fas fa-info"></i> ${counts.info} Info</span> `;
+    $('#scSummaryBadges').html(badgeHtml);
+
+    if (counts.fixable > 0) {
+        $('#scFixAllBtn').show().html(`<i class="fas fa-magic mr-1"></i> Perbaiki Semua <span class="badge badge-light">${counts.fixable}</span>`);
+    }
+
+    $('#scModalFooter').show();
+}
+
+function showSmartCheckError(msg) {
+    $('#scProgressBar').css('width', '100%').removeClass('progress-bar-animated').addClass('bg-danger');
+    $('#scProgressText').html(`<i class="fas fa-times-circle text-danger mr-1"></i> ${msg}`);
+    $('#scCloseBtn').attr('disabled', false);
+    $('#scModalFooter').show();
+}
+
+function fixItem(action, dataJson) {
+    const data = JSON.parse(dataJson);
+    Swal.fire({
+        title: 'Konfirmasi',
+        text: 'Jalankan auto-fix ini?',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Ya, Perbaiki',
+        cancelButtonText: 'Batal'
+    }).then(function(result) {
+        if (result.isConfirmed) {
+            doFix(action, data);
+        }
+    });
+}
+
+function fixAll() {
+    Swal.fire({
+        title: 'Perbaiki Semua?',
+        text: 'Semua masalah yang bisa diperbaiki otomatis akan dijalankan.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Ya, Perbaiki Semua',
+        cancelButtonText: 'Batal'
+    }).then(function(result) {
+        if (result.isConfirmed) {
+            doFix('fix_all', {});
+        }
+    });
+}
+
+function doFix(action, data) {
+    $.ajax({
+        url: '{{ route("admin.scheduler.smart-check.fix") }}',
+        type: 'POST',
+        data: { _token: '{{ csrf_token() }}', action: action, data: data },
+        beforeSend: function() {
+            Swal.fire({ title: 'Memproses...', allowOutsideClick: false, didOpen: function() { Swal.showLoading(); }});
+        },
+        success: function(resp) {
+            Swal.close();
+            if (resp.success) {
+                toastr.success(resp.message);
+                // Re-run smart check in the modal
+                openSmartCheck();
+            } else {
+                toastr.error(resp.message || 'Gagal memperbaiki.');
+            }
+        },
+        error: function() {
+            Swal.close();
+            toastr.error('Terjadi kesalahan server.');
+        }
+    });
+}
 </script>
 @endpush

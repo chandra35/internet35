@@ -95,6 +95,26 @@ class CustomerImportTemplate implements FromArray, WithHeadings, WithStyles, Wit
             '',
         ];
 
+        // Third sample row - migrasi tanpa username/password
+        $rows[] = [
+            'Budi Migrasi',
+            '085678901234',
+            '',
+            '',
+            !empty($this->routers) ? $this->routers[0] : 'Nama Router',
+            !empty($this->packages) ? $this->packages[0] : 'Nama Paket',
+            '',
+            '',
+            'L',
+            'Jl. Migrasi No. 3',
+            'pppoe',
+            '100000',
+            '0',
+            date('Y-m-d'),
+            '1',
+            'Migrasi - perlu sync username/password',
+        ];
+
         return $rows;
     }
 
@@ -123,7 +143,7 @@ class CustomerImportTemplate implements FromArray, WithHeadings, WithStyles, Wit
     public function styles(Worksheet $sheet): array
     {
         $lastCol = 'P';
-        $lastRow = 3; // heading + 2 sample rows
+        $lastRow = 4; // heading + 3 sample rows
 
         // Header row styling
         $sheet->getStyle("A1:{$lastCol}1")->applyFromArray([
@@ -169,8 +189,8 @@ class CustomerImportTemplate implements FromArray, WithHeadings, WithStyles, Wit
         // Add comment/note at the top of the sheet
         $sheet->getComment('A1')->getText()->createTextRun('WAJIB diisi');
         $sheet->getComment('B1')->getText()->createTextRun('WAJIB diisi. Format: 08xxxx');
-        $sheet->getComment('C1')->getText()->createTextRun('WAJIB. Username PPPoE');
-        $sheet->getComment('D1')->getText()->createTextRun('WAJIB. Password PPPoE');
+        $sheet->getComment('C1')->getText()->createTextRun('Opsional. Username PPPoE (kosongkan jika migrasi)');
+        $sheet->getComment('D1')->getText()->createTextRun('Opsional. Password PPPoE (kosongkan jika migrasi)');
         $sheet->getComment('E1')->getText()->createTextRun('Opsional. Nama router yang ada di sistem');
         $sheet->getComment('F1')->getText()->createTextRun('Opsional. Nama paket yang ada di router');
         $sheet->getComment('G1')->getText()->createTextRun('Opsional');

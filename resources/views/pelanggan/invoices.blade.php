@@ -41,9 +41,6 @@
                                 </td>
                                 <td>
                                     <strong>Rp {{ number_format($invoice->total_amount, 0, ',', '.') }}</strong>
-                                    @if($invoice->late_fee > 0)
-                                    <br><small class="text-danger">+ Denda Rp {{ number_format($invoice->late_fee, 0, ',', '.') }}</small>
-                                    @endif
                                 </td>
                                 <td>
                                     <span class="badge badge-{{ $invoice->status_color }}">

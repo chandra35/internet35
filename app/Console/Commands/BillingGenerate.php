@@ -6,6 +6,8 @@ use App\Models\Customer;
 use App\Models\CustomerInvoice;
 use App\Models\PopSetting;
 use App\Models\User;
+use App\Services\NotificationService;
+use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -19,8 +21,7 @@ class BillingGenerate extends Command
      */
     protected $signature = 'billing:generate 
                             {--pop= : Generate only for specific POP ID}
-                            {--period-start= : Period start date (Y-m-d)}
-                            {--period-end= : Period end date (Y-m-d)}
+                            {--billing-day= : Override billing day (1-28), default: today}
                             {--dry-run : Preview without creating invoices}';
 
     /**
@@ -28,7 +29,7 @@ class BillingGenerate extends Command
      *
      * @var string
      */
-    protected $description = 'Generate monthly invoices for all active customers';
+    protected $description = 'Generate monthly invoices for customers whose billing_day matches today (or specified day)';
 
     /**
      * Execute the console command.
@@ -39,14 +40,21 @@ class BillingGenerate extends Command
         
         $popId = $this->option('pop');
         $dryRun = $this->option('dry-run');
+        $billingDay = $this->option('billing-day') ? (int) $this->option('billing-day') : (int) now()->day;
         
-        // Determine period
-        $periodStart = $this->option('period-start') 
-            ? \Carbon\Carbon::parse($this->option('period-start'))
-            : now()->startOfMonth();
-        $periodEnd = $this->option('period-end')
-            ? \Carbon\Carbon::parse($this->option('period-end'))
-            : now()->endOfMonth();
+        // Clamp billing day to 1-28
+        $billingDay = max(1, min(28, $billingDay));
+        
+        $this->info("Billing day: {$billingDay} | Date: " . now()->format('Y-m-d'));
+        
+        // Calculate period for this billing_day
+        // Period: from billing_day this month to (billing_day - 1) next month
+        $periodStart = Carbon::create(now()->year, now()->month, $billingDay);
+        // If billing_day is after today, it means the period started last month
+        if ($billingDay > now()->day) {
+            $periodStart->subMonth();
+        }
+        $periodEnd = $periodStart->copy()->addMonth()->subDay();
         
         $this->info("Period: {$periodStart->format('Y-m-d')} to {$periodEnd->format('Y-m-d')}");
         
@@ -64,22 +72,23 @@ class BillingGenerate extends Command
             $popSetting = PopSetting::where('user_id', $pop->id)->first();
             $dueDays = $popSetting?->invoice_due_days ?? 7;
             
-            // Get active customers without invoice for this period
+            // Get active customers whose billing_day matches today
             $customers = Customer::where('pop_id', $pop->id)
                 ->where('status', 'active')
                 ->whereNotNull('package_id')
+                ->where('billing_day', $billingDay)
                 ->with('package')
                 ->whereDoesntHave('invoices', function($q) use ($periodStart, $periodEnd) {
-                    $q->where('period_start', $periodStart)
-                      ->where('period_end', $periodEnd);
+                    $q->where('period_start', $periodStart->toDateString())
+                      ->where('period_end', $periodEnd->toDateString());
                 })
                 ->get();
             
-            $this->info("Found {$customers->count()} customers to process");
+            $this->info("Found {$customers->count()} customers (billing_day={$billingDay}) to process");
             
             if ($dryRun) {
                 foreach ($customers as $customer) {
-                    $this->line("  - {$customer->name} ({$customer->customer_id}): {$customer->package?->name}");
+                    $this->line("  - {$customer->name} ({$customer->customer_id}): {$customer->package?->name} [billing_day={$customer->billing_day}]");
                 }
                 $totalSkipped += $customers->count();
                 continue;
@@ -103,13 +112,14 @@ class BillingGenerate extends Command
                     }
                     
                     $totalAmount = $subtotal + $taxAmount;
+                    $dueDate = $periodStart->copy()->addDays($dueDays);
                     
-                    CustomerInvoice::create([
+                    $invoice = CustomerInvoice::create([
                         'customer_id' => $customer->id,
                         'pop_id' => $pop->id,
                         'invoice_number' => CustomerInvoice::generateInvoiceNumber($pop->id),
                         'invoice_date' => now(),
-                        'due_date' => now()->addDays($dueDays),
+                        'due_date' => $dueDate,
                         'period_start' => $periodStart,
                         'period_end' => $periodEnd,
                         'items' => [
@@ -127,8 +137,21 @@ class BillingGenerate extends Command
                         'notes' => $popSetting?->invoice_notes,
                     ]);
                     
-                    $this->line("  - Created invoice for {$customer->name}");
+                    $this->line("  - Created invoice for {$customer->name} (due: {$dueDate->format('d M Y')})");
                     $totalGenerated++;
+
+                    // Send invoice notification
+                    try {
+                        app(NotificationService::class)->sendInvoiceCreated($customer, [
+                            'invoice_number' => $invoice->invoice_number,
+                            'invoice_date' => now()->format('d F Y'),
+                            'due_date' => $dueDate->format('d F Y'),
+                            'total_amount' => 'Rp ' . number_format($totalAmount, 0, ',', '.'),
+                            'period' => $periodStart->format('d M Y') . ' - ' . $periodEnd->format('d M Y'),
+                        ]);
+                    } catch (\Exception $notifErr) {
+                        Log::warning("Failed to send invoice notification to {$customer->customer_id}: " . $notifErr->getMessage());
+                    }
                 }
                 
                 DB::commit();

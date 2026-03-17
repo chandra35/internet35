@@ -140,6 +140,11 @@
             Daftar Invoice
         </h3>
         <div class="card-tools">
+            @can('invoices.view')
+            <a href="{{ route('admin.invoices.bulk-print-select') }}" class="btn btn-info btn-sm mr-2">
+                <i class="fas fa-print mr-1"></i> Cetak Massal
+            </a>
+            @endcan
             @can('invoices.create')
             <button type="button" class="btn btn-success btn-sm mr-2" data-toggle="modal" data-target="#generateModal">
                 <i class="fas fa-magic mr-1"></i> Generate Massal
@@ -279,6 +284,10 @@
                                 <a href="{{ route('admin.invoices.print', $invoice) }}" 
                                    class="btn btn-secondary" title="Print" target="_blank">
                                     <i class="fas fa-print"></i>
+                                </a>
+                                <a href="{{ route('admin.invoices.download-pdf', $invoice) }}" 
+                                   class="btn btn-danger" title="Download PDF">
+                                    <i class="fas fa-file-pdf"></i>
                                 </a>
                             </div>
                         </td>
