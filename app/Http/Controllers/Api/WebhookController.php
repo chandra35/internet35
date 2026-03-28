@@ -79,6 +79,11 @@ class WebhookController extends Controller
 
         $payment = CustomerPayment::where('payment_number', $orderId)->first();
         if (!$payment) {
+            // Return 200 for Midtrans test notifications (order_id starts with "test-conn-")
+            if (str_starts_with($orderId, 'test-conn-')) {
+                Log::info('Midtrans test connection received', ['order_id' => $orderId]);
+                return response()->json(['success' => true, 'message' => 'Test connection OK']);
+            }
             return response()->json(['success' => false, 'message' => 'Payment not found'], 404);
         }
 
