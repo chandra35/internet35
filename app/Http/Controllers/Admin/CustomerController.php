@@ -440,7 +440,7 @@ class CustomerController extends Controller implements HasMiddleware
                                 'name' => $pppoeUsername,
                                 'password' => $pppoePassword,
                                 'profile' => $package->profile_name ?? $package->name,
-                                'comment' => $customer->address ?? $customer->name,
+                                'comment' => '[billing] ' . $customer->name . ' - ' . $customer->customer_id,
                             ];
                             
                             $mikrotikResult = $mikrotikService->addPppSecret($params);
@@ -684,6 +684,16 @@ class CustomerController extends Controller implements HasMiddleware
                         $newOdp->increment('used_ports');
                     }
                 }
+            }
+
+            // Track PPPoE username change for Mikrotik sync
+            if (
+                $request->filled('pppoe_username') &&
+                $customer->pppoe_username &&
+                $customer->pppoe_username !== $request->pppoe_username
+            ) {
+                $data['previous_pppoe_username'] = $customer->pppoe_username;
+                $data['mikrotik_synced'] = false;
             }
 
             // Handle password change
@@ -1035,25 +1045,57 @@ class CustomerController extends Controller implements HasMiddleware
                     }
 
                     try {
+                        // Build params
+                        $profileName = $customer->package?->mikrotik_profile_name ?? $customer->package?->name ?? 'default';
+                        $password = $customer->decrypted_pppoe_password ?? '12345';
+
                         // Check if already exists in Mikrotik
-                        if ($mikrotikService->pppSecretExists($customer->pppoe_username)) {
+                        $existingSecret = $mikrotikService->getPppSecretByName($customer->pppoe_username);
+
+                        // Fallback: search by previous username (username was changed)
+                        $wasRenamed = false;
+                        if (!$existingSecret && $customer->previous_pppoe_username) {
+                            $existingSecret = $mikrotikService->getPppSecretByName($customer->previous_pppoe_username);
+                            if ($existingSecret) {
+                                $wasRenamed = true;
+                            }
+                        }
+
+                        if ($existingSecret) {
+                            // Update existing secret (and rename if username changed)
+                            $updateParams = [
+                                'password' => $password,
+                                'profile' => $profileName,
+                                'comment' => '[billing] ' . $customer->name . ' - ' . $customer->customer_id,
+                            ];
+
+                            if ($wasRenamed) {
+                                $updateParams['name'] = $customer->pppoe_username;
+                            }
+
+                            $mikrotikService->updatePppSecret($existingSecret['.id'], $updateParams);
+
                             $customer->update([
                                 'mikrotik_synced' => true,
                                 'mikrotik_synced_at' => now(),
                                 'last_sync_error' => null,
+                                'previous_pppoe_username' => null,
                             ]);
-                            $details[] = ['name' => $customer->name, 'success' => true, 'status' => 'Sudah ada di Mikrotik, ditandai synced'];
+
+                            $statusText = $wasRenamed
+                                ? "Di-rename dari '{$customer->previous_pppoe_username}' dan diupdate"
+                                : 'Sudah ada di Mikrotik, diupdate';
+                            $details[] = ['name' => $customer->name, 'success' => true, 'status' => $statusText];
                             $successCount++;
                             continue;
                         }
 
                         // Create PPP Secret
-                        $profileName = $customer->package?->mikrotik_profile_name ?? $customer->package?->name ?? 'default';
                         $params = [
                             'name' => $customer->pppoe_username,
-                            'password' => $customer->pppoe_password ?? '12345',
+                            'password' => $password,
                             'profile' => $profileName,
-                            'comment' => $customer->address ?? $customer->name,
+                            'comment' => '[billing] ' . $customer->name . ' - ' . $customer->customer_id,
                         ];
 
                         $result = $mikrotikService->addPppSecret($params);
@@ -1442,32 +1484,66 @@ class CustomerController extends Controller implements HasMiddleware
                 ], 500);
             }
 
+            // Build params
+            $profileName = $package?->mikrotik_profile_name ?? $package?->name ?? 'default';
+            $password = $customer->decrypted_pppoe_password ?? '12345';
+
             // Check if already exists in Mikrotik
-            if ($mikrotikService->pppSecretExists($customer->pppoe_username)) {
-                // Already exists, just mark as synced
+            $existingSecret = $mikrotikService->getPppSecretByName($customer->pppoe_username);
+
+            // Fallback: search by previous username (username was changed)
+            $wasRenamed = false;
+            if (!$existingSecret && $customer->previous_pppoe_username) {
+                $existingSecret = $mikrotikService->getPppSecretByName($customer->previous_pppoe_username);
+                if ($existingSecret) {
+                    $wasRenamed = true;
+                }
+            }
+
+            if ($existingSecret) {
+                // Already exists — update password, profile, comment (and name if renamed)
+                $updateParams = [
+                    'password' => $password,
+                    'profile' => $profileName,
+                    'comment' => '[billing] ' . $customer->name . ' - ' . $customer->customer_id,
+                ];
+
+                if ($wasRenamed) {
+                    $updateParams['name'] = $customer->pppoe_username;
+                }
+
+                $updated = $mikrotikService->updatePppSecret($existingSecret['.id'], $updateParams);
+
                 $customer->update([
                     'mikrotik_synced' => true,
                     'mikrotik_synced_at' => now(),
                     'mikrotik_status' => 'enabled',
                     'last_sync_error' => null,
+                    'previous_pppoe_username' => null,
                 ]);
 
-                $this->activityLog->log('customers', "Sync Mikrotik: {$customer->name} ({$customer->pppoe_username}) — PPP Secret sudah ada, ditandai synced");
+                $statusMsg = $wasRenamed
+                    ? "direnamed dari '{$customer->previous_pppoe_username}' dan diupdate"
+                    : ($updated ? 'diupdate' : 'ditandai synced (update gagal)');
+                $this->activityLog->log('customers', "Sync Mikrotik: {$customer->name} ({$customer->pppoe_username}) — PPP Secret {$statusMsg}");
+
+                $responseMsg = $wasRenamed
+                    ? "PPP Secret berhasil di-rename dari '{$customer->previous_pppoe_username}' ke '{$customer->pppoe_username}' dan diupdate."
+                    : "PPP Secret '{$customer->pppoe_username}' sudah ada di Mikrotik dan berhasil diupdate (password, profile, comment).";
 
                 return response()->json([
                     'success' => true,
-                    'message' => "PPP Secret '{$customer->pppoe_username}' sudah ada di Mikrotik. Ditandai sebagai tersinkronisasi.",
+                    'message' => $responseMsg,
                     'already_exists' => true,
                 ]);
             }
 
             // Create PPP Secret
-            $profileName = $package?->mikrotik_profile_name ?? $package?->name ?? 'default';
             $params = [
                 'name' => $customer->pppoe_username,
-                'password' => $customer->pppoe_password,
+                'password' => $password,
                 'profile' => $profileName,
-                'comment' => $customer->address ?? $customer->name,
+                'comment' => '[billing] ' . $customer->name . ' - ' . $customer->customer_id,
             ];
 
             $result = $mikrotikService->addPppSecret($params);

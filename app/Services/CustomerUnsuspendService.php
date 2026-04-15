@@ -3,15 +3,25 @@
 namespace App\Services;
 
 use App\Models\Customer;
+use App\Models\PopSetting;
 use App\Helpers\Mikrotik\MikrotikService;
 use Illuminate\Support\Facades\Log;
 
 class CustomerUnsuspendService
 {
     /**
-     * Profile name used for isolir (suspend) in Mikrotik
+     * Default profile name used for isolir (suspend) in Mikrotik
      */
-    const ISOLIR_PROFILE = 'isolir';
+    const DEFAULT_ISOLIR_PROFILE = 'isolir';
+
+    /**
+     * Get the isolir profile name for a customer's POP
+     */
+    protected function getIsolirProfileName(Customer $customer): string
+    {
+        $popSetting = PopSetting::where('user_id', $customer->pop_id)->first();
+        return $popSetting->isolir_profile_name ?? self::DEFAULT_ISOLIR_PROFILE;
+    }
 
     /**
      * Unsuspend customer: restore PPPoE profile to package profile + reactivate
@@ -157,15 +167,16 @@ class CustomerUnsuspendService
                 return 'not_found';
             }
 
-            // Change profile to 'isolir'
+            // Change profile to isolir
+            $isolirProfile = $this->getIsolirProfileName($customer);
             $mikrotik->updatePppSecret($secretId, [
-                'profile' => self::ISOLIR_PROFILE,
+                'profile' => $isolirProfile,
             ]);
 
             // Delete from active connections to force reconnect with isolir profile
             $this->disconnectActiveSession($mikrotik, $customer->pppoe_username);
 
-            Log::info("Isolir: PPP secret {$customer->pppoe_username} profile changed to '" . self::ISOLIR_PROFILE . "' and disconnected");
+            Log::info("Isolir: PPP secret {$customer->pppoe_username} profile changed to '{$isolirProfile}' and disconnected");
 
             return 'isolated';
 

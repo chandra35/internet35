@@ -40,6 +40,7 @@ class Customer extends Model
         'odp_port',
         'package_id',
         'pppoe_username',
+        'previous_pppoe_username',
         'pppoe_password',
         'mikrotik_secret_id',
         'service_type',

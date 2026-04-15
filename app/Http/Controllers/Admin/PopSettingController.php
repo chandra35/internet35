@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\PopSetting;
+use App\Models\Router;
 use App\Models\User;
 use App\Helpers\ActivityLogger;
+use App\Helpers\Mikrotik\MikrotikService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -625,6 +627,13 @@ class PopSettingController extends Controller
             // Mikrotik Settings
             'mikrotik_sync_enabled' => 'boolean',
             'mikrotik_auto_sync' => 'boolean',
+            'isolir_profile_name' => 'nullable|string|max:50|regex:/^[a-zA-Z0-9_\-]+$/',
+            'isolir_pool_name' => 'nullable|string|max:50|regex:/^[a-zA-Z0-9_\-]+$/',
+            'isolir_pool_range' => ['nullable', 'string', 'max:100', 'regex:/^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+-[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/'],
+            'isolir_local_address' => 'nullable|ip',
+            'isolir_dns_server' => 'nullable|ip',
+            'isolir_rate_limit' => 'nullable|string|max:50',
+            'isolir_redirect_url' => 'nullable|url|max:255',
             // FreeRadius Settings
             'radius_enabled' => 'boolean',
             'radius_host' => 'nullable|required_if:radius_enabled,1|string|max:255',
@@ -650,6 +659,13 @@ class PopSettingController extends Controller
         $popSetting->pop_prefix = $request->pop_prefix ? strtoupper($request->pop_prefix) : null; // Uppercase prefix
         $popSetting->mikrotik_sync_enabled = $request->boolean('mikrotik_sync_enabled');
         $popSetting->mikrotik_auto_sync = $request->boolean('mikrotik_auto_sync');
+        $popSetting->isolir_profile_name = $request->isolir_profile_name ?: 'isolir';
+        $popSetting->isolir_pool_name = $request->isolir_pool_name ?: 'pool-isolir';
+        $popSetting->isolir_pool_range = $request->isolir_pool_range ?: '10.99.0.2-10.99.0.254';
+        $popSetting->isolir_local_address = $request->isolir_local_address ?: '10.99.0.1';
+        $popSetting->isolir_dns_server = $request->isolir_dns_server;
+        $popSetting->isolir_rate_limit = $request->isolir_rate_limit ?: '128k/128k';
+        $popSetting->isolir_redirect_url = $request->isolir_redirect_url;
         $popSetting->radius_enabled = $request->boolean('radius_enabled');
         $popSetting->radius_auto_sync = $request->boolean('radius_auto_sync');
 
@@ -716,6 +732,166 @@ class PopSettingController extends Controller
                 'message' => 'Koneksi gagal: ' . $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Sync isolir setup to all routers for this POP
+     * Creates/updates: IP Pool, PPP Profile, Firewall Filter, Firewall NAT
+     */
+    public function syncIsolirProfile(Request $request)
+    {
+        $request->validate([
+            'profile_name' => 'required|string|max:50|regex:/^[a-zA-Z0-9_\-]+$/',
+            'pool_name' => 'required|string|max:50|regex:/^[a-zA-Z0-9_\-]+$/',
+            'pool_range' => ['required', 'string', 'max:100', 'regex:/^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+-[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/'],
+            'local_address' => 'required|ip',
+            'dns_server' => 'nullable|ip',
+            'rate_limit' => 'required|string|max:50',
+            'redirect_url' => 'nullable|url|max:255',
+            'user_id' => 'nullable|uuid|exists:users,id',
+        ]);
+
+        $user = auth()->user();
+        $popUserId = $request->user_id && $user->hasRole('superadmin')
+            ? $request->user_id
+            : $user->id;
+
+        $routers = Router::where('user_id', $popUserId)->where('is_active', true)->get();
+
+        if ($routers->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tidak ada router aktif yang ditemukan.',
+            ], 422);
+        }
+
+        $config = [
+            'profile_name' => $request->profile_name,
+            'pool_name' => $request->pool_name,
+            'pool_range' => $request->pool_range,
+            'local_address' => $request->local_address,
+            'dns_server' => $request->dns_server,
+            'rate_limit' => $request->rate_limit,
+            'redirect_url' => $request->redirect_url,
+        ];
+
+        // Derive subnet from pool range for firewall rules (e.g. 10.99.0.2-10.99.0.254 → 10.99.0.0/24)
+        $poolStart = explode('-', $config['pool_range'])[0];
+        $octets = explode('.', $poolStart);
+        $subnet = $octets[0] . '.' . $octets[1] . '.' . $octets[2] . '.0/24';
+
+        $details = [];
+        $successCount = 0;
+        $failCount = 0;
+
+        foreach ($routers as $router) {
+            $routerDetails = [];
+
+            try {
+                $mikrotik = new MikrotikService();
+
+                if (!$mikrotik->connectRouter($router)) {
+                    $details[] = ['router' => $router->name, 'success' => false, 'status' => 'Gagal terhubung'];
+                    $failCount++;
+                    continue;
+                }
+
+                // 1. IP Pool — find by comment marker or create
+                $existingPool = $mikrotik->findByComment('/ip/pool', '[billing-isolir-pool]');
+                if ($existingPool) {
+                    $mikrotik->updateIpPool($existingPool['.id'], [
+                        'name' => $config['pool_name'],
+                        'ranges' => $config['pool_range'],
+                    ]);
+                    $routerDetails[] = 'Pool diupdate';
+                } else {
+                    $mikrotik->addIpPool([
+                        'name' => $config['pool_name'],
+                        'ranges' => $config['pool_range'],
+                        'comment' => '[billing-isolir-pool] Isolir pool - auto managed',
+                    ]);
+                    $routerDetails[] = 'Pool dibuat';
+                }
+
+                // 2. PPP Profile — find by comment marker or create
+                $existingProfile = $mikrotik->findByComment('/ppp/profile', '[billing-isolir]');
+                $profileParams = [
+                    'name' => $config['profile_name'],
+                    'local-address' => $config['local_address'],
+                    'remote-address' => $config['pool_name'],
+                    'rate-limit' => $config['rate_limit'],
+                ];
+                if ($config['dns_server']) {
+                    $profileParams['dns-server'] = $config['dns_server'];
+                }
+
+                if ($existingProfile) {
+                    $mikrotik->updatePppProfile($existingProfile['.id'], $profileParams);
+                    $routerDetails[] = 'Profile diupdate';
+                } else {
+                    $profileParams['comment'] = '[billing-isolir] Isolir profile - auto managed';
+                    $mikrotik->addPppProfile($profileParams);
+                    $routerDetails[] = 'Profile dibuat';
+                }
+
+                // 3. Firewall Filter — block all except DNS & HTTP from isolir subnet
+                $existingFilter = $mikrotik->findByComment('/ip/firewall/filter', '[billing-isolir-block]');
+                $filterParams = [
+                    'chain' => 'forward',
+                    'src-address' => $subnet,
+                    'protocol' => 'tcp',
+                    'dst-port' => '!53,80,443',
+                    'action' => 'drop',
+                ];
+
+                if ($existingFilter) {
+                    $mikrotik->updateFirewallFilter($existingFilter['.id'], $filterParams);
+                    $routerDetails[] = 'Firewall filter diupdate';
+                } else {
+                    $filterParams['comment'] = '[billing-isolir-block] Block isolir traffic - auto managed';
+                    $mikrotik->addFirewallFilter($filterParams);
+                    $routerDetails[] = 'Firewall filter dibuat';
+                }
+
+                // 4. Firewall NAT — redirect HTTP to billing server
+                if ($config['dns_server']) {
+                    $existingNat = $mikrotik->findByComment('/ip/firewall/nat', '[billing-isolir-redirect]');
+                    $natParams = [
+                        'chain' => 'dstnat',
+                        'src-address' => $subnet,
+                        'protocol' => 'tcp',
+                        'dst-port' => '80',
+                        'action' => 'dst-nat',
+                        'to-addresses' => $config['dns_server'],
+                        'to-ports' => '80',
+                    ];
+
+                    if ($existingNat) {
+                        $mikrotik->updateFirewallNat($existingNat['.id'], $natParams);
+                        $routerDetails[] = 'NAT redirect diupdate';
+                    } else {
+                        $natParams['comment'] = '[billing-isolir-redirect] Redirect isolir to billing - auto managed';
+                        $mikrotik->addFirewallNat($natParams);
+                        $routerDetails[] = 'NAT redirect dibuat';
+                    }
+                }
+
+                $details[] = ['router' => $router->name, 'success' => true, 'status' => implode(', ', $routerDetails)];
+                $successCount++;
+
+            } catch (\Exception $e) {
+                $details[] = ['router' => $router->name, 'success' => false, 'status' => $e->getMessage()];
+                $failCount++;
+            }
+        }
+
+        $this->activityLog->log('pop_settings', "Sync isolir setup: {$successCount} berhasil, {$failCount} gagal dari " . count($routers) . " router");
+
+        return response()->json([
+            'success' => $failCount === 0,
+            'message' => "Sync selesai: {$successCount} berhasil, {$failCount} gagal dari " . count($routers) . " router.",
+            'details' => $details,
+        ]);
     }
 
     /**

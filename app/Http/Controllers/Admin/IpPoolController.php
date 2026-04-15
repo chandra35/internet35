@@ -313,7 +313,7 @@ class IpPoolController extends Controller
                 'ranges' => $request->ranges,
             ];
             if ($request->filled('next_pool')) $params['next-pool'] = $request->next_pool;
-            if ($request->filled('comment')) $params['comment'] = $request->comment;
+            $params['comment'] = '[billing-pool] ' . ($request->comment ?: $request->name);
 
             $result = $mikrotikService->addIpPool($params);
 
@@ -381,7 +381,7 @@ class IpPoolController extends Controller
             // Build params for Mikrotik
             $params = ['ranges' => $request->ranges];
             if ($request->filled('next_pool')) $params['next-pool'] = $request->next_pool;
-            if ($request->filled('comment')) $params['comment'] = $request->comment;
+            $params['comment'] = '[billing-pool] ' . ($request->comment ?: $pool->name);
 
             $mikrotikService->updateIpPool($pool->mikrotik_id ?? $pool->name, $params);
 

@@ -331,8 +331,18 @@
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label>Password PPPoE <small class="text-muted">(Kosongkan jika tidak diubah)</small></label>
+                                @if($customer->decrypted_pppoe_password)
+                                <div class="mb-1">
+                                    <small class="text-muted">Password saat ini: </small>
+                                    <code class="current-pwd-hidden">••••••••</code>
+                                    <code class="current-pwd-shown d-none">{{ $customer->decrypted_pppoe_password }}</code>
+                                    <button type="button" class="btn btn-xs btn-link p-0 ml-1" id="btnShowCurrentPwd">
+                                        <i class="fas fa-eye fa-xs"></i>
+                                    </button>
+                                </div>
+                                @endif
                                 <div class="input-group">
-                                    <input type="password" name="pppoe_password" id="pppoe_password" class="form-control">
+                                    <input type="password" name="pppoe_password" id="pppoe_password" class="form-control" placeholder="Isi untuk mengubah password">
                                     <div class="input-group-append">
                                         <button type="button" class="btn btn-outline-secondary" id="btnTogglePwd">
                                             <i class="fas fa-eye"></i>
@@ -936,6 +946,12 @@ $(function() {
     @endif
 
     // Password toggle & generate
+    $('#btnShowCurrentPwd').on('click', function() {
+        $('.current-pwd-hidden').toggleClass('d-none');
+        $('.current-pwd-shown').toggleClass('d-none');
+        $(this).find('i').toggleClass('fa-eye fa-eye-slash');
+    });
+
     $('#btnTogglePwd').on('click', function() {
         const $pwd = $('#pppoe_password');
         const type = $pwd.attr('type') === 'password' ? 'text' : 'password';

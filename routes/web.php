@@ -43,6 +43,7 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 Route::get('/', [LandingController::class, 'index'])->name('landing');
+Route::get('/isolir', [LandingController::class, 'isolir'])->name('isolir.landing');
 
 /*
 |--------------------------------------------------------------------------
@@ -181,6 +182,7 @@ Route::prefix('admin')->middleware(['auth'])->name('admin.')->group(function () 
         Route::get('/integration', [PopSettingController::class, 'integration'])->name('integration');
         Route::post('/integration', [PopSettingController::class, 'updateIntegration'])->name('update-integration');
         Route::post('/test-radius', [PopSettingController::class, 'testRadiusConnection'])->name('test-radius');
+        Route::post('/sync-isolir-profile', [PopSettingController::class, 'syncIsolirProfile'])->name('sync-isolir-profile');
         
         // Region cascade
         Route::get('/cities/{province}', [PopSettingController::class, 'getCities']);

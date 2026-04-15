@@ -42,4 +42,14 @@ class LandingController extends Controller
             'contents'
         ));
     }
+
+    /**
+     * Display the isolir (suspended) landing page
+     */
+    public function isolir()
+    {
+        $settings = SiteSetting::all()->pluck('value', 'key')->toArray();
+
+        return view('landing.isolir', compact('settings'));
+    }
 }

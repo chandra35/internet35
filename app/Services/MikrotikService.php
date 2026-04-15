@@ -232,7 +232,7 @@ class MikrotikService
                 'password' => $customer->decrypted_pppoe_password,
                 'service' => $customer->service_type ?? 'pppoe',
                 'profile' => $package->profile_name ?? 'default',
-                'comment' => "Customer: {$customer->name} ({$customer->customer_id})",
+                'comment' => "[billing] {$customer->name} - {$customer->customer_id}",
             ];
             
             // Add remote address if specified
@@ -280,7 +280,7 @@ class MikrotikService
                 'name' => $customer->pppoe_username,
                 'service' => $customer->service_type ?? 'pppoe',
                 'profile' => $package->profile_name ?? 'default',
-                'comment' => "Customer: {$customer->name} ({$customer->customer_id})",
+                'comment' => "[billing] {$customer->name} - {$customer->customer_id}",
             ];
             
             // Only update password if changed

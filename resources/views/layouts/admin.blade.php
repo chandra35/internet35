@@ -576,6 +576,12 @@
                                     <p>Invoice & Pajak</p>
                                 </a>
                             </li>
+                            <li class="nav-item">
+                                <a href="{{ route('admin.pop-settings.integration') }}" class="nav-link {{ request()->routeIs('admin.pop-settings.integration') ? 'active' : '' }}">
+                                    <i class="far fa-circle nav-icon"></i>
+                                    <p>Integrasi</p>
+                                </a>
+                            </li>
                             @endcan
                             @can('payment-gateways.view')
                             <li class="nav-item">

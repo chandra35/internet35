@@ -420,6 +420,82 @@ class MikrotikService
     }
 
     /**
+     * Add firewall filter rule
+     */
+    public function addFirewallFilter(array $params): array
+    {
+        return $this->api->exec('/ip/firewall/filter/add', $params);
+    }
+
+    /**
+     * Update firewall filter rule
+     */
+    public function updateFirewallFilter(string $id, array $params): bool
+    {
+        $params['.id'] = $id;
+        $result = $this->api->exec('/ip/firewall/filter/set', $params);
+        return !isset($result[0]['_error']);
+    }
+
+    /**
+     * Add firewall NAT rule
+     */
+    public function addFirewallNat(array $params): array
+    {
+        return $this->api->exec('/ip/firewall/nat/add', $params);
+    }
+
+    /**
+     * Update firewall NAT rule
+     */
+    public function updateFirewallNat(string $id, array $params): bool
+    {
+        $params['.id'] = $id;
+        $result = $this->api->exec('/ip/firewall/nat/set', $params);
+        return !isset($result[0]['_error']);
+    }
+
+    /**
+     * Find resource by comment marker (searches in any resource list)
+     */
+    public function findByComment(string $path, string $comment): ?array
+    {
+        $items = $this->api->exec($path . '/print');
+        foreach ($items as $item) {
+            if (isset($item['comment']) && str_contains($item['comment'], $comment)) {
+                return $item;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Add IP address
+     */
+    public function addIpAddress(array $params): array
+    {
+        return $this->api->exec('/ip/address/add', $params);
+    }
+
+    /**
+     * Update IP address
+     */
+    public function updateIpAddress(string $id, array $params): bool
+    {
+        $params['.id'] = $id;
+        $result = $this->api->exec('/ip/address/set', $params);
+        return !isset($result[0]['_error']);
+    }
+
+    /**
+     * Get IP addresses
+     */
+    public function getIpAddresses(): array
+    {
+        return $this->api->exec('/ip/address/print');
+    }
+
+    /**
      * Get firewall mangle rules
      */
     public function getFirewallMangle(): array

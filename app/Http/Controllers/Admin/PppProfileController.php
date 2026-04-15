@@ -298,7 +298,7 @@ class PppProfileController extends Controller
             if ($request->filled('local_address')) $params['local-address'] = $request->local_address;
             if ($request->filled('remote_address')) $params['remote-address'] = $request->remote_address;
             if ($request->filled('rate_limit')) $params['rate-limit'] = $request->rate_limit;
-            if ($request->filled('comment')) $params['comment'] = $request->comment;
+            $params['comment'] = '[billing-profile] ' . ($request->comment ?: $request->name);
 
             $result = $mikrotikService->addPppProfile($params);
 
@@ -370,7 +370,7 @@ class PppProfileController extends Controller
             if ($request->filled('local_address')) $params['local-address'] = $request->local_address;
             if ($request->filled('remote_address')) $params['remote-address'] = $request->remote_address;
             if ($request->filled('rate_limit')) $params['rate-limit'] = $request->rate_limit;
-            if ($request->filled('comment')) $params['comment'] = $request->comment;
+            $params['comment'] = '[billing-profile] ' . ($request->comment ?: $profile->name);
 
             $mikrotikService->updatePppProfile($profile->mikrotik_id ?? $profile->name, $params);
 

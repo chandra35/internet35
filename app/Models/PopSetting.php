@@ -28,6 +28,13 @@ class PopSetting extends Model
         // Mikrotik sync settings
         'mikrotik_sync_enabled',
         'mikrotik_auto_sync',
+        'isolir_profile_name',
+        'isolir_pool_name',
+        'isolir_pool_range',
+        'isolir_local_address',
+        'isolir_dns_server',
+        'isolir_rate_limit',
+        'isolir_redirect_url',
         // Radius settings
         'radius_enabled',
         'radius_host',

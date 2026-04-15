@@ -112,6 +112,84 @@
                                 Otomatis sync ke Mikrotik saat buat pelanggan baru (checkbox tercentang default)
                             </label>
                         </div>
+
+                        <hr>
+                        <h6 class="mb-3"><i class="fas fa-ban mr-2"></i>Konfigurasi Isolir</h6>
+                        <p class="text-muted small mb-3">
+                            Setup lengkap isolir: profile PPP, IP pool, firewall block, dan redirect HTTP ke halaman isolir.
+                            Klik <strong>Sync ke Router</strong> untuk membuat/update semua komponen di router secara otomatis.
+                        </p>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="isolir_profile_name">Nama Profile PPP</label>
+                                    <input type="text" class="form-control" id="isolir_profile_name" name="isolir_profile_name"
+                                           value="{{ $popSetting->isolir_profile_name ?? 'isolir' }}" placeholder="isolir">
+                                    <small class="text-muted">Nama profile untuk pelanggan yang di-isolir</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="isolir_rate_limit">Rate Limit</label>
+                                    <input type="text" class="form-control" id="isolir_rate_limit" name="isolir_rate_limit"
+                                           value="{{ $popSetting->isolir_rate_limit ?? '128k/128k' }}" placeholder="128k/128k">
+                                    <small class="text-muted">Upload/Download limit saat isolir</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="isolir_pool_name">Nama IP Pool</label>
+                                    <input type="text" class="form-control" id="isolir_pool_name" name="isolir_pool_name"
+                                           value="{{ $popSetting->isolir_pool_name ?? 'pool-isolir' }}" placeholder="pool-isolir">
+                                    <small class="text-muted">Nama pool IP khusus pelanggan isolir</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="isolir_pool_range">Range IP Pool</label>
+                                    <input type="text" class="form-control" id="isolir_pool_range" name="isolir_pool_range"
+                                           value="{{ $popSetting->isolir_pool_range ?? '10.99.0.2-10.99.0.254' }}" placeholder="10.99.0.2-10.99.0.254">
+                                    <small class="text-muted">Rentang IP untuk pool isolir</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="isolir_local_address">Local Address (Gateway)</label>
+                                    <input type="text" class="form-control" id="isolir_local_address" name="isolir_local_address"
+                                           value="{{ $popSetting->isolir_local_address ?? '10.99.0.1' }}" placeholder="10.99.0.1">
+                                    <small class="text-muted">IP gateway untuk subnet isolir</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="isolir_dns_server">IP Server Billing (DNS Redirect)</label>
+                                    <input type="text" class="form-control" id="isolir_dns_server" name="isolir_dns_server"
+                                           value="{{ $popSetting->isolir_dns_server }}" placeholder="IP server billing Anda">
+                                    <small class="text-muted">IP server untuk redirect HTTP. Jika diisi, firewall NAT redirect akan dibuat</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="isolir_redirect_url">URL Halaman Isolir</label>
+                            <input type="text" class="form-control" id="isolir_redirect_url" name="isolir_redirect_url"
+                                   value="{{ $popSetting->isolir_redirect_url }}" placeholder="https://wifi35.net/isolir">
+                            <small class="text-muted">URL halaman isolir yang ditampilkan ke pelanggan (opsional, untuk referensi)</small>
+                        </div>
+
+                        <button type="button" class="btn btn-info" id="btnSyncIsolirProfile">
+                            <i class="fas fa-sync-alt mr-1"></i>Sync ke Router
+                        </button>
+                        <small class="text-muted ml-2">Membuat/update: IP Pool, Profile PPP, Firewall Filter, NAT Redirect di semua router</small>
+                        <div id="syncIsolirResult" class="mt-3"></div>
+                        <hr>
                         
                         <div class="alert alert-warning mb-0">
                             <i class="fas fa-exclamation-triangle mr-2"></i>
@@ -460,5 +538,77 @@ function testRadiusConnection() {
         }
     });
 }
+
+// Sync isolir profile to all routers
+$('#btnSyncIsolirProfile').on('click', function() {
+    const profileName = $('#isolir_profile_name').val() || 'isolir';
+    const poolName = $('#isolir_pool_name').val() || 'pool-isolir';
+    const poolRange = $('#isolir_pool_range').val() || '10.99.0.2-10.99.0.254';
+    const localAddress = $('#isolir_local_address').val() || '10.99.0.1';
+    const dnsServer = $('#isolir_dns_server').val() || '';
+    const rateLimit = $('#isolir_rate_limit').val() || '128k/128k';
+    const redirectUrl = $('#isolir_redirect_url').val() || '';
+    const btn = $(this);
+    const resultDiv = $('#syncIsolirResult');
+    const originalHtml = btn.html();
+
+    Swal.fire({
+        title: 'Sync Isolir ke Router?',
+        html: `<p>Komponen isolir berikut akan dibuat/diupdate di semua router:</p>
+               <ul class="text-left small">
+                 <li><strong>IP Pool:</strong> ${poolName} (${poolRange})</li>
+                 <li><strong>PPP Profile:</strong> ${profileName} (rate: ${rateLimit})</li>
+                 <li><strong>Firewall Filter:</strong> Block non-DNS/HTTP</li>
+                 ${dnsServer ? `<li><strong>NAT Redirect:</strong> HTTP → ${dnsServer}</li>` : '<li class="text-muted">NAT Redirect: dilewati (IP server kosong)</li>'}
+               </ul>`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: '<i class="fas fa-sync-alt mr-1"></i> Ya, Sync',
+        cancelButtonText: 'Batal',
+    }).then((result) => {
+        if (!result.isConfirmed) return;
+
+        btn.html('<i class="fas fa-spinner fa-spin mr-1"></i>Syncing...').prop('disabled', true);
+        resultDiv.html('');
+
+        $.ajax({
+            url: '{{ route("admin.pop-settings.sync-isolir-profile") }}',
+            method: 'POST',
+            data: {
+                _token: '{{ csrf_token() }}',
+                profile_name: profileName,
+                pool_name: poolName,
+                pool_range: poolRange,
+                local_address: localAddress,
+                dns_server: dnsServer,
+                rate_limit: rateLimit,
+                redirect_url: redirectUrl,
+                @if(isset($userId))
+                user_id: '{{ $userId }}',
+                @endif
+            },
+            success: function(res) {
+                let html = '<div class="alert alert-' + (res.success ? 'success' : 'warning') + ' mb-0">';
+                html += '<strong>' + res.message + '</strong>';
+                if (res.details && res.details.length > 0) {
+                    html += '<ul class="mb-0 mt-2">';
+                    res.details.forEach(function(d) {
+                        const icon = d.success ? 'check-circle text-success' : 'times-circle text-danger';
+                        html += '<li><i class="fas fa-' + icon + ' mr-1"></i>' + d.router + ': ' + d.status + '</li>';
+                    });
+                    html += '</ul>';
+                }
+                html += '</div>';
+                resultDiv.html(html);
+            },
+            error: function(xhr) {
+                resultDiv.html('<div class="alert alert-danger mb-0">' + (xhr.responseJSON?.message || 'Gagal sync') + '</div>');
+            },
+            complete: function() {
+                btn.html(originalHtml).prop('disabled', false);
+            }
+        });
+    });
+});
 </script>
 @endpush
