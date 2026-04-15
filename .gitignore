@@ -23,3 +23,6 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Internal docs (sensitive info, not for GitHub)
+/docs/INTERNAL.md
