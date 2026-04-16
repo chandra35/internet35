@@ -25,20 +25,17 @@
             </div>
             <div class="card-footer p-0">
                 @php
-                    $rx = $onu->olt_rx_power ?? $onu->rx_power;
-                    $tx = $onu->tx_power;
+                    $onuRx = $onu->rx_power;
+                    $oltRx = $onu->olt_rx_power;
+                    $rxDisplay = $onuRx ?? $oltRx;
                     $rxClass = 'secondary';
-                    if ($rx !== null) {
-                        $rxClass = $rx >= -25 ? 'success' : ($rx >= -27 ? 'warning' : 'danger');
-                    }
-                    $txClass = 'secondary';
-                    if ($tx !== null) {
-                        $txClass = ($tx >= 0.5 && $tx <= 5) ? 'info' : 'warning';
+                    if ($rxDisplay !== null) {
+                        $rxClass = $rxDisplay >= -25 ? 'success' : ($rxDisplay >= -27 ? 'warning' : 'danger');
                     }
                     $dist = $onu->distance;
-                    $distFormatted = '-';
+                    $distFormatted = '';
                     if ($dist) {
-                        $distFormatted = $dist >= 1000 ? number_format($dist / 1000, 2) . ' km' : number_format($dist, 0) . ' m';
+                        $distFormatted = $dist >= 1000 ? number_format($dist / 1000, 2) . 'km' : $dist . 'm';
                     }
                 @endphp
                 <ul class="nav flex-column">
@@ -62,20 +59,19 @@
                     <li class="nav-item">
                         <span class="nav-link">
                             <i class="fas fa-signal text-{{ $rxClass }} mr-1" style="font-size:10px"></i>
-                            RX / TX
-                            <span class="float-right" id="onu-rxtx">
-                                <span class="badge badge-{{ $rxClass }}">{{ $rx !== null ? number_format($rx, 2) : '-' }}</span>
-                                /
-                                <span class="badge badge-{{ $txClass }}">{{ $tx !== null ? number_format($tx, 2) : '-' }}</span>
-                                <small class="text-muted">dBm</small>
+                            ONU/OLT Rx signal
+                            <span class="float-right" id="onu-signal">
+                                @if($onuRx !== null || $oltRx !== null)
+                                    <span class="text-{{ $rxClass }}">
+                                        {{ $onuRx !== null ? number_format($onuRx, 2) : '-' }} dBm
+                                        / {{ $oltRx !== null ? number_format($oltRx, 2) : '-' }} dBm
+                                        @if($distFormatted) ({{ $distFormatted }}) @endif
+                                    </span>
+                                    <i class="fas fa-signal text-{{ $rxClass }} ml-1" style="font-size:10px"></i>
+                                @else
+                                    <span class="text-muted">Memuat...</span>
+                                @endif
                             </span>
-                        </span>
-                    </li>
-                    <li class="nav-item">
-                        <span class="nav-link">
-                            <i class="fas fa-ruler mr-1 text-muted" style="font-size:10px"></i>
-                            Distance
-                            <span class="float-right" id="onu-distance">{{ $distFormatted }}</span>
                         </span>
                     </li>
                 </ul>
@@ -449,11 +445,6 @@ $(function() {
         if (val >= -27) return 'warning';
         return 'danger';
     }
-    function txBadgeClass(val) {
-        if (val === null || val === undefined) return 'secondary';
-        if (val >= 0.5 && val <= 5) return 'info';
-        return 'warning';
-    }
 
     // Refresh Traffic function
     function refreshTraffic() {
@@ -462,26 +453,24 @@ $(function() {
                 if (res.success && res.data) {
                     var now = new Date();
 
-                    // Update RX/TX combined
-                    var rxVal = res.data.olt_rx_power ?? res.data.rx_power;
-                    var txVal = res.data.tx_power;
-                    var rc = rxBadgeClass(rxVal);
-                    var tc = txBadgeClass(txVal);
-                    var rxText = (rxVal !== null && rxVal !== undefined) ? parseFloat(rxVal).toFixed(2) : '-';
-                    var txText = (txVal !== null && txVal !== undefined) ? parseFloat(txVal).toFixed(2) : '-';
-                    $('#onu-rxtx').html(
-                        '<span class="badge badge-' + rc + '">' + rxText + '</span>' +
-                        ' / ' +
-                        '<span class="badge badge-' + tc + '">' + txText + '</span>' +
-                        ' <small class="text-muted">dBm</small>'
-                    );
-
-                    // Update distance
+                    // Update ONU/OLT Rx signal (SmartOLT format)
+                    var onuRx = res.data.rx_power;
+                    var oltRx = res.data.olt_rx_power;
                     var dist = res.data.distance;
+                    var rxDisplay = onuRx ?? oltRx;
+                    var rc = rxBadgeClass(rxDisplay);
+
+                    var onuRxText = (onuRx !== null && onuRx !== undefined) ? parseFloat(onuRx).toFixed(2) : '-';
+                    var oltRxText = (oltRx !== null && oltRx !== undefined) ? parseFloat(oltRx).toFixed(2) : '-';
+                    var distText = '';
                     if (dist !== null && dist !== undefined && dist > 0) {
-                        var distText = dist >= 1000 ? (dist / 1000).toFixed(2) + ' km' : dist + ' m';
-                        $('#onu-distance').text(distText);
+                        distText = ' (' + (dist >= 1000 ? (dist / 1000).toFixed(2) + 'km' : dist + 'm') + ')';
                     }
+                    $('#onu-signal').html(
+                        '<span class="text-' + rc + '">' +
+                        onuRxText + ' dBm / ' + oltRxText + ' dBm' + distText +
+                        '</span> <i class="fas fa-signal text-' + rc + ' ml-1" style="font-size:10px"></i>'
+                    );
                     
                     // Update total traffic display
                     $('#traffic-rx').text(res.data.in_octets_formatted || '-');
