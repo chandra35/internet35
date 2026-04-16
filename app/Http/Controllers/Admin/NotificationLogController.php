@@ -6,9 +6,19 @@ use App\Http\Controllers\Controller;
 use App\Models\NotificationLog;
 use App\Models\MessageTemplate;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class NotificationLogController extends Controller
+class NotificationLogController extends Controller implements HasMiddleware
 {
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('permission:notification-settings.view', only: ['index', 'show']),
+            new Middleware('permission:notification-settings.edit', only: ['resend', 'destroy']),
+        ];
+    }
+
     public function index(Request $request)
     {
         $user = auth()->user();

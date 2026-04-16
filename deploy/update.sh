@@ -1,48 +1,116 @@
 #!/bin/bash
 # ============================================================
 # Internet35 - Quick Update Script
-# 
+#
+# Default server target:
+#   APP_DIR=/www/wwwroot/internet35
+#   PUBLIC_DIR=/www/wwwroot/internet35/public
+#
 # Jalankan di server:
-#   cd /home/manmetr1/internet35-app && bash deploy/update.sh
+#   cd /www/wwwroot/internet35 && bash deploy/update.sh
+#
+# Override lokasi jika perlu:
+#   APP_DIR=/path/app PUBLIC_DIR=/path/public bash deploy/update.sh
+#
+# Setelah restore database:
+#   RESTORE_DB=1 bash deploy/update.sh
+#
+# Jika role/permission ikut kacau setelah restore database:
+#   RESTORE_DB=1 RESEED_RBAC=1 bash deploy/update.sh
 # ============================================================
 
-set -e
-cd /home/manmetr1/internet35-app
+set -euo pipefail
+
+APP_DIR="${APP_DIR:-/www/wwwroot/internet35}"
+PUBLIC_DIR="${PUBLIC_DIR:-${APP_DIR}/public}"
+BRANCH="${BRANCH:-main}"
+PHP_BIN="${PHP_BIN:-php}"
+COMPOSER_BIN="${COMPOSER_BIN:-composer}"
+AUTH_REPAIR_ARGS=()
+
+if [ "${RESTORE_DB:-0}" = "1" ]; then
+    AUTH_REPAIR_ARGS+=(--flush-sessions)
+fi
+
+if [ "${RESEED_RBAC:-0}" = "1" ]; then
+    AUTH_REPAIR_ARGS+=(--reseed-rbac)
+fi
+
+if [ ! -d "${APP_DIR}" ]; then
+    echo "ERROR: APP_DIR tidak ditemukan: ${APP_DIR}"
+    exit 1
+fi
+
+cd "${APP_DIR}"
+
+if [ ! -f artisan ]; then
+    echo "ERROR: artisan tidak ditemukan di ${APP_DIR}"
+    exit 1
+fi
+
+if ! git diff --quiet || ! git diff --cached --quiet || [ -n "$(git ls-files --others --exclude-standard)" ]; then
+    echo "ERROR: working tree git masih kotor. Rapikan dulu sebelum update."
+    git status --short
+    exit 1
+fi
+
+export COMPOSER_ALLOW_SUPERUSER=1
 
 echo "==============================="
 echo " Updating Internet35..."
+echo " App    : ${APP_DIR}"
+echo " Public : ${PUBLIC_DIR}"
+echo " Branch : ${BRANCH}"
 echo "==============================="
 
-# Pull latest
-echo "[1/5] Git pull..."
-git pull origin main
+echo "[1/6] Git pull..."
+git pull --ff-only origin "${BRANCH}"
 
-# Composer install (jika ada package baru)
-echo "[2/5] Composer install..."
-composer install --no-dev --optimize-autoloader --no-interaction 2>&1
+echo "[2/6] Composer install..."
+"${COMPOSER_BIN}" install --no-dev --optimize-autoloader --no-interaction 2>&1
 
-# Migrate (jika ada migration baru)
-echo "[3/5] Migrate..."
-php artisan migrate --force
+echo "[3/6] Frontend assets..."
+if command -v npm >/dev/null 2>&1 && [ -f package.json ]; then
+    npm ci --no-fund --no-audit 2>&1
+    npm run build 2>&1
+elif [ -d public/build ]; then
+    echo "    npm tidak tersedia, pakai asset build yang sudah ada."
+else
+    echo "    WARNING: public/build belum ada dan npm tidak tersedia."
+fi
 
-# Copy public assets
-echo "[4/5] Sync public assets..."
-cp -r public/build /home/manmetr1/wifi35.net/ 2>/dev/null || true
-cp -r public/assets /home/manmetr1/wifi35.net/ 2>/dev/null || true
-cp public/.htaccess /home/manmetr1/wifi35.net/
-cp public/favicon.ico /home/manmetr1/wifi35.net/ 2>/dev/null || true
-cp public/robots.txt /home/manmetr1/wifi35.net/ 2>/dev/null || true
+echo "[4/6] Migrate..."
+"${PHP_BIN}" artisan migrate --force
 
-# Clear & re-cache
-echo "[5/5] Clear cache & optimize..."
-php artisan config:clear
-php artisan route:clear
-php artisan view:clear
-php artisan config:cache
-php artisan route:cache
-php artisan view:cache
+echo "[5/6] Repair auth & cache..."
+if [ "${RESTORE_DB:-0}" = "1" ]; then
+    echo "    Restore DB mode aktif."
+fi
+
+if [ "${RESEED_RBAC:-0}" = "1" ]; then
+    echo "    RBAC reseed aktif."
+fi
+
+"${PHP_BIN}" artisan app:repair-auth "${AUTH_REPAIR_ARGS[@]}"
+"${PHP_BIN}" artisan config:clear
+"${PHP_BIN}" artisan route:clear
+"${PHP_BIN}" artisan view:clear
+"${PHP_BIN}" artisan config:cache
+"${PHP_BIN}" artisan route:cache
+"${PHP_BIN}" artisan view:cache
+"${PHP_BIN}" artisan storage:link 2>/dev/null || true
+
+echo "[6/6] Public path check..."
+if [ "${PUBLIC_DIR}" = "${APP_DIR}/public" ]; then
+    echo "    Public root sudah langsung mengarah ke ${APP_DIR}/public."
+elif [ -d "${PUBLIC_DIR}" ]; then
+    echo "    PUBLIC_DIR custom terdeteksi: ${PUBLIC_DIR}"
+    echo "    Sinkronisasi manual belum diaktifkan di mode ini."
+else
+    echo "    WARNING: PUBLIC_DIR tidak ditemukan: ${PUBLIC_DIR}"
+fi
 
 echo ""
 echo "==============================="
-echo " ✓ Update complete!"
+echo " Update complete!"
 echo "==============================="

@@ -10,10 +10,20 @@ use App\Helpers\Mikrotik\MikrotikService;
 use App\Services\ActivityLogService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class IpPoolController extends Controller
+class IpPoolController extends Controller implements HasMiddleware
 {
     protected $activityLog;
+
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('permission:routers.view', only: ['index', 'show', 'preview', 'listForRouter', 'getUsedIps']),
+            new Middleware('permission:routers.manage', only: ['store', 'update', 'sync', 'destroy', 'bulkDelete']),
+        ];
+    }
 
     public function __construct(ActivityLogService $activityLog)
     {

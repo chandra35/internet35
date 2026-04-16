@@ -62,7 +62,7 @@ Route::post('logout', [LoginController::class, 'logout'])->name('logout')->middl
 | Admin Routes
 |--------------------------------------------------------------------------
 */
-Route::prefix('admin')->middleware(['auth'])->name('admin.')->group(function () {
+Route::prefix('admin')->middleware(['auth', 'role:superadmin|admin|admin-pop|teknisi|support'])->name('admin.')->group(function () {
     // Dashboard
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 

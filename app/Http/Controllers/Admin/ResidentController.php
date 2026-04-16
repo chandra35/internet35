@@ -12,10 +12,19 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Laravolt\Indonesia\Models\Province;
 use Maatwebsite\Excel\Facades\Excel;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class ResidentController extends Controller
+class ResidentController extends Controller implements HasMiddleware
 {
     protected ActivityLogService $activityLog;
+
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('role:superadmin'),
+        ];
+    }
 
     public function __construct(ActivityLogService $activityLog)
     {

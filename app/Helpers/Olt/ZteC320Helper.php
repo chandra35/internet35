@@ -830,9 +830,13 @@ class ZteC320Helper extends BaseOltHelper
             $slot = $params['slot'];
             $port = $params['port'];
             $serialNumber = strtoupper($params['serial_number']);
-            $name = $params['name'] ?? $serialNumber;
+            $name = preg_replace('/[^A-Za-z0-9._-]/', '-', $params['name'] ?? $serialNumber);
             $lineProfile = $params['line_profile'] ?? 'default';
             $serviceProfile = $params['service_profile'] ?? 'default';
+            $tcontId = $params['tcont_id'] ?? 1;
+            $gemPort = $params['gem_port'] ?? 1;
+            $serviceId = $params['service_id'] ?? 1;
+            $serviceMode = $params['service_port_mode'] ?? 'tag';
 
             // Determine ONU ID (auto-assign if not provided)
             $onuId = $params['onu_id'] ?? $this->getNextAvailableOnuId($slot, $port);
@@ -848,21 +852,21 @@ class ZteC320Helper extends BaseOltHelper
             // Add name/description
             $commands[] = "interface gpon_onu-{$slot}/{$port}:{$onuId}";
             $commands[] = "name {$name}";
+
+            // Apply line profile/tcont even when VLAN isn't set so provisioning is closer to ZTE workflow.
+            if (!empty($lineProfile) || isset($params['vlan'])) {
+                $commands[] = "tcont {$tcontId} profile {$lineProfile}";
+                $commands[] = "gemport {$gemPort} name gem{$gemPort} tcont {$tcontId}";
+            }
+
             $commands[] = "exit";
 
             // Add service config if VLAN specified
             if (isset($params['vlan'])) {
                 $vlan = $params['vlan'];
-                $gemPort = $params['gem_port'] ?? 1;
-
-                $commands[] = "interface gpon_onu-{$slot}/{$port}:{$onuId}";
-                $commands[] = "tcont 1 profile default";
-                $commands[] = "gemport 1 name gem1 tcont 1";
-                $commands[] = "exit";
-
                 $commands[] = "pon-onu-mng gpon_onu-{$slot}/{$port}:{$onuId}";
-                $commands[] = "service 1 gemport 1 vlan {$vlan}";
-                $commands[] = "vlan port eth_0/1 mode tag vlan {$vlan}";
+                $commands[] = "service {$serviceId} gemport {$gemPort} vlan {$vlan}";
+                $commands[] = "vlan port eth_0/1 mode {$serviceMode} vlan {$vlan}";
                 $commands[] = "exit";
             }
 
@@ -872,12 +876,37 @@ class ZteC320Helper extends BaseOltHelper
             // Execute commands
             $output = $this->executeCommands($commands);
 
-            if (str_contains($output, 'Error') || str_contains($output, 'fail')) {
+            if ($this->hasCliError($output)) {
                 $result['message'] = "Registration failed: {$output}";
             } else {
                 $result['success'] = true;
                 $result['onu_id'] = $onuId;
                 $result['message'] = "ONU registered successfully at {$slot}/{$port}:{$onuId}";
+                $verification = $this->verifyRegisteredOnuConfig($slot, $port, $onuId, [
+                    'name' => $name,
+                    'line_profile' => $lineProfile,
+                    'service_profile' => $serviceProfile,
+                    'tcont_id' => $tcontId,
+                    'gem_port' => $gemPort,
+                    'service_id' => $serviceId,
+                    'service_port_mode' => $serviceMode,
+                    'vlan' => $params['vlan'] ?? null,
+                ]);
+
+                if (!empty($verification['warnings'])) {
+                    $result['warnings'] = $verification['warnings'];
+                    $result['message'] .= ' Warning: ' . implode(' ', $verification['warnings']);
+                }
+
+                $result['meta'] = [
+                    'line_profile' => $lineProfile,
+                    'service_profile' => $serviceProfile,
+                    'tcont_id' => $tcontId,
+                    'gem_port' => $gemPort,
+                    'service_id' => $serviceId,
+                    'service_port_mode' => $serviceMode,
+                    'verification' => $verification,
+                ];
             }
 
         } catch (Exception $e) {
@@ -886,6 +915,86 @@ class ZteC320Helper extends BaseOltHelper
         }
 
         return $result;
+    }
+
+    protected function hasCliError(string $output): bool
+    {
+        return (bool) preg_match('/\b(error|fail(?:ed)?|invalid|duplicate|incomplete|ambiguous|denied)\b/i', $output);
+    }
+
+    protected function verifyRegisteredOnuConfig(int $slot, int $port, int $onuId, array $params): array
+    {
+        $verification = [
+            'verified' => true,
+            'warnings' => [],
+            'running_config' => null,
+        ];
+
+        if (!$this->supportsSsh() && !$this->supportsTelnet()) {
+            $verification['verified'] = false;
+            $verification['warnings'][] = 'ONU berhasil diregister, tapi verifikasi CLI tidak tersedia pada OLT ini.';
+            return $verification;
+        }
+
+        try {
+            $runningConfig = $this->getOnuRunningConfig($slot, $port, $onuId);
+            $verification['running_config'] = $runningConfig;
+
+            if ($this->hasCliError($runningConfig)) {
+                $verification['verified'] = false;
+                $verification['warnings'][] = 'Running-config ONU mengandung respons error, mohon cek manual di OLT.';
+                return $verification;
+            }
+
+            $escapedName = preg_quote((string) ($params['name'] ?? ''), '/');
+            $lineProfile = (string) ($params['line_profile'] ?? '');
+            $serviceProfile = (string) ($params['service_profile'] ?? '');
+            $tcontId = (int) ($params['tcont_id'] ?? 0);
+            $gemPort = (int) ($params['gem_port'] ?? 0);
+            $serviceId = (int) ($params['service_id'] ?? 0);
+            $serviceMode = (string) ($params['service_port_mode'] ?? '');
+            $vlan = $params['vlan'] ?? null;
+
+            if ($escapedName !== '' && !preg_match("/\\bname\\s+{$escapedName}\\b/i", $runningConfig)) {
+                $verification['warnings'][] = 'Nama ONU belum terlihat di running-config.';
+            }
+
+            if ($lineProfile !== '' && $tcontId > 0) {
+                $escapedLineProfile = preg_quote($lineProfile, '/');
+                if (!preg_match("/\\btcont\\s+{$tcontId}\\s+profile\\s+{$escapedLineProfile}\\b/i", $runningConfig)) {
+                    $verification['warnings'][] = "Line profile {$lineProfile} belum terverifikasi di running-config.";
+                }
+            }
+
+            if ($gemPort > 0 && $tcontId > 0 && !preg_match("/\\bgemport\\s+{$gemPort}\\b.*\\btcont\\s+{$tcontId}\\b/i", $runningConfig)) {
+                $verification['warnings'][] = "GEM port {$gemPort} belum terverifikasi pada T-CONT {$tcontId}.";
+            }
+
+            if ($vlan !== null) {
+                $escapedMode = preg_quote($serviceMode !== '' ? $serviceMode : 'tag', '/');
+
+                if (!preg_match("/\\bservice\\s+{$serviceId}\\s+gemport\\s+{$gemPort}\\s+vlan\\s+{$vlan}\\b/i", $runningConfig)) {
+                    $verification['warnings'][] = "Service VLAN {$vlan} belum terverifikasi di running-config ONU.";
+                }
+
+                if (!preg_match("/\\bvlan\\s+port\\s+eth_0\\/1\\s+mode\\s+{$escapedMode}\\s+vlan\\s+{$vlan}\\b/i", $runningConfig)) {
+                    $verification['warnings'][] = "Binding VLAN port eth_0/1 mode {$serviceMode} belum terverifikasi.";
+                }
+            }
+
+            if ($serviceProfile !== '' && strtolower($serviceProfile) !== 'default') {
+                $verification['warnings'][] = "Service profile {$serviceProfile} tersimpan di aplikasi, tetapi helper ZTE saat ini masih mengandalkan parameter detail VLAN/GEM/T-CONT/service CLI, belum mapping perintah profile spesifik.";
+            }
+
+            if (!empty($verification['warnings'])) {
+                $verification['verified'] = false;
+            }
+        } catch (Exception $e) {
+            $verification['verified'] = false;
+            $verification['warnings'][] = 'Verifikasi running-config ONU gagal: ' . $e->getMessage();
+        }
+
+        return $verification;
     }
 
     /**

@@ -7,6 +7,7 @@ use App\Models\Onu;
 use App\Models\Olt;
 use App\Models\Odp;
 use App\Models\Customer;
+use App\Models\OltProfile;
 use App\Helpers\Olt\OltFactory;
 use App\Services\ActivityLogService;
 use Illuminate\Http\Request;
@@ -162,34 +163,83 @@ class OnuController extends Controller implements HasMiddleware
     /**
      * Register ONU on OLT
      */
-    public function register(Request $request, Olt $olt)
+    public function register(Request $request)
     {
         $request->validate([
+            'olt_id' => 'required|exists:olts,id',
             'serial_number' => 'required|string|max:20',
-            'slot' => 'required|integer|min:0',
-            'port' => 'required|integer|min:1',
+            'slot' => 'nullable|integer|min:0',
+            'port' => 'nullable|integer|min:1',
+            'pon_port' => 'nullable|string|max:50',
             'onu_id' => 'nullable|integer|min:1|max:128',
             'name' => 'nullable|string|max:100',
             'customer_id' => 'nullable|exists:customers,id',
             'odp_id' => 'nullable|exists:odps,id',
             'odp_port' => 'nullable|integer|min:1',
             'vlan' => 'nullable|integer|min:1|max:4094',
+            'vlan_id' => 'nullable|integer|min:1|max:4094',
+            'gem_port' => 'nullable|integer|min:1',
+            'tcont_id' => 'nullable|integer|min:1',
+            'service_id' => 'nullable|integer|min:1',
+            'service_port_mode' => 'nullable|string|max:50',
+            'profile_id' => 'nullable|exists:olt_profiles,id',
+            'line_profile' => 'nullable|string|max:255',
+            'service_profile' => 'nullable|string|max:255',
+            'description' => 'nullable|string|max:1000',
         ]);
 
         try {
+            $olt = Olt::findOrFail($request->olt_id);
+            [$slot, $port] = $this->resolvePonCoordinates($request);
+            [$lineProfile, $serviceProfile] = $this->resolveProvisioningProfiles($request);
+            $profileConfig = $this->resolveProfileConfigs($olt->id, $lineProfile, $serviceProfile);
+
+            if ($slot === null || $port === null) {
+                return $this->registerResponse(
+                    $request,
+                    false,
+                    'Posisi PON tidak valid. Silakan scan ulang ONU lalu coba lagi.'
+                );
+            }
+
             $helper = OltFactory::make($olt);
             
             $params = [
                 'serial_number' => strtoupper($request->serial_number),
-                'slot' => $request->slot,
-                'port' => $request->port,
+                'slot' => $slot,
+                'port' => $port,
                 'onu_id' => $request->onu_id,
                 'name' => $request->name ?? $request->serial_number,
+                'line_profile' => $lineProfile,
+                'service_profile' => $serviceProfile,
             ];
             
-            // Add VLAN if provided
-            if ($request->filled('vlan')) {
-                $params['vlan'] = $request->vlan;
+            $resolvedConfig = [
+                'vlan' => $request->filled('vlan') ? (int) $request->vlan : null,
+                'vlan_id' => $request->filled('vlan_id') ? (int) $request->vlan_id : null,
+                'gem_port' => $request->filled('gem_port') ? (int) $request->gem_port : null,
+                'tcont_id' => $request->filled('tcont_id') ? (int) $request->tcont_id : null,
+                'service_id' => $request->filled('service_id') ? (int) $request->service_id : null,
+                'service_port_mode' => $request->filled('service_port_mode') ? $request->service_port_mode : null,
+            ];
+
+            foreach ($profileConfig as $key => $value) {
+                if (($resolvedConfig[$key] ?? null) === null) {
+                    $resolvedConfig[$key] = $value;
+                }
+            }
+
+            $resolvedConfig = $this->normalizeProvisioningConfig($resolvedConfig);
+
+            $vlanValue = $resolvedConfig['vlan_id'] ?? $resolvedConfig['vlan'];
+            if ($vlanValue !== null) {
+                $params['vlan'] = (int) $vlanValue;
+            }
+
+            foreach (['gem_port', 'tcont_id', 'service_id', 'service_port_mode'] as $configKey) {
+                if (($resolvedConfig[$configKey] ?? null) !== null) {
+                    $params[$configKey] = $resolvedConfig[$configKey];
+                }
             }
             
             $result = $helper->registerOnu($params);
@@ -199,30 +249,42 @@ class OnuController extends Controller implements HasMiddleware
                 $onu = Onu::create([
                     'olt_id' => $olt->id,
                     'serial_number' => strtoupper($request->serial_number),
-                    'slot' => $request->slot,
-                    'port' => $request->port,
+                    'slot' => $slot,
+                    'port' => $port,
                     'onu_id' => $result['onu_id'],
                     'name' => $request->name,
                     'customer_id' => $request->customer_id,
                     'odp_id' => $request->odp_id,
                     'odp_port' => $request->odp_port,
+                    'line_profile' => $lineProfile,
+                    'service_profile' => $serviceProfile,
+                    'vlan_config' => $this->buildVlanConfigPayload([
+                        'vlan_id' => $vlanValue,
+                        'gem_port' => $resolvedConfig['gem_port'] ?? null,
+                        'tcont_id' => $resolvedConfig['tcont_id'] ?? null,
+                        'service_id' => $resolvedConfig['service_id'] ?? null,
+                        'service_port_mode' => $resolvedConfig['service_port_mode'] ?? null,
+                    ]),
+                    'description' => $request->description,
                     'config_status' => 'registered',
                     'status' => 'unknown',
                     'created_by' => auth()->id(),
                 ]);
                 
                 $this->activityLog->log('onus', "Registered ONU: {$onu->serial_number} on {$olt->name}");
-                
-                return redirect()->route('admin.onus.show', $onu)
-                    ->with('success', $result['message']);
+
+                return $this->registerResponse(
+                    $request,
+                    true,
+                    $result['message'],
+                    ['redirect_url' => route('admin.onus.show', $onu)]
+                );
             } else {
-                return back()->withInput()
-                    ->with('error', $result['message']);
+                return $this->registerResponse($request, false, $result['message']);
             }
             
         } catch (Exception $e) {
-            return back()->withInput()
-                ->with('error', 'Registration failed: ' . $e->getMessage());
+            return $this->registerResponse($request, false, 'Registration failed: ' . $e->getMessage());
         }
     }
 
@@ -508,5 +570,114 @@ class OnuController extends Controller implements HasMiddleware
                 'message' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    protected function resolvePonCoordinates(Request $request): array
+    {
+        if ($request->filled('slot') && $request->filled('port')) {
+            return [(int) $request->slot, (int) $request->port];
+        }
+
+        $ponPort = trim((string) $request->input('pon_port', ''));
+        if ($ponPort !== '' && preg_match('/^(\d+)\s*\/\s*(\d+)$/', $ponPort, $matches)) {
+            return [(int) $matches[1], (int) $matches[2]];
+        }
+
+        return [null, null];
+    }
+
+    protected function resolveProvisioningProfiles(Request $request): array
+    {
+        $lineProfile = $this->normalizeProfileName($request->input('line_profile'));
+        $serviceProfile = $this->normalizeProfileName($request->input('service_profile'));
+
+        if ((!$lineProfile || !$serviceProfile) && $request->filled('profile_id')) {
+            $profile = OltProfile::find($request->profile_id);
+            if ($profile) {
+                if (!$lineProfile && $profile->type === OltProfile::TYPE_LINE) {
+                    $lineProfile = $profile->name;
+                }
+
+                if (!$serviceProfile && $profile->type === OltProfile::TYPE_SERVICE) {
+                    $serviceProfile = $profile->name;
+                }
+            }
+        }
+
+        return [$lineProfile, $serviceProfile];
+    }
+
+    protected function normalizeProfileName($value): ?string
+    {
+        $value = trim((string) $value);
+
+        return $value !== '' ? $value : null;
+    }
+
+    protected function resolveProfileConfigs(string $oltId, ?string $lineProfile, ?string $serviceProfile): array
+    {
+        $config = [];
+
+        if ($lineProfile) {
+            $line = OltProfile::where('olt_id', $oltId)
+                ->where('type', OltProfile::TYPE_LINE)
+                ->where('name', $lineProfile)
+                ->first();
+
+            if ($line?->config) {
+                $config = array_merge($config, $line->config);
+            }
+        }
+
+        if ($serviceProfile) {
+            $service = OltProfile::where('olt_id', $oltId)
+                ->where('type', OltProfile::TYPE_SERVICE)
+                ->where('name', $serviceProfile)
+                ->first();
+
+            if ($service?->config) {
+                $config = array_merge($config, $service->config);
+            }
+        }
+
+        return $config;
+    }
+
+    protected function normalizeProvisioningConfig(array $config): array
+    {
+        foreach (['vlan', 'vlan_id', 'gem_port', 'tcont_id', 'service_id'] as $numericKey) {
+            if (array_key_exists($numericKey, $config) && $config[$numericKey] !== null && $config[$numericKey] !== '') {
+                $config[$numericKey] = (int) $config[$numericKey];
+            }
+        }
+
+        if (array_key_exists('service_port_mode', $config) && $config['service_port_mode'] !== null) {
+            $config['service_port_mode'] = trim((string) $config['service_port_mode']) ?: null;
+        }
+
+        return $config;
+    }
+
+    protected function buildVlanConfigPayload(array $config): ?array
+    {
+        $payload = array_filter($config, fn($value) => $value !== null && $value !== '');
+
+        return !empty($payload) ? $payload : null;
+    }
+
+    protected function registerResponse(Request $request, bool $success, string $message, array $extra = [])
+    {
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json(array_merge([
+                'success' => $success,
+                'message' => $message,
+            ], $extra), $success ? 200 : 422);
+        }
+
+        if ($success && isset($extra['redirect_url'])) {
+            return redirect($extra['redirect_url'])->with('success', $message);
+        }
+
+        return back()->withInput()->with($success ? 'success' : 'error', $message);
     }
 }

@@ -15,10 +15,21 @@ use Laravolt\Indonesia\Models\Province;
 use Laravolt\Indonesia\Models\City;
 use Laravolt\Indonesia\Models\District;
 use Laravolt\Indonesia\Models\Village;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class PopSettingController extends Controller
+class PopSettingController extends Controller implements HasMiddleware
 {
     protected ActivityLogger $activityLog;
+
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('permission:pop-settings.view', only: ['index', 'ispInfo', 'invoiceSettings', 'previewInvoice', 'livePreviewInvoice', 'integration', 'getCities', 'getDistricts', 'getVillages']),
+            new Middleware('permission:pop-settings.edit', only: ['updateIspInfo', 'updateInvoiceSettings', 'removeLogo', 'updateIntegration', 'testRadiusConnection', 'syncIsolirProfile']),
+            new Middleware('role:superadmin', only: ['monitoring', 'viewPopDetail', 'copySettingsForm', 'preview', 'copySettings']),
+        ];
+    }
 
     public function __construct(ActivityLogger $activityLog)
     {

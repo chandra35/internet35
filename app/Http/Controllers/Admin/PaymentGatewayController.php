@@ -9,10 +9,23 @@ use App\Helpers\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class PaymentGatewayController extends Controller
+class PaymentGatewayController extends Controller implements HasMiddleware
 {
     protected ActivityLogger $activityLog;
+
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('permission:payment-gateways.view', only: ['index']),
+            new Middleware('permission:payment-gateways.create', only: ['create', 'store']),
+            new Middleware('permission:payment-gateways.edit', only: ['edit', 'update', 'toggleActive', 'toggleMode', 'testConnection', 'submitSandboxRequest']),
+            new Middleware('permission:payment-gateways.delete', only: ['destroy']),
+            new Middleware('role:superadmin', only: ['pendingSandboxRequests', 'reviewSandboxRequest']),
+        ];
+    }
 
     public function __construct(ActivityLogger $activityLog)
     {

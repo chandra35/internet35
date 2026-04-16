@@ -13,10 +13,19 @@ use App\Services\MikrotikService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class DataMaintenanceController extends Controller
+class DataMaintenanceController extends Controller implements HasMiddleware
 {
     protected $activityLog;
+
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('role:superadmin'),
+        ];
+    }
 
     public function __construct(ActivityLogService $activityLog)
     {

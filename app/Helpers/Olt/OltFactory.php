@@ -21,6 +21,9 @@ class OltFactory
             Olt::BRAND_HSGQ => new HsgqHelper(),
             Olt::BRAND_VSOL => new VsolHelper(),
             Olt::BRAND_HUAWEI => new HuaweiHelper(),
+            Olt::BRAND_FIBERHOME,
+            Olt::BRAND_BDCOM,
+            Olt::BRAND_OTHER => new GenericSnmpOltHelper(),
             default => throw new Exception("Unsupported OLT brand: {$olt->brand}"),
         };
 
@@ -84,6 +87,9 @@ class OltFactory
                     Olt::BRAND_HIOSO, 'hioso' => HiosoHelper::class,
                     Olt::BRAND_HSGQ, 'hsgq' => HsgqHelper::class,
                     Olt::BRAND_HUAWEI, 'huawei' => HuaweiHelper::class,
+                    Olt::BRAND_FIBERHOME, 'fiberhome' => GenericSnmpOltHelper::class,
+                    Olt::BRAND_BDCOM, 'bdcom' => GenericSnmpOltHelper::class,
+                    Olt::BRAND_OTHER, 'other' => GenericSnmpOltHelper::class,
                     default => null,
                 };
                 
@@ -265,6 +271,21 @@ class OltFactory
                 'name' => 'Huawei',
                 'models' => ['MA5608T', 'MA5680T'],
                 'features' => ['snmp', 'telnet', 'ssh'],
+            ],
+            Olt::BRAND_FIBERHOME => [
+                'name' => 'FiberHome',
+                'models' => ['AN5516', 'AN5516-04', 'AN6000'],
+                'features' => ['snmp', 'basic_monitoring'],
+            ],
+            Olt::BRAND_BDCOM => [
+                'name' => 'BDCOM',
+                'models' => ['P3310', 'P3608', 'GP3600'],
+                'features' => ['snmp', 'basic_monitoring'],
+            ],
+            Olt::BRAND_OTHER => [
+                'name' => 'Other',
+                'models' => [],
+                'features' => ['snmp', 'basic_monitoring'],
             ],
         ];
     }

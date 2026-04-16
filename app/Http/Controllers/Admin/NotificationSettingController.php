@@ -8,10 +8,20 @@ use App\Models\User;
 use App\Helpers\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class NotificationSettingController extends Controller
+class NotificationSettingController extends Controller implements HasMiddleware
 {
     protected ActivityLogger $activityLog;
+
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('permission:notification-settings.view', only: ['index']),
+            new Middleware('permission:notification-settings.edit', only: ['updateEmail', 'updateWhatsapp', 'updateTelegram', 'updateEvents', 'updateTemplates', 'resetTemplates', 'testEmail', 'testWhatsapp', 'testTelegram']),
+        ];
+    }
 
     public function __construct(ActivityLogger $activityLog)
     {

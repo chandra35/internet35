@@ -112,8 +112,12 @@
                         <td>{{ $onu->description ?? '-' }}</td>
                     </tr>
                     <tr>
-                        <td><strong>Profile</strong></td>
-                        <td>{{ $onu->profile->name ?? '-' }}</td>
+                        <td><strong>Line Profile</strong></td>
+                        <td>{{ $onu->line_profile ?? '-' }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Service Profile</strong></td>
+                        <td>{{ $onu->service_profile ?? '-' }}</td>
                     </tr>
                     <tr>
                         <td><strong>Pelanggan</strong></td>
@@ -127,10 +131,18 @@
                             @endif
                         </td>
                     </tr>
-                    @if($onu->vlan_id)
+                    @if(!empty($onu->vlan_config))
                     <tr>
-                        <td><strong>VLAN ID</strong></td>
-                        <td>{{ $onu->vlan_id }}</td>
+                        <td><strong>VLAN Config</strong></td>
+                        <td>
+                            @if(is_array($onu->vlan_config))
+                                {{ collect($onu->vlan_config)->filter(fn($value) => $value !== null && $value !== '')->map(function($value, $key) {
+                                    return ucfirst(str_replace('_', ' ', $key)) . ': ' . $value;
+                                })->implode(', ') ?: '-' }}
+                            @else
+                                {{ $onu->vlan_config }}
+                            @endif
+                        </td>
                     </tr>
                     @endif
                     <tr>
@@ -144,7 +156,7 @@
                 </table>
             </div>
             <div class="card-footer">
-                @can('onu.reboot')
+                @can('onus.reboot')
                 <button type="button" class="btn btn-warning btn-sm btn-reboot-onu" data-id="{{ $onu->id }}">
                     <i class="fas fa-sync"></i> Reboot
                 </button>
@@ -152,7 +164,7 @@
                 <button type="button" class="btn btn-info btn-sm btn-refresh-signal" data-id="{{ $onu->id }}">
                     <i class="fas fa-signal"></i> Refresh Signal
                 </button>
-                @can('onu.unregister')
+                @can('onus.unregister')
                 <button type="button" class="btn btn-danger btn-sm btn-unregister-onu" 
                         data-id="{{ $onu->id }}" data-sn="{{ $onu->serial_number }}">
                     <i class="fas fa-trash"></i> Unregister
@@ -424,11 +436,16 @@ $(function() {
             dataType: 'json',
             delay: 250,
             data: function(params) {
-                return { q: params.term };
+                return {
+                    q: params.term,
+                    pop_id: '{{ $onu->olt->pop_id }}',
+                    without_onu: true
+                };
             },
             processResults: function(data) {
+                var results = data.results || [];
                 return {
-                    results: data.map(function(item) {
+                    results: results.map(function(item) {
                         return { id: item.id, text: item.customer_id + ' - ' + item.name };
                     })
                 };

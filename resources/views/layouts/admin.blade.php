@@ -632,7 +632,7 @@
                     @endrole
 
                     <!-- Data Maintenance -->
-                    @role('superadmin|admin-pop')
+                    @role('superadmin')
                     <li class="nav-header">PERAWATAN</li>
                     <li class="nav-item">
                         <a href="{{ route('admin.data-maintenance.index') }}" class="nav-link {{ request()->routeIs('admin.data-maintenance.*') ? 'active' : '' }}">

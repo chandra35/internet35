@@ -58,11 +58,36 @@ class RolePermissionSeeder extends Seeder
         $allPermissions = Permission::all();
         $superadmin->syncPermissions($allPermissions);
 
-        // Give admin permissions (semua kecuali beberapa yang hanya untuk superadmin)
+        // Give admin permissions (operational access, not system-level)
         $adminPermissions = Permission::whereNotIn('name', [
+            // Role & permission management — superadmin only
+            'roles.view',
+            'roles.create',
+            'roles.edit',
             'roles.delete',
+            'permissions.view',
+            'permissions.create',
+            'permissions.edit',
             'permissions.delete',
             'permissions.scan',
+            // User management — superadmin only
+            'users.view',
+            'users.create',
+            'users.edit',
+            'users.delete',
+            // POP monitoring — superadmin only
+            'pop-settings.monitoring',
+            'pop-settings.copy',
+            // Data maintenance — superadmin only
+            'data-maintenance.view',
+            'data-maintenance.clear-customers',
+            'data-maintenance.clear-packages',
+            'data-maintenance.clear-profiles',
+            // Residents — superadmin only
+            'residents.view',
+            'residents.import',
+            'residents.delete',
+            'residents.grant-access',
         ])->get();
         $admin->syncPermissions($adminPermissions);
 

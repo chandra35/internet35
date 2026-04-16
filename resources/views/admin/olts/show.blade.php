@@ -307,7 +307,7 @@
             <div class="card-header">
                 <h3 class="card-title"><i class="fas fa-hdd mr-2"></i>Daftar ONU ({{ $olt->onus->count() }})</h3>
                 <div class="card-tools">
-                    @can('onu.register')
+                    @can('onus.register')
                     <button type="button" class="btn btn-success btn-sm btn-scan-unregistered" data-id="{{ $olt->id }}">
                         <i class="fas fa-search-plus"></i> Scan ONU Baru
                     </button>
@@ -382,13 +382,13 @@
                                     <a href="{{ route('admin.onus.show', $onu) }}" class="btn btn-xs btn-info" title="Detail">
                                         <i class="fas fa-eye"></i>
                                     </a>
-                                    @can('onu.reboot')
+                                    @can('onus.reboot')
                                     <button type="button" class="btn btn-xs btn-warning btn-reboot-onu" 
                                             data-id="{{ $onu->id }}" title="Reboot">
                                         <i class="fas fa-sync"></i>
                                     </button>
                                     @endcan
-                                    @can('onu.unregister')
+                                    @can('onus.unregister')
                                     <button type="button" class="btn btn-xs btn-danger btn-unregister-onu" 
                                             data-id="{{ $onu->id }}" data-sn="{{ $onu->serial_number }}" title="Unregister">
                                         <i class="fas fa-trash"></i>
@@ -490,6 +490,8 @@
                 </div>
                 <div class="modal-body">
                     <input type="hidden" name="olt_id" value="{{ $olt->id }}">
+                    <input type="hidden" name="slot" id="reg_slot">
+                    <input type="hidden" name="port" id="reg_port">
                     <input type="hidden" name="pon_port" id="reg_pon_port">
                     <input type="hidden" name="serial_number" id="reg_serial_number">
                     
@@ -510,16 +512,6 @@
                         </select>
                     </div>
 
-                    <div class="form-group">
-                        <label>Profile OLT <span class="text-danger">*</span></label>
-                        <select name="profile_id" class="form-control" required>
-                            <option value="">-- Pilih Profile --</option>
-                            @foreach($profiles as $profile)
-                            <option value="{{ $profile->id }}">{{ $profile->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-
                     @if($olt->brand == 'zte')
                     <div class="card card-outline card-info mt-3">
                         <div class="card-header">
@@ -529,14 +521,38 @@
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="form-group">
+                                        <label>Line Profile</label>
+                                        <select name="line_profile" class="form-control">
+                                            <option value="">-- Default OLT --</option>
+                                            @foreach($profiles->where('type', \App\Models\OltProfile::TYPE_LINE) as $profile)
+                                            <option value="{{ $profile->name }}">{{ $profile->name }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label>Service Profile</label>
+                                        <select name="service_profile" class="form-control">
+                                            <option value="">-- Opsional --</option>
+                                            @foreach($profiles->where('type', \App\Models\OltProfile::TYPE_SERVICE) as $profile)
+                                            <option value="{{ $profile->name }}">{{ $profile->name }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
                                         <label>VLAN ID</label>
-                                        <input type="number" name="vlan_id" class="form-control" value="100" min="1" max="4094">
+                                        <input type="number" name="vlan_id" class="form-control" min="1" max="4094" placeholder="Kosong = ambil dari profile/helper">
                                     </div>
                                 </div>
                                 <div class="col-md-6">
                                     <div class="form-group">
                                         <label>GEM Port</label>
-                                        <input type="number" name="gem_port" class="form-control" value="1" min="1">
+                                        <input type="number" name="gem_port" class="form-control" min="1" placeholder="Kosong = ambil dari profile/helper">
                                     </div>
                                 </div>
                             </div>
@@ -544,21 +560,41 @@
                                 <div class="col-md-6">
                                     <div class="form-group">
                                         <label>T-CONT ID</label>
-                                        <input type="number" name="tcont_id" class="form-control" value="1" min="1">
+                                        <input type="number" name="tcont_id" class="form-control" min="1" placeholder="Kosong = ambil dari profile/helper">
                                     </div>
                                 </div>
                                 <div class="col-md-6">
                                     <div class="form-group">
                                         <label>Service Port Mode</label>
                                         <select name="service_port_mode" class="form-control">
-                                            <option value="transparent">Transparent</option>
+                                            <option value="">-- Default/Profile --</option>
                                             <option value="tag">Tag</option>
                                             <option value="translate">Translate</option>
+                                            <option value="transparent">Transparent</option>
                                         </select>
                                     </div>
                                 </div>
                             </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label>Service ID</label>
+                                        <input type="number" name="service_id" class="form-control" min="1" placeholder="Kosong = ambil dari profile/helper">
+                                    </div>
+                                </div>
+                            </div>
+                            <small class="text-muted">Pilih profile dulu jika tersedia. Field yang kosong akan diambil dari config profile OLT atau default helper ZTE.</small>
                         </div>
+                    </div>
+                    @elseif($profiles->count() > 0)
+                    <div class="form-group">
+                        <label>Profile OLT</label>
+                        <select name="profile_id" class="form-control">
+                            <option value="">-- Opsional --</option>
+                            @foreach($profiles as $profile)
+                            <option value="{{ $profile->id }}">{{ $profile->type_label }} - {{ $profile->name }}</option>
+                            @endforeach
+                        </select>
                     </div>
                     @endif
 
@@ -588,6 +624,12 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 $(function() {
+    var zteProfileConfigs = @json(
+        $profiles
+            ->filter(fn($profile) => in_array($profile->type, [\App\Models\OltProfile::TYPE_LINE, \App\Models\OltProfile::TYPE_SERVICE], true))
+            ->mapWithKeys(fn($profile) => ["{$profile->type}:{$profile->name}" => $profile->config ?? []])
+    );
+
     // DataTable - only init if table exists
     if ($('#table-onus').length) {
         $('#table-onus').DataTable({
@@ -657,11 +699,16 @@ $(function() {
             dataType: 'json',
             delay: 250,
             data: function(params) {
-                return { q: params.term };
+                return {
+                    q: params.term,
+                    pop_id: '{{ $olt->pop_id }}',
+                    without_onu: true
+                };
             },
             processResults: function(data) {
+                var results = data.results || [];
                 return {
-                    results: data.map(function(item) {
+                    results: results.map(function(item) {
                         return { id: item.id, text: item.customer_id + ' - ' + item.name };
                     })
                 };
@@ -834,17 +881,20 @@ $(function() {
         $.get('/admin/olts/' + id + '/unregistered-onus')
             .done(function(res) {
                 $('#unregistered-loading').hide();
-                if (res.data && res.data.length > 0) {
+                var onus = res.onus || res.data || [];
+                if (onus.length > 0) {
                     var tbody = $('#table-unregistered tbody');
                     tbody.empty();
-                    res.data.forEach(function(onu) {
+                    onus.forEach(function(onu) {
+                        var ponDisplay = `${onu.slot}/${onu.port}`;
                         tbody.append(`
                             <tr>
-                                <td>${onu.pon_port}</td>
+                                <td>${ponDisplay}</td>
                                 <td><code>${onu.serial_number}</code></td>
                                 <td>
                                     <button type="button" class="btn btn-success btn-sm btn-register-onu"
-                                            data-pon="${onu.pon_port}" data-sn="${onu.serial_number}">
+                                            data-slot="${onu.slot}" data-port="${onu.port}"
+                                            data-pon="${ponDisplay}" data-sn="${onu.serial_number}">
                                         <i class="fas fa-plus"></i> Register
                                     </button>
                                 </td>
@@ -867,7 +917,16 @@ $(function() {
     $(document).on('click', '.btn-register-onu', function() {
         var pon = $(this).data('pon');
         var sn = $(this).data('sn');
+        var slot = $(this).data('slot');
+        var port = $(this).data('port');
+
+        if ($('#form-register')[0]) {
+            $('#form-register')[0].reset();
+            $('.select2-customer').val(null).trigger('change');
+        }
         
+        $('#reg_slot').val(slot);
+        $('#reg_port').val(port);
         $('#reg_pon_port').val(pon);
         $('#reg_serial_number').val(sn);
         $('#reg_pon_display').text(pon);
@@ -876,6 +935,52 @@ $(function() {
         $('#modal-unregistered').modal('hide');
         $('#modal-register').modal('show');
     });
+
+    function applyZteProfileDefaults() {
+        var form = $('#form-register');
+        if (!form.length || '{{ $olt->brand }}' !== 'zte') {
+            return;
+        }
+
+        var lineProfile = form.find('select[name="line_profile"]').val();
+        var serviceProfile = form.find('select[name="service_profile"]').val();
+        var merged = {};
+
+        if (lineProfile && zteProfileConfigs['line:' + lineProfile]) {
+            merged = $.extend({}, merged, zteProfileConfigs['line:' + lineProfile]);
+        }
+
+        if (serviceProfile && zteProfileConfigs['service:' + serviceProfile]) {
+            merged = $.extend({}, merged, zteProfileConfigs['service:' + serviceProfile]);
+        }
+
+        var fieldMap = {
+            vlan_id: ['vlan_id', 'vlan'],
+            gem_port: ['gem_port'],
+            tcont_id: ['tcont_id'],
+            service_id: ['service_id'],
+            service_port_mode: ['service_port_mode']
+        };
+
+        Object.keys(fieldMap).forEach(function(fieldName) {
+            var value = null;
+
+            fieldMap[fieldName].some(function(configKey) {
+                if (merged[configKey] !== undefined && merged[configKey] !== null && merged[configKey] !== '') {
+                    value = merged[configKey];
+                    return true;
+                }
+
+                return false;
+            });
+
+            if (value !== null) {
+                form.find('[name="' + fieldName + '"]').val(value);
+            }
+        });
+    }
+
+    $('#form-register').on('change', 'select[name="line_profile"], select[name="service_profile"]', applyZteProfileDefaults);
 
     // Register ONU - Submit
     $('#form-register').submit(function(e) {

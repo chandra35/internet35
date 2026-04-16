@@ -218,13 +218,13 @@
                                 <a href="{{ route('admin.onus.show', $onu) }}" class="btn btn-xs btn-info" title="Detail">
                                     <i class="fas fa-eye"></i>
                                 </a>
-                                @can('onu.reboot')
+                                @can('onus.reboot')
                                 <button type="button" class="btn btn-xs btn-warning btn-reboot-onu" 
                                         data-id="{{ $onu->id }}" title="Reboot">
                                     <i class="fas fa-sync"></i>
                                 </button>
                                 @endcan
-                                @can('onu.unregister')
+                                @can('onus.unregister')
                                 <button type="button" class="btn btn-xs btn-danger btn-unregister-onu" 
                                         data-id="{{ $onu->id }}" data-sn="{{ $onu->serial_number }}" title="Unregister">
                                     <i class="fas fa-trash"></i>
