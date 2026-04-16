@@ -1,13 +1,13 @@
 @extends('layouts.admin')
 
-@section('title', 'Detail ONU - ' . ($onu->description ?? $onu->name ?? $onu->serial_number))
+@section('title', 'Detail ONU - ' . $onu->serial_number)
 
-@section('page-title', 'Detail ONU: ' . ($onu->description ?? $onu->name ?? $onu->serial_number))
+@section('page-title', 'Detail ONU: ' . $onu->serial_number)
 
 @section('breadcrumb')
     <li class="breadcrumb-item"><a href="{{ route('admin.dashboard') }}">Dashboard</a></li>
     <li class="breadcrumb-item"><a href="{{ route('admin.onus.index') }}">ONU</a></li>
-    <li class="breadcrumb-item active">{{ $onu->description ?? $onu->name ?? $onu->serial_number }}</li>
+    <li class="breadcrumb-item active">{{ $onu->serial_number }}</li>
 @endsection
 
 @section('content')
@@ -20,8 +20,8 @@
                 <div class="widget-user-image">
                     <i class="fas fa-hdd fa-3x"></i>
                 </div>
-                <h3 class="widget-user-username">{{ $onu->description ?? $onu->name ?? 'ONU' }}</h3>
-                <h5 class="widget-user-desc">{{ $onu->serial_number }}</h5>
+                <h3 class="widget-user-username">{{ $onu->serial_number }}</h3>
+                <h5 class="widget-user-desc">{{ $onu->name ?? $onu->description ?? '' }}</h5>
             </div>
             <div class="card-footer p-0">
                 <ul class="nav flex-column">
