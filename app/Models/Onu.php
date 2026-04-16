@@ -18,6 +18,7 @@ class Onu extends Model
         'pon_port_id',
         'customer_id',
         'odp_id',
+        'zone_id',
         'serial_number',
         'mac_address',
         'name',
@@ -262,6 +263,11 @@ class Onu extends Model
     public function odp(): BelongsTo
     {
         return $this->belongsTo(Odp::class);
+    }
+
+    public function zone(): BelongsTo
+    {
+        return $this->belongsTo(Zone::class);
     }
 
     public function creator(): BelongsTo

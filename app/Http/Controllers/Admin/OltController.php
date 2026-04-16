@@ -200,7 +200,7 @@ class OltController extends Controller implements HasMiddleware
         // Load ONUs with pagination-friendly query (only first 100 for display)
         // Full list can be loaded via AJAX if needed
         $onus = $olt->onus()
-            ->with('customer:id,name,customer_id')
+            ->with(['customer:id,name,customer_id', 'zone:id,name', 'odp:id,name'])
             ->orderBy('port')
             ->orderBy('onu_id')
             ->limit(100)

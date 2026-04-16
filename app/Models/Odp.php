@@ -18,6 +18,7 @@ class Odp extends Model
         'olt_id',
         'olt_pon_port',
         'olt_slot',
+        'zone_id',
         'parent_odp_id',
         'name',
         'code',
@@ -336,6 +337,11 @@ class Odp extends Model
     public function olt()
     {
         return $this->belongsTo(Olt::class);
+    }
+
+    public function zone()
+    {
+        return $this->belongsTo(Zone::class);
     }
 
     public function parentOdp()

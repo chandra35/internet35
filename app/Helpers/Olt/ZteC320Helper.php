@@ -3,6 +3,8 @@
 namespace App\Helpers\Olt;
 
 use Exception;
+use App\Models\Zone;
+use App\Models\Odp;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
@@ -1052,6 +1054,44 @@ class ZteC320Helper extends BaseOltHelper
     }
 
     /**
+     * Parse SmartOLT-style description into zone, odp, lat, long, auth_date
+     * Format: zone_{ZONE}_odb_{ODP}[_lat_{LAT}_long_{LONG}]_authd_{DATE}
+     */
+    protected function parseDescription(?string $description): array
+    {
+        $result = [
+            'zone' => null,
+            'odp' => null,
+            'latitude' => null,
+            'longitude' => null,
+            'auth_date' => null,
+        ];
+
+        if (!$description) return $result;
+
+        $desc = trim($description, '" ');
+
+        // Pattern with ODB: zone_{ZONE}_odb_{ODP}[_lat_{LAT}_long_{LONG}]_authd_{DATE}
+        if (preg_match('/^zone_(.+?)_odb_(.+?)(?:_lat_([-\d.]+)_long_([-\d.]+))?_authd_(\d+)$/', $desc, $m)) {
+            $result['zone'] = str_replace('_', ' ', trim($m[1]));
+            $result['odp'] = str_replace('_', ' ', trim($m[2]));
+            $result['latitude'] = isset($m[3]) && $m[3] !== '' ? (float) $m[3] : null;
+            $result['longitude'] = isset($m[4]) && $m[4] !== '' ? (float) $m[4] : null;
+            $result['auth_date'] = $m[5] ?? null;
+            return $result;
+        }
+
+        // Pattern without ODB: zone_{ZONE}_authd_{DATE}
+        if (preg_match('/^zone_(.+?)_authd_(\d+)$/', $desc, $m)) {
+            $result['zone'] = str_replace('_', ' ', trim($m[1]));
+            $result['auth_date'] = $m[2] ?? null;
+            return $result;
+        }
+
+        return $result;
+    }
+
+    /**
      * Get all ONUs from OLT
      */
     public function getAllOnus(): array
@@ -1102,6 +1142,14 @@ class ZteC320Helper extends BaseOltHelper
                     'name' => $rawName ? trim($rawName, '" ') : null,
                     'description' => $rawDesc ? trim($rawDesc, '" ') : null,
                 ];
+
+                // Parse SmartOLT-style description for zone/odp/coordinates
+                $descParsed = $this->parseDescription($rawDesc);
+                $onu['zone_name'] = $descParsed['zone'];
+                $onu['odp_name'] = $descParsed['odp'];
+                $onu['latitude'] = $descParsed['latitude'];
+                $onu['longitude'] = $descParsed['longitude'];
+                $onu['auth_date'] = $descParsed['auth_date'];
 
                 $onus[] = $onu;
             }
@@ -1765,6 +1813,10 @@ class ZteC320Helper extends BaseOltHelper
             $bulkInOctets = $this->snmpWalk($this->zteOids['zxAnGponOnuPerfInOctets']);
             $bulkOutOctets = $this->snmpWalk($this->zteOids['zxAnGponOnuPerfOutOctets']);
 
+            // Cache for auto-created zones and ODPs (avoid repeated queries)
+            $zoneCache = []; // name => Zone model
+            $odpCache = [];  // "zone_id|odp_name" => Odp model
+
             foreach ($allOnus as $onuData) {
                 try {
                     $index = $this->buildOnuIndex($onuData['slot'], $onuData['port'], $onuData['onu_id']);
@@ -1776,6 +1828,48 @@ class ZteC320Helper extends BaseOltHelper
                     // Merge bulk traffic data
                     $inOctets = (int) ($bulkInOctets[$this->zteOids['zxAnGponOnuPerfInOctets'] . ".{$index}"] ?? 0);
                     $outOctets = (int) ($bulkOutOctets[$this->zteOids['zxAnGponOnuPerfOutOctets'] . ".{$index}"] ?? 0);
+
+                    // Auto-create Zone and ODP from parsed description
+                    $zoneId = null;
+                    $odpId = null;
+
+                    if (!empty($onuData['zone_name'])) {
+                        $zoneName = $onuData['zone_name'];
+                        if (!isset($zoneCache[$zoneName])) {
+                            $zoneCache[$zoneName] = Zone::firstOrCreate(
+                                ['olt_id' => $this->olt->id, 'name' => $zoneName],
+                            );
+                        }
+                        $zoneId = $zoneCache[$zoneName]->id;
+                    }
+
+                    if (!empty($onuData['odp_name']) && $zoneId) {
+                        $odpKey = "{$zoneId}|{$onuData['odp_name']}";
+                        if (!isset($odpCache[$odpKey])) {
+                            $odp = Odp::firstOrCreate(
+                                ['olt_id' => $this->olt->id, 'name' => $onuData['odp_name']],
+                                [
+                                    'zone_id' => $zoneId,
+                                    'code' => Odp::generateCode(null, $this->olt->id),
+                                    'status' => 'active',
+                                    'total_ports' => 8,
+                                ]
+                            );
+                            // Update zone_id if ODP existed but had no zone
+                            if (!$odp->zone_id) {
+                                $odp->update(['zone_id' => $zoneId]);
+                            }
+                            // Update coordinates if available and ODP doesn't have them yet
+                            if (!empty($onuData['latitude']) && !$odp->latitude) {
+                                $odp->update([
+                                    'latitude' => $onuData['latitude'],
+                                    'longitude' => $onuData['longitude'],
+                                ]);
+                            }
+                            $odpCache[$odpKey] = $odp;
+                        }
+                        $odpId = $odpCache[$odpKey]->id;
+                    }
 
                     // Save to database using bulk-walked data (no per-ONU SNMP/CLI)
                     $onu = $this->saveOnuToDatabase([
@@ -1790,6 +1884,8 @@ class ZteC320Helper extends BaseOltHelper
                         'description' => $onuData['description'] ?? null,
                         'vendor' => $vendor,
                         'distance' => $onuData['distance'] ?? null,
+                        'zone_id' => $zoneId,
+                        'odp_id' => $odpId,
                         'in_octets' => $inOctets,
                         'out_octets' => $outOctets,
                         'config_status' => 'registered',

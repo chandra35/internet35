@@ -322,6 +322,8 @@
                             <tr>
                                 <th>PON/ONU</th>
                                 <th>Nama</th>
+                                <th>Zone</th>
+                                <th>ODP</th>
                                 <th>Pelanggan</th>
                                 <th>SN</th>
                                 <th>Status</th>
@@ -336,6 +338,8 @@
                                     <strong>{{ $onu->slot }}/{{ $onu->port }}/{{ $onu->onu_id }}</strong>
                                 </td>
                                 <td>{{ $onu->name ?: '-' }}</td>
+                                <td>{{ $onu->zone->name ?? '-' }}</td>
+                                <td>{{ $onu->odp->name ?? '-' }}</td>
                                 <td>
                                     @if($onu->customer)
                                         <a href="{{ route('admin.customers.show', $onu->customer) }}">
