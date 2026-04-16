@@ -45,37 +45,28 @@ class ZteC320Helper extends BaseOltHelper
         'zxAnGponOltPonIfAdminStatus' => '1.3.6.1.4.1.3902.1082.500.10.2.2.1.1.2',
         'zxAnGponOltPonIfOperStatus' => '1.3.6.1.4.1.3902.1082.500.10.2.2.1.1.3',
         
-        // ONU
+        // ONU — Index: ponIfIndex.onuId (2-part, ponIfIndex encodes type/rack/slot/port)
         'zxAnGponOnuTable' => '1.3.6.1.4.1.3902.1082.500.10.2.3.3.1',
-        'zxAnGponOnuSerialNumber' => '1.3.6.1.4.1.3902.1082.500.10.2.3.3.1.1', // Index: slot.port.onuid
-        'zxAnGponOnuRunStatus' => '1.3.6.1.4.1.3902.1082.500.10.2.3.3.1.2',
-        'zxAnGponOnuAdminStatus' => '1.3.6.1.4.1.3902.1082.500.10.2.3.3.1.3',
-        'zxAnGponOnuName' => '1.3.6.1.4.1.3902.1082.500.10.2.3.3.1.4',
-        'zxAnGponOnuType' => '1.3.6.1.4.1.3902.1082.500.10.2.3.3.1.5',
-        'zxAnGponOnuVendorId' => '1.3.6.1.4.1.3902.1082.500.10.2.3.3.1.6',
-        'zxAnGponOnuDistance' => '1.3.6.1.4.1.3902.1082.500.10.2.3.3.1.7',
-        'zxAnGponOnuPhaseState' => '1.3.6.1.4.1.3902.1082.500.10.2.3.3.1.8',
-        'zxAnGponOnuSoftwareVer' => '1.3.6.1.4.1.3902.1082.500.10.2.3.3.1.14',
-        'zxAnGponOnuHardwareVer' => '1.3.6.1.4.1.3902.1082.500.10.2.3.3.1.15',
+        'zxAnGponOnuType' => '1.3.6.1.4.1.3902.1082.500.10.2.3.3.1.1',             // Col 1: ONU model (STRING "F670L")
+        'zxAnGponOnuName' => '1.3.6.1.4.1.3902.1082.500.10.2.3.3.1.2',             // Col 2: ONU name
+        'zxAnGponOnuDescription' => '1.3.6.1.4.1.3902.1082.500.10.2.3.3.1.3',      // Col 3: Description
+        'zxAnGponOnuAdminStatus' => '1.3.6.1.4.1.3902.1082.500.10.2.3.3.1.5',      // Col 5: Admin status
+        'zxAnGponOnuSerialNumber' => '1.3.6.1.4.1.3902.1082.500.10.2.3.3.1.6',     // Col 6: Serial (binary: 4-byte vendor ASCII + 4-byte hex)
+        'zxAnGponOnuLineProfile' => '1.3.6.1.4.1.3902.1082.500.10.2.3.3.1.9',      // Col 9: Line profile
+        'zxAnGponOnuServiceProfile' => '1.3.6.1.4.1.3902.1082.500.10.2.3.3.1.10',  // Col 10: Service profile
+        'zxAnGponOnuRunStatus' => '1.3.6.1.4.1.3902.1082.500.10.2.3.3.1.11',       // Col 11: Run status (1=online,2=offline,3=los,4=dying_gasp,5=power_off)
+        'zxAnGponOnuPhaseState' => '1.3.6.1.4.1.3902.1082.500.10.2.3.3.1.12',      // Col 12: Phase state
+        'zxAnGponOnuSoftwareVer' => '1.3.6.1.4.1.3902.1082.500.10.2.3.3.1.14',     // Col 14: Software version
+        'zxAnGponOnuHardwareVer' => '1.3.6.1.4.1.3902.1082.500.10.2.3.3.1.15',     // Col 15: Hardware version
+        'zxAnGponOnuAuthInfo' => '1.3.6.1.4.1.3902.1082.500.10.2.3.3.1.18',        // Col 18: Auth info "authType,serial"
+        'zxAnGponOnuDistance' => '1.3.6.1.4.1.3902.1082.500.10.2.3.3.1.20',         // Col 20: Distance
         
-        // ONU Optical Info
+        // ONU Optical Info — DDM table not reliable via SNMP on this firmware, use CLI fallback
         'zxAnGponOnuOpticalDdmTable' => '1.3.6.1.4.1.3902.1082.500.10.2.3.8.1',
-        'zxAnGponOnuRxPowerLevel' => '1.3.6.1.4.1.3902.1082.500.10.2.3.8.1.3', // OLT Rx from ONU
-        'zxAnGponOnuTxPowerLevel' => '1.3.6.1.4.1.3902.1082.500.10.2.3.8.1.4', // ONU Tx
-        'zxAnGponOnuOnuRxPowerLevel' => '1.3.6.1.4.1.3902.1082.500.10.2.3.8.1.5', // ONU Rx
-        'zxAnGponOnuTemperature' => '1.3.6.1.4.1.3902.1082.500.10.2.3.8.1.6',
-        'zxAnGponOnuVoltage' => '1.3.6.1.4.1.3902.1082.500.10.2.3.8.1.7',
-        'zxAnGponOnuBiasCurrent' => '1.3.6.1.4.1.3902.1082.500.10.2.3.8.1.8',
         
-        // Traffic Statistics
-        'zxAnGponOnuPerfInOctets' => '1.3.6.1.4.1.3902.1082.500.10.2.3.9.1.2',
-        'zxAnGponOnuPerfOutOctets' => '1.3.6.1.4.1.3902.1082.500.10.2.3.9.1.3',
-        'zxAnGponOnuPerfInPackets' => '1.3.6.1.4.1.3902.1082.500.10.2.3.9.1.4',
-        'zxAnGponOnuPerfOutPackets' => '1.3.6.1.4.1.3902.1082.500.10.2.3.9.1.5',
-        
-        // ONU Profile
-        'zxAnGponOnuLineProfile' => '1.3.6.1.4.1.3902.1082.500.10.2.3.3.1.9',
-        'zxAnGponOnuServiceProfile' => '1.3.6.1.4.1.3902.1082.500.10.2.3.3.1.10',
+        // Traffic Statistics (table 10)
+        'zxAnGponOnuPerfInOctets' => '1.3.6.1.4.1.3902.1082.500.10.2.3.10.1.1',
+        'zxAnGponOnuPerfOutOctets' => '1.3.6.1.4.1.3902.1082.500.10.2.3.10.1.2',
         
         // PON Port SFP DDM (OLT-side transceiver)
         'zxAnGponOltPonOpticalTxPower' => '1.3.6.1.4.1.3902.1082.500.10.2.2.1.1.10',
@@ -671,14 +662,26 @@ class ZteC320Helper extends BaseOltHelper
             $operStatuses = $this->snmpWalk($this->zteOids['zxAnGponOltPonIfOperStatus']);
 
             foreach ($adminStatuses as $oid => $adminStatus) {
-                // Parse slot.port from OID index
-                preg_match('/\.(\d+)\.(\d+)$/', $oid, $matches);
-                if (count($matches) < 3) continue;
+                // Parse ponIfIndex from OID (single-indexed table)
+                if (preg_match('/\.(\d+)$/', $oid, $matches)) {
+                    $ponIfIndex = (int) $matches[1];
+                    if ($ponIfIndex > 1000) {
+                        $decoded = $this->decodePonIfIndex($ponIfIndex);
+                        $slot = $decoded['slot'];
+                        $port = $decoded['port'];
+                    } else {
+                        // Fallback: last 2 numbers as slot.port
+                        preg_match('/\.(\d+)\.(\d+)$/', $oid, $m2);
+                        if (!$m2) continue;
+                        $slot = (int) $m2[1];
+                        $port = (int) $m2[2];
+                    }
+                } else {
+                    continue;
+                }
 
-                $slot = (int) $matches[1];
-                $port = (int) $matches[2];
-
-                $operOid = str_replace('1.2', '1.3', $oid);
+                // Build matching oper status OID
+                $operOid = str_replace('.2.', '.3.', $oid);
                 $operStatus = $operStatuses[$operOid] ?? 'unknown';
 
                 $ports[] = [
@@ -706,7 +709,8 @@ class ZteC320Helper extends BaseOltHelper
      */
     public function getPonPortInfo(int $slot, int $port): array
     {
-        $index = "{$slot}.{$port}";
+        $ponIfIndex = $this->encodePonIfIndex($slot, $port);
+        $index = "{$ponIfIndex}";
 
         return [
             'slot' => $slot,
@@ -734,12 +738,24 @@ class ZteC320Helper extends BaseOltHelper
                 $biases = $this->snmpWalk($this->zteOids['zxAnGponOltPonOpticalBias']);
 
                 foreach ($txPowers as $oid => $txRaw) {
-                    preg_match('/\.(\d+)\.(\d+)$/', $oid, $matches);
-                    if (count($matches) < 3) continue;
-
-                    $slot = (int) $matches[1];
-                    $port = (int) $matches[2];
-                    $index = "{$slot}.{$port}";
+                    // Parse ponIfIndex from OID (single-indexed)
+                    if (preg_match('/\.(\d+)$/', $oid, $matches)) {
+                        $ponIfIndex = (int) $matches[1];
+                        if ($ponIfIndex > 1000) {
+                            $decoded = $this->decodePonIfIndex($ponIfIndex);
+                            $slot = $decoded['slot'];
+                            $port = $decoded['port'];
+                            $index = "{$ponIfIndex}";
+                        } else {
+                            preg_match('/\.(\d+)\.(\d+)$/', $oid, $m2);
+                            if (!$m2) continue;
+                            $slot = (int) $m2[1];
+                            $port = (int) $m2[2];
+                            $index = "{$slot}.{$port}";
+                        }
+                    } else {
+                        continue;
+                    }
 
                     $txPower = $this->parseDdmValue($txRaw);
                     $rxPower = $this->parseDdmValue($rxPowers[$this->zteOids['zxAnGponOltPonOpticalRxPower'] . ".{$index}"] ?? null);
@@ -945,6 +961,96 @@ class ZteC320Helper extends BaseOltHelper
     }
 
     /**
+     * Decode ZTE PON interface index to slot and port
+     * ponIfIndex format: type(8bit) | rack(8bit) | slot(8bit) | port(8bit)
+     * Example: 285278465 = 0x11010101 → type=0x11(GPON), rack=1, slot=1, port=1
+     */
+    protected function decodePonIfIndex(int $ponIfIndex): array
+    {
+        return [
+            'slot' => ($ponIfIndex >> 8) & 0xFF,
+            'port' => $ponIfIndex & 0xFF,
+        ];
+    }
+
+    /**
+     * Encode slot and port to ZTE PON interface index
+     */
+    protected function encodePonIfIndex(int $slot, int $port, int $rack = 1): int
+    {
+        return (0x11 << 24) | ($rack << 16) | ($slot << 8) | $port;
+    }
+
+    /**
+     * Build ONU SNMP index string from slot/port/onuId
+     */
+    protected function buildOnuIndex(int $slot, int $port, int $onuId): string
+    {
+        $ponIfIndex = $this->encodePonIfIndex($slot, $port);
+        return "{$ponIfIndex}.{$onuId}";
+    }
+
+    /**
+     * Parse ONU index from SNMP OID (2-part: ponIfIndex.onuId)
+     */
+    protected function parseOnuIndex(string $oid): ?array
+    {
+        // Match last 2 numbers: ponIfIndex.onuId
+        if (preg_match('/\.(\d+)\.(\d+)$/', $oid, $matches)) {
+            $ponIfIndex = (int) $matches[1];
+            $onuId = (int) $matches[2];
+
+            // Large number = encoded ponIfIndex (2-part format)
+            if ($ponIfIndex > 1000) {
+                $decoded = $this->decodePonIfIndex($ponIfIndex);
+                return ['slot' => $decoded['slot'], 'port' => $decoded['port'], 'onu_id' => $onuId];
+            }
+        }
+
+        // Fallback: try 3-part format (slot.port.onuId)
+        if (preg_match('/\.(\d+)\.(\d+)\.(\d+)$/', $oid, $matches)) {
+            return ['slot' => (int)$matches[1], 'port' => (int)$matches[2], 'onu_id' => (int)$matches[3]];
+        }
+
+        return null;
+    }
+
+    /**
+     * Parse serial number from binary SNMP value
+     * ZTE returns 8 bytes: 4 ASCII vendor + 4 hex serial
+     */
+    protected function parseZteSerialNumber(string $raw): string
+    {
+        $raw = trim($raw);
+        if (empty($raw)) return '';
+
+        // Already readable serial like "ZTEGD2328864"
+        if (preg_match('/^[A-Z]{4}[0-9A-F]{8}$/i', $raw)) {
+            return strtoupper($raw);
+        }
+
+        // Binary format: 4 ASCII vendor bytes + 4 binary serial bytes
+        if (strlen($raw) === 8) {
+            $vendor = substr($raw, 0, 4);
+            if (ctype_print($vendor)) {
+                $hexPart = strtoupper(bin2hex(substr($raw, 4)));
+                return strtoupper($vendor) . $hexPart;
+            }
+        }
+
+        return strtoupper(preg_replace('/[^A-Z0-9]/i', '', $raw));
+    }
+
+    /**
+     * Parse serial from auth info string "authType,serial"
+     */
+    protected function parseAuthInfoSerial(string $authInfo): string
+    {
+        $parts = explode(',', trim($authInfo), 2);
+        return isset($parts[1]) ? strtoupper(trim($parts[1])) : '';
+    }
+
+    /**
      * Get all ONUs from OLT
      */
     public function getAllOnus(): array
@@ -952,23 +1058,30 @@ class ZteC320Helper extends BaseOltHelper
         $onus = [];
 
         try {
-            // Get all ONU serial numbers
-            $serialNumbers = $this->snmpWalk($this->zteOids['zxAnGponOnuSerialNumber']);
+            // Walk auth info (col 18) for serial — most reliable format "authType,serial"
+            $authInfos = $this->snmpWalk($this->zteOids['zxAnGponOnuAuthInfo']);
             $runStatuses = $this->snmpWalk($this->zteOids['zxAnGponOnuRunStatus']);
             $distances = $this->snmpWalk($this->zteOids['zxAnGponOnuDistance']);
             $types = $this->snmpWalk($this->zteOids['zxAnGponOnuType']);
+            $names = $this->snmpWalk($this->zteOids['zxAnGponOnuName']);
 
-            foreach ($serialNumbers as $oid => $serialRaw) {
-                // Parse slot.port.onuid from OID
-                preg_match('/\.(\d+)\.(\d+)\.(\d+)$/', $oid, $matches);
-                if (count($matches) < 4) continue;
+            // If auth info empty, fallback to binary serial column
+            $useAuthInfo = !empty($authInfos);
+            $serialSrc = $useAuthInfo ? $authInfos : $this->snmpWalk($this->zteOids['zxAnGponOnuSerialNumber']);
 
-                $slot = (int) $matches[1];
-                $port = (int) $matches[2];
-                $onuId = (int) $matches[3];
-                $index = "{$slot}.{$port}.{$onuId}";
+            foreach ($serialSrc as $oid => $value) {
+                $parsed = $this->parseOnuIndex($oid);
+                if (!$parsed) continue;
 
-                $serialNumber = $this->parseSerialNumber($serialRaw);
+                $slot = $parsed['slot'];
+                $port = $parsed['port'];
+                $onuId = $parsed['onu_id'];
+                $index = $this->buildOnuIndex($slot, $port, $onuId);
+
+                $serialNumber = $useAuthInfo
+                    ? $this->parseAuthInfoSerial($value)
+                    : $this->parseZteSerialNumber($value);
+
                 $statusOid = $this->zteOids['zxAnGponOnuRunStatus'] . ".{$index}";
                 $status = $runStatuses[$statusOid] ?? 0;
 
@@ -980,6 +1093,7 @@ class ZteC320Helper extends BaseOltHelper
                     'status' => $this->runStatusMap[$status] ?? 'unknown',
                     'distance' => $this->parseDistance($distances[$this->zteOids['zxAnGponOnuDistance'] . ".{$index}"] ?? null),
                     'onu_type' => $types[$this->zteOids['zxAnGponOnuType'] . ".{$index}"] ?? null,
+                    'name' => $names[$this->zteOids['zxAnGponOnuName'] . ".{$index}"] ?? null,
                 ];
 
                 $onus[] = $onu;
@@ -1009,20 +1123,31 @@ class ZteC320Helper extends BaseOltHelper
      */
     public function getOnuInfo(int $slot, int $port, int $onuId): array
     {
-        $index = "{$slot}.{$port}.{$onuId}";
+        $index = $this->buildOnuIndex($slot, $port, $onuId);
+
+        // Get serial from auth info (col 18) — most reliable
+        $authInfo = $this->snmpGet($this->zteOids['zxAnGponOnuAuthInfo'] . ".{$index}") ?? '';
+        $serialNumber = $this->parseAuthInfoSerial($authInfo);
+
+        // Fallback to binary serial (col 6)
+        if (empty($serialNumber)) {
+            $serialRaw = $this->snmpGet($this->zteOids['zxAnGponOnuSerialNumber'] . ".{$index}") ?? '';
+            $serialNumber = $this->parseZteSerialNumber($serialRaw);
+        }
+
+        // Extract vendor from serial (first 4 chars)
+        $vendor = strlen($serialNumber) >= 4 ? substr($serialNumber, 0, 4) : null;
 
         $info = [
             'slot' => $slot,
             'port' => $port,
             'onu_id' => $onuId,
-            'serial_number' => $this->parseSerialNumber(
-                $this->snmpGet($this->zteOids['zxAnGponOnuSerialNumber'] . ".{$index}") ?? ''
-            ),
+            'serial_number' => $serialNumber,
             'status' => $this->runStatusMap[$this->snmpGet($this->zteOids['zxAnGponOnuRunStatus'] . ".{$index}")] ?? 'unknown',
             'admin_status' => $this->snmpGet($this->zteOids['zxAnGponOnuAdminStatus'] . ".{$index}"),
             'name' => $this->snmpGet($this->zteOids['zxAnGponOnuName'] . ".{$index}"),
             'onu_type' => $this->snmpGet($this->zteOids['zxAnGponOnuType'] . ".{$index}"),
-            'vendor' => $this->snmpGet($this->zteOids['zxAnGponOnuVendorId'] . ".{$index}"),
+            'vendor' => $vendor,
             'distance' => $this->parseDistance($this->snmpGet($this->zteOids['zxAnGponOnuDistance'] . ".{$index}")),
             'software_version' => $this->snmpGet($this->zteOids['zxAnGponOnuSoftwareVer'] . ".{$index}"),
             'hardware_version' => $this->snmpGet($this->zteOids['zxAnGponOnuHardwareVer'] . ".{$index}"),
@@ -1030,34 +1155,59 @@ class ZteC320Helper extends BaseOltHelper
             'service_profile' => $this->snmpGet($this->zteOids['zxAnGponOnuServiceProfile'] . ".{$index}"),
         ];
 
-        // Get optical info
-        $optical = $this->getOnuOpticalInfo($slot, $port, $onuId);
+        // Get optical info via CLI (SNMP DDM not reliable on this firmware)
+        $optical = $this->getOnuOpticalInfoViaCli($slot, $port, $onuId);
         
         return array_merge($info, $optical);
     }
 
     /**
-     * Get ONU optical/signal info
+     * Get ONU optical/signal info via CLI (more reliable than SNMP DDM)
+     */
+    public function getOnuOpticalInfoViaCli(int $slot, int $port, int $onuId): array
+    {
+        $default = [
+            'olt_rx_power' => null,
+            'tx_power' => null,
+            'rx_power' => null,
+            'temperature' => null,
+            'voltage' => null,
+            'bias_current' => null,
+        ];
+
+        try {
+            if (!$this->supportsTelnet() && !$this->supportsSsh()) {
+                return $default;
+            }
+
+            $cmd = "show pon power attenuation gpon-onu_1/{$slot}/{$port}:{$onuId}";
+            $output = $this->executeCommand($cmd);
+
+            // Parse OLT Rx, ONU Tx, ONU Rx from output
+            if (preg_match('/OLT\s+Rx[:\s]+(-?[\d.]+)\s*dBm/i', $output, $m)) {
+                $default['olt_rx_power'] = (float) $m[1];
+            }
+            if (preg_match('/ONU\s+Tx[:\s]+(-?[\d.]+)\s*dBm/i', $output, $m)) {
+                $default['tx_power'] = (float) $m[1];
+            }
+            if (preg_match('/ONU\s+Rx[:\s]+(-?[\d.]+)\s*dBm/i', $output, $m)) {
+                $default['rx_power'] = (float) $m[1];
+            }
+
+        } catch (Exception $e) {
+            Log::debug("ZTE optical CLI failed for {$slot}/{$port}:{$onuId}: " . $e->getMessage());
+        }
+
+        return $default;
+    }
+
+    /**
+     * Get ONU optical/signal info via SNMP (may not work on all firmware)
      */
     public function getOnuOpticalInfo(int $slot, int $port, int $onuId): array
     {
-        $index = "{$slot}.{$port}.{$onuId}";
-
-        $oltRxRaw = $this->snmpGet($this->zteOids['zxAnGponOnuRxPowerLevel'] . ".{$index}");
-        $onuTxRaw = $this->snmpGet($this->zteOids['zxAnGponOnuTxPowerLevel'] . ".{$index}");
-        $onuRxRaw = $this->snmpGet($this->zteOids['zxAnGponOnuOnuRxPowerLevel'] . ".{$index}");
-        $tempRaw = $this->snmpGet($this->zteOids['zxAnGponOnuTemperature'] . ".{$index}");
-        $voltRaw = $this->snmpGet($this->zteOids['zxAnGponOnuVoltage'] . ".{$index}");
-        $biasRaw = $this->snmpGet($this->zteOids['zxAnGponOnuBiasCurrent'] . ".{$index}");
-
-        return [
-            'olt_rx_power' => $this->parseZteOpticalPower($oltRxRaw),
-            'tx_power' => $this->parseZteOpticalPower($onuTxRaw),
-            'rx_power' => $this->parseZteOpticalPower($onuRxRaw),
-            'temperature' => $tempRaw ? ((float)$tempRaw / 256) : null,
-            'voltage' => $voltRaw ? ((float)$voltRaw / 10000) : null,
-            'bias_current' => $biasRaw ? ((float)$biasRaw / 500) : null,
-        ];
+        // Redirect to CLI-based method for reliability
+        return $this->getOnuOpticalInfoViaCli($slot, $port, $onuId);
     }
 
     /**
@@ -1105,13 +1255,27 @@ class ZteC320Helper extends BaseOltHelper
             $uncfgOnus = $this->snmpWalk($this->zteOids['zxAnGponOltUncfgOnuSerialNo']);
 
             foreach ($uncfgOnus as $oid => $serial) {
-                preg_match('/\.(\d+)\.(\d+)$/', $oid, $matches);
-                if (count($matches) < 3) continue;
+                // Uncfg table may use ponIfIndex or slot.port index
+                if (preg_match('/\.(\d+)$/', $oid, $matches)) {
+                    $ponIfIndex = (int) $matches[1];
+                    if ($ponIfIndex > 1000) {
+                        $decoded = $this->decodePonIfIndex($ponIfIndex);
+                        $slot = $decoded['slot'];
+                        $port = $decoded['port'];
+                    } else {
+                        preg_match('/\.(\d+)\.(\d+)$/', $oid, $m2);
+                        if (!$m2) continue;
+                        $slot = (int) $m2[1];
+                        $port = (int) $m2[2];
+                    }
+                } else {
+                    continue;
+                }
 
                 $unregistered[] = [
-                    'slot' => (int) $matches[1],
-                    'port' => (int) $matches[2],
-                    'serial_number' => $this->parseSerialNumber($serial),
+                    'slot' => $slot,
+                    'port' => $port,
+                    'serial_number' => $this->parseZteSerialNumber($serial),
                     'config_status' => 'unregistered',
                 ];
             }
@@ -1402,12 +1566,10 @@ class ZteC320Helper extends BaseOltHelper
      */
     public function getOnuTraffic(int $slot, int $port, int $onuId): array
     {
-        $index = "{$slot}.{$port}.{$onuId}";
+        $index = $this->buildOnuIndex($slot, $port, $onuId);
 
         $inOctets = (int) ($this->snmpGet($this->zteOids['zxAnGponOnuPerfInOctets'] . ".{$index}") ?? 0);
         $outOctets = (int) ($this->snmpGet($this->zteOids['zxAnGponOnuPerfOutOctets'] . ".{$index}") ?? 0);
-        $inPackets = (int) ($this->snmpGet($this->zteOids['zxAnGponOnuPerfInPackets'] . ".{$index}") ?? 0);
-        $outPackets = (int) ($this->snmpGet($this->zteOids['zxAnGponOnuPerfOutPackets'] . ".{$index}") ?? 0);
 
         $now = microtime(true);
         $cacheKey = "zte_traffic_{$this->olt->id}_{$index}";
