@@ -110,7 +110,7 @@ class OnuController extends Controller implements HasMiddleware
      */
     public function show(Onu $onu)
     {
-        $onu->load(['olt', 'customer', 'odp', 'ponPort', 'creator']);
+        $onu->load(['olt', 'customer', 'odp', 'zone', 'ponPort', 'creator']);
         
         // Get signal history for chart
         $signalHistory = $onu->signalHistories()

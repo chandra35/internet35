@@ -45,7 +45,7 @@
                         <span class="nav-link">
                             RX Power
                             @php
-                                $rx = $onu->rx_power;
+                                $rx = $onu->olt_rx_power ?? $onu->rx_power;
                                 $rxClass = 'success';
                                 if ($rx === null) $rxClass = 'secondary';
                                 elseif ($rx < -27) $rxClass = 'danger';
@@ -108,8 +108,12 @@
                         <td>{{ $onu->onu_type ?? '-' }}</td>
                     </tr>
                     <tr>
-                        <td><strong>Deskripsi (OLT)</strong></td>
-                        <td>{{ $onu->description ?? '-' }}</td>
+                        <td><strong>Zone</strong></td>
+                        <td>{{ $onu->zone->name ?? '-' }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>ODP</strong></td>
+                        <td>{{ $onu->odp->name ?? '-' }}</td>
                     </tr>
                     <tr>
                         <td><strong>Line Profile</strong></td>
@@ -216,92 +220,6 @@
             </div>
         </div>
 
-        <!-- Signal Quality -->
-        <div class="card">
-            <div class="card-header">
-                <h3 class="card-title"><i class="fas fa-signal mr-2"></i>Kualitas Signal</h3>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="info-box mb-3">
-                            <span class="info-box-icon bg-{{ $rxClass }} elevation-1">
-                                <i class="fas fa-arrow-down"></i>
-                            </span>
-                            <div class="info-box-content">
-                                <span class="info-box-text">RX Power (Downstream)</span>
-                                <span class="info-box-number">{{ $rx !== null ? number_format($rx, 2) . ' dBm' : '-' }}</span>
-                                <div class="progress">
-                                    @php
-                                        $rxPercent = $rx !== null ? min(100, max(0, (($rx + 40) / 25) * 100)) : 0;
-                                    @endphp
-                                    <div class="progress-bar bg-{{ $rxClass }}" style="width: {{ $rxPercent }}%"></div>
-                                </div>
-                                <span class="progress-description">
-                                    @if($rx === null)
-                                        Tidak tersedia
-                                    @elseif($rx >= -25)
-                                        <i class="fas fa-check-circle text-success"></i> Excellent
-                                    @elseif($rx >= -27)
-                                        <i class="fas fa-exclamation-circle text-warning"></i> Good, perlu monitoring
-                                    @else
-                                        <i class="fas fa-times-circle text-danger"></i> Poor, perlu perbaikan
-                                    @endif
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="info-box mb-3">
-                            <span class="info-box-icon bg-info elevation-1">
-                                <i class="fas fa-arrow-up"></i>
-                            </span>
-                            <div class="info-box-content">
-                                <span class="info-box-text">TX Power (Upstream)</span>
-                                <span class="info-box-number">{{ $onu->tx_power !== null ? number_format($onu->tx_power, 2) . ' dBm' : '-' }}</span>
-                                <div class="progress">
-                                    @php
-                                        $tx = $onu->tx_power;
-                                        $txPercent = $tx !== null ? min(100, max(0, (($tx + 10) / 15) * 100)) : 0;
-                                    @endphp
-                                    <div class="progress-bar bg-info" style="width: {{ $txPercent }}%"></div>
-                                </div>
-                                <span class="progress-description">
-                                    @if($tx === null)
-                                        Tidak tersedia
-                                    @else
-                                        Range normal: 0.5 ~ 5 dBm
-                                    @endif
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Signal Thresholds -->
-                <div class="callout callout-info">
-                    <h5><i class="fas fa-info-circle"></i> Threshold Signal</h5>
-                    <table class="table table-sm table-borderless mb-0">
-                        <tr>
-                            <td><span class="badge badge-success">Excellent</span></td>
-                            <td>> -25 dBm</td>
-                            <td>Signal sangat baik, optimal</td>
-                        </tr>
-                        <tr>
-                            <td><span class="badge badge-warning">Warning</span></td>
-                            <td>-25 ~ -27 dBm</td>
-                            <td>Signal cukup, perlu monitoring</td>
-                        </tr>
-                        <tr>
-                            <td><span class="badge badge-danger">Critical</span></td>
-                            <td>< -27 dBm</td>
-                            <td>Signal lemah, perlu perbaikan</td>
-                        </tr>
-                    </table>
-                </div>
-            </div>
-        </div>
-
         <!-- Traffic Realtime -->
         <div class="card">
             <div class="card-header">
@@ -346,23 +264,6 @@
                 </div>
             </div>
         </div>
-
-        <!-- Description & Notes -->
-        @if($onu->description || $onu->notes)
-        <div class="card">
-            <div class="card-header">
-                <h3 class="card-title"><i class="fas fa-sticky-note mr-2"></i>Catatan</h3>
-            </div>
-            <div class="card-body">
-                @if($onu->description)
-                <p><strong>Deskripsi:</strong> {{ $onu->description }}</p>
-                @endif
-                @if($onu->notes)
-                <p><strong>Catatan:</strong> {{ $onu->notes }}</p>
-                @endif
-            </div>
-        </div>
-        @endif
 
         <!-- Recent Signal History -->
         <div class="card">
