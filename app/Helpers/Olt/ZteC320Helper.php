@@ -1277,37 +1277,36 @@ class ZteC320Helper extends BaseOltHelper
     {
         $result = [];
 
-        if (!$this->supportsTelnet() && !$this->supportsSsh()) {
+        if (empty($ponPorts) || (!$this->supportsTelnet() && !$this->supportsSsh())) {
             return $result;
         }
 
         try {
-            // Build command list: terminal length 0 + batch commands per port
-            $commands = ['terminal length 0'];
+            // Build command list in known order: olt-rx, onu-rx, state per port
+            $commands = [];
+            $commandTypes = []; // Track type for each command
             foreach ($ponPorts as $pp) {
                 $slot = $pp['slot'];
                 $port = $pp['port'];
                 $commands[] = "show pon power olt-rx gpon-olt_1/{$slot}/{$port}";
+                $commandTypes[] = 'olt-rx';
                 $commands[] = "show pon power onu-rx gpon-olt_1/{$slot}/{$port}";
+                $commandTypes[] = 'onu-rx';
                 $commands[] = "show gpon onu state gpon-olt_1/{$slot}/{$port}";
+                $commandTypes[] = 'state';
             }
 
-            $output = $this->executeCommands($commands);
+            $output = $this->executeBatchCliCommands($commands);
 
-            // Parse OLT RX power: gpon-onu_1/S/P:N    -XX.XXX(dbm)
-            // These appear after "show pon power olt-rx" sections
-            // Parse ONU RX power: same format after "show pon power onu-rx" sections
+            // Split output by ZTE prompt (ZXAN# or similar hostname#)
+            // Each section corresponds to one command in order
+            $sections = preg_split('/\w+#/', $output);
 
-            // Split output by command markers
-            $sections = preg_split('/(?=show pon power olt-rx|show pon power onu-rx|show gpon onu state)/', $output);
+            foreach ($sections as $i => $section) {
+                $type = $commandTypes[$i] ?? null;
+                if (!$type) continue;
 
-            foreach ($sections as $section) {
-                $isOltRx = (bool) preg_match('/show pon power olt-rx/', $section);
-                $isOnuRx = (bool) preg_match('/show pon power onu-rx/', $section);
-                $isState = (bool) preg_match('/show gpon onu state/', $section);
-
-                // Parse power lines: gpon-onu_1/S/P:N    -XX.XXX(dbm)
-                if ($isOltRx || $isOnuRx) {
+                if ($type === 'olt-rx' || $type === 'onu-rx') {
                     preg_match_all('/gpon-onu_1\/(\d+)\/(\d+):(\d+)\s+(-?[\d.]+)\(dbm\)/', $section, $matches, PREG_SET_ORDER);
                     foreach ($matches as $m) {
                         $key = "{$m[1]}/{$m[2]}:{$m[3]}";
@@ -1315,7 +1314,7 @@ class ZteC320Helper extends BaseOltHelper
                             $result[$key] = ['olt_rx_power' => null, 'rx_power' => null, 'distance' => null];
                         }
                         $power = round((float) $m[4], 3);
-                        if ($isOltRx) {
+                        if ($type === 'olt-rx') {
                             $result[$key]['olt_rx_power'] = $power;
                         } else {
                             $result[$key]['rx_power'] = $power;
@@ -1323,10 +1322,7 @@ class ZteC320Helper extends BaseOltHelper
                     }
                 }
 
-                // Parse state lines for distance
-                // Format: gpon-onu_1/S/P:N  ... Distance(m)
-                if ($isState) {
-                    // Try tabular format: ONU index, admin, OMCC, phase, channel, distance
+                if ($type === 'state') {
                     preg_match_all('/gpon-onu_1\/(\d+)\/(\d+):(\d+)\s+\S+\s+\S+\s+\S+\s+\S+\s+(\d+)/', $section, $matches, PREG_SET_ORDER);
                     foreach ($matches as $m) {
                         $key = "{$m[1]}/{$m[2]}:{$m[3]}";
@@ -1334,7 +1330,6 @@ class ZteC320Helper extends BaseOltHelper
                             $result[$key] = ['olt_rx_power' => null, 'rx_power' => null, 'distance' => null];
                         }
                         $dist = (int) $m[4];
-                        // Ignore values that look like max ranging config (e.g., 5000)
                         if ($dist > 0 && $dist < 5000) {
                             $result[$key]['distance'] = $dist;
                         }
@@ -1347,6 +1342,78 @@ class ZteC320Helper extends BaseOltHelper
         }
 
         return $result;
+    }
+
+    /**
+     * Execute batch CLI commands via telnet with proper prompt handling.
+     * Uses fread instead of fgets to avoid blocking on prompts without newline.
+     */
+    protected function executeBatchCliCommands(array $commands): string
+    {
+        $fp = @fsockopen(
+            $this->olt->ip_address,
+            $this->olt->telnet_port ?? 23,
+            $errno,
+            $errstr,
+            $this->telnetTimeout
+        );
+
+        if (!$fp) {
+            throw new Exception("Telnet connection failed: {$errstr}");
+        }
+
+        stream_set_timeout($fp, 2); // Short timeout for fread
+
+        // Login
+        $this->telnetWaitFor($fp, ['Username:', 'login:', '>']);
+        fwrite($fp, $this->olt->telnet_username . "\r\n");
+        $this->telnetWaitFor($fp, ['Password:', 'password:']);
+        fwrite($fp, $this->olt->telnet_password . "\r\n");
+        sleep(1);
+        $this->telnetReadUntilPrompt($fp);
+
+        // Disable paging
+        fwrite($fp, "terminal length 0\r\n");
+        usleep(500000);
+        $this->telnetReadUntilPrompt($fp);
+
+        // Execute each command and collect output
+        $fullOutput = '';
+        foreach ($commands as $cmd) {
+            fwrite($fp, $cmd . "\r\n");
+            usleep(300000);
+            $fullOutput .= $this->telnetReadUntilPrompt($fp);
+        }
+
+        fclose($fp);
+
+        return $fullOutput;
+    }
+
+    /**
+     * Read telnet output until we see a ZTE prompt (ZXAN# or similar).
+     * Uses fread to avoid blocking on prompts without trailing newline.
+     */
+    protected function telnetReadUntilPrompt($fp, int $timeout = 15): string
+    {
+        $buffer = '';
+        $deadline = time() + $timeout;
+
+        while (time() < $deadline) {
+            $chunk = @fread($fp, 4096);
+            if ($chunk === false || $chunk === '') {
+                usleep(100000);
+                continue;
+            }
+            $buffer .= $chunk;
+
+            // Check for ZTE prompt at end of buffer (e.g., "ZXAN#" or "hostname#")
+            if (preg_match('/\w+[#>]\s*$/', $buffer)) {
+                break;
+            }
+        }
+
+        return $buffer;
     }
 
     /**
@@ -1897,8 +1964,17 @@ class ZteC320Helper extends BaseOltHelper
             $bulkInOctets = $this->snmpWalk($this->zteOids['zxAnGponOnuPerfInOctets']);
             $bulkOutOctets = $this->snmpWalk($this->zteOids['zxAnGponOnuPerfOutOctets']);
 
+            // Extract unique PON ports from ONU data for batch CLI
+            $uniquePorts = [];
+            foreach ($allOnus as $onu) {
+                $portKey = "{$onu['slot']}/{$onu['port']}";
+                if (!isset($uniquePorts[$portKey])) {
+                    $uniquePorts[$portKey] = ['slot' => $onu['slot'], 'port' => $onu['port']];
+                }
+            }
+
             // Batch CLI: fetch optical power + distance for all ONUs (2-3 commands per port)
-            $batchOptical = $this->getBatchOpticalAndDistance($ponPorts);
+            $batchOptical = $this->getBatchOpticalAndDistance(array_values($uniquePorts));
             $result['batch_optical_count'] = count($batchOptical);
 
             // Cache for auto-created zones and ODPs (avoid repeated queries)
