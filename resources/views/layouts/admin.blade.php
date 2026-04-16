@@ -244,7 +244,7 @@
             <!-- Sidebar Menu -->
             <nav class="mt-2">
                 <ul class="nav nav-pills nav-sidebar flex-column nav-child-indent nav-compact" data-widget="treeview" role="menu" data-accordion="true">
-                    <!-- Dashboard -->
+                    {{-- ============ Dashboard ============ --}}
                     @can('dashboard.view')
                     <li class="nav-item">
                         <a href="{{ route('admin.dashboard') }}" class="nav-link {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">
@@ -254,17 +254,14 @@
                     </li>
                     @endcan
 
-                    <!-- Master Data -->
-                    @canany(['routers.view', 'packages.view', 'customers.view'])
-                    <li class="nav-header">MASTER DATA</li>
+                    {{-- ============ LAYANAN ============ --}}
+                    @canany(['routers.view', 'packages.view', 'customers.view', 'invoices.view'])
+                    <li class="nav-header">LAYANAN</li>
                     @can('routers.view')
                     <li class="nav-item {{ request()->routeIs('admin.routers.*') || request()->routeIs('admin.ppp-profiles.*') || request()->routeIs('admin.ip-pools.*') ? 'menu-open' : '' }}">
                         <a href="#" class="nav-link {{ request()->routeIs('admin.routers.*') || request()->routeIs('admin.ppp-profiles.*') || request()->routeIs('admin.ip-pools.*') ? 'active' : '' }}">
                             <i class="nav-icon fas fa-server"></i>
-                            <p>
-                                Router
-                                <i class="right fas fa-angle-left"></i>
-                            </p>
+                            <p>Router<i class="right fas fa-angle-left"></i></p>
                         </a>
                         <ul class="nav nav-treeview">
                             <li class="nav-item">
@@ -314,14 +311,14 @@
                     @endcan
                     @endcanany
 
-                    <!-- OLT Management -->
-                    @canany(['olts.view', 'onus.view'])
-                    <li class="nav-header">MANAJEMEN OLT</li>
+                    {{-- ============ JARINGAN (OLT + Infrastruktur digabung) ============ --}}
+                    @canany(['olts.view', 'onus.view', 'odcs.view', 'odps.view', 'network-map.view'])
+                    <li class="nav-header">JARINGAN</li>
                     @can('olts.view')
                     <li class="nav-item">
                         <a href="{{ route('admin.olts.index') }}" class="nav-link {{ request()->routeIs('admin.olts.*') ? 'active' : '' }}">
                             <i class="nav-icon fas fa-server"></i>
-                            <p>Daftar OLT</p>
+                            <p>OLT</p>
                         </a>
                     </li>
                     @endcan
@@ -329,15 +326,10 @@
                     <li class="nav-item">
                         <a href="{{ route('admin.onus.index') }}" class="nav-link {{ request()->routeIs('admin.onus.*') ? 'active' : '' }}">
                             <i class="nav-icon fas fa-broadcast-tower"></i>
-                            <p>Daftar ONU</p>
+                            <p>ONU</p>
                         </a>
                     </li>
                     @endcan
-                    @endcanany
-
-                    <!-- Network Infrastructure (ODC, ODP, Map) -->
-                    @canany(['odcs.view', 'odps.view', 'network-map.view'])
-                    <li class="nav-header">INFRASTRUKTUR</li>
                     @can('odcs.view')
                     <li class="nav-item">
                         <a href="{{ route('admin.odcs.index') }}" class="nav-link {{ request()->routeIs('admin.odcs.*') ? 'active' : '' }}">
@@ -364,16 +356,80 @@
                     @endcan
                     @endcanany
 
-                    <!-- Landing Page & Settings -->
+                    {{-- ============ PENGATURAN POP (admin-pop view) ============ --}}
+                    @canany(['pop-settings.view', 'payment-gateways.view', 'notification-settings.view', 'message-templates.view'])
+                    @if(!auth()->user()->hasRole('superadmin'))
+                    <li class="nav-header">PENGATURAN</li>
+                    <li class="nav-item {{ request()->routeIs('admin.pop-settings.*') || request()->routeIs('admin.payment-gateways.*') || request()->routeIs('admin.notification-settings.*') || request()->routeIs('admin.message-templates.*') || request()->routeIs('admin.notification-logs.*') ? 'menu-open' : '' }}">
+                        <a href="#" class="nav-link {{ request()->routeIs('admin.pop-settings.*') || request()->routeIs('admin.payment-gateways.*') || request()->routeIs('admin.notification-settings.*') || request()->routeIs('admin.message-templates.*') || request()->routeIs('admin.notification-logs.*') ? 'active' : '' }}">
+                            <i class="nav-icon fas fa-sliders-h"></i>
+                            <p>Pengaturan POP<i class="right fas fa-angle-left"></i></p>
+                        </a>
+                        <ul class="nav nav-treeview">
+                            @can('pop-settings.view')
+                            <li class="nav-item">
+                                <a href="{{ route('admin.pop-settings.isp-info') }}" class="nav-link {{ request()->routeIs('admin.pop-settings.isp-info') ? 'active' : '' }}">
+                                    <i class="far fa-circle nav-icon"></i>
+                                    <p>Info ISP</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{{ route('admin.pop-settings.invoice-settings') }}" class="nav-link {{ request()->routeIs('admin.pop-settings.invoice-settings') ? 'active' : '' }}">
+                                    <i class="far fa-circle nav-icon"></i>
+                                    <p>Invoice & Pajak</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{{ route('admin.pop-settings.integration') }}" class="nav-link {{ request()->routeIs('admin.pop-settings.integration') ? 'active' : '' }}">
+                                    <i class="far fa-circle nav-icon"></i>
+                                    <p>Integrasi</p>
+                                </a>
+                            </li>
+                            @endcan
+                            @can('payment-gateways.view')
+                            <li class="nav-item">
+                                <a href="{{ route('admin.payment-gateways.index') }}" class="nav-link {{ request()->routeIs('admin.payment-gateways.*') ? 'active' : '' }}">
+                                    <i class="far fa-circle nav-icon"></i>
+                                    <p>Payment Gateway</p>
+                                </a>
+                            </li>
+                            @endcan
+                            @can('notification-settings.view')
+                            <li class="nav-item">
+                                <a href="{{ route('admin.notification-settings.index') }}" class="nav-link {{ request()->routeIs('admin.notification-settings.*') ? 'active' : '' }}">
+                                    <i class="far fa-circle nav-icon"></i>
+                                    <p>Notifikasi</p>
+                                </a>
+                            </li>
+                            @endcan
+                            @can('message-templates.view')
+                            <li class="nav-item">
+                                <a href="{{ route('admin.message-templates.index') }}" class="nav-link {{ request()->routeIs('admin.message-templates.*') ? 'active' : '' }}">
+                                    <i class="far fa-circle nav-icon"></i>
+                                    <p>Template Pesan</p>
+                                </a>
+                            </li>
+                            @endcan
+                            @can('notification-settings.view')
+                            <li class="nav-item">
+                                <a href="{{ route('admin.notification-logs.index') }}" class="nav-link {{ request()->routeIs('admin.notification-logs.*') ? 'active' : '' }}">
+                                    <i class="far fa-circle nav-icon"></i>
+                                    <p>Log Notifikasi</p>
+                                </a>
+                            </li>
+                            @endcan
+                        </ul>
+                    </li>
+                    @endif
+                    @endcanany
+
+                    {{-- ============ WEBSITE (superadmin only) ============ --}}
                     @canany(['landing.sliders.view', 'landing.services.view', 'landing.packages.view', 'landing.testimonials.view', 'landing.faqs.view', 'landing.contents.view', 'settings.view'])
                     <li class="nav-header">WEBSITE</li>
                     <li class="nav-item {{ request()->routeIs('admin.landing.*') ? 'menu-open' : '' }}">
                         <a href="#" class="nav-link {{ request()->routeIs('admin.landing.*') ? 'active' : '' }}">
                             <i class="nav-icon fas fa-globe"></i>
-                            <p>
-                                Landing Page
-                                <i class="right fas fa-angle-left"></i>
-                            </p>
+                            <p>Landing Page<i class="right fas fa-angle-left"></i></p>
                         </a>
                         <ul class="nav nav-treeview">
                             @can('landing.sliders.view')
@@ -430,34 +486,28 @@
                     <li class="nav-item">
                         <a href="{{ route('admin.settings.index') }}" class="nav-link {{ request()->routeIs('admin.settings.*') ? 'active' : '' }}">
                             <i class="nav-icon fas fa-cog"></i>
-                            <p>Pengaturan</p>
+                            <p>Pengaturan Situs</p>
                         </a>
                     </li>
                     @endcan
                     @endcanany
 
-                    <!-- Staff Management (for admin-pop) -->
+                    {{-- ============ SISTEM (Tim + User + Logs digabung) ============ --}}
+                    @canany(['staff.view', 'users.view', 'roles.view', 'permissions.view', 'activity-logs.view', 'scheduler.view'])
+                    <li class="nav-header">SISTEM</li>
                     @can('staff.view')
-                    <li class="nav-header">TIM</li>
                     <li class="nav-item">
                         <a href="{{ route('admin.staff.index') }}" class="nav-link {{ request()->routeIs('admin.staff.*') ? 'active' : '' }}">
-                            <i class="nav-icon fas fa-users"></i>
+                            <i class="nav-icon fas fa-user-friends"></i>
                             <p>Kelola Tim</p>
                         </a>
                     </li>
                     @endcan
-
-                    <!-- User & System (superadmin/admin only) -->
-                    @canany(['users.view', 'roles.view', 'permissions.view', 'activity-logs.view'])
-                    <li class="nav-header">SISTEM</li>
                     @canany(['users.view', 'roles.view', 'permissions.view'])
                     <li class="nav-item {{ request()->routeIs('admin.users.*') || request()->routeIs('admin.roles.*') || request()->routeIs('admin.permissions.*') ? 'menu-open' : '' }}">
                         <a href="#" class="nav-link {{ request()->routeIs('admin.users.*') || request()->routeIs('admin.roles.*') || request()->routeIs('admin.permissions.*') ? 'active' : '' }}">
                             <i class="nav-icon fas fa-users-cog"></i>
-                            <p>
-                                Manajemen User
-                                <i class="right fas fa-angle-left"></i>
-                            </p>
+                            <p>Manajemen User<i class="right fas fa-angle-left"></i></p>
                         </a>
                         <ul class="nav nav-treeview">
                             @can('users.view')
@@ -495,32 +545,26 @@
                         </a>
                     </li>
                     @endcan
-                    @role('superadmin')
+                    @can('scheduler.view')
                     <li class="nav-item">
                         <a href="{{ route('admin.scheduler.index') }}" class="nav-link {{ request()->routeIs('admin.scheduler.*') ? 'active' : '' }}">
                             <i class="nav-icon fas fa-clock"></i>
                             <p>Scheduler</p>
                         </a>
                     </li>
-                    @endrole
+                    @endcan
                     @endcanany
-                    
-                    <!-- POP Settings -->
-                    @canany(['pop-settings.view', 'payment-gateways.view', 'notification-settings.view', 'message-templates.view'])
+
+                    {{-- ============ SUPERADMIN (superadmin only) ============ --}}
                     @role('superadmin')
-                    {{-- SuperAdmin Menu --}}
                     <li class="nav-header">SUPERADMIN</li>
-                    <li class="nav-item {{ request()->routeIs('admin.pop-settings.*') || request()->routeIs('admin.payment-gateways.sandbox-requests') ? 'menu-open' : '' }}">
-                        <a href="#" class="nav-link {{ request()->routeIs('admin.pop-settings.*') || request()->routeIs('admin.payment-gateways.sandbox-requests') ? 'active' : '' }}">
+                    <li class="nav-item {{ request()->routeIs('admin.pop-settings.monitoring') || request()->routeIs('admin.pop-settings.view-detail') || request()->routeIs('admin.pop-settings.index') || request()->routeIs('admin.payment-gateways.sandbox-requests') || request()->routeIs('admin.pop-settings.copy-settings') ? 'menu-open' : '' }}">
+                        <a href="#" class="nav-link {{ request()->routeIs('admin.pop-settings.monitoring') || request()->routeIs('admin.pop-settings.view-detail') || request()->routeIs('admin.pop-settings.index') || request()->routeIs('admin.payment-gateways.sandbox-requests') || request()->routeIs('admin.pop-settings.copy-settings') ? 'active' : '' }}">
                             <i class="nav-icon fas fa-building"></i>
                             <p>
                                 Kelola POP
-                                @php
-                                    $pendingCount = \App\Models\PaymentGateway::where('sandbox_status', 'pending')->count();
-                                @endphp
-                                @if($pendingCount > 0)
-                                <span class="badge badge-danger right">{{ $pendingCount }}</span>
-                                @endif
+                                @php $pendingCount = \App\Models\PaymentGateway::where('sandbox_status', 'pending')->count(); @endphp
+                                @if($pendingCount > 0)<span class="badge badge-danger right">{{ $pendingCount }}</span>@endif
                                 <i class="right fas fa-angle-left"></i>
                             </p>
                         </a>
@@ -551,98 +595,21 @@
                             </li>
                         </ul>
                     </li>
-                    @else
-                    {{-- Admin POP Menu --}}
-                    <li class="nav-header">PENGATURAN</li>
-                    <li class="nav-item {{ request()->routeIs('admin.pop-settings.*') || request()->routeIs('admin.payment-gateways.*') || request()->routeIs('admin.notification-settings.*') ? 'menu-open' : '' }}">
-                        <a href="#" class="nav-link {{ request()->routeIs('admin.pop-settings.*') || request()->routeIs('admin.payment-gateways.*') || request()->routeIs('admin.notification-settings.*') ? 'active' : '' }}">
-                            <i class="nav-icon fas fa-sliders-h"></i>
-                            <p>
-                                Pengaturan POP
-                                <i class="right fas fa-angle-left"></i>
-                            </p>
-                        </a>
-                        <ul class="nav nav-treeview">
-                            @can('pop-settings.view')
-                            <li class="nav-item">
-                                <a href="{{ route('admin.pop-settings.isp-info') }}" class="nav-link {{ request()->routeIs('admin.pop-settings.isp-info') ? 'active' : '' }}">
-                                    <i class="far fa-circle nav-icon"></i>
-                                    <p>Info ISP</p>
-                                </a>
-                            </li>
-                            <li class="nav-item">
-                                <a href="{{ route('admin.pop-settings.invoice-settings') }}" class="nav-link {{ request()->routeIs('admin.pop-settings.invoice-settings') ? 'active' : '' }}">
-                                    <i class="far fa-circle nav-icon"></i>
-                                    <p>Invoice & Pajak</p>
-                                </a>
-                            </li>
-                            <li class="nav-item">
-                                <a href="{{ route('admin.pop-settings.integration') }}" class="nav-link {{ request()->routeIs('admin.pop-settings.integration') ? 'active' : '' }}">
-                                    <i class="far fa-circle nav-icon"></i>
-                                    <p>Integrasi</p>
-                                </a>
-                            </li>
-                            @endcan
-                            @can('payment-gateways.view')
-                            <li class="nav-item">
-                                <a href="{{ route('admin.payment-gateways.index') }}" class="nav-link {{ request()->routeIs('admin.payment-gateways.index') ? 'active' : '' }}">
-                                    <i class="far fa-circle nav-icon"></i>
-                                    <p>Payment Gateway</p>
-                                </a>
-                            </li>
-                            @endcan
-                            @can('notification-settings.view')
-                            <li class="nav-item">
-                                <a href="{{ route('admin.notification-settings.index') }}" class="nav-link {{ request()->routeIs('admin.notification-settings.*') ? 'active' : '' }}">
-                                    <i class="far fa-circle nav-icon"></i>
-                                    <p>Notifikasi</p>
-                                </a>
-                            </li>
-                            @endcan
-                            @can('message-templates.view')
-                            <li class="nav-item">
-                                <a href="{{ route('admin.message-templates.index') }}" class="nav-link {{ request()->routeIs('admin.message-templates.*') ? 'active' : '' }}">
-                                    <i class="far fa-circle nav-icon"></i>
-                                    <p>Template Pesan</p>
-                                </a>
-                            </li>
-                            @endcan
-                            @can('notification-settings.view')
-                            <li class="nav-item">
-                                <a href="{{ route('admin.notification-logs.index') }}" class="nav-link {{ request()->routeIs('admin.notification-logs.*') ? 'active' : '' }}">
-                                    <i class="far fa-circle nav-icon"></i>
-                                    <p>Log Notifikasi</p>
-                                </a>
-                            </li>
-                            @endcan
-                        </ul>
-                    </li>
-                    @endrole
-                    @endcanany
-
-                    <!-- Data Kependudukan -->
-                    @role('superadmin')
-                    <li class="nav-header">DATA INDUK</li>
                     <li class="nav-item">
                         <a href="{{ route('admin.residents.index') }}" class="nav-link {{ request()->routeIs('admin.residents.*') ? 'active' : '' }}">
                             <i class="nav-icon fas fa-address-book"></i>
                             <p>Data Kependudukan</p>
                         </a>
                     </li>
-                    @endrole
-
-                    <!-- Data Maintenance -->
-                    @role('superadmin')
-                    <li class="nav-header">PERAWATAN</li>
                     <li class="nav-item">
                         <a href="{{ route('admin.data-maintenance.index') }}" class="nav-link {{ request()->routeIs('admin.data-maintenance.*') ? 'active' : '' }}">
-                            <i class="nav-icon fas fa-exclamation-triangle text-danger"></i>
+                            <i class="nav-icon fas fa-tools text-warning"></i>
                             <p>Perawatan Data</p>
                         </a>
                     </li>
                     @endrole
 
-                    <!-- Profile -->
+                    {{-- ============ AKUN ============ --}}
                     <li class="nav-header">AKUN</li>
                     <li class="nav-item">
                         <a href="{{ route('admin.profile.index') }}" class="nav-link {{ request()->routeIs('admin.profile.*') ? 'active' : '' }}">
