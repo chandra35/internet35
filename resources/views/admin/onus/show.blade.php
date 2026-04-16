@@ -24,11 +24,29 @@
                 <h5 class="widget-user-desc">{{ $onu->name ?? $onu->description ?? '' }}</h5>
             </div>
             <div class="card-footer p-0">
+                @php
+                    $rx = $onu->olt_rx_power ?? $onu->rx_power;
+                    $tx = $onu->tx_power;
+                    $rxClass = 'secondary';
+                    if ($rx !== null) {
+                        $rxClass = $rx >= -25 ? 'success' : ($rx >= -27 ? 'warning' : 'danger');
+                    }
+                    $txClass = 'secondary';
+                    if ($tx !== null) {
+                        $txClass = ($tx >= 0.5 && $tx <= 5) ? 'info' : 'warning';
+                    }
+                    $dist = $onu->distance;
+                    $distFormatted = '-';
+                    if ($dist) {
+                        $distFormatted = $dist >= 1000 ? number_format($dist / 1000, 2) . ' km' : number_format($dist, 0) . ' m';
+                    }
+                @endphp
                 <ul class="nav flex-column">
                     <li class="nav-item">
                         <span class="nav-link">
+                            <i class="fas fa-circle text-{{ $onu->status == 'online' ? 'success' : ($onu->status == 'los' ? 'warning' : 'danger') }} mr-1" style="font-size:8px;vertical-align:middle"></i>
                             Status
-                            <span class="float-right">
+                            <span class="float-right" id="onu-status">
                                 @if($onu->status == 'online')
                                     <span class="badge badge-success">Online</span>
                                 @elseif($onu->status == 'offline')
@@ -36,40 +54,38 @@
                                 @elseif($onu->status == 'los')
                                     <span class="badge badge-warning">LOS</span>
                                 @else
-                                    <span class="badge badge-secondary">{{ ucfirst($onu->status) }}</span>
+                                    <span class="badge badge-secondary">{{ ucfirst($onu->status ?? 'unknown') }}</span>
                                 @endif
                             </span>
                         </span>
                     </li>
                     <li class="nav-item">
                         <span class="nav-link">
+                            <i class="fas fa-arrow-down text-{{ $rxClass }} mr-1" style="font-size:10px"></i>
                             RX Power
-                            @php
-                                $rx = $onu->olt_rx_power ?? $onu->rx_power;
-                                $rxClass = 'success';
-                                if ($rx === null) $rxClass = 'secondary';
-                                elseif ($rx < -27) $rxClass = 'danger';
-                                elseif ($rx < -25) $rxClass = 'warning';
-                            @endphp
-                            <span class="float-right badge badge-{{ $rxClass }}">
-                                {{ $rx !== null ? number_format($rx, 2) . ' dBm' : '-' }}
+                            <span class="float-right" id="onu-rx">
+                                <span class="badge badge-{{ $rxClass }}">
+                                    {{ $rx !== null ? number_format($rx, 2) . ' dBm' : 'Memuat...' }}
+                                </span>
                             </span>
                         </span>
                     </li>
                     <li class="nav-item">
                         <span class="nav-link">
+                            <i class="fas fa-arrow-up text-{{ $txClass }} mr-1" style="font-size:10px"></i>
                             TX Power
-                            <span class="float-right badge badge-{{ $onu->tx_power !== null ? 'info' : 'secondary' }}">
-                                {{ $onu->tx_power !== null ? number_format($onu->tx_power, 2) . ' dBm' : '-' }}
+                            <span class="float-right" id="onu-tx">
+                                <span class="badge badge-{{ $txClass }}">
+                                    {{ $tx !== null ? number_format($tx, 2) . ' dBm' : 'Memuat...' }}
+                                </span>
                             </span>
                         </span>
                     </li>
                     <li class="nav-item">
                         <span class="nav-link">
+                            <i class="fas fa-ruler mr-1 text-muted" style="font-size:10px"></i>
                             Distance
-                            <span class="float-right">
-                                {{ $onu->distance ? number_format($onu->distance, 0) . 'm' : '-' }}
-                            </span>
+                            <span class="float-right">{{ $distFormatted }}</span>
                         </span>
                     </li>
                 </ul>
@@ -436,12 +452,37 @@ $(function() {
     var lastTrafficTx = null;
     var lastTrafficTime = null;
 
+    // Helper: get RX badge class from dBm value
+    function rxBadgeClass(val) {
+        if (val === null || val === undefined) return 'secondary';
+        if (val >= -25) return 'success';
+        if (val >= -27) return 'warning';
+        return 'danger';
+    }
+    function txBadgeClass(val) {
+        if (val === null || val === undefined) return 'secondary';
+        if (val >= 0.5 && val <= 5) return 'info';
+        return 'warning';
+    }
+
     // Refresh Traffic function
     function refreshTraffic() {
         $.post('/admin/onus/{{ $onu->id }}/refresh-signal', { _token: '{{ csrf_token() }}' })
             .done(function(res) {
                 if (res.success && res.data) {
                     var now = new Date();
+
+                    // Update status card signal values
+                    var rxVal = res.data.olt_rx_power ?? res.data.rx_power;
+                    var txVal = res.data.tx_power;
+                    if (rxVal !== null && rxVal !== undefined) {
+                        var rc = rxBadgeClass(rxVal);
+                        $('#onu-rx').html('<span class="badge badge-' + rc + '">' + parseFloat(rxVal).toFixed(2) + ' dBm</span>');
+                    }
+                    if (txVal !== null && txVal !== undefined) {
+                        var tc = txBadgeClass(txVal);
+                        $('#onu-tx').html('<span class="badge badge-' + tc + '">' + parseFloat(txVal).toFixed(2) + ' dBm</span>');
+                    }
                     
                     // Update total traffic display
                     $('#traffic-rx').text(res.data.in_octets_formatted || '-');
