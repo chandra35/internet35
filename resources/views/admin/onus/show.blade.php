@@ -61,23 +61,13 @@
                     </li>
                     <li class="nav-item">
                         <span class="nav-link">
-                            <i class="fas fa-arrow-down text-{{ $rxClass }} mr-1" style="font-size:10px"></i>
-                            RX Power
-                            <span class="float-right" id="onu-rx">
-                                <span class="badge badge-{{ $rxClass }}">
-                                    {{ $rx !== null ? number_format($rx, 2) . ' dBm' : 'Memuat...' }}
-                                </span>
-                            </span>
-                        </span>
-                    </li>
-                    <li class="nav-item">
-                        <span class="nav-link">
-                            <i class="fas fa-arrow-up text-{{ $txClass }} mr-1" style="font-size:10px"></i>
-                            TX Power
-                            <span class="float-right" id="onu-tx">
-                                <span class="badge badge-{{ $txClass }}">
-                                    {{ $tx !== null ? number_format($tx, 2) . ' dBm' : 'Memuat...' }}
-                                </span>
+                            <i class="fas fa-signal text-{{ $rxClass }} mr-1" style="font-size:10px"></i>
+                            RX / TX
+                            <span class="float-right" id="onu-rxtx">
+                                <span class="badge badge-{{ $rxClass }}">{{ $rx !== null ? number_format($rx, 2) : '-' }}</span>
+                                /
+                                <span class="badge badge-{{ $txClass }}">{{ $tx !== null ? number_format($tx, 2) : '-' }}</span>
+                                <small class="text-muted">dBm</small>
                             </span>
                         </span>
                     </li>
@@ -472,17 +462,19 @@ $(function() {
                 if (res.success && res.data) {
                     var now = new Date();
 
-                    // Update status card signal values
+                    // Update RX/TX combined
                     var rxVal = res.data.olt_rx_power ?? res.data.rx_power;
                     var txVal = res.data.tx_power;
-                    if (rxVal !== null && rxVal !== undefined) {
-                        var rc = rxBadgeClass(rxVal);
-                        $('#onu-rx').html('<span class="badge badge-' + rc + '">' + parseFloat(rxVal).toFixed(2) + ' dBm</span>');
-                    }
-                    if (txVal !== null && txVal !== undefined) {
-                        var tc = txBadgeClass(txVal);
-                        $('#onu-tx').html('<span class="badge badge-' + tc + '">' + parseFloat(txVal).toFixed(2) + ' dBm</span>');
-                    }
+                    var rc = rxBadgeClass(rxVal);
+                    var tc = txBadgeClass(txVal);
+                    var rxText = (rxVal !== null && rxVal !== undefined) ? parseFloat(rxVal).toFixed(2) : '-';
+                    var txText = (txVal !== null && txVal !== undefined) ? parseFloat(txVal).toFixed(2) : '-';
+                    $('#onu-rxtx').html(
+                        '<span class="badge badge-' + rc + '">' + rxText + '</span>' +
+                        ' / ' +
+                        '<span class="badge badge-' + tc + '">' + txText + '</span>' +
+                        ' <small class="text-muted">dBm</small>'
+                    );
 
                     // Update distance
                     var dist = res.data.distance;

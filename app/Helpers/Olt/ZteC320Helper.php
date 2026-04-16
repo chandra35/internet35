@@ -1242,15 +1242,15 @@ class ZteC320Helper extends BaseOltHelper
                 "show gpon onu detail-info gpon-onu_1/{$slot}/{$port}:{$onuId}",
             ]);
 
-            // Parse OLT Rx, ONU Tx, ONU Rx from attenuation output
-            if (preg_match('/OLT\s+Rx[:\s]+(-?[\d.]+)\s*dBm/i', $output, $m)) {
+            // Parse attenuation table:
+            // up    Rx :-26.347(dbm)    Tx:2.427(dbm)    28.774(dB)   => OLT Rx, ONU Tx
+            // down  Tx :6.983(dbm)      Rx:-20.606(dbm)  27.589(dB)   => OLT Tx, ONU Rx
+            if (preg_match('/up\s+Rx\s*:\s*(-?[\d.]+)\(dbm\)\s+Tx\s*:\s*(-?[\d.]+)\(dbm\)/i', $output, $m)) {
                 $default['olt_rx_power'] = (float) $m[1];
+                $default['tx_power'] = (float) $m[2];
             }
-            if (preg_match('/ONU\s+Tx[:\s]+(-?[\d.]+)\s*dBm/i', $output, $m)) {
-                $default['tx_power'] = (float) $m[1];
-            }
-            if (preg_match('/ONU\s+Rx[:\s]+(-?[\d.]+)\s*dBm/i', $output, $m)) {
-                $default['rx_power'] = (float) $m[1];
+            if (preg_match('/down\s+Tx\s*:\s*(-?[\d.]+)\(dbm\)\s+Rx\s*:\s*(-?[\d.]+)\(dbm\)/i', $output, $m)) {
+                $default['rx_power'] = (float) $m[2];
             }
             // Parse distance from detail-info
             if (preg_match('/ONU Distance:\s+(\d+)m/', $output, $m)) {
