@@ -406,34 +406,82 @@ abstract class BaseOltHelper implements OltInterface
 
     /**
      * Save ONU data to database
-     * Uses olt_id + slot + port + onu_id as unique key (matches DB constraint)
-     * Falls back to serial_number if slot/port/onu_id not available
+     * Handles both unique constraints: (olt_id, serial_number) and (olt_id, slot, port, onu_id)
+     * Generates placeholder serial when SNMP fails to return one
      */
     protected function saveOnuToDatabase(array $onuData): Onu
     {
-        // Determine unique key based on available data
-        // Prefer slot/port/onu_id (matches database unique constraint)
-        if (isset($onuData['slot']) && isset($onuData['port']) && isset($onuData['onu_id'])) {
-            $uniqueKey = [
-                'olt_id' => $this->olt->id,
-                'slot' => $onuData['slot'],
-                'port' => $onuData['port'],
-                'onu_id' => $onuData['onu_id'],
-            ];
-        } else {
-            // Fallback to serial_number for OLTs without slot/port/onu_id
-            $uniqueKey = [
-                'olt_id' => $this->olt->id,
-                'serial_number' => $onuData['serial_number'],
-            ];
+        $onuData['last_sync_at'] = now();
+
+        $hasSerial = !empty($onuData['serial_number']);
+        $hasPosition = isset($onuData['slot']) && isset($onuData['port']) && isset($onuData['onu_id']);
+
+        // Generate placeholder serial if missing but position is known
+        if (!$hasSerial && $hasPosition) {
+            $onuData['serial_number'] = "UNKNOWN-{$onuData['slot']}-{$onuData['port']}-{$onuData['onu_id']}";
+            $hasSerial = true;
         }
 
-        return Onu::updateOrCreate(
-            $uniqueKey,
-            array_merge($onuData, [
-                'last_sync_at' => now(),
-            ])
-        );
+        // 1. Try to find existing ONU by serial number (most reliable identifier)
+        if ($hasSerial) {
+            $existingBySerial = Onu::withTrashed()
+                ->where('olt_id', $this->olt->id)
+                ->where('serial_number', $onuData['serial_number'])
+                ->first();
+
+            if ($existingBySerial) {
+                if ($existingBySerial->trashed()) {
+                    $existingBySerial->restore();
+                }
+
+                // If moving to a new position, remove any ONU currently at that position
+                if ($hasPosition) {
+                    Onu::withTrashed()
+                        ->where('olt_id', $this->olt->id)
+                        ->where('slot', $onuData['slot'])
+                        ->where('port', $onuData['port'])
+                        ->where('onu_id', $onuData['onu_id'])
+                        ->where('id', '!=', $existingBySerial->id)
+                        ->forceDelete();
+                }
+
+                $existingBySerial->update($onuData);
+                return $existingBySerial;
+            }
+        }
+
+        // 2. Try to find by position (slot/port/onu_id)
+        if ($hasPosition) {
+            $existingByPosition = Onu::withTrashed()
+                ->where('olt_id', $this->olt->id)
+                ->where('slot', $onuData['slot'])
+                ->where('port', $onuData['port'])
+                ->where('onu_id', $onuData['onu_id'])
+                ->first();
+
+            if ($existingByPosition) {
+                if ($existingByPosition->trashed()) {
+                    $existingByPosition->restore();
+                }
+
+                // If serial changed, remove any other ONU with the new serial
+                if ($hasSerial) {
+                    Onu::withTrashed()
+                        ->where('olt_id', $this->olt->id)
+                        ->where('serial_number', $onuData['serial_number'])
+                        ->where('id', '!=', $existingByPosition->id)
+                        ->forceDelete();
+                }
+
+                $existingByPosition->update($onuData);
+                return $existingByPosition;
+            }
+        }
+
+        // 3. No existing ONU — create new
+        return Onu::create(array_merge($onuData, [
+            'olt_id' => $this->olt->id,
+        ]));
     }
 
     /**
