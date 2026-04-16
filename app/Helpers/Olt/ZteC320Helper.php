@@ -1046,8 +1046,9 @@ class ZteC320Helper extends BaseOltHelper
      */
     protected function parseAuthInfoSerial(string $authInfo): string
     {
-        $parts = explode(',', trim($authInfo), 2);
-        return isset($parts[1]) ? strtoupper(trim($parts[1])) : '';
+        $authInfo = trim($authInfo, " \t\n\r\0\x0B\"");
+        $parts = explode(',', $authInfo, 2);
+        return isset($parts[1]) ? strtoupper(trim($parts[1], " \t\n\r\0\x0B\"")) : '';
     }
 
     /**
