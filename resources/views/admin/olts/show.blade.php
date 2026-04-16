@@ -321,6 +321,7 @@
                         <thead>
                             <tr>
                                 <th>PON/ONU</th>
+                                <th>Nama</th>
                                 <th>Pelanggan</th>
                                 <th>SN</th>
                                 <th>Status</th>
@@ -333,10 +334,8 @@
                             <tr>
                                 <td>
                                     <strong>{{ $onu->slot }}/{{ $onu->port }}/{{ $onu->onu_id }}</strong>
-                                    @if($onu->name || $onu->description)
-                                    <br><small class="text-muted">{{ $onu->name ?: $onu->description }}</small>
-                                    @endif
                                 </td>
+                                <td>{{ $onu->name ?: '-' }}</td>
                                 <td>
                                     @if($onu->customer)
                                         <a href="{{ route('admin.customers.show', $onu->customer) }}">
