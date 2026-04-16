@@ -639,7 +639,7 @@ class OltController extends Controller implements HasMiddleware
     public function getOnus(Olt $olt, Request $request)
     {
         $query = $olt->onus()
-            ->with(['customer', 'odp'])
+            ->with(['customer:id,name,customer_id', 'zone:id,name', 'odp:id,name'])
             ->when($request->status, fn($q, $s) => $q->where('status', $s))
             ->when($request->port, fn($q, $p) => $q->where('port', $p))
             ->when($request->search, function($q, $s) {
@@ -652,7 +652,7 @@ class OltController extends Controller implements HasMiddleware
         
         $onus = $query->orderBy('port')
             ->orderBy('onu_id')
-            ->paginate(20)
+            ->paginate(50)
             ->withQueryString();
         
         if ($request->ajax()) {

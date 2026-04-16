@@ -41,216 +41,77 @@
     </div>
 </div>
 
-<!-- Port Traffic Stats -->
-<div class="row" id="traffic-stats-section">
-    <!-- PON Ports Traffic with TX Power -->
-    <div class="col-lg-7">
-        <div class="card card-outline card-primary">
-            <div class="card-header">
-                <h3 class="card-title">
-                    <i class="fas fa-project-diagram mr-2"></i>PON Ports Traffic
-                </h3>
-                <div class="card-tools">
-                    <span class="text-muted text-sm mr-2" id="pon-timestamp"></span>
-                    <span class="badge badge-secondary mr-2" id="pon-cached-badge" style="display:none;" title="Data dari cache">cached</span>
-                    <button type="button" class="btn btn-tool" id="btn-force-refresh" title="Force Refresh (bypass cache)">
-                        <i class="fas fa-redo-alt"></i>
-                    </button>
-                    <button type="button" class="btn btn-tool" id="btn-refresh-traffic" title="Refresh">
-                        <i class="fas fa-sync-alt"></i>
-                    </button>
-                </div>
-            </div>
-            <div class="card-body p-0">
-                <div id="pon-loading" class="text-center p-4">
-                    <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
-                    <p class="text-muted mt-2">Loading traffic data...</p>
-                </div>
-                <table class="table table-sm table-striped mb-0" id="table-pon-traffic" style="display: none;">
-                    <thead class="thead-light">
-                        <tr>
-                            <th>Port</th>
-                            <th>Status</th>
-                            <th class="text-right">Download</th>
-                            <th class="text-right">Upload</th>
-                            <th class="text-right" title="TX Power (dBm)">TX Power</th>
-                            <th class="text-right" title="Temperature">Temp</th>
-                        </tr>
-                    </thead>
-                    <tbody id="pon-traffic-body">
-                    </tbody>
-                    <tfoot class="table-primary">
-                        <tr>
-                            <td colspan="2"><strong>Total</strong></td>
-                            <td class="text-right"><strong id="pon-total-in">-</strong></td>
-                            <td class="text-right"><strong id="pon-total-out">-</strong></td>
-                            <td colspan="2" class="text-right text-muted" id="pon-optical-avg">-</td>
-                        </tr>
-                    </tfoot>
-                </table>
-                <div id="pon-error" class="text-center p-4 text-danger" style="display: none;">
-                    <i class="fas fa-exclamation-triangle fa-2x"></i>
-                    <p class="mt-2">Failed to load traffic data</p>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Uplink Ports -->
-    <div class="col-lg-5">
-        <div class="card card-outline card-success">
-            <div class="card-header">
-                <h3 class="card-title">
-                    <i class="fas fa-network-wired mr-2"></i>Uplink Ports Traffic
-                </h3>
-                <div class="card-tools">
-                    <span class="text-muted text-sm" id="traffic-timestamp"></span>
-                </div>
-            </div>
-            <div class="card-body p-0">
-                <div id="uplink-loading" class="text-center p-4">
-                    <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
-                    <p class="text-muted mt-2">Loading traffic data...</p>
-                </div>
-                <table class="table table-sm table-striped mb-0" id="table-uplink-traffic" style="display: none;">
-                    <thead class="thead-light">
-                        <tr>
-                            <th>Port</th>
-                            <th>Status</th>
-                            <th class="text-right">Download</th>
-                            <th class="text-right">Upload</th>
-                        </tr>
-                    </thead>
-                    <tbody id="uplink-traffic-body">
-                    </tbody>
-                    <tfoot class="table-success">
-                        <tr>
-                            <td colspan="2"><strong>Total</strong></td>
-                            <td class="text-right"><strong id="uplink-total-in">-</strong></td>
-                            <td class="text-right"><strong id="uplink-total-out">-</strong></td>
-                        </tr>
-                    </tfoot>
-                </table>
-                <div id="uplink-error" class="text-center p-4 text-danger" style="display: none;">
-                    <i class="fas fa-exclamation-triangle fa-2x"></i>
-                    <p class="mt-2">Failed to load traffic data</p>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
+<!-- Row 1: Info Card + PON Port Stats -->
 <div class="row">
-    <!-- OLT Info -->
+    <!-- OLT Info (compact) -->
     <div class="col-lg-4">
         <!-- Status Card -->
-        <div class="card card-widget widget-user shadow">
+        <div class="card card-widget widget-user-2 shadow">
             <div class="widget-user-header bg-{{ $olt->status == 'active' ? 'success' : ($olt->status == 'maintenance' ? 'warning' : 'danger') }}">
-                <h3 class="widget-user-username">{{ $olt->name }}</h3>
-                <h5 class="widget-user-desc">{{ $olt->brandLabel }} - {{ $olt->model ?? 'Unknown Model' }}</h5>
-            </div>
-            <div class="widget-user-image">
-                <div class="img-circle elevation-2 bg-primary d-flex align-items-center justify-content-center" 
-                     style="width: 90px; height: 90px; font-size: 2rem; color: white;">
-                    <i class="fas fa-server"></i>
-                </div>
-            </div>
-            <div class="card-footer">
-                <div class="row">
-                    <div class="col-sm-4 border-right">
-                        <div class="description-block">
-                            <h5 class="description-header">{{ $olt->total_pon_ports }}</h5>
-                            <span class="description-text">PON PORTS</span>
-                        </div>
-                    </div>
-                    <div class="col-sm-4 border-right">
-                        <div class="description-block">
-                            <h5 class="description-header text-success">{{ $olt->onus->where('status', 'online')->count() }}</h5>
-                            <span class="description-text">ONLINE</span>
-                        </div>
-                    </div>
-                    <div class="col-sm-4">
-                        <div class="description-block">
-                            <h5 class="description-header text-danger">{{ $olt->onus->where('status', 'offline')->count() }}</h5>
-                            <span class="description-text">OFFLINE</span>
-                        </div>
+                <div class="widget-user-image">
+                    <div class="img-circle elevation-2 bg-white d-flex align-items-center justify-content-center" 
+                         style="width: 50px; height: 50px; font-size: 1.3rem; color: #333;">
+                        <i class="fas fa-server"></i>
                     </div>
                 </div>
+                <h3 class="widget-user-username" style="font-size:1.1rem;">{{ $olt->name }}</h3>
+                <h5 class="widget-user-desc">{{ $olt->brandLabel }} - {{ $olt->model ?? 'Unknown' }} | <code style="color:#fff">{{ $olt->ip_address }}</code></h5>
             </div>
-        </div>
-
-        <!-- Info Card -->
-        <div class="card">
-            <div class="card-header">
-                <h3 class="card-title"><i class="fas fa-info-circle mr-2"></i>Informasi OLT</h3>
-            </div>
-            <div class="card-body p-0">
-                <table class="table table-striped mb-0">
-                    <tr>
-                        <td width="40%"><strong>IP Address</strong></td>
-                        <td><code>{{ $olt->ip_address }}</code></td>
-                    </tr>
-                    <tr>
-                        <td><strong>Brand</strong></td>
-                        <td>{{ $olt->brandLabel }}</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Model</strong></td>
-                        <td>{{ $olt->model ?? '-' }}</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Status</strong></td>
-                        <td>
-                            @if($olt->status == 'active')
-                                <span class="badge badge-success">Aktif</span>
-                            @elseif($olt->status == 'maintenance')
-                                <span class="badge badge-warning">Maintenance</span>
-                            @else
-                                <span class="badge badge-danger">Tidak Aktif</span>
-                            @endif
-                        </td>
-                    </tr>
-                    <tr>
-                        <td><strong>SNMP</strong></td>
-                        <td>Port {{ $olt->snmp_port }} | {{ $olt->snmp_community }}</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Telnet</strong></td>
-                        <td>
-                            @if($olt->telnet_enabled)
-                                <span class="badge badge-success">Port {{ $olt->telnet_port }}</span>
-                            @else
-                                <span class="badge badge-secondary">Disabled</span>
-                            @endif
-                        </td>
-                    </tr>
-                    <tr>
-                        <td><strong>SSH</strong></td>
-                        <td>
-                            @if($olt->ssh_enabled)
-                                <span class="badge badge-success">Port {{ $olt->ssh_port }}</span>
-                            @else
-                                <span class="badge badge-secondary">Disabled</span>
-                            @endif
-                        </td>
-                    </tr>
-                    <tr>
-                        <td><strong>POP</strong></td>
-                        <td>{{ $olt->pop->name ?? '-' }}</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Router</strong></td>
-                        <td>{{ $olt->router->name ?? '-' }}</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Alamat</strong></td>
-                        <td>{{ $olt->address ?? '-' }}</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Last Sync</strong></td>
-                        <td>{{ $olt->last_sync_at ? $olt->last_sync_at->diffForHumans() : 'Belum pernah' }}</td>
-                    </tr>
-                </table>
+            <div class="card-footer p-0">
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <span class="nav-link py-1">
+                            <i class="fas fa-hdd text-primary mr-1"></i> ONU
+                            <span class="float-right">
+                                <span class="badge badge-success">{{ $onuStats['online'] }} online</span>
+                                <span class="badge badge-danger">{{ $onuStats['offline'] }} offline</span>
+                                <span class="badge badge-secondary">{{ $onuStats['total'] }} total</span>
+                            </span>
+                        </span>
+                    </li>
+                    <li class="nav-item">
+                        <span class="nav-link py-1">
+                            <i class="fas fa-ethernet text-info mr-1"></i> PON Ports
+                            <span class="float-right badge badge-info">{{ $olt->total_pon_ports ?? '-' }}</span>
+                        </span>
+                    </li>
+                    <li class="nav-item">
+                        <span class="nav-link py-1">
+                            <i class="fas fa-exclamation-triangle text-warning mr-1"></i> Sinyal Lemah
+                            <span class="float-right badge badge-warning">{{ $onuStats['weak_signal'] }}</span>
+                        </span>
+                    </li>
+                    <li class="nav-item">
+                        <span class="nav-link py-1">
+                            <i class="fas fa-network-wired text-muted mr-1"></i> SNMP
+                            <span class="float-right"><small>Port {{ $olt->snmp_port }} | {{ $olt->snmp_community }}</small></span>
+                        </span>
+                    </li>
+                    <li class="nav-item">
+                        <span class="nav-link py-1">
+                            <i class="fas fa-terminal text-muted mr-1"></i> Telnet
+                            <span class="float-right">
+                                @if($olt->telnet_enabled)
+                                    <span class="badge badge-success">Port {{ $olt->telnet_port }}</span>
+                                @else
+                                    <span class="badge badge-secondary">Off</span>
+                                @endif
+                            </span>
+                        </span>
+                    </li>
+                    <li class="nav-item">
+                        <span class="nav-link py-1">
+                            <i class="fas fa-building text-muted mr-1"></i> POP / Router
+                            <span class="float-right"><small>{{ $olt->pop->name ?? '-' }} / {{ $olt->router->name ?? '-' }}</small></span>
+                        </span>
+                    </li>
+                    <li class="nav-item">
+                        <span class="nav-link py-1">
+                            <i class="fas fa-clock text-muted mr-1"></i> Last Sync
+                            <span class="float-right"><small>{{ $olt->last_sync_at ? $olt->last_sync_at->diffForHumans() : 'Belum pernah' }}</small></span>
+                        </span>
+                    </li>
+                </ul>
             </div>
             <div class="card-footer">
                 @can('olts.edit')
@@ -262,50 +123,199 @@
                     <i class="fas fa-sync"></i> Sync ONU
                 </button>
                 <button type="button" class="btn btn-primary btn-sm btn-test-connection" data-id="{{ $olt->id }}">
-                    <i class="fas fa-plug"></i> Test Koneksi
+                    <i class="fas fa-plug"></i> Test
                 </button>
             </div>
         </div>
 
-        <!-- Map Card -->
+        <!-- Map Card (small) -->
         @if($olt->latitude && $olt->longitude)
         <div class="card">
-            <div class="card-header">
-                <h3 class="card-title"><i class="fas fa-map-marker-alt mr-2"></i>Lokasi</h3>
-            </div>
             <div class="card-body p-0">
-                <div id="map" style="height: 200px;"></div>
-            </div>
-        </div>
-        @endif
-
-        <!-- Photos -->
-        @if($olt->photos && count($olt->photos) > 0)
-        <div class="card card-secondary">
-            <div class="card-header">
-                <h3 class="card-title"><i class="fas fa-images mr-2"></i>Foto ({{ count($olt->photos) }})</h3>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    @foreach($olt->photos as $photo)
-                    <div class="col-6 mb-2">
-                        <a href="{{ $olt->getPhotoUrl($photo) }}" data-lightbox="olt-photos" data-title="{{ $olt->name }}">
-                            <img src="{{ $olt->getThumbnailUrl($photo) }}" class="img-thumbnail w-100" 
-                                 style="height:80px;object-fit:cover;" alt="Foto OLT">
-                        </a>
-                    </div>
-                    @endforeach
-                </div>
+                <div id="map" style="height: 150px;"></div>
             </div>
         </div>
         @endif
     </div>
 
-    <!-- ONU List -->
+    <!-- PON Port Stats with ONU count + clickable links -->
     <div class="col-lg-8">
         <div class="card">
             <div class="card-header">
-                <h3 class="card-title"><i class="fas fa-hdd mr-2"></i>Daftar ONU ({{ $olt->onus->count() }})</h3>
+                <h3 class="card-title"><i class="fas fa-project-diagram mr-2"></i>PON Ports</h3>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="thead-light">
+                        <tr>
+                            <th>Port</th>
+                            <th class="text-center">Total ONU</th>
+                            <th class="text-center">Online</th>
+                            <th class="text-center">Offline</th>
+                            <th class="text-center">%</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for($i = 1; $i <= ($olt->total_pon_ports ?? 8); $i++)
+                        @php
+                            $portOnus = $olt->onus->where('port', $i);
+                            $onuCount = $portOnus->count();
+                            $onlineCount = $portOnus->where('status', 'online')->count();
+                            $offlineCount = $onuCount - $onlineCount;
+                            $percentage = $onuCount > 0 ? round(($onlineCount / $onuCount) * 100) : 0;
+                        @endphp
+                        <tr>
+                            <td>
+                                <i class="fas fa-ethernet text-{{ $onuCount > 0 ? ($percentage >= 80 ? 'success' : ($percentage >= 50 ? 'warning' : 'danger')) : 'muted' }} mr-1"></i>
+                                <strong>PON {{ $olt->onus->first() ? $olt->onus->first()->slot : 1 }}/{{ $i }}</strong>
+                            </td>
+                            <td class="text-center">
+                                @if($onuCount > 0)
+                                    <span class="badge badge-secondary">{{ $onuCount }}</span>
+                                @else
+                                    <span class="text-muted">0</span>
+                                @endif
+                            </td>
+                            <td class="text-center">
+                                @if($onlineCount > 0)
+                                    <span class="badge badge-success">{{ $onlineCount }}</span>
+                                @else
+                                    <span class="text-muted">0</span>
+                                @endif
+                            </td>
+                            <td class="text-center">
+                                @if($offlineCount > 0)
+                                    <span class="badge badge-danger">{{ $offlineCount }}</span>
+                                @else
+                                    <span class="text-muted">0</span>
+                                @endif
+                            </td>
+                            <td class="text-center">
+                                <div class="progress progress-sm my-1" style="width:60px;display:inline-block;">
+                                    <div class="progress-bar bg-{{ $percentage >= 80 ? 'success' : ($percentage >= 50 ? 'warning' : 'danger') }}" 
+                                         style="width: {{ $percentage }}%"></div>
+                                </div>
+                                <small>{{ $percentage }}%</small>
+                            </td>
+                            <td class="text-right">
+                                @if($onuCount > 0)
+                                <a href="{{ route('admin.olts.onus', [$olt, 'port' => $i]) }}" class="btn btn-xs btn-outline-primary" title="Lihat ONU PON {{ $i }}">
+                                    <i class="fas fa-list"></i> Detail
+                                </a>
+                                @endif
+                            </td>
+                        </tr>
+                        @endfor
+                    </tbody>
+                    <tfoot class="thead-light">
+                        <tr>
+                            <td><strong>Total</strong></td>
+                            <td class="text-center"><strong>{{ $olt->onus->count() }}</strong></td>
+                            <td class="text-center"><strong class="text-success">{{ $olt->onus->where('status', 'online')->count() }}</strong></td>
+                            <td class="text-center"><strong class="text-danger">{{ $olt->onus->where('status', '!=', 'online')->count() }}</strong></td>
+                            <td colspan="2"></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Row 2: Traffic Stats -->
+<div class="row" id="traffic-stats-section">
+    <!-- PON Ports Traffic -->
+    <div class="col-lg-7">
+        <div class="card card-outline card-primary">
+            <div class="card-header py-2">
+                <h3 class="card-title"><i class="fas fa-tachometer-alt mr-2"></i>PON Traffic</h3>
+                <div class="card-tools">
+                    <span class="text-muted text-sm mr-2" id="pon-timestamp"></span>
+                    <button type="button" class="btn btn-tool btn-sm" id="btn-force-refresh" title="Force Refresh">
+                        <i class="fas fa-redo-alt"></i>
+                    </button>
+                    <button type="button" class="btn btn-tool btn-sm" id="btn-refresh-traffic" title="Refresh">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div id="pon-loading" class="text-center p-3">
+                    <i class="fas fa-spinner fa-spin text-muted"></i> <small class="text-muted">Loading...</small>
+                </div>
+                <table class="table table-sm table-striped mb-0" id="table-pon-traffic" style="display: none;">
+                    <thead class="thead-light">
+                        <tr>
+                            <th>Port</th>
+                            <th>Status</th>
+                            <th class="text-right">Download</th>
+                            <th class="text-right">Upload</th>
+                            <th class="text-right">TX Power</th>
+                            <th class="text-right">Temp</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pon-traffic-body"></tbody>
+                    <tfoot class="table-primary">
+                        <tr>
+                            <td colspan="2"><strong>Total</strong></td>
+                            <td class="text-right"><strong id="pon-total-in">-</strong></td>
+                            <td class="text-right"><strong id="pon-total-out">-</strong></td>
+                            <td colspan="2" class="text-right text-muted" id="pon-optical-avg">-</td>
+                        </tr>
+                    </tfoot>
+                </table>
+                <div id="pon-error" class="text-center p-3 text-danger" style="display: none;">
+                    <i class="fas fa-exclamation-triangle"></i> <small>Failed to load</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Uplink Ports -->
+    <div class="col-lg-5">
+        <div class="card card-outline card-success">
+            <div class="card-header py-2">
+                <h3 class="card-title"><i class="fas fa-network-wired mr-2"></i>Uplink Traffic</h3>
+                <div class="card-tools">
+                    <span class="text-muted text-sm" id="traffic-timestamp"></span>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div id="uplink-loading" class="text-center p-3">
+                    <i class="fas fa-spinner fa-spin text-muted"></i> <small class="text-muted">Loading...</small>
+                </div>
+                <table class="table table-sm table-striped mb-0" id="table-uplink-traffic" style="display: none;">
+                    <thead class="thead-light">
+                        <tr>
+                            <th>Port</th>
+                            <th>Status</th>
+                            <th class="text-right">Download</th>
+                            <th class="text-right">Upload</th>
+                        </tr>
+                    </thead>
+                    <tbody id="uplink-traffic-body"></tbody>
+                    <tfoot class="table-success">
+                        <tr>
+                            <td colspan="2"><strong>Total</strong></td>
+                            <td class="text-right"><strong id="uplink-total-in">-</strong></td>
+                            <td class="text-right"><strong id="uplink-total-out">-</strong></td>
+                        </tr>
+                    </tfoot>
+                </table>
+                <div id="uplink-error" class="text-center p-3 text-danger" style="display: none;">
+                    <i class="fas fa-exclamation-triangle"></i> <small>Failed to load</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Row 3: ONU List (full width) -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title"><i class="fas fa-hdd mr-2"></i>Daftar ONU ({{ $onuStats['total'] }})</h3>
                 <div class="card-tools">
                     @can('onus.register')
                     <button type="button" class="btn btn-success btn-sm btn-scan-unregistered" data-id="{{ $olt->id }}">
@@ -317,7 +327,7 @@
             <div class="card-body p-0">
                 @if($olt->onus->count() > 0)
                 <div class="table-responsive">
-                    <table class="table table-hover table-striped mb-0" id="table-onus">
+                    <table class="table table-hover table-striped table-sm mb-0" id="table-onus">
                         <thead>
                             <tr>
                                 <th>PON/ONU</th>
@@ -333,9 +343,7 @@
                         <tbody>
                             @foreach($olt->onus as $onu)
                             <tr>
-                                <td>
-                                    <strong>{{ $onu->slot }}/{{ $onu->port }}/{{ $onu->onu_id }}</strong>
-                                </td>
+                                <td><strong>{{ $onu->slot }}/{{ $onu->port }}/{{ $onu->onu_id }}</strong></td>
                                 <td>{{ $onu->name ?: '-' }}</td>
                                 <td>{{ $onu->zone->name ?? '-' }}</td>
                                 <td>{{ $onu->odp->name ?? '-' }}</td>
@@ -355,13 +363,9 @@
                                     @php
                                         $signal = $onu->olt_rx_power ?? $onu->rx_power;
                                         $signalClass = 'success';
-                                        if ($signal === null) {
-                                            $signalClass = 'secondary';
-                                        } elseif ($signal < -27) {
-                                            $signalClass = 'danger';
-                                        } elseif ($signal < -25) {
-                                            $signalClass = 'warning';
-                                        }
+                                        if ($signal === null) $signalClass = 'secondary';
+                                        elseif ($signal < -27) $signalClass = 'danger';
+                                        elseif ($signal < -25) $signalClass = 'warning';
                                     @endphp
                                     <span class="badge badge-{{ $signalClass }}">
                                         {{ $signal !== null ? number_format($signal, 2) . ' dBm' : '-' }}
@@ -372,14 +376,12 @@
                                         <i class="fas fa-eye"></i>
                                     </a>
                                     @can('onus.reboot')
-                                    <button type="button" class="btn btn-xs btn-warning btn-reboot-onu" 
-                                            data-id="{{ $onu->id }}" title="Reboot">
+                                    <button type="button" class="btn btn-xs btn-warning btn-reboot-onu" data-id="{{ $onu->id }}" title="Reboot">
                                         <i class="fas fa-sync"></i>
                                     </button>
                                     @endcan
                                     @can('onus.unregister')
-                                    <button type="button" class="btn btn-xs btn-danger btn-unregister-onu" 
-                                            data-id="{{ $onu->id }}" data-sn="{{ $onu->serial_number }}" title="Unregister">
+                                    <button type="button" class="btn btn-xs btn-danger btn-unregister-onu" data-id="{{ $onu->id }}" data-sn="{{ $onu->serial_number }}" title="Unregister">
                                         <i class="fas fa-trash"></i>
                                     </button>
                                     @endcan
@@ -390,45 +392,14 @@
                     </table>
                 </div>
                 @else
-                <div class="text-center text-muted py-5">
-                    <i class="fas fa-inbox fa-3x mb-3"></i>
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-inbox fa-2x mb-2"></i>
                     <p>Belum ada ONU terdaftar</p>
-                    <button type="button" class="btn btn-success btn-scan-unregistered" data-id="{{ $olt->id }}">
+                    <button type="button" class="btn btn-success btn-sm btn-scan-unregistered" data-id="{{ $olt->id }}">
                         <i class="fas fa-search-plus"></i> Scan ONU Baru
                     </button>
                 </div>
                 @endif
-            </div>
-        </div>
-
-        <!-- PON Port Stats -->
-        <div class="card">
-            <div class="card-header">
-                <h3 class="card-title"><i class="fas fa-chart-bar mr-2"></i>Statistik PON Port</h3>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    @for($i = 1; $i <= ($olt->total_pon_ports ?? 8); $i++)
-                    @php
-                        $onuCount = $olt->onus->where('port', $i)->count();
-                        $onlineCount = $olt->onus->where('port', $i)->where('status', 'online')->count();
-                        $percentage = $onuCount > 0 ? round(($onlineCount / $onuCount) * 100) : 0;
-                    @endphp
-                    <div class="col-md-3 col-6 mb-3">
-                        <div class="info-box bg-{{ $percentage >= 80 ? 'success' : ($percentage >= 50 ? 'warning' : 'danger') }} mb-0">
-                            <span class="info-box-icon"><i class="fas fa-ethernet"></i></span>
-                            <div class="info-box-content">
-                                <span class="info-box-text">PON {{ $i }}</span>
-                                <span class="info-box-number">{{ $onlineCount }}/{{ $onuCount }}</span>
-                                <div class="progress">
-                                    <div class="progress-bar" style="width: {{ $percentage }}%"></div>
-                                </div>
-                                <span class="progress-description">{{ $percentage }}% Online</span>
-                            </div>
-                        </div>
-                    </div>
-                    @endfor
-                </div>
             </div>
         </div>
     </div>
