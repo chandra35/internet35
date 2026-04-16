@@ -1267,6 +1267,89 @@ class ZteC320Helper extends BaseOltHelper
     }
 
     /**
+     * Batch-fetch optical power and distance for all ONUs via CLI.
+     * Uses batch commands per PON port (much faster than per-ONU queries).
+     *
+     * @param array $ponPorts Array of ['slot' => int, 'port' => int]
+     * @return array Keyed by "slot/port:onuId" => ['olt_rx_power' => float|null, 'rx_power' => float|null, 'distance' => int|null]
+     */
+    public function getBatchOpticalAndDistance(array $ponPorts): array
+    {
+        $result = [];
+
+        if (!$this->supportsTelnet() && !$this->supportsSsh()) {
+            return $result;
+        }
+
+        try {
+            // Build command list: terminal length 0 + batch commands per port
+            $commands = ['terminal length 0'];
+            foreach ($ponPorts as $pp) {
+                $slot = $pp['slot'];
+                $port = $pp['port'];
+                $commands[] = "show pon power olt-rx gpon-olt_1/{$slot}/{$port}";
+                $commands[] = "show pon power onu-rx gpon-olt_1/{$slot}/{$port}";
+                $commands[] = "show gpon onu state gpon-olt_1/{$slot}/{$port}";
+            }
+
+            $output = $this->executeCommands($commands);
+
+            // Parse OLT RX power: gpon-onu_1/S/P:N    -XX.XXX(dbm)
+            // These appear after "show pon power olt-rx" sections
+            // Parse ONU RX power: same format after "show pon power onu-rx" sections
+
+            // Split output by command markers
+            $sections = preg_split('/(?=show pon power olt-rx|show pon power onu-rx|show gpon onu state)/', $output);
+
+            foreach ($sections as $section) {
+                $isOltRx = (bool) preg_match('/show pon power olt-rx/', $section);
+                $isOnuRx = (bool) preg_match('/show pon power onu-rx/', $section);
+                $isState = (bool) preg_match('/show gpon onu state/', $section);
+
+                // Parse power lines: gpon-onu_1/S/P:N    -XX.XXX(dbm)
+                if ($isOltRx || $isOnuRx) {
+                    preg_match_all('/gpon-onu_1\/(\d+)\/(\d+):(\d+)\s+(-?[\d.]+)\(dbm\)/', $section, $matches, PREG_SET_ORDER);
+                    foreach ($matches as $m) {
+                        $key = "{$m[1]}/{$m[2]}:{$m[3]}";
+                        if (!isset($result[$key])) {
+                            $result[$key] = ['olt_rx_power' => null, 'rx_power' => null, 'distance' => null];
+                        }
+                        $power = round((float) $m[4], 3);
+                        if ($isOltRx) {
+                            $result[$key]['olt_rx_power'] = $power;
+                        } else {
+                            $result[$key]['rx_power'] = $power;
+                        }
+                    }
+                }
+
+                // Parse state lines for distance
+                // Format: gpon-onu_1/S/P:N  ... Distance(m)
+                if ($isState) {
+                    // Try tabular format: ONU index, admin, OMCC, phase, channel, distance
+                    preg_match_all('/gpon-onu_1\/(\d+)\/(\d+):(\d+)\s+\S+\s+\S+\s+\S+\s+\S+\s+(\d+)/', $section, $matches, PREG_SET_ORDER);
+                    foreach ($matches as $m) {
+                        $key = "{$m[1]}/{$m[2]}:{$m[3]}";
+                        if (!isset($result[$key])) {
+                            $result[$key] = ['olt_rx_power' => null, 'rx_power' => null, 'distance' => null];
+                        }
+                        $dist = (int) $m[4];
+                        // Ignore values that look like max ranging config (e.g., 5000)
+                        if ($dist > 0 && $dist < 5000) {
+                            $result[$key]['distance'] = $dist;
+                        }
+                    }
+                }
+            }
+
+        } catch (Exception $e) {
+            Log::warning("ZTE batch optical CLI failed: " . $e->getMessage());
+        }
+
+        return $result;
+    }
+
+    /**
      * Parse ZTE optical power value
      * ZTE returns value * 100 in 0.01 dBm
      */
@@ -1814,6 +1897,10 @@ class ZteC320Helper extends BaseOltHelper
             $bulkInOctets = $this->snmpWalk($this->zteOids['zxAnGponOnuPerfInOctets']);
             $bulkOutOctets = $this->snmpWalk($this->zteOids['zxAnGponOnuPerfOutOctets']);
 
+            // Batch CLI: fetch optical power + distance for all ONUs (2-3 commands per port)
+            $batchOptical = $this->getBatchOpticalAndDistance($ponPorts);
+            $result['batch_optical_count'] = count($batchOptical);
+
             // Cache for auto-created zones and ODPs (avoid repeated queries)
             $zoneCache = []; // name => Zone model
             $odpCache = [];  // "zone_id|odp_name" => Odp model
@@ -1829,6 +1916,10 @@ class ZteC320Helper extends BaseOltHelper
                     // Merge bulk traffic data
                     $inOctets = (int) ($bulkInOctets[$this->zteOids['zxAnGponOnuPerfInOctets'] . ".{$index}"] ?? 0);
                     $outOctets = (int) ($bulkOutOctets[$this->zteOids['zxAnGponOnuPerfOutOctets'] . ".{$index}"] ?? 0);
+
+                    // Merge batch CLI optical power + distance
+                    $cliKey = "{$onuData['slot']}/{$onuData['port']}:{$onuData['onu_id']}";
+                    $cliData = $batchOptical[$cliKey] ?? [];
 
                     // Auto-create Zone and ODP from parsed description
                     $zoneId = null;
@@ -1873,7 +1964,7 @@ class ZteC320Helper extends BaseOltHelper
                         $odpId = $odpCache[$odpKey]->id;
                     }
 
-                    // Save to database using bulk-walked data (no per-ONU SNMP/CLI)
+                    // Save to database using bulk-walked data + batch CLI optical
                     $onu = $this->saveOnuToDatabase([
                         'olt_id' => $this->olt->id,
                         'slot' => $onuData['slot'],
@@ -1885,7 +1976,9 @@ class ZteC320Helper extends BaseOltHelper
                         'onu_type' => $onuData['onu_type'] ?? null,
                         'description' => $onuData['description'] ?? null,
                         'vendor' => $vendor,
-                        'distance' => $onuData['distance'] ?? null,
+                        'distance' => $cliData['distance'] ?? null,
+                        'rx_power' => $cliData['rx_power'] ?? null,
+                        'olt_rx_power' => $cliData['olt_rx_power'] ?? null,
                         'zone_id' => $zoneId,
                         'odp_id' => $odpId,
                         'in_octets' => $inOctets,
@@ -1893,10 +1986,12 @@ class ZteC320Helper extends BaseOltHelper
                         'config_status' => 'registered',
                     ]);
 
-                    // Save signal history (optical info fetched on-demand, not during bulk sync)
+                    // Save signal history with CLI optical data
                     $this->saveSignalHistory($onu, [
+                        'rx_power' => $cliData['rx_power'] ?? null,
+                        'olt_rx_power' => $cliData['olt_rx_power'] ?? null,
                         'status' => $onuData['status'] ?? null,
-                        'distance' => $onuData['distance'] ?? null,
+                        'distance' => $cliData['distance'] ?? null,
                     ]);
 
                     $result['onus_synced']++;
