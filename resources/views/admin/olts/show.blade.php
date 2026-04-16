@@ -324,7 +324,6 @@
                                 <th>Nama</th>
                                 <th>Zone</th>
                                 <th>ODP</th>
-                                <th>Pelanggan</th>
                                 <th>SN</th>
                                 <th>Status</th>
                                 <th>Signal</th>
@@ -340,19 +339,6 @@
                                 <td>{{ $onu->name ?: '-' }}</td>
                                 <td>{{ $onu->zone->name ?? '-' }}</td>
                                 <td>{{ $onu->odp->name ?? '-' }}</td>
-                                <td>
-                                    @if($onu->customer)
-                                        <a href="{{ route('admin.customers.show', $onu->customer) }}">
-                                            {{ $onu->customer->name }}
-                                        </a>
-                                    @elseif($onu->description)
-                                        {{ $onu->description }}
-                                    @elseif($onu->name)
-                                        {{ $onu->name }}
-                                    @else
-                                        <span class="text-muted">-</span>
-                                    @endif
-                                </td>
                                 <td><code>{{ $onu->serial_number }}</code></td>
                                 <td>
                                     @if($onu->status == 'online')
@@ -367,7 +353,7 @@
                                 </td>
                                 <td>
                                     @php
-                                        $signal = $onu->rx_power;
+                                        $signal = $onu->olt_rx_power ?? $onu->rx_power;
                                         $signalClass = 'success';
                                         if ($signal === null) {
                                             $signalClass = 'secondary';
