@@ -5,6 +5,7 @@ namespace App\Helpers\Olt;
 use Exception;
 use App\Models\Zone;
 use App\Models\Odp;
+use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
@@ -1851,7 +1852,7 @@ class ZteC320Helper extends BaseOltHelper
                                 [
                                     'pop_id' => $this->olt->pop_id,
                                     'zone_id' => $zoneId,
-                                    'code' => Odp::generateCode(null, $this->olt->id),
+                                    'code' => 'ODP-' . strtoupper(Str::slug($onuData['zone_name'] . '-' . $onuData['odp_name'])),
                                     'status' => 'active',
                                     'total_ports' => 8,
                                 ]
