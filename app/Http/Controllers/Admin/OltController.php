@@ -392,7 +392,12 @@ class OltController extends Controller implements HasMiddleware
                 // Step 2: SNMP test
                 $this->sendProgress('Menguji koneksi SNMP (port ' . $olt->snmp_port . ')...', 30);
                 
-                $sysName = @snmp2_get($olt->ip_address, $olt->snmp_community, '.1.3.6.1.2.1.1.5.0', 3000000, 2);
+                if (!function_exists('snmp2_get')) {
+                    $this->sendProgress('PHP SNMP extension belum terinstall, skip SNMP test...', 50, 'warning');
+                    $sysName = false;
+                } else {
+                    $sysName = @snmp2_get($olt->ip_address, $olt->snmp_community, '.1.3.6.1.2.1.1.5.0', 3000000, 2);
+                }
                 
                 if ($sysName !== false) {
                     $this->sendProgress('SNMP berhasil! System Name: ' . $sysName, 50);

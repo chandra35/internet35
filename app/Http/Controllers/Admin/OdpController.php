@@ -1062,6 +1062,10 @@ class OdpController extends Controller implements HasMiddleware
             $fullOid = $baseOid . '.' . $oidIndex;
             
             // SNMP Get
+            if (!function_exists('snmpget')) {
+                return null;
+            }
+
             snmp_set_quick_print(true);
             snmp_set_valueretrieval(SNMP_VALUE_PLAIN);
             

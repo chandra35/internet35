@@ -624,11 +624,12 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 $(function() {
-    var zteProfileConfigs = @json(
-        $profiles
+    @php
+        $zteProfileConfigs = $profiles
             ->filter(fn($profile) => in_array($profile->type, [\App\Models\OltProfile::TYPE_LINE, \App\Models\OltProfile::TYPE_SERVICE], true))
-            ->mapWithKeys(fn($profile) => ["{$profile->type}:{$profile->name}" => $profile->config ?? []])
-    );
+            ->mapWithKeys(fn($profile) => ["{$profile->type}:{$profile->name}" => $profile->config ?? []]);
+    @endphp
+    var zteProfileConfigs = @json($zteProfileConfigs);
 
     // DataTable - only init if table exists
     if ($('#table-onus').length) {

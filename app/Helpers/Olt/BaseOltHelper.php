@@ -70,6 +70,10 @@ abstract class BaseOltHelper implements OltInterface
      */
     protected function snmpGet(string $oid): mixed
     {
+        if (!function_exists('snmpget')) {
+            throw new Exception('PHP SNMP extension is not installed');
+        }
+
         if (!$this->supportsSnmp()) {
             throw new Exception('SNMP is not configured for this OLT');
         }
@@ -98,6 +102,10 @@ abstract class BaseOltHelper implements OltInterface
      */
     protected function snmpWalk(string $oid): array
     {
+        if (!function_exists('snmpwalkoid')) {
+            throw new Exception('PHP SNMP extension is not installed');
+        }
+
         if (!$this->supportsSnmp()) {
             throw new Exception('SNMP is not configured for this OLT');
         }
@@ -126,6 +134,10 @@ abstract class BaseOltHelper implements OltInterface
      */
     protected function snmpSet(string $oid, string $type, mixed $value): bool
     {
+        if (!function_exists('snmpset')) {
+            throw new Exception('PHP SNMP extension is not installed');
+        }
+
         if (!$this->supportsSnmp()) {
             throw new Exception('SNMP is not configured for this OLT');
         }
@@ -630,6 +642,10 @@ abstract class BaseOltHelper implements OltInterface
         $interfaces = [];
         
         try {
+            if (!function_exists('snmpwalkoid')) {
+                throw new Exception('PHP SNMP extension is not installed');
+            }
+
             $timeout = 3000000; // 3 seconds
             $retries = 1;
             
@@ -755,7 +771,7 @@ abstract class BaseOltHelper implements OltInterface
                 ];
             }
             
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error("Failed to get interface stats: " . $e->getMessage());
         }
         
