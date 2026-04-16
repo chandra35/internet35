@@ -128,7 +128,13 @@ abstract class BaseOltHelper implements OltInterface
             return [];
         }
 
-        return $result;
+        // Normalize OID keys: strip leading dot from numeric format (.1.3.6... → 1.3.6...)
+        $normalized = [];
+        foreach ($result as $key => $value) {
+            $normalized[ltrim($key, '.')] = $value;
+        }
+
+        return $normalized;
     }
 
     /**
