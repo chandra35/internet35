@@ -1229,6 +1229,7 @@ class ZteC320Helper extends BaseOltHelper
             'temperature' => null,
             'voltage' => null,
             'bias_current' => null,
+            'distance' => null,
         ];
 
         try {
@@ -1236,10 +1237,12 @@ class ZteC320Helper extends BaseOltHelper
                 return $default;
             }
 
-            $cmd = "show pon power attenuation gpon-onu_1/{$slot}/{$port}:{$onuId}";
-            $output = $this->executeCommand($cmd);
+            $output = $this->executeBatchCliCommands([
+                "show pon power attenuation gpon-onu_1/{$slot}/{$port}:{$onuId}",
+                "show gpon onu detail-info gpon-onu_1/{$slot}/{$port}:{$onuId}",
+            ]);
 
-            // Parse OLT Rx, ONU Tx, ONU Rx from output
+            // Parse OLT Rx, ONU Tx, ONU Rx from attenuation output
             if (preg_match('/OLT\s+Rx[:\s]+(-?[\d.]+)\s*dBm/i', $output, $m)) {
                 $default['olt_rx_power'] = (float) $m[1];
             }
@@ -1248,6 +1251,10 @@ class ZteC320Helper extends BaseOltHelper
             }
             if (preg_match('/ONU\s+Rx[:\s]+(-?[\d.]+)\s*dBm/i', $output, $m)) {
                 $default['rx_power'] = (float) $m[1];
+            }
+            // Parse distance from detail-info
+            if (preg_match('/ONU Distance:\s+(\d+)m/', $output, $m)) {
+                $default['distance'] = (int) $m[1];
             }
 
         } catch (Exception $e) {
@@ -1282,9 +1289,9 @@ class ZteC320Helper extends BaseOltHelper
         }
 
         try {
-            // Build command list in known order: olt-rx, onu-rx, state per port
+            // Build command list: olt-rx and onu-rx per port (2 commands per port)
             $commands = [];
-            $commandTypes = []; // Track type for each command
+            $commandTypes = [];
             foreach ($ponPorts as $pp) {
                 $slot = $pp['slot'];
                 $port = $pp['port'];
@@ -1292,8 +1299,6 @@ class ZteC320Helper extends BaseOltHelper
                 $commandTypes[] = 'olt-rx';
                 $commands[] = "show pon power onu-rx gpon-olt_1/{$slot}/{$port}";
                 $commandTypes[] = 'onu-rx';
-                $commands[] = "show gpon onu state gpon-olt_1/{$slot}/{$port}";
-                $commandTypes[] = 'state';
             }
 
             $output = $this->executeBatchCliCommands($commands);
@@ -1311,27 +1316,13 @@ class ZteC320Helper extends BaseOltHelper
                     foreach ($matches as $m) {
                         $key = "{$m[1]}/{$m[2]}:{$m[3]}";
                         if (!isset($result[$key])) {
-                            $result[$key] = ['olt_rx_power' => null, 'rx_power' => null, 'distance' => null];
+                            $result[$key] = ['olt_rx_power' => null, 'rx_power' => null];
                         }
                         $power = round((float) $m[4], 3);
                         if ($type === 'olt-rx') {
                             $result[$key]['olt_rx_power'] = $power;
                         } else {
                             $result[$key]['rx_power'] = $power;
-                        }
-                    }
-                }
-
-                if ($type === 'state') {
-                    preg_match_all('/gpon-onu_1\/(\d+)\/(\d+):(\d+)\s+\S+\s+\S+\s+\S+\s+\S+\s+(\d+)/', $section, $matches, PREG_SET_ORDER);
-                    foreach ($matches as $m) {
-                        $key = "{$m[1]}/{$m[2]}:{$m[3]}";
-                        if (!isset($result[$key])) {
-                            $result[$key] = ['olt_rx_power' => null, 'rx_power' => null, 'distance' => null];
-                        }
-                        $dist = (int) $m[4];
-                        if ($dist > 0 && $dist < 5000) {
-                            $result[$key]['distance'] = $dist;
                         }
                     }
                 }

@@ -85,7 +85,7 @@
                         <span class="nav-link">
                             <i class="fas fa-ruler mr-1 text-muted" style="font-size:10px"></i>
                             Distance
-                            <span class="float-right">{{ $distFormatted }}</span>
+                            <span class="float-right" id="onu-distance">{{ $distFormatted }}</span>
                         </span>
                     </li>
                 </ul>
@@ -482,6 +482,13 @@ $(function() {
                     if (txVal !== null && txVal !== undefined) {
                         var tc = txBadgeClass(txVal);
                         $('#onu-tx').html('<span class="badge badge-' + tc + '">' + parseFloat(txVal).toFixed(2) + ' dBm</span>');
+                    }
+
+                    // Update distance
+                    var dist = res.data.distance;
+                    if (dist !== null && dist !== undefined && dist > 0) {
+                        var distText = dist >= 1000 ? (dist / 1000).toFixed(2) + ' km' : dist + ' m';
+                        $('#onu-distance').text(distText);
                     }
                     
                     // Update total traffic display

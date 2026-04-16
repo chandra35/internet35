@@ -475,6 +475,7 @@ class OnuController extends Controller implements HasMiddleware
                 'rx_power' => $opticalInfo['rx_power'] ?? null,
                 'tx_power' => $opticalInfo['tx_power'] ?? null,
                 'olt_rx_power' => $opticalInfo['olt_rx_power'] ?? null,
+                'distance' => $opticalInfo['distance'] ?? $onu->distance,
             ]);
             
             return response()->json([
@@ -483,6 +484,7 @@ class OnuController extends Controller implements HasMiddleware
                     'rx_power' => $opticalInfo['rx_power'],
                     'tx_power' => $opticalInfo['tx_power'],
                     'olt_rx_power' => $opticalInfo['olt_rx_power'],
+                    'distance' => $opticalInfo['distance'] ?? $onu->distance,
                     'in_octets' => $trafficInfo['in_octets'],
                     'out_octets' => $trafficInfo['out_octets'],
                     'in_octets_formatted' => $this->formatBytes($trafficInfo['in_octets']),
