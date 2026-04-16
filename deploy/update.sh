@@ -100,10 +100,11 @@ fi
 "${PHP_BIN}" artisan view:cache
 "${PHP_BIN}" artisan storage:link 2>/dev/null || true
 
-# Fix ownership for web server
+# Fix ownership for web server (artisan runs as root, creating root-owned files)
 WEB_USER="${WEB_USER:-www}"
-chown -R "${WEB_USER}:${WEB_USER}" "${APP_DIR}/storage" "${APP_DIR}/bootstrap/cache" 2>/dev/null || true
-chmod -R 775 "${APP_DIR}/storage" "${APP_DIR}/bootstrap/cache" 2>/dev/null || true
+echo "    Fixing file ownership to ${WEB_USER}..."
+chown -R "${WEB_USER}:${WEB_USER}" "${APP_DIR}/storage" "${APP_DIR}/bootstrap/cache"
+chmod -R 775 "${APP_DIR}/storage" "${APP_DIR}/bootstrap/cache"
 
 echo "[6/6] Public path check..."
 if [ "${PUBLIC_DIR}" = "${APP_DIR}/public" ]; then
