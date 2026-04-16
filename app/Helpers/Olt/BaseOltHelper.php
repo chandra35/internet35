@@ -877,6 +877,20 @@ abstract class BaseOltHelper implements OltInterface
     }
 
     /**
+     * Format bits per second to human readable
+     */
+    protected function formatBitsPerSecond(float $bps, int $precision = 2): string
+    {
+        $units = ['bps', 'Kbps', 'Mbps', 'Gbps', 'Tbps'];
+
+        $bps = max($bps, 0);
+        $pow = floor(($bps ? log($bps) : 0) / log(1000));
+        $pow = min($pow, count($units) - 1);
+
+        return round($bps / pow(1000, $pow), $precision) . ' ' . $units[$pow];
+    }
+
+    /**
      * Get PON port optical power statistics from OLT SFP transceivers
      * This is the TX power (output power) of the OLT's PON port modules
      * 

@@ -3,6 +3,7 @@
 namespace App\Helpers\Olt;
 
 use Exception;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -76,6 +77,13 @@ class ZteC320Helper extends BaseOltHelper
         'zxAnGponOnuLineProfile' => '1.3.6.1.4.1.3902.1082.500.10.2.3.3.1.9',
         'zxAnGponOnuServiceProfile' => '1.3.6.1.4.1.3902.1082.500.10.2.3.3.1.10',
         
+        // PON Port SFP DDM (OLT-side transceiver)
+        'zxAnGponOltPonOpticalTxPower' => '1.3.6.1.4.1.3902.1082.500.10.2.2.1.1.10',
+        'zxAnGponOltPonOpticalRxPower' => '1.3.6.1.4.1.3902.1082.500.10.2.2.1.1.11',
+        'zxAnGponOltPonOpticalTemp' => '1.3.6.1.4.1.3902.1082.500.10.2.2.1.1.12',
+        'zxAnGponOltPonOpticalVoltage' => '1.3.6.1.4.1.3902.1082.500.10.2.2.1.1.13',
+        'zxAnGponOltPonOpticalBias' => '1.3.6.1.4.1.3902.1082.500.10.2.2.1.1.14',
+
         // Unconfigured ONUs
         'zxAnGponOltUncfgOnuTable' => '1.3.6.1.4.1.3902.1082.500.10.2.3.5.1',
         'zxAnGponOltUncfgOnuSerialNo' => '1.3.6.1.4.1.3902.1082.500.10.2.3.5.1.2',
@@ -619,6 +627,234 @@ class ZteC320Helper extends BaseOltHelper
     }
 
     /**
+     * Get PON port optical power (SFP DDM) from OLT
+     */
+    public function getPonOpticalPower(): array
+    {
+        $result = [];
+
+        try {
+            // Try SNMP first for PON SFP DDM
+            $txPowers = $this->snmpWalk($this->zteOids['zxAnGponOltPonOpticalTxPower']);
+
+            if (!empty($txPowers)) {
+                $rxPowers = $this->snmpWalk($this->zteOids['zxAnGponOltPonOpticalRxPower']);
+                $temps = $this->snmpWalk($this->zteOids['zxAnGponOltPonOpticalTemp']);
+                $voltages = $this->snmpWalk($this->zteOids['zxAnGponOltPonOpticalVoltage']);
+                $biases = $this->snmpWalk($this->zteOids['zxAnGponOltPonOpticalBias']);
+
+                foreach ($txPowers as $oid => $txRaw) {
+                    preg_match('/\.(\d+)\.(\d+)$/', $oid, $matches);
+                    if (count($matches) < 3) continue;
+
+                    $slot = (int) $matches[1];
+                    $port = (int) $matches[2];
+                    $index = "{$slot}.{$port}";
+
+                    $txPower = $this->parseDdmValue($txRaw);
+                    $rxPower = $this->parseDdmValue($rxPowers[$this->zteOids['zxAnGponOltPonOpticalRxPower'] . ".{$index}"] ?? null);
+                    $temp = $this->parseDdmValue($temps[$this->zteOids['zxAnGponOltPonOpticalTemp'] . ".{$index}"] ?? null);
+                    $voltage = $this->parseDdmValue($voltages[$this->zteOids['zxAnGponOltPonOpticalVoltage'] . ".{$index}"] ?? null);
+                    $bias = $this->parseDdmValue($biases[$this->zteOids['zxAnGponOltPonOpticalBias'] . ".{$index}"] ?? null);
+
+                    $result[] = [
+                        'slot' => $slot,
+                        'port' => $port,
+                        'name' => "gpon_olt-{$slot}/{$port}",
+                        'tx_power' => $txPower,
+                        'rx_power' => $rxPower,
+                        'temperature' => $temp,
+                        'voltage' => $voltage,
+                        'tx_bias' => $bias,
+                        'signal_quality' => $this->classifySignalQuality($txPower),
+                        'tx_power_formatted' => $txPower !== null ? round($txPower, 2) . ' dBm' : '-',
+                        'rx_power_formatted' => $rxPower !== null ? round($rxPower, 2) . ' dBm' : '-',
+                        'temperature_formatted' => $temp !== null ? round($temp, 1) . ' °C' : '-',
+                        'voltage_formatted' => $voltage !== null ? round($voltage, 2) . ' V' : '-',
+                        'tx_bias_formatted' => $bias !== null ? round($bias, 2) . ' mA' : '-',
+                    ];
+                }
+            }
+
+            // If SNMP returned nothing, try CLI fallback
+            if (empty($result)) {
+                $result = $this->getPonOpticalPowerViaCli();
+            }
+
+        } catch (\Exception $e) {
+            Log::error("ZTE getPonOpticalPower error: " . $e->getMessage());
+
+            // Try CLI as fallback on SNMP error
+            try {
+                $result = $this->getPonOpticalPowerViaCli();
+            } catch (\Exception $e2) {
+                Log::error("ZTE getPonOpticalPower CLI fallback error: " . $e2->getMessage());
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Get PON optical power via CLI (fallback)
+     */
+    protected function getPonOpticalPowerViaCli(): array
+    {
+        $result = [];
+
+        $ponPorts = \App\Models\OltPonPort::where('olt_id', $this->olt->id)
+            ->orderBy('slot')->orderBy('port')->get();
+
+        if ($ponPorts->isEmpty()) {
+            // Default: discover from getPonPorts
+            $discovered = $this->getPonPorts();
+            $ports = array_map(fn($p) => [
+                'slot' => $p['slot'],
+                'port' => $p['port'],
+                'name' => $p['name'] ?? "gpon_olt-{$p['slot']}/{$p['port']}",
+            ], $discovered);
+        } else {
+            $ports = $ponPorts->map(fn($p) => [
+                'slot' => $p->slot,
+                'port' => $p->port,
+                'name' => $p->name ?? "gpon_olt-{$p->slot}/{$p->port}",
+            ])->toArray();
+        }
+
+        if (empty($ports) || !$this->supportsTelnet()) {
+            return $result;
+        }
+
+        // Open single telnet session for all ports
+        $fp = @fsockopen(
+            $this->olt->ip_address,
+            $this->olt->telnet_port ?? 23,
+            $errno,
+            $errstr,
+            $this->telnetTimeout
+        );
+
+        if (!$fp) {
+            throw new Exception("Telnet connection failed: {$errstr}");
+        }
+
+        stream_set_timeout($fp, $this->telnetTimeout);
+
+        // Login
+        $this->telnetWaitFor($fp, ['Username:', 'login:', '>']);
+        fwrite($fp, $this->olt->telnet_username . "\r\n");
+        $this->telnetWaitFor($fp, ['Password:', 'password:']);
+        fwrite($fp, $this->olt->telnet_password . "\r\n");
+        sleep(1);
+        $this->telnetWaitFor($fp, ['>', '#', '$']);
+
+        foreach ($ports as $portInfo) {
+            $slot = $portInfo['slot'];
+            $port = $portInfo['port'];
+
+            // ZTE command to show PON transceiver info
+            $cmd = "show gpon olt optical-transceiver-diagnosis gpon_olt-{$slot}/{$port}";
+            fwrite($fp, $cmd . "\r\n");
+            sleep(1);
+
+            $buffer = '';
+            $deadline = time() + $this->telnetTimeout;
+            while (time() < $deadline) {
+                $line = @fgets($fp, 4096);
+                if ($line === false) {
+                    usleep(100000);
+                    continue;
+                }
+                $buffer .= $line;
+                if (preg_match('/[>#\$]\s*$/', $line)) {
+                    break;
+                }
+            }
+
+            $txPower = null;
+            $rxPower = null;
+            $temp = null;
+            $voltage = null;
+            $bias = null;
+
+            // Parse CLI output for DDM values
+            if (preg_match('/[Tt]x\s*[Pp]ower\s*[:\(]\s*([-\d.]+)\s*(?:dBm)?/i', $buffer, $m)) {
+                $txPower = (float) $m[1];
+            }
+            if (preg_match('/[Rr]x\s*[Pp]ower\s*[:\(]\s*([-\d.]+)\s*(?:dBm)?/i', $buffer, $m)) {
+                $rxPower = (float) $m[1];
+            }
+            if (preg_match('/[Tt]emp(?:erature)?\s*[:\(]\s*([-\d.]+)/i', $buffer, $m)) {
+                $temp = (float) $m[1];
+            }
+            if (preg_match('/[Vv]olt(?:age)?\s*[:\(]\s*([-\d.]+)/i', $buffer, $m)) {
+                $voltage = (float) $m[1];
+            }
+            if (preg_match('/[Bb]ias\s*(?:[Cc]urrent)?\s*[:\(]\s*([-\d.]+)/i', $buffer, $m)) {
+                $bias = (float) $m[1];
+            }
+
+            $result[] = [
+                'slot' => $slot,
+                'port' => $port,
+                'name' => $portInfo['name'],
+                'tx_power' => $txPower,
+                'rx_power' => $rxPower,
+                'temperature' => $temp,
+                'voltage' => $voltage,
+                'tx_bias' => $bias,
+                'signal_quality' => $this->classifySignalQuality($txPower),
+                'tx_power_formatted' => $txPower !== null ? round($txPower, 2) . ' dBm' : '-',
+                'rx_power_formatted' => $rxPower !== null ? round($rxPower, 2) . ' dBm' : '-',
+                'temperature_formatted' => $temp !== null ? round($temp, 1) . ' °C' : '-',
+                'voltage_formatted' => $voltage !== null ? round($voltage, 2) . ' V' : '-',
+                'tx_bias_formatted' => $bias !== null ? round($bias, 2) . ' mA' : '-',
+            ];
+        }
+
+        fclose($fp);
+
+        return $result;
+    }
+
+    /**
+     * Parse DDM value from SNMP (ZTE returns integer * 100 or raw)
+     */
+    protected function parseDdmValue($raw): ?float
+    {
+        if ($raw === null || $raw === '' || $raw === 'noSuchInstance' || $raw === 'noSuchObject') {
+            return null;
+        }
+
+        $val = is_numeric($raw) ? (float) $raw : null;
+        if ($val === null) {
+            // Try to extract numeric value from SNMP string
+            if (preg_match('/([-\d.]+)/', (string) $raw, $m)) {
+                $val = (float) $m[1];
+            }
+        }
+
+        // ZTE typically returns power in units of 0.01 dBm
+        if ($val !== null && abs($val) > 100) {
+            $val = $val / 100.0;
+        }
+
+        return $val;
+    }
+
+    /**
+     * Classify signal quality based on TX power (dBm)
+     */
+    protected function classifySignalQuality(?float $txPower): string
+    {
+        if ($txPower === null) return 'unknown';
+        if ($txPower >= 1.0) return 'excellent';
+        if ($txPower >= 0.0) return 'good';
+        if ($txPower >= -2.0) return 'acceptable';
+        return 'warning';
+    }
+
+    /**
      * Get all ONUs from OLT
      */
     public function getAllOnus(): array
@@ -1049,15 +1285,19 @@ class ZteC320Helper extends BaseOltHelper
                 "configure terminal",
                 "pon-onu-mng gpon_onu-{$slot}/{$port}:{$onuId}",
                 "reboot",
-                "y", // Confirm
+                "y",
                 "exit",
                 "exit",
             ];
 
             $output = $this->executeCommands($commands);
 
-            $result['success'] = true;
-            $result['message'] = "ONU {$slot}/{$port}:{$onuId} reboot command sent";
+            if (preg_match('/Error|fail|invalid|unknown/i', $output)) {
+                $result['message'] = "Reboot command mungkin gagal: " . trim(substr($output, 0, 200));
+            } else {
+                $result['success'] = true;
+                $result['message'] = "ONU {$slot}/{$port}:{$onuId} reboot command berhasil dikirim";
+            }
 
         } catch (Exception $e) {
             $result['message'] = $e->getMessage();
@@ -1068,17 +1308,55 @@ class ZteC320Helper extends BaseOltHelper
     }
 
     /**
-     * Get ONU traffic statistics
+     * Get ONU traffic statistics with rate calculation
      */
     public function getOnuTraffic(int $slot, int $port, int $onuId): array
     {
         $index = "{$slot}.{$port}.{$onuId}";
 
+        $inOctets = (int) ($this->snmpGet($this->zteOids['zxAnGponOnuPerfInOctets'] . ".{$index}") ?? 0);
+        $outOctets = (int) ($this->snmpGet($this->zteOids['zxAnGponOnuPerfOutOctets'] . ".{$index}") ?? 0);
+        $inPackets = (int) ($this->snmpGet($this->zteOids['zxAnGponOnuPerfInPackets'] . ".{$index}") ?? 0);
+        $outPackets = (int) ($this->snmpGet($this->zteOids['zxAnGponOnuPerfOutPackets'] . ".{$index}") ?? 0);
+
+        $now = microtime(true);
+        $cacheKey = "zte_traffic_{$this->olt->id}_{$index}";
+        $prev = Cache::get($cacheKey);
+
+        $inRate = null;
+        $outRate = null;
+
+        if ($prev && isset($prev['time'])) {
+            $elapsed = $now - $prev['time'];
+            if ($elapsed > 0 && $elapsed < 300) {
+                $deltaIn = $inOctets - ($prev['in_octets'] ?? 0);
+                $deltaOut = $outOctets - ($prev['out_octets'] ?? 0);
+
+                // Handle counter wrap (32-bit)
+                if ($deltaIn < 0) $deltaIn += 4294967296;
+                if ($deltaOut < 0) $deltaOut += 4294967296;
+
+                $inRate = ($deltaIn * 8) / $elapsed;   // bps
+                $outRate = ($deltaOut * 8) / $elapsed;  // bps
+            }
+        }
+
+        // Store current reading for next delta
+        Cache::put($cacheKey, [
+            'in_octets' => $inOctets,
+            'out_octets' => $outOctets,
+            'time' => $now,
+        ], 300);
+
         return [
-            'in_octets' => (int) ($this->snmpGet($this->zteOids['zxAnGponOnuPerfInOctets'] . ".{$index}") ?? 0),
-            'out_octets' => (int) ($this->snmpGet($this->zteOids['zxAnGponOnuPerfOutOctets'] . ".{$index}") ?? 0),
-            'in_packets' => (int) ($this->snmpGet($this->zteOids['zxAnGponOnuPerfInPackets'] . ".{$index}") ?? 0),
-            'out_packets' => (int) ($this->snmpGet($this->zteOids['zxAnGponOnuPerfOutPackets'] . ".{$index}") ?? 0),
+            'in_octets' => $inOctets,
+            'out_octets' => $outOctets,
+            'in_packets' => $inPackets,
+            'out_packets' => $outPackets,
+            'in_rate_bps' => $inRate,
+            'out_rate_bps' => $outRate,
+            'in_rate_formatted' => $inRate !== null ? $this->formatBitsPerSecond($inRate) : '-',
+            'out_rate_formatted' => $outRate !== null ? $this->formatBitsPerSecond($outRate) : '-',
         ];
     }
 
@@ -1309,12 +1587,64 @@ class ZteC320Helper extends BaseOltHelper
     }
 
     /**
-     * Execute multiple CLI commands
+     * Execute multiple CLI commands sequentially via a single session
      */
     protected function executeCommands(array $commands): string
     {
-        $fullCommand = implode("\n", $commands);
-        return $this->executeCommand($fullCommand);
+        if ($this->supportsSsh() && function_exists('ssh2_connect')) {
+            return $this->executeCommand(implode("\n", $commands));
+        }
+
+        if (!$this->supportsTelnet()) {
+            throw new Exception('No CLI connection method available');
+        }
+
+        $fp = @fsockopen(
+            $this->olt->ip_address,
+            $this->olt->telnet_port ?? 23,
+            $errno,
+            $errstr,
+            $this->telnetTimeout
+        );
+
+        if (!$fp) {
+            throw new Exception("Telnet connection failed: {$errstr}");
+        }
+
+        stream_set_timeout($fp, $this->telnetTimeout);
+
+        // Login
+        $this->telnetWaitFor($fp, ['Username:', 'login:', '>']);
+        fwrite($fp, $this->olt->telnet_username . "\r\n");
+        $this->telnetWaitFor($fp, ['Password:', 'password:']);
+        fwrite($fp, $this->olt->telnet_password . "\r\n");
+        sleep(1);
+        $this->telnetWaitFor($fp, ['>', '#', '$']);
+
+        // Send each command sequentially
+        $fullOutput = '';
+        foreach ($commands as $cmd) {
+            fwrite($fp, $cmd . "\r\n");
+            usleep(500000); // 500ms between commands
+            $buffer = '';
+            $deadline = time() + $this->telnetTimeout;
+            while (time() < $deadline) {
+                $line = @fgets($fp, 4096);
+                if ($line === false) {
+                    usleep(100000);
+                    continue;
+                }
+                $buffer .= $line;
+                if (preg_match('/[>#\$\)]\s*$/', $line)) {
+                    break;
+                }
+            }
+            $fullOutput .= $buffer;
+        }
+
+        fclose($fp);
+
+        return $fullOutput;
     }
 
     /**
