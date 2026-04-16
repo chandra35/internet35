@@ -1849,6 +1849,7 @@ class ZteC320Helper extends BaseOltHelper
                             $odp = Odp::firstOrCreate(
                                 ['olt_id' => $this->olt->id, 'name' => $onuData['odp_name']],
                                 [
+                                    'pop_id' => $this->olt->pop_id,
                                     'zone_id' => $zoneId,
                                     'code' => Odp::generateCode(null, $this->olt->id),
                                     'status' => 'active',
