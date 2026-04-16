@@ -1065,6 +1065,7 @@ class ZteC320Helper extends BaseOltHelper
             $distances = $this->snmpWalk($this->zteOids['zxAnGponOnuDistance']);
             $types = $this->snmpWalk($this->zteOids['zxAnGponOnuType']);
             $names = $this->snmpWalk($this->zteOids['zxAnGponOnuName']);
+            $descriptions = $this->snmpWalk($this->zteOids['zxAnGponOnuDescription']);
 
             // If auth info empty, fallback to binary serial column
             $useAuthInfo = !empty($authInfos);
@@ -1086,6 +1087,10 @@ class ZteC320Helper extends BaseOltHelper
                 $statusOid = $this->zteOids['zxAnGponOnuRunStatus'] . ".{$index}";
                 $status = $runStatuses[$statusOid] ?? 0;
 
+                $rawName = $names[$this->zteOids['zxAnGponOnuName'] . ".{$index}"] ?? null;
+                $rawType = $types[$this->zteOids['zxAnGponOnuType'] . ".{$index}"] ?? null;
+                $rawDesc = $descriptions[$this->zteOids['zxAnGponOnuDescription'] . ".{$index}"] ?? null;
+
                 $onu = [
                     'slot' => $slot,
                     'port' => $port,
@@ -1093,8 +1098,9 @@ class ZteC320Helper extends BaseOltHelper
                     'serial_number' => $serialNumber,
                     'status' => $this->runStatusMap[$status] ?? 'unknown',
                     'distance' => $this->parseDistance($distances[$this->zteOids['zxAnGponOnuDistance'] . ".{$index}"] ?? null),
-                    'onu_type' => $types[$this->zteOids['zxAnGponOnuType'] . ".{$index}"] ?? null,
-                    'name' => $names[$this->zteOids['zxAnGponOnuName'] . ".{$index}"] ?? null,
+                    'onu_type' => $rawType ? trim($rawType, '" ') : null,
+                    'name' => $rawName ? trim($rawName, '" ') : null,
+                    'description' => $rawDesc ? trim($rawDesc, '" ') : null,
                 ];
 
                 $onus[] = $onu;
@@ -1781,6 +1787,7 @@ class ZteC320Helper extends BaseOltHelper
                         'status' => $onuData['status'] ?? 'unknown',
                         'name' => $onuData['name'] ?? null,
                         'onu_type' => $onuData['onu_type'] ?? null,
+                        'description' => $onuData['description'] ?? null,
                         'vendor' => $vendor,
                         'distance' => $onuData['distance'] ?? null,
                         'in_octets' => $inOctets,

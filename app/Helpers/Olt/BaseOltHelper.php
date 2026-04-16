@@ -80,6 +80,7 @@ abstract class BaseOltHelper implements OltInterface
 
         snmp_set_quick_print(true);
         snmp_set_valueretrieval(SNMP_VALUE_PLAIN);
+        snmp_set_oid_output_format(SNMP_OID_OUTPUT_NUMERIC);
         
         $result = @snmpget(
             $this->olt->ip_address,
@@ -112,6 +113,7 @@ abstract class BaseOltHelper implements OltInterface
 
         snmp_set_quick_print(true);
         snmp_set_valueretrieval(SNMP_VALUE_PLAIN);
+        snmp_set_oid_output_format(SNMP_OID_OUTPUT_NUMERIC);
         
         $result = @snmpwalkoid(
             $this->olt->ip_address,
