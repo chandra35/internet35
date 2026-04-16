@@ -731,6 +731,11 @@ $(function() {
                     $('#input_pon_ports').val(res.total_pon_ports);
                     $('#input_uplink_ports').val(res.total_uplink_ports);
 
+                    // Auto-fill SNMP community if detected from CLI
+                    if (res.snmp_community) {
+                        $('#snmp_community').val(res.snmp_community);
+                    }
+
                     // Show result
                     $('#result_brand').text(res.brand_label || res.brand?.toUpperCase() || '-');
                     $('#result_model').text(res.model || '-');
@@ -746,6 +751,19 @@ $(function() {
                         $('#row_firmware').show();
                     }
 
+                    // Show SNMP community info if detected
+                    if (res.snmp_community) {
+                        var snmpInfo = '<i class="fas fa-check-circle text-success mr-1"></i>SNMP Community: <strong>' + res.snmp_community + '</strong> (RO)';
+                        if (res.snmp_community_rw) {
+                            snmpInfo += ' | <strong>' + res.snmp_community_rw + '</strong> (RW)';
+                        }
+                        if (!$('#snmp-detected-info').length) {
+                            $('#result_description').after('<div id="snmp-detected-info" class="mt-2 small">' + snmpInfo + '</div>');
+                        } else {
+                            $('#snmp-detected-info').html(snmpInfo);
+                        }
+                    }
+
                     // Show boards table
                     if (res.boards && res.boards.length > 0) {
                         var tbody = $('#table-boards tbody');
@@ -753,12 +771,16 @@ $(function() {
                         res.boards.forEach(function(board) {
                             var statusBadge = board.oper_state == 'online' 
                                 ? '<span class="badge badge-success">Online</span>' 
-                                : '<span class="badge badge-danger">Offline</span>';
+                                : (board.oper_state == 'standby' ? '<span class="badge badge-warning">Standby</span>' : '<span class="badge badge-danger">Offline</span>');
+                            var boardLabel = board.board_type;
+                            if (board.cfg_type && board.cfg_type !== board.board_type) {
+                                boardLabel = board.board_type + ' <small class="text-muted">(' + board.cfg_type + ')</small>';
+                            }
                             tbody.append(`
                                 <tr>
                                     <td>${board.shelf}</td>
                                     <td>${board.slot}</td>
-                                    <td><strong>${board.board_type}</strong><br><small class="text-muted">${board.type_category}</small></td>
+                                    <td>${boardLabel}<br><small class="text-muted">${board.type_category}</small></td>
                                     <td>${board.pon_ports || '-'}</td>
                                     <td>${board.uplink_ports || '-'}</td>
                                     <td>${statusBadge}</td>

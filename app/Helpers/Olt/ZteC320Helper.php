@@ -106,13 +106,18 @@ class ZteC320Helper extends BaseOltHelper
     protected static array $boardTypeMap = [
         'GTGO' => ['type' => 'PON', 'pon_ports' => 8, 'uplink_ports' => 0],
         'GTGH' => ['type' => 'PON', 'pon_ports' => 16, 'uplink_ports' => 0],
+        'GTGHK' => ['type' => 'PON', 'pon_ports' => 16, 'uplink_ports' => 0],
+        'GTGOK' => ['type' => 'PON', 'pon_ports' => 8, 'uplink_ports' => 0],
         'ETGO' => ['type' => 'PON', 'pon_ports' => 8, 'uplink_ports' => 0],
         'ETGH' => ['type' => 'PON', 'pon_ports' => 16, 'uplink_ports' => 0],
+        'ETGHK' => ['type' => 'PON', 'pon_ports' => 16, 'uplink_ports' => 0],
+        'ETGOK' => ['type' => 'PON', 'pon_ports' => 8, 'uplink_ports' => 0],
         'HUTQ' => ['type' => 'Uplink', 'pon_ports' => 0, 'uplink_ports' => 4],
         'SCXN' => ['type' => 'Control', 'pon_ports' => 0, 'uplink_ports' => 2],
         'SCXL' => ['type' => 'Control', 'pon_ports' => 0, 'uplink_ports' => 2],
         'SMXA' => ['type' => 'Control', 'pon_ports' => 0, 'uplink_ports' => 2],
         'PRAM' => ['type' => 'Power', 'pon_ports' => 0, 'uplink_ports' => 0],
+        'PRWG' => ['type' => 'Power', 'pon_ports' => 0, 'uplink_ports' => 0],
     ];
 
     /**
@@ -149,8 +154,11 @@ class ZteC320Helper extends BaseOltHelper
                     $result['boards'] = $cliResult['boards'];
                     $result['total_pon_ports'] = $cliResult['total_pon_ports'];
                     $result['total_uplink_ports'] = $cliResult['total_uplink_ports'];
-                    $result['model'] = $cliResult['model'] ?? 'ZTE OLT';
+                    $result['model'] = $cliResult['model'] ?? 'ZTE C320';
+                    $result['firmware'] = $cliResult['firmware'] ?? null;
                     $result['description'] = $cliResult['description'] ?? 'Connected via ' . ($useTelnet ? 'Telnet' : 'SSH');
+                    $result['snmp_community'] = $cliResult['snmp_community'] ?? null;
+                    $result['snmp_community_rw'] = $cliResult['snmp_community_rw'] ?? null;
                     $result['message'] = 'OLT berhasil diidentifikasi via ' . ($useTelnet ? 'Telnet' : 'SSH');
                     return $result;
                 } else {
@@ -312,7 +320,10 @@ class ZteC320Helper extends BaseOltHelper
             'total_pon_ports' => 0,
             'total_uplink_ports' => 0,
             'model' => null,
+            'firmware' => null,
             'description' => null,
+            'snmp_community' => null,
+            'snmp_community_rw' => null,
             'message' => '',
         ];
 
@@ -330,132 +341,211 @@ class ZteC320Helper extends BaseOltHelper
             }
 
             if ($useSsh) {
-                // Use SSH
                 $result = self::identifyViaSsh($ipAddress, $port, $username, $password);
                 return $result;
             }
 
-            // Use Telnet (with 10 second connection timeout)
-            $connectTimeout = 10;
-            $streamTimeout = 10;
-            
-            $fp = @fsockopen($ipAddress, $port, $errno, $errstr, $connectTimeout);
+            // Use Telnet
+            $fp = @fsockopen($ipAddress, $port, $errno, $errstr, 10);
             if (!$fp) {
                 $result['message'] = "Tidak dapat terhubung ke Telnet port $port: $errstr ($errno)";
                 return $result;
             }
 
-            stream_set_timeout($fp, $streamTimeout);
+            stream_set_timeout($fp, 15);
 
-            // Login sequence
-            usleep(500000);
-            fread($fp, 4096); // Clear buffer
+            // Helper to read until pattern
+            $readUntil = function($patterns, $timeout = 15) use ($fp) {
+                $buf = '';
+                $start = time();
+                $patterns = (array) $patterns;
+                while (time() - $start < $timeout) {
+                    $meta = stream_get_meta_data($fp);
+                    if ($meta['timed_out']) break;
+                    $c = @fgetc($fp);
+                    if ($c === false) { usleep(50000); continue; }
+                    $buf .= $c;
+                    foreach ($patterns as $p) {
+                        if (stripos($buf, $p) !== false) return $buf;
+                    }
+                }
+                return $buf;
+            };
+
+            // Login sequence — wait for actual prompts
+            $readUntil(['Username:', 'login:']);
             fwrite($fp, "$username\r\n");
-            usleep(500000);
-            fread($fp, 4096);
+            $readUntil(['Password:']);
             fwrite($fp, "$password\r\n");
-            usleep(1000000);
-            $loginResponse = fread($fp, 4096);
+            sleep(1);
+            $loginResp = $readUntil(['#', '>']);
 
-            // Check if login failed
-            if (stripos($loginResponse, 'invalid') !== false || stripos($loginResponse, 'fail') !== false || stripos($loginResponse, 'denied') !== false) {
+            if (stripos($loginResp, 'invalid') !== false || stripos($loginResp, 'fail') !== false || stripos($loginResp, 'denied') !== false) {
                 fclose($fp);
                 $result['message'] = 'Login gagal. Periksa username dan password.';
                 return $result;
             }
 
-            // Try to get version info
-            fwrite($fp, "show version\r\n");
-            usleep(2000000);
-            $versionOutput = fread($fp, 4096);
-            
-            // Parse version for model
-            if (preg_match('/ZXA10\s*(\w+)/i', $versionOutput, $modelMatch)) {
-                $result['model'] = strtoupper($modelMatch[1]);
-            } elseif (preg_match('/C\d{3}/i', $versionOutput, $modelMatch)) {
-                $result['model'] = strtoupper($modelMatch[0]);
-            }
-            $result['description'] = trim(preg_replace('/\s+/', ' ', substr($versionOutput, 0, 200)));
+            // Disable paging
+            fwrite($fp, "terminal length 0\r\n");
+            sleep(1);
+            $readUntil(['#', '>']);
 
-            // Send command to show rack/card info
+            // 1) Get model from sysDescr or hostname
+            fwrite($fp, "show hostname\r\n");
+            sleep(1);
+            $hostnameOut = $readUntil(['#', '>']);
+
+            // Try to detect model from banner/hostname
+            $model = null;
+            $firmware = null;
+            if (preg_match('/ZXAN|ZXA10|C320|C300|C220/i', $loginResp . $hostnameOut, $m)) {
+                $model = strtoupper($m[0]);
+                if ($model === 'ZXAN') $model = 'C320';
+            }
+
+            // Try show system-group for firmware
+            fwrite($fp, "show system-group\r\n");
+            sleep(2);
+            $sysOut = $readUntil(['#', '>']);
+            if (preg_match('/sysDescr[:\s]+(.+)/i', $sysOut, $m)) {
+                $result['description'] = trim($m[1]);
+                if (preg_match('/C(\d{3})/i', $m[1], $mm)) {
+                    $model = 'C' . $mm[1];
+                }
+                if (preg_match('/V[\d.]+\s+Software/i', $m[1], $mm)) {
+                    $firmware = trim($mm[0]);
+                }
+            }
+            if (preg_match('/sysName[:\s]+(\S+)/i', $sysOut, $m)) {
+                $result['description'] = ($result['description'] ? $result['description'] . ' | ' : '') . 'Name: ' . trim($m[1]);
+            }
+
+            // 2) Show card — get board info
             fwrite($fp, "show card\r\n");
-            usleep(2000000);
-            
-            $output = '';
-            $readAttempts = 0;
-            while (!feof($fp) && $readAttempts < 10) {
-                $line = fread($fp, 4096);
-                if ($line === false || empty($line)) {
-                    $readAttempts++;
-                    usleep(500000);
-                    continue;
-                }
-                $output .= $line;
-                if (strpos($line, '#') !== false || strpos($line, '>') !== false) {
-                    break;
-                }
-                $readAttempts++;
-            }
-            fclose($fp);
+            sleep(2);
+            $cardOut = $readUntil(['#', '>']);
 
-            // Parse show card output
-            // Example: "1 1 GTGO 8 online" or "Shelf  Slot  CardName  Config  Oper  Software"
             $totalPon = 0;
             $totalUp = 0;
             $boards = [];
 
-            // Try multiple parsing patterns
-            $patterns = [
-                '/(\d+)\s+(\d+)\s+(\w+)\s+\w+\s+(online|offline|inservice)/i', // ZTE C320/C300
-                '/(\d+)\s+(\d+)\s+(\w+)\s+.*?(online|offline)/i', // Generic
-                '/Slot\s*(\d+).*?(\w+GTGO|\w+GTGH|\w+ETGO|\w+ETGH|\w+HUTQ|\w+SCXN).*?(online|offline)/i', // Alternative
-            ];
+            // Parse: Rack Shelf Slot CfgType RealType Port HardVer SoftVer Status
+            // Example: 1    1     1    GTGH    GTGHK    16    V1.0.0  V2.1.0   INSERVICE
+            $lines = explode("\n", $cardOut);
+            foreach ($lines as $line) {
+                $line = trim($line);
+                // Skip header/separator
+                if (empty($line) || strpos($line, '---') !== false || stripos($line, 'Rack') !== false || strpos($line, '#') !== false) continue;
 
-            foreach ($patterns as $pattern) {
-                if (preg_match_all($pattern, $output, $matches, PREG_SET_ORDER)) {
-                    foreach ($matches as $match) {
-                        $shelf = isset($match[1]) ? (int)$match[1] : 1;
-                        $slot = isset($match[2]) ? (int)$match[2] : (int)$match[1];
-                        $boardType = strtoupper($match[3] ?? $match[2]);
-                        $status = strtolower($match[4] ?? $match[3] ?? 'unknown');
-                        
-                        // Normalize status
-                        if ($status === 'inservice') $status = 'online';
+                // Match: Rack Shelf Slot CfgType [RealType] Port [HardVer] [SoftVer] Status
+                if (preg_match('/^(\d+)\s+(\d+)\s+(\d+)\s+(\w+)\s+(\w*)\s+(\d+)\s+.*?(INSERVICE|ONLINE|OFFLINE|STANDBY)/i', $line, $m)) {
+                    $shelf = (int) $m[2];
+                    $slot = (int) $m[3];
+                    $cfgType = strtoupper($m[4]);
+                    $realType = strtoupper($m[5]) ?: $cfgType;
+                    $portCount = (int) $m[6];
+                    $status = strtolower($m[7]);
+                    if ($status === 'inservice') $status = 'online';
+                } elseif (preg_match('/^(\d+)\s+(\d+)\s+(\d+)\s+(\w+)\s+(\d+)\s+.*?(INSERVICE|ONLINE|OFFLINE|STANDBY)/i', $line, $m)) {
+                    // Without RealType: Rack Shelf Slot CfgType Port ... Status
+                    $shelf = (int) $m[2];
+                    $slot = (int) $m[3];
+                    $cfgType = strtoupper($m[4]);
+                    $realType = $cfgType;
+                    $portCount = (int) $m[5];
+                    $status = strtolower($m[6]);
+                    if ($status === 'inservice') $status = 'online';
+                } elseif (preg_match('/^(\d+)\s+(\d+)\s+(\d+)\s+(\w+)\s+(\d*)\s*(OFFLINE|STANDBY)/i', $line, $m)) {
+                    // Offline card (may have empty columns)
+                    $shelf = (int) $m[2];
+                    $slot = (int) $m[3];
+                    $cfgType = strtoupper($m[4]);
+                    $realType = $cfgType;
+                    $portCount = !empty($m[5]) ? (int) $m[5] : 0;
+                    $status = 'offline';
+                } else {
+                    continue;
+                }
 
-                        $ponPorts = self::$boardTypeMap[$boardType]['pon_ports'] ?? 0;
-                        $upPorts = self::$boardTypeMap[$boardType]['uplink_ports'] ?? 0;
+                // Determine type from boardTypeMap or port count
+                $typeInfo = self::$boardTypeMap[$cfgType] ?? self::$boardTypeMap[$realType] ?? null;
+                $typeCategory = $typeInfo['type'] ?? 'Unknown';
 
-                        $boards[] = [
-                            'shelf' => $shelf,
-                            'slot' => $slot,
-                            'board_type' => $boardType,
-                            'type_category' => self::$boardTypeMap[$boardType]['type'] ?? 'Unknown',
-                            'pon_ports' => $ponPorts,
-                            'uplink_ports' => $upPorts,
-                            'oper_state' => $status,
-                        ];
+                $ponPorts = 0;
+                $upPorts = 0;
 
-                        $totalPon += $ponPorts;
-                        $totalUp += $upPorts;
+                if ($typeCategory === 'PON') {
+                    $ponPorts = $portCount ?: ($typeInfo['pon_ports'] ?? 0);
+                } elseif ($typeCategory === 'Uplink') {
+                    $upPorts = $portCount ?: ($typeInfo['uplink_ports'] ?? 0);
+                } elseif ($typeCategory === 'Control') {
+                    // Control boards (SMXA, SCXN) have uplink ports
+                    $upPorts = $portCount ?: ($typeInfo['uplink_ports'] ?? 0);
+                }
+
+                // Get firmware from SoftVer column if we don't have it yet
+                if (!$firmware && preg_match('/V[\d.]+/', $line, $fwMatch)) {
+                    $firmware = $fwMatch[0];
+                }
+
+                $boards[] = [
+                    'shelf' => $shelf,
+                    'slot' => $slot,
+                    'board_type' => $realType ?: $cfgType,
+                    'cfg_type' => $cfgType,
+                    'type_category' => $typeCategory,
+                    'pon_ports' => $ponPorts,
+                    'uplink_ports' => $upPorts,
+                    'port_count' => $portCount,
+                    'oper_state' => $status,
+                ];
+
+                $totalPon += $ponPorts;
+                $totalUp += $upPorts;
+            }
+
+            // 3) Read SNMP config
+            fwrite($fp, "show running-config | include snmp-server community\r\n");
+            sleep(2);
+            $snmpOut = $readUntil(['#', '>']);
+
+            $snmpRo = null;
+            $snmpRw = null;
+            // Parse: snmp-server community <name> view <view> ro|rw
+            if (preg_match_all('/snmp-server\s+community\s+(\S+)\s+.*?\s+(ro|rw)\b/i', $snmpOut, $snmpMatches, PREG_SET_ORDER)) {
+                foreach ($snmpMatches as $sm) {
+                    if (strtolower($sm[2]) === 'ro' && !$snmpRo) {
+                        $snmpRo = $sm[1];
+                    } elseif (strtolower($sm[2]) === 'rw' && !$snmpRw) {
+                        $snmpRw = $sm[1];
                     }
-                    if (!empty($boards)) break; // Found valid data
                 }
             }
 
-            // Default values if detection failed but connection succeeded
+            fclose($fp);
+
+            // If no boards detected but login succeeded
             if (empty($boards)) {
                 $result['success'] = true;
-                $result['model'] = $result['model'] ?? 'ZTE OLT';
-                $result['total_pon_ports'] = 16; // Default
+                $result['model'] = $model ?? 'ZTE C320';
+                $result['firmware'] = $firmware;
+                $result['total_pon_ports'] = 16;
                 $result['total_uplink_ports'] = 4;
-                $result['message'] = 'Koneksi berhasil, tapi tidak dapat mendeteksi board. Menggunakan nilai default.';
+                $result['snmp_community'] = $snmpRo;
+                $result['snmp_community_rw'] = $snmpRw;
+                $result['message'] = 'Koneksi berhasil, board tidak terdeteksi. Menggunakan nilai default.';
                 return $result;
             }
 
             $result['success'] = true;
+            $result['model'] = $model ?? 'ZTE C320';
+            $result['firmware'] = $firmware;
             $result['boards'] = $boards;
             $result['total_pon_ports'] = $totalPon;
             $result['total_uplink_ports'] = $totalUp;
+            $result['snmp_community'] = $snmpRo;
+            $result['snmp_community_rw'] = $snmpRw;
             $result['message'] = 'Berhasil diidentifikasi via Telnet';
 
         } catch (\Exception $e) {
