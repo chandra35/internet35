@@ -100,6 +100,11 @@ fi
 "${PHP_BIN}" artisan view:cache
 "${PHP_BIN}" artisan storage:link 2>/dev/null || true
 
+# Fix ownership for web server
+WEB_USER="${WEB_USER:-www}"
+chown -R "${WEB_USER}:${WEB_USER}" "${APP_DIR}/storage" "${APP_DIR}/bootstrap/cache" 2>/dev/null || true
+chmod -R 775 "${APP_DIR}/storage" "${APP_DIR}/bootstrap/cache" 2>/dev/null || true
+
 echo "[6/6] Public path check..."
 if [ "${PUBLIC_DIR}" = "${APP_DIR}/public" ]; then
     echo "    Public root sudah langsung mengarah ke ${APP_DIR}/public."
