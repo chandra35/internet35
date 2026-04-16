@@ -1603,8 +1603,6 @@ class ZteC320Helper extends BaseOltHelper
         return [
             'in_octets' => $inOctets,
             'out_octets' => $outOctets,
-            'in_packets' => $inPackets,
-            'out_packets' => $outPackets,
             'in_rate_bps' => $inRate,
             'out_rate_bps' => $outRate,
             'in_rate_formatted' => $inRate !== null ? $this->formatBitsPerSecond($inRate) : '-',
@@ -1753,41 +1751,46 @@ class ZteC320Helper extends BaseOltHelper
             $ponPorts = $this->getPonPorts();
             $result['pon_ports_synced'] = count($ponPorts);
 
-            // Sync all ONUs
+            // Bulk-walk all ONUs (fast: single SNMP walk per OID column)
             $allOnus = $this->getAllOnus();
+
+            // Bulk-walk traffic counters for all ONUs
+            $bulkInOctets = $this->snmpWalk($this->zteOids['zxAnGponOnuPerfInOctets']);
+            $bulkOutOctets = $this->snmpWalk($this->zteOids['zxAnGponOnuPerfOutOctets']);
 
             foreach ($allOnus as $onuData) {
                 try {
-                    // Get full ONU info including optical
-                    $fullInfo = $this->getOnuInfo(
-                        $onuData['slot'],
-                        $onuData['port'],
-                        $onuData['onu_id']
-                    );
+                    $index = $this->buildOnuIndex($onuData['slot'], $onuData['port'], $onuData['onu_id']);
 
-                    // Get traffic stats
-                    $traffic = $this->getOnuTraffic(
-                        $onuData['slot'],
-                        $onuData['port'],
-                        $onuData['onu_id']
-                    );
+                    // Extract vendor from serial (first 4 chars)
+                    $vendor = !empty($onuData['serial_number']) && strlen($onuData['serial_number']) >= 4
+                        ? substr($onuData['serial_number'], 0, 4) : null;
 
-                    // Save to database
-                    $onu = $this->saveOnuToDatabase(array_merge($fullInfo, $traffic, [
+                    // Merge bulk traffic data
+                    $inOctets = (int) ($bulkInOctets[$this->zteOids['zxAnGponOnuPerfInOctets'] . ".{$index}"] ?? 0);
+                    $outOctets = (int) ($bulkOutOctets[$this->zteOids['zxAnGponOnuPerfOutOctets'] . ".{$index}"] ?? 0);
+
+                    // Save to database using bulk-walked data (no per-ONU SNMP/CLI)
+                    $onu = $this->saveOnuToDatabase([
                         'olt_id' => $this->olt->id,
+                        'slot' => $onuData['slot'],
+                        'port' => $onuData['port'],
+                        'onu_id' => $onuData['onu_id'],
+                        'serial_number' => $onuData['serial_number'],
+                        'status' => $onuData['status'] ?? 'unknown',
+                        'name' => $onuData['name'] ?? null,
+                        'onu_type' => $onuData['onu_type'] ?? null,
+                        'vendor' => $vendor,
+                        'distance' => $onuData['distance'] ?? null,
+                        'in_octets' => $inOctets,
+                        'out_octets' => $outOctets,
                         'config_status' => 'registered',
-                    ]));
+                    ]);
 
-                    // Save signal history
+                    // Save signal history (optical info fetched on-demand, not during bulk sync)
                     $this->saveSignalHistory($onu, [
-                        'rx_power' => $fullInfo['rx_power'] ?? null,
-                        'tx_power' => $fullInfo['tx_power'] ?? null,
-                        'olt_rx_power' => $fullInfo['olt_rx_power'] ?? null,
-                        'temperature' => $fullInfo['temperature'] ?? null,
-                        'voltage' => $fullInfo['voltage'] ?? null,
-                        'bias_current' => $fullInfo['bias_current'] ?? null,
-                        'status' => $fullInfo['status'] ?? null,
-                        'distance' => $fullInfo['distance'] ?? null,
+                        'status' => $onuData['status'] ?? null,
+                        'distance' => $onuData['distance'] ?? null,
                     ]);
 
                     $result['onus_synced']++;
