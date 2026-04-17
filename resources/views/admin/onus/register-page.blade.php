@@ -203,34 +203,33 @@
 
                         <!-- Right column: Profile settings -->
                         <div class="col-lg-6">
-                            <!-- ZTE Profile Selection (shown for ZTE OLTs) -->
+                            <!-- ZTE Settings (shown for ZTE OLTs) -->
                             <div id="zte-settings" style="display:none;">
-                                <div class="row">
-                                    <div class="col-6">
-                                        <div class="form-group">
-                                            <label>Line Profile</label>
-                                            <select name="line_profile" id="reg_line_profile" class="form-control">
-                                                <option value="">-- Default --</option>
-                                            </select>
-                                            <small class="form-text text-muted">Pilih profile, setting lain otomatis terisi.</small>
+                                <div class="callout callout-info py-2 mb-3">
+                                    <h6 class="mb-1"><i class="fas fa-info-circle mr-1"></i>ZTE C320 — Registrasi Sederhana</h6>
+                                    <p class="mb-0" style="font-size:13px;">
+                                        Cukup isi <strong>Nama ONU</strong> lalu klik Register.
+                                        VLAN & service bisa dikonfigurasi nanti di halaman ONU.
+                                    </p>
+                                </div>
+
+                                <div class="form-group">
+                                    <label>VLAN ID <span class="badge badge-secondary badge-sm">Opsional</span></label>
+                                    <div class="input-group">
+                                        <div class="input-group-prepend">
+                                            <span class="input-group-text"><i class="fas fa-network-wired"></i></span>
                                         </div>
+                                        <input type="number" name="vlan_id" class="form-control" min="1" max="4094" placeholder="Kosongkan jika belum perlu">
                                     </div>
-                                    <div class="col-6">
-                                        <div class="form-group">
-                                            <label>Service Profile <span class="badge badge-secondary badge-sm">Opsional</span></label>
-                                            <select name="service_profile" id="reg_service_profile" class="form-control">
-                                                <option value="">-- Opsional --</option>
-                                            </select>
-                                        </div>
-                                    </div>
+                                    <small class="form-text text-muted">Isi jika ingin langsung set VLAN saat register. Bisa diisi nanti.</small>
                                 </div>
 
                                 <!-- Advanced: collapsed by default -->
                                 <div class="card card-outline card-secondary mb-0 collapsed-card" id="zte-advanced-card">
                                     <div class="card-header py-2" data-card-widget="collapse" style="cursor:pointer;">
                                         <h5 class="card-title mb-0" style="font-size:13px;">
-                                            <i class="fas fa-cog mr-1"></i>Advanced Settings
-                                            <small class="text-muted ml-1">— otomatis dari profile, klik untuk override manual</small>
+                                            <i class="fas fa-cog mr-1"></i>Advanced
+                                            <small class="text-muted ml-1">— biasanya tidak perlu diubah</small>
                                         </h5>
                                         <div class="card-tools">
                                             <button type="button" class="btn btn-tool"><i class="fas fa-plus"></i></button>
@@ -240,41 +239,43 @@
                                         <div class="row">
                                             <div class="col-6">
                                                 <div class="form-group mb-2">
-                                                    <label class="small mb-1">VLAN ID</label>
-                                                    <input type="number" name="vlan_id" class="form-control form-control-sm" min="1" max="4094" placeholder="Auto">
+                                                    <label class="small mb-1">Line Profile</label>
+                                                    <input type="text" name="line_profile" id="reg_line_profile" class="form-control form-control-sm" value="default" placeholder="default">
+                                                    <small class="form-text text-muted">Bandwidth profile (tcont)</small>
                                                 </div>
                                             </div>
                                             <div class="col-6">
                                                 <div class="form-group mb-2">
-                                                    <label class="small mb-1">GEM Port</label>
-                                                    <input type="number" name="gem_port" class="form-control form-control-sm" min="1" placeholder="Auto">
+                                                    <label class="small mb-1">Service Port Mode</label>
+                                                    <select name="service_port_mode" class="form-control form-control-sm">
+                                                        <option value="tag" selected>Tag</option>
+                                                        <option value="translate">Translate</option>
+                                                        <option value="transparent">Transparent</option>
+                                                    </select>
                                                 </div>
                                             </div>
                                         </div>
                                         <div class="row">
-                                            <div class="col-6">
+                                            <div class="col-4">
+                                                <div class="form-group mb-2">
+                                                    <label class="small mb-1">GEM Port</label>
+                                                    <input type="number" name="gem_port" class="form-control form-control-sm" min="1" value="1">
+                                                </div>
+                                            </div>
+                                            <div class="col-4">
                                                 <div class="form-group mb-2">
                                                     <label class="small mb-1">T-CONT ID</label>
-                                                    <input type="number" name="tcont_id" class="form-control form-control-sm" min="1" placeholder="Auto">
+                                                    <input type="number" name="tcont_id" class="form-control form-control-sm" min="1" value="1">
                                                 </div>
                                             </div>
-                                            <div class="col-6">
+                                            <div class="col-4">
                                                 <div class="form-group mb-2">
                                                     <label class="small mb-1">Service ID</label>
-                                                    <input type="number" name="service_id" class="form-control form-control-sm" min="1" placeholder="Auto">
+                                                    <input type="number" name="service_id" class="form-control form-control-sm" min="1" value="1">
                                                 </div>
                                             </div>
                                         </div>
-                                        <div class="form-group mb-0">
-                                            <label class="small mb-1">Service Port Mode</label>
-                                            <select name="service_port_mode" class="form-control form-control-sm">
-                                                <option value="">Auto</option>
-                                                <option value="tag">Tag</option>
-                                                <option value="translate">Translate</option>
-                                                <option value="transparent">Transparent</option>
-                                            </select>
-                                        </div>
-                                        <small class="text-muted d-block mt-1"><i class="fas fa-info-circle mr-1"></i>Kosongkan = otomatis dari profile yang dipilih.</small>
+                                        <small class="text-muted"><i class="fas fa-info-circle mr-1"></i>Default sudah terisi, ubah hanya jika perlu.</small>
                                     </div>
                                 </div>
                             </div>
@@ -286,18 +287,6 @@
                                     <select name="profile_id" id="reg_profile_id" class="form-control">
                                         <option value="">-- Opsional --</option>
                                     </select>
-                                </div>
-                            </div>
-
-                            <!-- Helpful summary (shown for ZTE) -->
-                            <div id="zte-summary" style="display:none;" class="mt-3">
-                                <div class="callout callout-info py-2 mb-0">
-                                    <h6 class="mb-1"><i class="fas fa-lightbulb mr-1"></i>Tips Registrasi</h6>
-                                    <ul class="mb-0 pl-3" style="font-size:13px;">
-                                        <li>Cukup isi <strong>Nama ONU</strong> + pilih <strong>Line Profile</strong></li>
-                                        <li>VLAN, GEM port, dll. otomatis dari profile</li>
-                                        <li>Zone, ODP, Pelanggan bisa diisi nanti</li>
-                                    </ul>
                                 </div>
                             </div>
                         </div>
@@ -474,23 +463,9 @@ $(function() {
         // Show/hide OLT-specific settings
         if (currentOltBrand === 'zte') {
             $('#zte-settings').show();
-            $('#zte-summary').show();
             $('#generic-profile-settings').hide();
-
-            // Populate ZTE profiles
-            var lineHtml = '<option value="">-- Default --</option>';
-            var svcHtml = '<option value="">-- Opsional --</option>';
-            oltProfiles.forEach(function(p) {
-                if (p.type === 'line') {
-                    lineHtml += '<option value="' + p.name + '">' + p.name + '</option>';
-                } else if (p.type === 'service') {
-                    svcHtml += '<option value="' + p.name + '">' + p.name + '</option>';
-                }
-            });
-            $('#reg_line_profile').html(lineHtml);
-            $('#reg_service_profile').html(svcHtml);
         } else if (oltProfiles.length > 0) {
-            $('#zte-settings, #zte-summary').hide();
+            $('#zte-settings').hide();
             $('#generic-profile-settings').show();
 
             var profHtml = '<option value="">-- Opsional --</option>';
@@ -499,7 +474,7 @@ $(function() {
             });
             $('#reg_profile_id').html(profHtml);
         } else {
-            $('#zte-settings, #generic-profile-settings, #zte-summary').hide();
+            $('#zte-settings, #generic-profile-settings').hide();
         }
 
         // Init Select2 for customer
@@ -556,19 +531,6 @@ $(function() {
         }).fail(function() {
             odp.html('<option value="">Gagal memuat ODP</option>');
         });
-    });
-
-    // ZTE Line Profile change → auto-fill config
-    $('#reg_line_profile').change(function() {
-        var name = $(this).val();
-        if (name && zteProfileConfigs[name]) {
-            var cfg = zteProfileConfigs[name];
-            if (cfg.vlan_id) $('input[name="vlan_id"]').val(cfg.vlan_id);
-            if (cfg.gem_port) $('input[name="gem_port"]').val(cfg.gem_port);
-            if (cfg.tcont_id) $('input[name="tcont_id"]').val(cfg.tcont_id);
-            if (cfg.service_id) $('input[name="service_id"]').val(cfg.service_id);
-            if (cfg.service_port_mode) $('select[name="service_port_mode"]').val(cfg.service_port_mode);
-        }
     });
 
     // Cancel register
