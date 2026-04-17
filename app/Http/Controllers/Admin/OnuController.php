@@ -241,7 +241,8 @@ class OnuController extends Controller implements HasMiddleware
             'odp_id' => 'nullable|exists:odps,id',
             'odp_port' => 'nullable|integer|min:1',
             'vlan' => 'nullable|integer|min:1|max:4094',
-            'vlan_id' => 'nullable|integer|min:1|max:4094',
+            'vlan_id' => 'required|integer|min:1|max:4094',
+            'mgmt_vlan' => 'nullable|integer|min:1|max:4094',
             'gem_port' => 'nullable|integer|min:1',
             'tcont_id' => 'nullable|integer|min:1',
             'service_id' => 'nullable|integer|min:1',
@@ -278,6 +279,11 @@ class OnuController extends Controller implements HasMiddleware
                 'service_profile' => $serviceProfile,
             ];
             
+            // Pass management VLAN for TR069 DHCP
+            if ($request->filled('mgmt_vlan')) {
+                $params['mgmt_vlan'] = (int) $request->mgmt_vlan;
+            }
+
             $resolvedConfig = [
                 'vlan' => $request->filled('vlan') ? (int) $request->vlan : null,
                 'vlan_id' => $request->filled('vlan_id') ? (int) $request->vlan_id : null,
@@ -332,6 +338,7 @@ class OnuController extends Controller implements HasMiddleware
                         'service_port_mode' => $resolvedConfig['service_port_mode'] ?? null,
                     ]),
                     'description' => $request->description,
+                    'mgmt_ip' => $request->filled('mgmt_vlan') ? 'dhcp:vlan:' . $request->mgmt_vlan : null,
                     'config_status' => 'registered',
                     'status' => 'unknown',
                     'created_by' => auth()->id(),

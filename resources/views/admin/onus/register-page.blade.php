@@ -206,22 +206,33 @@
                             <!-- ZTE Settings (shown for ZTE OLTs) -->
                             <div id="zte-settings" style="display:none;">
                                 <div class="callout callout-info py-2 mb-3">
-                                    <h6 class="mb-1"><i class="fas fa-info-circle mr-1"></i>ZTE C320 — Registrasi Sederhana</h6>
+                                    <h6 class="mb-1"><i class="fas fa-info-circle mr-1"></i>ZTE C320 — Full Provisioning</h6>
                                     <p class="mb-0" style="font-size:13px;">
-                                        Cukup isi <strong>Nama ONU</strong> lalu klik Register.
-                                        VLAN & service bisa dikonfigurasi nanti di halaman ONU.
+                                        Seperti SmartOLT: isi <strong>Nama ONU</strong>, <strong>Service VLAN</strong>, dan <strong>Management VLAN</strong>.
+                                        ONU langsung aktif dan dapat IP untuk TR069.
                                     </p>
                                 </div>
 
                                 <div class="form-group">
-                                    <label>VLAN ID <span class="badge badge-secondary badge-sm">Opsional</span></label>
+                                    <label>Service VLAN <span class="text-danger">*</span></label>
                                     <div class="input-group">
                                         <div class="input-group-prepend">
                                             <span class="input-group-text"><i class="fas fa-network-wired"></i></span>
                                         </div>
-                                        <input type="number" name="vlan_id" class="form-control" min="1" max="4094" placeholder="Kosongkan jika belum perlu">
+                                        <input type="number" name="vlan_id" id="reg_vlan_id" class="form-control" min="1" max="4094" required placeholder="Contoh: 100">
                                     </div>
-                                    <small class="form-text text-muted">Isi jika ingin langsung set VLAN saat register. Bisa diisi nanti.</small>
+                                    <small class="form-text text-muted">VLAN untuk traffic internet pelanggan. <strong>Wajib diisi.</strong></small>
+                                </div>
+
+                                <div class="form-group">
+                                    <label>Management VLAN (TR069) <span class="text-danger">*</span></label>
+                                    <div class="input-group">
+                                        <div class="input-group-prepend">
+                                            <span class="input-group-text"><i class="fas fa-broadcast-tower"></i></span>
+                                        </div>
+                                        <input type="number" name="mgmt_vlan" id="reg_mgmt_vlan" class="form-control" min="1" max="4094" required placeholder="Contoh: 110">
+                                    </div>
+                                    <small class="form-text text-muted">VLAN manajemen agar ONU dapat DHCP IP untuk TR069/GenieACS.</small>
                                 </div>
 
                                 <!-- Advanced: collapsed by default -->

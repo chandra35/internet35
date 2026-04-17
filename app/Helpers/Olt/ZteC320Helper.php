@@ -1556,12 +1556,24 @@ class ZteC320Helper extends BaseOltHelper
 
             $commands[] = "exit";
 
-            // Add service config if VLAN specified
-            if (isset($params['vlan'])) {
-                $vlan = $params['vlan'];
+            // Add service + management config (SmartOLT-style full provisioning)
+            $vlan = $params['vlan'] ?? null;
+            $mgmtVlan = $params['mgmt_vlan'] ?? null;
+
+            if ($vlan || $mgmtVlan) {
                 $commands[] = "pon-onu-mng gpon_onu-{$slot}/{$port}:{$onuId}";
-                $commands[] = "service {$serviceId} gemport {$gemPort} vlan {$vlan}";
-                $commands[] = "vlan port eth_0/1 mode {$serviceMode} vlan {$vlan}";
+
+                // Service VLAN — internet traffic
+                if ($vlan) {
+                    $commands[] = "service {$serviceId} gemport {$gemPort} vlan {$vlan}";
+                    $commands[] = "vlan port eth_0/1 mode {$serviceMode} vlan {$vlan}";
+                }
+
+                // Management VLAN — TR069/DHCP so ONU gets IP immediately
+                if ($mgmtVlan) {
+                    $commands[] = "mvlan {$mgmtVlan}";
+                }
+
                 $commands[] = "exit";
             }
 
