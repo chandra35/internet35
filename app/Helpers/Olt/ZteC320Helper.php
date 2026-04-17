@@ -1582,32 +1582,81 @@ class ZteC320Helper extends BaseOltHelper
             if ($vlan || $mgmtVlan) {
                 $commands[] = "pon-onu-mng gpon-onu_1/{$slot}/{$port}:{$onuId}";
 
-                // Service VLAN — internet traffic
+                // SmartOLT-style flow-based VLAN configuration
+                // (matches running-config pattern of existing working ONUs)
+
+                if ($mgmtVlan) {
+                    $commands[] = "flow 2 switch switch_0/1";
+                }
+
+                // Flow modes — tag-filter for all active flows
+                $commands[] = "flow mode 1 tag-filter vlan-filter untag-filter discard";
+                if ($mgmtVlan) {
+                    $commands[] = "flow mode 2 tag-filter vlan-filter untag-filter discard";
+                }
+
+                // Flow VLAN assignments
                 if ($vlan) {
-                    $commands[] = "service internet gemport {$gemPort} vlan {$vlan}";
-                    $commands[] = "vlan port eth_0/1 mode {$serviceMode} vlan {$vlan}";
+                    $commands[] = "flow 1 pri 0 vlan {$vlan}";
                 }
-
-                // Management VLAN — multicast/management
                 if ($mgmtVlan) {
-                    $commands[] = "mvlan {$mgmtVlan}";
+                    $commands[] = "flow 2 pri 2 vlan {$mgmtVlan}";
                 }
 
-                // WAN 1: PPPoE internet (optional — if username provided)
+                // Bind gemports to flows
+                $commands[] = "gemport 1 flow 1";
+                if ($mgmtVlan) {
+                    $commands[] = "gemport 2 flow 2";
+                }
+
+                // Switchport bindings
+                $commands[] = "switchport-bind switch_0/1 iphost 1";
+                if ($mgmtVlan) {
+                    $commands[] = "switchport-bind switch_0/1 iphost 2";
+                    $commands[] = "switchport-bind switch_0/1 veip 1";
+                }
+
+                // Management IP host — DHCP for TR069
+                if ($mgmtVlan) {
+                    $commands[] = "ip-host 2 dhcp-enable enable ping-response enable traceroute-response enable";
+                }
+
+                // PPPoE internet (optional)
                 if ($pppoeUser && $vlan) {
-                    $commands[] = "wan-ip 1 mode pppoe username {$pppoeUser} password {$pppoePwd}";
-                    $commands[] = "wan 1 service internet";
+                    $commands[] = "pppoe 1 nat enable user {$pppoeUser} password {$pppoePwd}";
                 }
 
-                // WAN 2: DHCP management for TR069
+                // VLAN filter modes
+                $commands[] = "vlan-filter-mode iphost 1 tag-filter vlan-filter untag-filter discard";
                 if ($mgmtVlan) {
-                    $commands[] = "ip-host 1 dhcp-enable enable";
-                    $commands[] = "wan 2 service tr069";
+                    $commands[] = "vlan-filter-mode iphost 2 tag-filter vlan-filter untag-filter discard";
                 }
 
-                // ACS TR069 config via OMCI
-                $commands[] = "tr069-mgmt 1 acs {$acsUrl}";
-                $commands[] = "tr069-mgmt 1 state unlock";
+                // VLAN filters
+                if ($vlan) {
+                    $commands[] = "vlan-filter iphost 1 pri 0 vlan {$vlan}";
+                }
+                if ($mgmtVlan) {
+                    $commands[] = "vlan-filter iphost 2 pri 2 vlan {$mgmtVlan}";
+                }
+
+                // DHCP on all ETH UNI ports
+                $commands[] = "dhcp-ip ethuni eth_0/1 from-onu";
+                $commands[] = "dhcp-ip ethuni eth_0/2 from-onu";
+                $commands[] = "dhcp-ip ethuni eth_0/3 from-onu";
+                $commands[] = "dhcp-ip ethuni eth_0/4 from-onu";
+
+                // TR069/ACS via VEIP
+                if ($mgmtVlan) {
+                    $commands[] = "veip 1 port udp 1232 host 2";
+                    $commands[] = "tr069-mgmt 1 state unlock";
+                    $commands[] = "tr069-mgmt 1 acs {$acsUrl}";
+                    $commands[] = "tr069-mgmt 1 tag pri 2 vlan {$mgmtVlan}";
+                }
+
+                // Security — allow web + management access
+                $commands[] = "security-mgmt 998 state enable mode forward ingress-type lan protocol web https";
+                $commands[] = "security-mgmt 999 state enable ingress-type lan protocol ftp telnet ssh snmp tr069";
 
                 $commands[] = "exit";
             }
