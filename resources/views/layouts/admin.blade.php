@@ -339,9 +339,17 @@
                             @endcan
                             @can('onus.view')
                             <li class="nav-item">
-                                <a href="{{ route('admin.onus.index') }}" class="nav-link {{ request()->routeIs('admin.onus.*') ? 'active' : '' }}">
+                                <a href="{{ route('admin.onus.index') }}" class="nav-link {{ request()->routeIs('admin.onus.index') || request()->routeIs('admin.onus.show') ? 'active' : '' }}">
                                     <i class="far fa-circle nav-icon"></i>
                                     <p>ONU</p>
+                                </a>
+                            </li>
+                            @endcan
+                            @can('onus.create')
+                            <li class="nav-item">
+                                <a href="{{ route('admin.onus.register-page') }}" class="nav-link {{ request()->routeIs('admin.onus.register-page') ? 'active' : '' }}">
+                                    <i class="fas fa-plus-circle nav-icon text-success"></i>
+                                    <p>Register ONU</p>
                                 </a>
                             </li>
                             @endcan
