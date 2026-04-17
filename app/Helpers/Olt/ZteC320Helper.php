@@ -1450,7 +1450,7 @@ class ZteC320Helper extends BaseOltHelper
         try {
             // Prefer CLI - more reliable for unconfigured ONU detection
             if ($this->supportsTelnet() || $this->supportsSsh()) {
-                $output = $this->executeCommand('show gpon onu uncfg');
+                $output = $this->executeBatchCliCommands(['show gpon onu uncfg']);
                 $unregistered = $this->parseUnconfiguredOnuOutput($output);
             }
 
