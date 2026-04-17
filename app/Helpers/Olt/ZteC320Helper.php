@@ -769,7 +769,7 @@ class ZteC320Helper extends BaseOltHelper
                     $result[] = [
                         'slot' => $slot,
                         'port' => $port,
-                        'name' => "gpon_olt-{$slot}/{$port}",
+                        'name' => "gpon-olt_{$slot}/{$port}",
                         'tx_power' => $txPower,
                         'rx_power' => $rxPower,
                         'temperature' => $temp,
@@ -820,13 +820,13 @@ class ZteC320Helper extends BaseOltHelper
             $ports = array_map(fn($p) => [
                 'slot' => $p['slot'],
                 'port' => $p['port'],
-                'name' => $p['name'] ?? "gpon_olt-{$p['slot']}/{$p['port']}",
+                'name' => $p['name'] ?? "gpon-olt_{$p['slot']}/{$p['port']}",
             ], $discovered);
         } else {
             $ports = $ponPorts->map(fn($p) => [
                 'slot' => $p->slot,
                 'port' => $p->port,
-                'name' => $p->name ?? "gpon_olt-{$p->slot}/{$p->port}",
+                'name' => $p->name ?? "gpon-olt_{$p->slot}/{$p->port}",
             ])->toArray();
         }
 
@@ -862,7 +862,7 @@ class ZteC320Helper extends BaseOltHelper
             $port = $portInfo['port'];
 
             // ZTE command to show PON transceiver info
-            $cmd = "show gpon olt optical-transceiver-diagnosis gpon_olt-{$slot}/{$port}";
+            $cmd = "show gpon olt optical-transceiver-diagnosis gpon-olt_{$slot}/{$port}";
             fwrite($fp, $cmd . "\r\n");
             sleep(1);
 
@@ -1536,63 +1536,74 @@ class ZteC320Helper extends BaseOltHelper
             // Determine ONU ID (auto-assign if not provided)
             $onuId = $params['onu_id'] ?? $this->getNextAvailableOnuId($slot, $port);
 
-            // Build CLI commands
+            // Build CLI commands — ZTE C320 V2.1.0 syntax
+            // Interface format: gpon-olt_ and gpon-onu_ (with hyphen before olt/onu)
             $commands = [
                 "configure terminal",
-                "interface gpon_olt-{$slot}/{$port}",
+                "interface gpon-olt_{$slot}/{$port}",
                 "onu {$onuId} type auto sn {$serialNumber}",
                 "exit",
             ];
 
-            // Add name/description
-            $commands[] = "interface gpon_onu-{$slot}/{$port}:{$onuId}";
+            // Configure ONU interface (tcont, gemport, service-port)
+            $vlan = $params['vlan'] ?? null;
+            $mgmtVlan = $params['mgmt_vlan'] ?? null;
+
+            $commands[] = "interface gpon-onu_{$slot}/{$port}:{$onuId}";
             $commands[] = "name {$name}";
 
-            // Apply line profile/tcont even when VLAN isn't set so provisioning is closer to ZTE workflow.
-            if (!empty($lineProfile) || isset($params['vlan'])) {
-                $commands[] = "tcont {$tcontId} profile {$lineProfile}";
-                $commands[] = "gemport {$gemPort} name gem{$gemPort} tcont {$tcontId}";
+            // T-CONT 1: Internet traffic (use SMARTOLT-1G-UP profile)
+            $commands[] = "tcont {$tcontId} profile {$lineProfile}";
+            $commands[] = "gemport {$gemPort} tcont {$tcontId}";
+
+            // Service-port for internet VLAN
+            if ($vlan) {
+                $commands[] = "service-port 1 vport 1 user-vlan {$vlan} vlan {$vlan}";
+            }
+
+            // T-CONT 2 + gemport 2 for management VLAN (TR069)
+            if ($mgmtVlan) {
+                $commands[] = "tcont 2 profile SMARTOLT-VOIPMNG-10M";
+                $commands[] = "gemport 2 tcont 2";
+                $commands[] = "service-port 2 vport 2 user-vlan {$mgmtVlan} vlan {$mgmtVlan}";
             }
 
             $commands[] = "exit";
 
-            // Add service + management + WAN + ACS config (SmartOLT-style full provisioning)
-            $vlan = $params['vlan'] ?? null;
-            $mgmtVlan = $params['mgmt_vlan'] ?? null;
+            // pon-onu-mng context: service, vlan, WAN, ACS config
             $pppoeUser = $params['pppoe_username'] ?? null;
             $pppoePwd = $params['pppoe_password'] ?? '';
             $acsUrl = $params['acs_url'] ?? config('services.genieacs.cwmp_url', 'http://172.10.10.254:7547');
-            $acsUser = $params['acs_username'] ?? 'kosong';
-            $acsPwd = $params['acs_password'] ?? 'kosong';
 
             if ($vlan || $mgmtVlan) {
-                $commands[] = "pon-onu-mng gpon_onu-{$slot}/{$port}:{$onuId}";
+                $commands[] = "pon-onu-mng gpon-onu_{$slot}/{$port}:{$onuId}";
 
                 // Service VLAN — internet traffic
                 if ($vlan) {
-                    $commands[] = "service {$serviceId} gemport {$gemPort} vlan {$vlan}";
+                    $commands[] = "service internet gemport {$gemPort} vlan {$vlan}";
                     $commands[] = "vlan port eth_0/1 mode {$serviceMode} vlan {$vlan}";
                 }
 
-                // Management VLAN — TR069/DHCP so ONU gets IP immediately
+                // Management VLAN — multicast/management
                 if ($mgmtVlan) {
                     $commands[] = "mvlan {$mgmtVlan}";
                 }
 
                 // WAN 1: PPPoE internet (optional — if username provided)
                 if ($pppoeUser && $vlan) {
-                    $commands[] = "wan-ip 1 mode pppoe username {$pppoeUser} password {$pppoePwd} vlan-profile vlan{$vlan} host 1";
+                    $commands[] = "wan-ip 1 mode pppoe username {$pppoeUser} password {$pppoePwd}";
+                    $commands[] = "wan 1 service internet";
                 }
 
                 // WAN 2: DHCP management for TR069
                 if ($mgmtVlan) {
-                    $commands[] = "wan-ip 2 mode dhcp vlan-profile vlan{$mgmtVlan} host 1";
+                    $commands[] = "ip-host 1 dhcp-enable enable";
+                    $commands[] = "wan 2 service tr069";
                 }
 
-                // ACS TR069 config
-                $commands[] = "tr069-serv-url {$acsUrl}";
-                $commands[] = "tr069-serv-username {$acsUser}";
-                $commands[] = "tr069-serv-password {$acsPwd}";
+                // ACS TR069 config via OMCI
+                $commands[] = "tr069-mgmt 1 acs {$acsUrl}";
+                $commands[] = "tr069-mgmt 1 state unlock";
 
                 $commands[] = "exit";
             }
@@ -1737,7 +1748,7 @@ class ZteC320Helper extends BaseOltHelper
         try {
             $commands = [
                 "configure terminal",
-                "interface gpon_olt-{$slot}/{$port}",
+                "interface gpon-olt_{$slot}/{$port}",
                 "no onu {$onuId}",
                 "exit",
                 "exit",
@@ -1774,7 +1785,7 @@ class ZteC320Helper extends BaseOltHelper
         try {
             $commands = [
                 "configure terminal",
-                "pon-onu-mng gpon_onu-{$slot}/{$port}:{$onuId}",
+                "pon-onu-mng gpon-onu_{$slot}/{$port}:{$onuId}",
                 "reboot",
                 "y",
                 "exit",
@@ -1900,7 +1911,7 @@ class ZteC320Helper extends BaseOltHelper
 
             $commands = [
                 "configure terminal",
-                "interface gpon_onu-{$slot}/{$port}:{$onuId}",
+                "interface gpon-onu_{$slot}/{$port}:{$onuId}",
             ];
 
             // Configure tcont and gemport if not exists
@@ -1911,7 +1922,7 @@ class ZteC320Helper extends BaseOltHelper
             $commands[] = "exit";
 
             // Configure service
-            $commands[] = "pon-onu-mng gpon_onu-{$slot}/{$port}:{$onuId}";
+            $commands[] = "pon-onu-mng gpon-onu_{$slot}/{$port}:{$onuId}";
             $commands[] = "service {$serviceId} gemport {$gemPort} vlan {$vlan}";
             $commands[] = "vlan port eth_0/1 mode {$mode} vlan {$vlan}";
 
@@ -2250,8 +2261,8 @@ class ZteC320Helper extends BaseOltHelper
                 continue;
             }
 
-            // Format 2: gpon_olt-1/1  1  ZTEG12345678
-            if (preg_match('/gpon_olt-(\d+)\/(\d+)\s+\d+\s+(\w+)/', $line, $matches)) {
+            // Format 2: gpon-olt_1/1  1  ZTEG12345678 (also matches legacy gpon_olt-)
+            if (preg_match('/gpon[-_]olt[-_](\d+)\/(\d+)\s+\d+\s+(\w+)/', $line, $matches)) {
                 $onus[] = [
                     'slot' => (int) $matches[1],
                     'port' => (int) $matches[2],
@@ -2395,7 +2406,7 @@ class ZteC320Helper extends BaseOltHelper
         try {
             $commands = [
                 "configure terminal",
-                "pon-onu-mng gpon_onu-{$slot}/{$port}:{$onuId}",
+                "pon-onu-mng gpon-onu_{$slot}/{$port}:{$onuId}",
             ];
 
             if (isset($config['vlan'])) {
@@ -2428,7 +2439,7 @@ class ZteC320Helper extends BaseOltHelper
     public function getOnuRunningConfig(int $slot, int $port, int $onuId): string
     {
         return $this->executeBatchCliCommands([
-            "show running-config interface gpon_onu-{$slot}/{$port}:{$onuId}",
+            "show running-config interface gpon-onu_{$slot}/{$port}:{$onuId}",
         ]);
     }
 
@@ -2445,7 +2456,7 @@ class ZteC320Helper extends BaseOltHelper
         try {
             $commands = [
                 "configure terminal",
-                "pon-onu-mng gpon_onu-{$slot}/{$port}:{$onuId}",
+                "pon-onu-mng gpon-onu_{$slot}/{$port}:{$onuId}",
                 "restore factory",
                 "y",
                 "exit",
