@@ -1613,7 +1613,7 @@ class ZteC320Helper extends BaseOltHelper
             }
 
             $commands[] = "exit";
-            $commands[] = "write memory";
+            $commands[] = "write";
 
             // Execute commands via batch CLI (uses telnetReadUntilPrompt to avoid hanging)
             $output = $this->executeBatchCliCommands($commands);
@@ -1762,7 +1762,7 @@ class ZteC320Helper extends BaseOltHelper
                 "no onu {$onuId}",
                 "exit",
                 "exit",
-                "write memory",
+                "write",
             ];
 
             $output = $this->executeBatchCliCommands($commands);
@@ -1943,7 +1943,7 @@ class ZteC320Helper extends BaseOltHelper
 
             $commands[] = "exit";
             $commands[] = "exit";
-            $commands[] = "write memory";
+            $commands[] = "write";
 
             $output = $this->executeBatchCliCommands($commands);
 
@@ -2445,7 +2445,7 @@ class ZteC320Helper extends BaseOltHelper
 
             $commands[] = "exit";
             $commands[] = "exit";
-            $commands[] = "write memory";
+            $commands[] = "write";
 
             $output = $this->executeBatchCliCommands($commands);
 
