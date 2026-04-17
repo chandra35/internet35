@@ -363,9 +363,12 @@ Route::prefix('admin')->middleware(['auth', 'role:superadmin|admin|admin-pop|tek
     // ONU (Optical Network Unit) Management
     Route::prefix('onus')->name('onus.')->group(function () {
         Route::get('/', [\App\Http\Controllers\Admin\OnuController::class, 'index'])->name('index');
+        Route::get('/register', [\App\Http\Controllers\Admin\OnuController::class, 'registerPage'])->name('register-page');
+        Route::get('/register/scan/{olt}', [\App\Http\Controllers\Admin\OnuController::class, 'scanUnregistered'])->name('scan-unregistered');
+        Route::get('/register/olt-data/{olt}', [\App\Http\Controllers\Admin\OnuController::class, 'getOltRegisterData'])->name('olt-register-data');
+        Route::post('/register', [\App\Http\Controllers\Admin\OnuController::class, 'register'])->name('register');
         Route::get('/{onu}', [\App\Http\Controllers\Admin\OnuController::class, 'show'])->name('show');
         Route::get('/{onu}/signal-history', [\App\Http\Controllers\Admin\OnuController::class, 'signalHistory'])->name('signal-history');
-        Route::post('/register', [\App\Http\Controllers\Admin\OnuController::class, 'register'])->name('register');
         Route::post('/bulk-sync', [\App\Http\Controllers\Admin\OnuController::class, 'bulkSync'])->name('bulk-sync');
         Route::post('/{onu}/unregister', [\App\Http\Controllers\Admin\OnuController::class, 'unregister'])->name('unregister');
         Route::post('/{onu}/reboot', [\App\Http\Controllers\Admin\OnuController::class, 'reboot'])->name('reboot');

@@ -24,7 +24,7 @@ class OnuController extends Controller implements HasMiddleware
     {
         return [
             new Middleware('permission:onus.view', only: ['index', 'show']),
-            new Middleware('permission:onus.create', only: ['create', 'store', 'register']),
+            new Middleware('permission:onus.create', only: ['create', 'store', 'register', 'registerPage', 'scanUnregistered', 'getOltRegisterData']),
             new Middleware('permission:onus.edit', only: ['edit', 'update', 'assignCustomer']),
             new Middleware('permission:onus.delete', only: ['destroy', 'unregister']),
         ];
@@ -158,6 +158,69 @@ class OnuController extends Controller implements HasMiddleware
             ->get();
         
         return view('admin.onus.register', compact('olt', 'unregisteredOnus', 'odps', 'customers'));
+    }
+
+    /**
+     * Standalone register ONU page - select OLT first
+     */
+    public function registerPage()
+    {
+        $user = auth()->user();
+
+        if ($user->hasRole('superadmin')) {
+            $olts = Olt::where('status', 'active')->orderBy('name')->get();
+        } else {
+            $olts = Olt::where('pop_id', $user->id)->where('status', 'active')->orderBy('name')->get();
+        }
+
+        return view('admin.onus.register-page', compact('olts'));
+    }
+
+    /**
+     * Scan unregistered ONUs on specific OLT (AJAX)
+     */
+    public function scanUnregistered(Olt $olt)
+    {
+        try {
+            $helper = OltFactory::make($olt);
+            $unregisteredOnus = $helper->getUnregisteredOnus();
+
+            return response()->json([
+                'success' => true,
+                'data' => $unregisteredOnus,
+                'count' => count($unregisteredOnus),
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal scan ONU: ' . $e->getMessage(),
+                'data' => [],
+            ], 500);
+        }
+    }
+
+    /**
+     * Get OLT-specific data for register form (zones, profiles) via AJAX
+     */
+    public function getOltRegisterData(Olt $olt)
+    {
+        $zones = \App\Models\Zone::where('olt_id', $olt->id)->orderBy('name')
+            ->get(['id', 'name']);
+
+        $profiles = OltProfile::where('olt_id', $olt->id)->orderBy('name')
+            ->get(['id', 'name', 'type', 'config']);
+
+        return response()->json([
+            'success' => true,
+            'olt' => [
+                'id' => $olt->id,
+                'name' => $olt->name,
+                'brand' => $olt->brand,
+                'model' => $olt->model,
+            ],
+            'zones' => $zones,
+            'profiles' => $profiles,
+        ]);
     }
 
     /**
