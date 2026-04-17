@@ -13,13 +13,13 @@
 @section('content')
 <div class="row">
     <!-- Step 1: Pilih OLT -->
-    <div class="col-lg-4">
+    <div class="col-lg-4 col-md-5">
         <div class="card card-primary card-outline">
             <div class="card-header">
                 <h3 class="card-title"><i class="fas fa-server mr-2"></i>Step 1: Pilih OLT</h3>
             </div>
             <div class="card-body">
-                <div class="form-group">
+                <div class="form-group mb-2">
                     <label>OLT <span class="text-danger">*</span></label>
                     <select id="select-olt" class="form-control">
                         <option value="">-- Pilih OLT --</option>
@@ -47,7 +47,7 @@
     </div>
 
     <!-- Step 2: Hasil Scan -->
-    <div class="col-lg-8">
+    <div class="col-lg-8 col-md-7">
         <div class="card card-warning card-outline">
             <div class="card-header">
                 <h3 class="card-title"><i class="fas fa-broadcast-tower mr-2"></i>Step 2: ONU Belum Terdaftar</h3>
@@ -56,18 +56,25 @@
                 </div>
             </div>
             <div class="card-body p-0">
-                <div id="scan-placeholder" class="text-center py-4 text-muted">
-                    <i class="fas fa-satellite-dish fa-3x mb-3 d-block"></i>
-                    Pilih OLT lalu klik <strong>Scan ONU Baru</strong>
+                <div id="scan-placeholder" class="text-center py-5 text-muted">
+                    <i class="fas fa-satellite-dish fa-3x mb-3 d-block text-secondary"></i>
+                    <p class="mb-1">Pilih OLT lalu klik <strong>Scan ONU Baru</strong></p>
+                    <small>Sistem akan mencari ONU yang belum terdaftar pada OLT</small>
                 </div>
-                <div id="scan-loading" style="display:none;" class="text-center py-4">
-                    <i class="fas fa-spinner fa-spin fa-2x mb-2 d-block"></i>
-                    Scanning ONU via SNMP/Telnet...<br>
-                    <small class="text-muted">Proses ini bisa memakan waktu 10-30 detik</small>
+                <div id="scan-loading" style="display:none;" class="text-center py-5">
+                    <div class="spinner-border text-warning mb-3" role="status" style="width:3rem;height:3rem;">
+                        <span class="sr-only">Loading...</span>
+                    </div>
+                    <p class="mb-1"><strong>Scanning ONU...</strong></p>
+                    <small class="text-muted">Menghubungi OLT via CLI/Telnet, tunggu 10-30 detik</small>
+                    <div class="progress mt-3 mx-auto" style="max-width:300px;height:4px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated bg-warning" style="width:100%"></div>
+                    </div>
                 </div>
-                <div id="scan-empty" style="display:none;" class="text-center py-4 text-muted">
+                <div id="scan-empty" style="display:none;" class="text-center py-5 text-muted">
                     <i class="fas fa-check-circle fa-3x text-success mb-3 d-block"></i>
-                    Tidak ada ONU baru yang ditemukan
+                    <p class="mb-1"><strong>Semua ONU sudah terdaftar</strong></p>
+                    <small>Tidak ada ONU baru yang menunggu registrasi</small>
                 </div>
                 <div class="table-responsive" id="scan-results" style="display:none;">
                     <table class="table table-sm table-striped table-hover mb-0">
@@ -75,8 +82,8 @@
                             <tr>
                                 <th>PON Port</th>
                                 <th>Serial Number</th>
-                                <th>ONU Type</th>
-                                <th width="120">Aksi</th>
+                                <th>Tipe ONU</th>
+                                <th class="text-center" width="120">Aksi</th>
                             </tr>
                         </thead>
                         <tbody id="scan-table-body"></tbody>
@@ -89,60 +96,88 @@
 
 <!-- Step 3: Register Form -->
 <div class="row" id="register-section" style="display:none;">
-    <div class="col-lg-12">
-        <div class="card card-success card-outline">
-            <div class="card-header">
-                <h3 class="card-title"><i class="fas fa-plus-circle mr-2"></i>Step 3: Register ONU</h3>
+    <div class="col-12">
+        <div class="card card-success card-outline elevation-2">
+            <div class="card-header bg-gradient-success">
+                <h3 class="card-title text-white"><i class="fas fa-plus-circle mr-2"></i>Step 3: Register ONU</h3>
                 <div class="card-tools">
-                    <button type="button" class="btn btn-tool" id="btn-cancel-register">
+                    <button type="button" class="btn btn-tool text-white" id="btn-cancel-register" title="Tutup">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
             </div>
             <form id="form-register">
-                <div class="card-body">
+                <div class="card-body pb-2">
                     <input type="hidden" name="olt_id" id="reg_olt_id">
                     <input type="hidden" name="slot" id="reg_slot">
                     <input type="hidden" name="port" id="reg_port">
                     <input type="hidden" name="pon_port" id="reg_pon_port">
                     <input type="hidden" name="serial_number" id="reg_serial_number">
 
-                    <!-- Info ONU -->
-                    <div class="alert alert-info">
-                        <div class="row">
-                            <div class="col-md-4">
-                                <strong><i class="fas fa-server mr-1"></i>OLT:</strong> <span id="reg_olt_display"></span>
+                    <!-- ONU Info Banner -->
+                    <div class="row mb-3">
+                        <div class="col-6 col-md-3 mb-2 mb-md-0">
+                            <div class="info-box bg-light mb-0 py-1 px-2 shadow-sm">
+                                <span class="info-box-icon bg-info elevation-1" style="width:40px;height:40px;line-height:40px;font-size:16px;border-radius:6px;"><i class="fas fa-server"></i></span>
+                                <div class="info-box-content py-1 pl-2">
+                                    <span class="info-box-text text-muted" style="font-size:10px;">OLT</span>
+                                    <span class="info-box-number" style="font-size:13px;" id="reg_olt_display">-</span>
+                                </div>
                             </div>
-                            <div class="col-md-3">
-                                <strong><i class="fas fa-plug mr-1"></i>PON Port:</strong> <span id="reg_pon_display"></span>
+                        </div>
+                        <div class="col-6 col-md-2 mb-2 mb-md-0">
+                            <div class="info-box bg-light mb-0 py-1 px-2 shadow-sm">
+                                <span class="info-box-icon bg-purple elevation-1" style="width:40px;height:40px;line-height:40px;font-size:16px;border-radius:6px;"><i class="fas fa-plug"></i></span>
+                                <div class="info-box-content py-1 pl-2">
+                                    <span class="info-box-text text-muted" style="font-size:10px;">PON Port</span>
+                                    <span class="info-box-number" style="font-size:13px;" id="reg_pon_display">-</span>
+                                </div>
                             </div>
-                            <div class="col-md-3">
-                                <strong><i class="fas fa-barcode mr-1"></i>S/N:</strong> <span id="reg_sn_display"></span>
+                        </div>
+                        <div class="col-6 col-md-4 mb-2 mb-md-0">
+                            <div class="info-box bg-light mb-0 py-1 px-2 shadow-sm">
+                                <span class="info-box-icon bg-warning elevation-1" style="width:40px;height:40px;line-height:40px;font-size:16px;border-radius:6px;"><i class="fas fa-barcode"></i></span>
+                                <div class="info-box-content py-1 pl-2">
+                                    <span class="info-box-text text-muted" style="font-size:10px;">Serial Number</span>
+                                    <span class="info-box-number" style="font-size:13px;font-family:monospace;" id="reg_sn_display">-</span>
+                                </div>
                             </div>
-                            <div class="col-md-2">
-                                <strong><i class="fas fa-microchip mr-1"></i>Type:</strong> <span id="reg_onu_type_display" class="text-primary font-weight-bold">-</span>
+                        </div>
+                        <div class="col-6 col-md-3 mb-2 mb-md-0">
+                            <div class="info-box bg-light mb-0 py-1 px-2 shadow-sm">
+                                <span class="info-box-icon bg-success elevation-1" style="width:40px;height:40px;line-height:40px;font-size:16px;border-radius:6px;"><i class="fas fa-microchip"></i></span>
+                                <div class="info-box-content py-1 pl-2">
+                                    <span class="info-box-text text-muted" style="font-size:10px;">Tipe ONU</span>
+                                    <span class="info-box-number text-primary" style="font-size:13px;" id="reg_onu_type_display">-</span>
+                                </div>
                             </div>
                         </div>
                     </div>
 
                     <div class="row">
                         <!-- Left column: Basic info -->
-                        <div class="col-md-6">
+                        <div class="col-lg-6">
                             <div class="form-group">
                                 <label>Nama ONU <span class="text-danger">*</span></label>
-                                <input type="text" name="name" class="form-control" required placeholder="Contoh: ONU-AHMAD">
+                                <div class="input-group">
+                                    <div class="input-group-prepend">
+                                        <span class="input-group-text"><i class="fas fa-tag"></i></span>
+                                    </div>
+                                    <input type="text" name="name" class="form-control" required placeholder="Contoh: ONU-AHMAD">
+                                </div>
+                                <small class="form-text text-muted">Wajib diisi. Nama untuk identifikasi ONU.</small>
                             </div>
 
                             <div class="row">
-                                <div class="col-md-6">
+                                <div class="col-6">
                                     <div class="form-group">
                                         <label>Zone</label>
                                         <select name="zone_id" id="reg_zone_id" class="form-control">
-                                            <option value="">-- Pilih Zone --</option>
+                                            <option value="">-- Opsional --</option>
                                         </select>
                                     </div>
                                 </div>
-                                <div class="col-md-6">
+                                <div class="col-6">
                                     <div class="form-group">
                                         <label>ODP</label>
                                         <select name="odp_id" id="reg_odp_id" class="form-control" disabled>
@@ -153,56 +188,66 @@
                             </div>
 
                             <div class="form-group">
-                                <label>Pelanggan (Opsional)</label>
+                                <label>Pelanggan <span class="badge badge-secondary badge-sm">Opsional</span></label>
                                 <select name="customer_id" id="reg_customer_id" class="form-control select2-customer" style="width:100%">
-                                    <option value="">-- Pilih Pelanggan --</option>
+                                    <option value="">-- Cari nama / ID pelanggan --</option>
                                 </select>
+                                <small class="form-text text-muted">Bisa diisi nanti dari halaman ONU.</small>
                             </div>
 
                             <div class="form-group">
-                                <label>Deskripsi</label>
-                                <textarea name="description" class="form-control" rows="2"></textarea>
+                                <label>Deskripsi <span class="badge badge-secondary badge-sm">Opsional</span></label>
+                                <textarea name="description" class="form-control" rows="2" placeholder="Catatan lokasi, keterangan, dll."></textarea>
                             </div>
                         </div>
 
-                        <!-- Right column: Profile / ZTE settings -->
-                        <div class="col-md-6">
-                            <!-- ZTE-specific settings (shown dynamically) -->
+                        <!-- Right column: Profile settings -->
+                        <div class="col-lg-6">
+                            <!-- ZTE Profile Selection (shown for ZTE OLTs) -->
                             <div id="zte-settings" style="display:none;">
-                                <div class="card card-outline card-info mb-0">
-                                    <div class="card-header py-2">
-                                        <h5 class="card-title mb-0"><i class="fas fa-cog mr-1"></i>ZTE Advanced Settings</h5>
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="row">
-                                            <div class="col-6">
-                                                <div class="form-group mb-2">
-                                                    <label class="small mb-1">Line Profile</label>
-                                                    <select name="line_profile" id="reg_line_profile" class="form-control form-control-sm">
-                                                        <option value="">-- Default --</option>
-                                                    </select>
-                                                </div>
-                                            </div>
-                                            <div class="col-6">
-                                                <div class="form-group mb-2">
-                                                    <label class="small mb-1">Service Profile</label>
-                                                    <select name="service_profile" id="reg_service_profile" class="form-control form-control-sm">
-                                                        <option value="">-- Opsional --</option>
-                                                    </select>
-                                                </div>
-                                            </div>
+                                <div class="row">
+                                    <div class="col-6">
+                                        <div class="form-group">
+                                            <label>Line Profile</label>
+                                            <select name="line_profile" id="reg_line_profile" class="form-control">
+                                                <option value="">-- Default --</option>
+                                            </select>
+                                            <small class="form-text text-muted">Pilih profile, setting lain otomatis terisi.</small>
                                         </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="form-group">
+                                            <label>Service Profile <span class="badge badge-secondary badge-sm">Opsional</span></label>
+                                            <select name="service_profile" id="reg_service_profile" class="form-control">
+                                                <option value="">-- Opsional --</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Advanced: collapsed by default -->
+                                <div class="card card-outline card-secondary mb-0 collapsed-card" id="zte-advanced-card">
+                                    <div class="card-header py-2" data-card-widget="collapse" style="cursor:pointer;">
+                                        <h5 class="card-title mb-0" style="font-size:13px;">
+                                            <i class="fas fa-cog mr-1"></i>Advanced Settings
+                                            <small class="text-muted ml-1">— otomatis dari profile, klik untuk override manual</small>
+                                        </h5>
+                                        <div class="card-tools">
+                                            <button type="button" class="btn btn-tool"><i class="fas fa-plus"></i></button>
+                                        </div>
+                                    </div>
+                                    <div class="card-body py-2" style="display:none;">
                                         <div class="row">
                                             <div class="col-6">
                                                 <div class="form-group mb-2">
                                                     <label class="small mb-1">VLAN ID</label>
-                                                    <input type="number" name="vlan_id" class="form-control form-control-sm" min="1" max="4094" placeholder="Dari profile">
+                                                    <input type="number" name="vlan_id" class="form-control form-control-sm" min="1" max="4094" placeholder="Auto">
                                                 </div>
                                             </div>
                                             <div class="col-6">
                                                 <div class="form-group mb-2">
                                                     <label class="small mb-1">GEM Port</label>
-                                                    <input type="number" name="gem_port" class="form-control form-control-sm" min="1" placeholder="Dari profile">
+                                                    <input type="number" name="gem_port" class="form-control form-control-sm" min="1" placeholder="Auto">
                                                 </div>
                                             </div>
                                         </div>
@@ -210,25 +255,26 @@
                                             <div class="col-6">
                                                 <div class="form-group mb-2">
                                                     <label class="small mb-1">T-CONT ID</label>
-                                                    <input type="number" name="tcont_id" class="form-control form-control-sm" min="1" placeholder="Dari profile">
+                                                    <input type="number" name="tcont_id" class="form-control form-control-sm" min="1" placeholder="Auto">
                                                 </div>
                                             </div>
                                             <div class="col-6">
                                                 <div class="form-group mb-2">
                                                     <label class="small mb-1">Service ID</label>
-                                                    <input type="number" name="service_id" class="form-control form-control-sm" min="1" placeholder="Dari profile">
+                                                    <input type="number" name="service_id" class="form-control form-control-sm" min="1" placeholder="Auto">
                                                 </div>
                                             </div>
                                         </div>
                                         <div class="form-group mb-0">
                                             <label class="small mb-1">Service Port Mode</label>
                                             <select name="service_port_mode" class="form-control form-control-sm">
-                                                <option value="">-- Default --</option>
+                                                <option value="">Auto</option>
                                                 <option value="tag">Tag</option>
                                                 <option value="translate">Translate</option>
                                                 <option value="transparent">Transparent</option>
                                             </select>
                                         </div>
+                                        <small class="text-muted d-block mt-1"><i class="fas fa-info-circle mr-1"></i>Kosongkan = otomatis dari profile yang dipilih.</small>
                                     </div>
                                 </div>
                             </div>
@@ -236,20 +282,32 @@
                             <!-- Generic profile (non-ZTE) -->
                             <div id="generic-profile-settings" style="display:none;">
                                 <div class="form-group">
-                                    <label>Profile OLT</label>
+                                    <label>Profile OLT <span class="badge badge-secondary badge-sm">Opsional</span></label>
                                     <select name="profile_id" id="reg_profile_id" class="form-control">
                                         <option value="">-- Opsional --</option>
                                     </select>
                                 </div>
                             </div>
+
+                            <!-- Helpful summary (shown for ZTE) -->
+                            <div id="zte-summary" style="display:none;" class="mt-3">
+                                <div class="callout callout-info py-2 mb-0">
+                                    <h6 class="mb-1"><i class="fas fa-lightbulb mr-1"></i>Tips Registrasi</h6>
+                                    <ul class="mb-0 pl-3" style="font-size:13px;">
+                                        <li>Cukup isi <strong>Nama ONU</strong> + pilih <strong>Line Profile</strong></li>
+                                        <li>VLAN, GEM port, dll. otomatis dari profile</li>
+                                        <li>Zone, ODP, Pelanggan bisa diisi nanti</li>
+                                    </ul>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
-                <div class="card-footer text-right">
-                    <button type="button" class="btn btn-secondary mr-2" id="btn-cancel-register-2">
-                        <i class="fas fa-times mr-1"></i>Batal
+                <div class="card-footer d-flex justify-content-between align-items-center">
+                    <button type="button" class="btn btn-default" id="btn-cancel-register-2">
+                        <i class="fas fa-arrow-left mr-1"></i>Kembali
                     </button>
-                    <button type="submit" class="btn btn-success btn-lg">
+                    <button type="submit" class="btn btn-success btn-lg px-4">
                         <i class="fas fa-plus-circle mr-1"></i>Register ONU
                     </button>
                 </div>
@@ -355,14 +413,18 @@ $(function() {
                     var pon = onu.pon_port || (onu.slot + '/' + onu.port);
                     var slot = onu.slot || '';
                     var port = onu.port || '';
+                    var typeBadge = 'badge-secondary';
+                    if (type.match(/HG8|EG8/)) typeBadge = 'badge-primary';
+                    else if (type.match(/F663|ZTE/)) typeBadge = 'badge-info';
+                    else if (type.match(/Nokia/)) typeBadge = 'badge-warning';
 
                     tbody += '<tr>' +
-                        '<td><span class="badge badge-info">' + pon + '</span></td>' +
-                        '<td><code>' + sn + '</code></td>' +
-                        '<td><span class="badge badge-light">' + type + '</span></td>' +
-                        '<td><button type="button" class="btn btn-sm btn-success btn-register-onu" ' +
+                        '<td><span class="badge badge-dark"><i class="fas fa-plug mr-1"></i>' + pon + '</span></td>' +
+                        '<td><code class="text-dark font-weight-bold">' + sn + '</code></td>' +
+                        '<td><span class="badge ' + typeBadge + '">' + type + '</span></td>' +
+                        '<td class="text-center"><button type="button" class="btn btn-sm btn-success btn-register-onu" ' +
                             'data-sn="' + sn + '" data-pon="' + pon + '" data-slot="' + slot + '" data-port="' + port + '">' +
-                            '<i class="fas fa-plus mr-1"></i>Register</button></td>' +
+                            '<i class="fas fa-plus mr-1"></i>Daftarkan</button></td>' +
                         '</tr>';
                 });
 
@@ -412,6 +474,7 @@ $(function() {
         // Show/hide OLT-specific settings
         if (currentOltBrand === 'zte') {
             $('#zte-settings').show();
+            $('#zte-summary').show();
             $('#generic-profile-settings').hide();
 
             // Populate ZTE profiles
@@ -427,7 +490,7 @@ $(function() {
             $('#reg_line_profile').html(lineHtml);
             $('#reg_service_profile').html(svcHtml);
         } else if (oltProfiles.length > 0) {
-            $('#zte-settings').hide();
+            $('#zte-settings, #zte-summary').hide();
             $('#generic-profile-settings').show();
 
             var profHtml = '<option value="">-- Opsional --</option>';
@@ -436,7 +499,7 @@ $(function() {
             });
             $('#reg_profile_id').html(profHtml);
         } else {
-            $('#zte-settings, #generic-profile-settings').hide();
+            $('#zte-settings, #generic-profile-settings, #zte-summary').hide();
         }
 
         // Init Select2 for customer
