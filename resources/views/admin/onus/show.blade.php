@@ -201,6 +201,139 @@
             </div>
         </div>
         @endif
+
+        <!-- Management VLAN/IP Config -->
+        <div class="card card-outline card-warning collapsed-card">
+            <div class="card-header">
+                <h3 class="card-title"><i class="fas fa-network-wired mr-2"></i>Management IP</h3>
+                <div class="card-tools">
+                    <span class="badge badge-{{ $onu->mgmt_ip ? 'success' : 'secondary' }} mr-2" id="mgmt-status-badge">
+                        {{ $onu->mgmt_ip ? 'Active' : 'Inactive' }}
+                    </span>
+                    <button type="button" class="btn btn-tool" data-card-widget="collapse"><i class="fas fa-plus"></i></button>
+                </div>
+            </div>
+            <div class="card-body" style="display:none;">
+                @if($onu->mgmt_ip)
+                <p class="mb-2"><strong>Current:</strong> <code>{{ $onu->mgmt_ip }}</code></p>
+                @endif
+                <form id="form-management">
+                    <div class="form-group">
+                        <label>Management VLAN ID</label>
+                        <input type="number" name="mgmt_vlan" class="form-control form-control-sm" min="1" max="4094" value="111" placeholder="e.g. 111">
+                    </div>
+                    <div class="form-group">
+                        <label>IP Mode</label>
+                        <select name="mgmt_ip_mode" class="form-control form-control-sm">
+                            <option value="dhcp">DHCP</option>
+                            <option value="static">Static IP</option>
+                            <option value="inactive">Inactive</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="mgmt-static-ip" style="display:none;">
+                        <label>Static IP</label>
+                        <input type="text" name="mgmt_ip" class="form-control form-control-sm" placeholder="172.16.x.x">
+                    </div>
+                    <button type="submit" class="btn btn-warning btn-sm btn-block">
+                        <i class="fas fa-save mr-1"></i>Update Management
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- WAN Setup -->
+        <div class="card card-outline card-success collapsed-card">
+            <div class="card-header">
+                <h3 class="card-title"><i class="fas fa-globe mr-2"></i>WAN Setup</h3>
+                <div class="card-tools">
+                    @php
+                        $wanVlan = $onu->vlan_config['vlan_id'] ?? null;
+                    @endphp
+                    <span class="badge badge-{{ $wanVlan ? 'info' : 'secondary' }} mr-2">
+                        {{ $wanVlan ? 'VLAN ' . $wanVlan : 'Not Set' }}
+                    </span>
+                    <button type="button" class="btn btn-tool" data-card-widget="collapse"><i class="fas fa-plus"></i></button>
+                </div>
+            </div>
+            <div class="card-body" style="display:none;">
+                <form id="form-wan-setup">
+                    <div class="form-group">
+                        <label>WAN VLAN-ID</label>
+                        <input type="number" name="wan_vlan" class="form-control form-control-sm" min="1" max="4094" value="{{ $wanVlan ?? '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>ONU Mode</label>
+                        <div>
+                            <div class="custom-control custom-radio custom-control-inline">
+                                <input type="radio" name="wan_mode" value="routing" class="custom-control-input" id="wan-mode-routing" checked>
+                                <label class="custom-control-label" for="wan-mode-routing">Routing</label>
+                            </div>
+                            <div class="custom-control custom-radio custom-control-inline">
+                                <input type="radio" name="wan_mode" value="bridging" class="custom-control-input" id="wan-mode-bridging">
+                                <label class="custom-control-label" for="wan-mode-bridging">Bridging</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>WAN Type</label>
+                        <select name="wan_type" id="wan-type-select" class="form-control form-control-sm">
+                            <option value="manual">Setup via ONU webpage</option>
+                            <option value="dhcp">DHCP</option>
+                            <option value="pppoe">PPPoE</option>
+                            <option value="static">Static IP</option>
+                        </select>
+                    </div>
+                    <div id="wan-pppoe-fields" style="display:none;">
+                        <div class="form-group">
+                            <label>PPPoE Username</label>
+                            <input type="text" name="pppoe_username" class="form-control form-control-sm" value="{{ $onu->pppoe_username }}" placeholder="username@isp">
+                        </div>
+                        <div class="form-group">
+                            <label>PPPoE Password</label>
+                            <input type="password" name="pppoe_password" class="form-control form-control-sm" placeholder="password">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-success btn-sm btn-block">
+                        <i class="fas fa-save mr-1"></i>Update WAN
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- TR069 Info -->
+        <div class="card card-outline card-primary">
+            <div class="card-header">
+                <h3 class="card-title"><i class="fas fa-satellite-dish mr-2"></i>TR069 / GenieACS</h3>
+                <div class="card-tools">
+                    <span class="badge badge-secondary mr-2" id="tr069-status-badge">Loading...</span>
+                    <button type="button" class="btn btn-tool btn-refresh-tr069" title="Refresh TR069"><i class="fas fa-sync"></i></button>
+                </div>
+            </div>
+            <div class="card-body p-0" id="tr069-content">
+                <div class="text-center py-3" id="tr069-loading">
+                    <i class="fas fa-spinner fa-spin"></i> Memuat info TR069...
+                </div>
+                <div id="tr069-info" style="display:none;">
+                    <table class="table table-sm table-striped mb-0" id="tr069-table"></table>
+                </div>
+                <div id="tr069-not-found" style="display:none;" class="text-center py-3 text-muted">
+                    <i class="fas fa-times-circle fa-2x mb-2 d-block"></i>
+                    ONU belum terdaftar di GenieACS
+                </div>
+                <div id="tr069-unavailable" style="display:none;" class="text-center py-3 text-muted">
+                    <i class="fas fa-server fa-2x mb-2 d-block"></i>
+                    GenieACS server tidak tersedia
+                </div>
+            </div>
+            <div class="card-footer" id="tr069-actions" style="display:none;">
+                <a href="#" id="tr069-ui-link" target="_blank" class="btn btn-sm btn-primary">
+                    <i class="fas fa-external-link-alt mr-1"></i>Buka di GenieACS
+                </a>
+                <button type="button" class="btn btn-sm btn-info btn-refresh-tr069-data">
+                    <i class="fas fa-sync mr-1"></i>Refresh Data
+                </button>
+            </div>
+        </div>
     </div>
 
     <!-- Signal Chart & Details -->
@@ -602,6 +735,186 @@ $(function() {
                 });
             }
         });
+    });
+
+    // ========== Management VLAN/IP ==========
+    $('select[name="mgmt_ip_mode"]').change(function() {
+        $('#mgmt-static-ip').toggle($(this).val() === 'static');
+    });
+
+    $('#form-management').submit(function(e) {
+        e.preventDefault();
+        var btn = $(this).find('button[type="submit"]');
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Processing...');
+
+        $.ajax({
+            url: '/admin/onus/{{ $onu->id }}/configure-management',
+            method: 'POST',
+            data: $(this).serialize() + '&_token={{ csrf_token() }}',
+            success: function(res) {
+                if (res.success) {
+                    Swal.fire('Berhasil', res.message || 'Management IP berhasil dikonfigurasi', 'success')
+                        .then(() => location.reload());
+                } else {
+                    Swal.fire('Gagal', res.message || 'Gagal konfigurasi', 'error');
+                }
+            },
+            error: function(xhr) {
+                var msg = xhr.responseJSON?.message || 'Gagal konfigurasi management';
+                if (xhr.responseJSON?.errors) {
+                    msg += '<br>' + Object.values(xhr.responseJSON.errors).flat().join('<br>');
+                }
+                Swal.fire('Error', msg, 'error');
+            },
+            complete: function() {
+                btn.prop('disabled', false).html('<i class="fas fa-save mr-1"></i>Update Management');
+            }
+        });
+    });
+
+    // ========== WAN Setup ==========
+    $('#wan-type-select').change(function() {
+        $('#wan-pppoe-fields').toggle($(this).val() === 'pppoe');
+    });
+
+    $('#form-wan-setup').submit(function(e) {
+        e.preventDefault();
+        var btn = $(this).find('button[type="submit"]');
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Processing...');
+
+        $.ajax({
+            url: '/admin/onus/{{ $onu->id }}/configure-wan',
+            method: 'POST',
+            data: $(this).serialize() + '&_token={{ csrf_token() }}',
+            success: function(res) {
+                if (res.success) {
+                    Swal.fire('Berhasil', res.message || 'WAN berhasil dikonfigurasi', 'success')
+                        .then(() => location.reload());
+                } else {
+                    Swal.fire('Gagal', res.message || 'Gagal konfigurasi WAN', 'error');
+                }
+            },
+            error: function(xhr) {
+                var msg = xhr.responseJSON?.message || 'Gagal konfigurasi WAN';
+                if (xhr.responseJSON?.errors) {
+                    msg += '<br>' + Object.values(xhr.responseJSON.errors).flat().join('<br>');
+                }
+                Swal.fire('Error', msg, 'error');
+            },
+            complete: function() {
+                btn.prop('disabled', false).html('<i class="fas fa-save mr-1"></i>Update WAN');
+            }
+        });
+    });
+
+    // ========== TR069 / GenieACS ==========
+    function loadTr069Info() {
+        $('#tr069-loading').show();
+        $('#tr069-info, #tr069-not-found, #tr069-unavailable, #tr069-actions').hide();
+        $('#tr069-status-badge').removeClass().addClass('badge badge-secondary mr-2').text('Loading...');
+
+        $.get('/admin/onus/{{ $onu->id }}/tr069-info')
+            .done(function(res) {
+                $('#tr069-loading').hide();
+
+                if (!res.success && !res.available) {
+                    $('#tr069-unavailable').show();
+                    $('#tr069-status-badge').removeClass().addClass('badge badge-danger mr-2').text('Unavailable');
+                    return;
+                }
+
+                if (!res.found) {
+                    $('#tr069-not-found').show();
+                    $('#tr069-status-badge').removeClass().addClass('badge badge-warning mr-2').text('Not Found');
+                    return;
+                }
+
+                // Show device info
+                var dev = res.device || {};
+                var rows = '';
+                if (dev.manufacturer) rows += '<tr><td width="40%"><strong>Manufacturer</strong></td><td>' + dev.manufacturer + '</td></tr>';
+                if (dev.model) rows += '<tr><td><strong>Model</strong></td><td>' + dev.model + '</td></tr>';
+                if (dev.serial_number) rows += '<tr><td><strong>Serial</strong></td><td><code>' + dev.serial_number + '</code></td></tr>';
+                if (dev.software_version) rows += '<tr><td><strong>Software</strong></td><td>' + dev.software_version + '</td></tr>';
+                if (dev.hardware_version) rows += '<tr><td><strong>Hardware</strong></td><td>' + dev.hardware_version + '</td></tr>';
+                if (dev.uptime) rows += '<tr><td><strong>Uptime</strong></td><td>' + formatUptime(dev.uptime) + '</td></tr>';
+
+                // WAN connections
+                if (res.wan_connections && res.wan_connections.length > 0) {
+                    res.wan_connections.forEach(function(wan, i) {
+                        var label = wan.connection_type || 'WAN ' + (i + 1);
+                        var status = wan.connection_status || '-';
+                        var statusBadge = status === 'Connected' ? 'success' : 'secondary';
+                        rows += '<tr><td><strong>' + label + '</strong></td><td><span class="badge badge-' + statusBadge + '">' + status + '</span>';
+                        if (wan.external_ip) rows += ' <code>' + wan.external_ip + '</code>';
+                        if (wan.username) rows += ' <small class="text-muted">(' + wan.username + ')</small>';
+                        rows += '</td></tr>';
+                    });
+                }
+
+                // LAN hosts
+                if (res.lan_hosts && res.lan_hosts.length > 0) {
+                    rows += '<tr><td><strong>LAN Hosts</strong></td><td>';
+                    res.lan_hosts.forEach(function(host) {
+                        rows += '<span class="badge badge-light mr-1 mb-1">' + (host.host_name || host.ip || host.mac || '-') + '</span>';
+                    });
+                    rows += '</td></tr>';
+                }
+
+                if (res.pending_tasks > 0) {
+                    rows += '<tr><td><strong>Pending Tasks</strong></td><td><span class="badge badge-warning">' + res.pending_tasks + '</span></td></tr>';
+                }
+
+                $('#tr069-table').html(rows);
+                $('#tr069-info').show();
+                $('#tr069-actions').show();
+                $('#tr069-status-badge').removeClass().addClass('badge badge-success mr-2').text('Connected');
+
+                if (res.genieacs_ui_url) {
+                    $('#tr069-ui-link').attr('href', res.genieacs_ui_url);
+                }
+            })
+            .fail(function() {
+                $('#tr069-loading').hide();
+                $('#tr069-unavailable').show();
+                $('#tr069-status-badge').removeClass().addClass('badge badge-danger mr-2').text('Error');
+            });
+    }
+
+    function formatUptime(seconds) {
+        if (!seconds) return '-';
+        var d = Math.floor(seconds / 86400);
+        var h = Math.floor((seconds % 86400) / 3600);
+        var m = Math.floor((seconds % 3600) / 60);
+        var parts = [];
+        if (d > 0) parts.push(d + 'd');
+        if (h > 0) parts.push(h + 'h');
+        if (m > 0) parts.push(m + 'm');
+        return parts.join(' ') || '< 1m';
+    }
+
+    // Load TR069 on page load
+    loadTr069Info();
+
+    // Refresh TR069 buttons
+    $('.btn-refresh-tr069, .btn-refresh-tr069-data').click(function() {
+        var btn = $(this);
+        btn.find('i').addClass('fa-spin');
+
+        $.post('/admin/onus/{{ $onu->id }}/tr069-refresh', { _token: '{{ csrf_token() }}' })
+            .done(function(res) {
+                if (res.success) {
+                    setTimeout(loadTr069Info, 2000);
+                } else {
+                    Swal.fire('Info', res.message || 'Tidak dapat refresh', 'info');
+                }
+            })
+            .fail(function() {
+                loadTr069Info();
+            })
+            .always(function() {
+                setTimeout(function() { btn.find('i').removeClass('fa-spin'); }, 1000);
+            });
     });
 });
 </script>

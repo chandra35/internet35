@@ -222,10 +222,13 @@ class OltController extends Controller implements HasMiddleware
             ->orderBy('name')
             ->get();
         
+        // Get zones for this OLT (for register form)
+        $zones = \App\Models\Zone::where('olt_id', $olt->id)->orderBy('name')->get();
+        
         // Skip loading customers here - use AJAX search instead
         $customers = collect();
         
-        return view('admin.olts.show', compact('olt', 'onuStats', 'profiles', 'customers'));
+        return view('admin.olts.show', compact('olt', 'onuStats', 'profiles', 'customers', 'zones'));
     }
 
     /**
@@ -631,6 +634,18 @@ class OltController extends Controller implements HasMiddleware
                 'message' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Get ODPs for a zone (AJAX for cascading dropdown)
+     */
+    public function getZoneOdps(Olt $olt, \App\Models\Zone $zone)
+    {
+        $odps = \App\Models\Odp::where('zone_id', $zone->id)
+            ->orderBy('name')
+            ->get(['id', 'name', 'code', 'total_ports', 'used_ports']);
+
+        return response()->json(['success' => true, 'odps' => $odps]);
     }
 
     /**

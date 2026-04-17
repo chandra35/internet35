@@ -354,6 +354,7 @@ Route::prefix('admin')->middleware(['auth', 'role:superadmin|admin|admin-pop|tek
         Route::post('/{olt}/sync', [\App\Http\Controllers\Admin\OltController::class, 'sync'])->name('sync');
         Route::get('/{olt}/sync-stream', [\App\Http\Controllers\Admin\OltController::class, 'syncStream'])->name('sync-stream');
         Route::get('/{olt}/unregistered-onus', [\App\Http\Controllers\Admin\OltController::class, 'getUnregisteredOnus'])->name('unregistered-onus');
+        Route::get('/{olt}/zones/{zone}/odps', [\App\Http\Controllers\Admin\OltController::class, 'getZoneOdps'])->name('zone-odps');
         Route::get('/{olt}/signal-history', [\App\Http\Controllers\Admin\OltController::class, 'getSignalHistory'])->name('signal-history');
         Route::get('/{olt}/traffic-stats', [\App\Http\Controllers\Admin\OltController::class, 'getTrafficStats'])->name('traffic-stats');
         Route::get('/{olt}/onus', [\App\Http\Controllers\Admin\OltController::class, 'getOnus'])->name('onus');
@@ -371,6 +372,11 @@ Route::prefix('admin')->middleware(['auth', 'role:superadmin|admin|admin-pop|tek
         Route::post('/{onu}/refresh', [\App\Http\Controllers\Admin\OnuController::class, 'refresh'])->name('refresh');
         Route::post('/{onu}/refresh-signal', [\App\Http\Controllers\Admin\OnuController::class, 'refreshSignal'])->name('refresh-signal');
         Route::post('/{onu}/assign-customer', [\App\Http\Controllers\Admin\OnuController::class, 'assignCustomer'])->name('assign-customer');
+        Route::post('/{onu}/configure-management', [\App\Http\Controllers\Admin\OnuController::class, 'configureManagement'])->name('configure-management');
+        Route::post('/{onu}/configure-wan', [\App\Http\Controllers\Admin\OnuController::class, 'configureWan'])->name('configure-wan');
+        Route::get('/{onu}/tr069-info', [\App\Http\Controllers\Admin\OnuController::class, 'getTr069Info'])->name('tr069-info');
+        Route::post('/{onu}/tr069-refresh', [\App\Http\Controllers\Admin\OnuController::class, 'refreshTr069'])->name('tr069-refresh');
+        Route::post('/{onu}/tr069-wan', [\App\Http\Controllers\Admin\OnuController::class, 'configureTr069Wan'])->name('tr069-wan');
     });
 
     // Network Map

@@ -174,6 +174,7 @@ class OnuController extends Controller implements HasMiddleware
             'onu_id' => 'nullable|integer|min:1|max:128',
             'name' => 'nullable|string|max:100',
             'customer_id' => 'nullable|exists:customers,id',
+            'zone_id' => 'nullable|exists:zones,id',
             'odp_id' => 'nullable|exists:odps,id',
             'odp_port' => 'nullable|integer|min:1',
             'vlan' => 'nullable|integer|min:1|max:4094',
@@ -253,7 +254,9 @@ class OnuController extends Controller implements HasMiddleware
                     'port' => $port,
                     'onu_id' => $result['onu_id'],
                     'name' => $request->name,
+                    'onu_type' => $this->detectOnuType($request->serial_number),
                     'customer_id' => $request->customer_id,
+                    'zone_id' => $request->zone_id,
                     'odp_id' => $request->odp_id,
                     'odp_port' => $request->odp_port,
                     'line_profile' => $lineProfile,
@@ -681,5 +684,224 @@ class OnuController extends Controller implements HasMiddleware
         }
 
         return back()->withInput()->with($success ? 'success' : 'error', $message);
+    }
+
+    /**
+     * Detect ONU type/model from serial number prefix.
+     */
+    protected function detectOnuType(string $serialNumber): ?string
+    {
+        if (strlen($serialNumber) < 4) {
+            return null;
+        }
+
+        $prefix = strtoupper(substr($serialNumber, 0, 4));
+
+        $map = [
+            'HWTC' => 'HG8245H',
+            'HWTG' => 'HG8245H5',
+            'HWTE' => 'EG8145V5',
+            'ZTEG' => 'F663N',
+            'ZICG' => 'F663NV9',
+            'PRTS' => 'Proscend',
+            'ALCL' => 'Nokia',
+            'FHTT' => 'FiberHome',
+            'TPLG' => 'TP-Link',
+            'DSNW' => 'DASAN',
+            'MSTC' => 'ZyXEL',
+            'SMBS' => 'SmartRG',
+        ];
+
+        return $map[$prefix] ?? null;
+    }
+
+    /**
+     * Configure management VLAN/IP on ONU via OLT CLI.
+     */
+    public function configureManagement(Onu $onu, Request $request)
+    {
+        $request->validate([
+            'mgmt_vlan' => 'required|integer|min:1|max:4094',
+            'mgmt_ip_mode' => 'required|in:dhcp,static,inactive',
+            'mgmt_ip' => 'nullable|ip',
+        ]);
+
+        try {
+            $helper = \App\Helpers\Olt\OltFactory::make($onu->olt);
+
+            $config = [
+                'vlan' => (int) $request->mgmt_vlan,
+            ];
+
+            if ($request->mgmt_ip_mode === 'static' && $request->mgmt_ip) {
+                $config['ip'] = $request->mgmt_ip;
+            }
+
+            $result = $helper->configureOnuManagement($onu->slot, $onu->port, $onu->onu_id, $config);
+
+            if ($result['success']) {
+                $onu->update([
+                    'mgmt_ip' => $request->mgmt_ip_mode === 'static' ? $request->mgmt_ip : ($request->mgmt_ip_mode === 'dhcp' ? 'dhcp:vlan:' . $request->mgmt_vlan : null),
+                ]);
+            }
+
+            return response()->json($result);
+        } catch (Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Configure WAN settings on ONU via OLT CLI.
+     */
+    public function configureWan(Onu $onu, Request $request)
+    {
+        $request->validate([
+            'wan_vlan' => 'required|integer|min:1|max:4094',
+            'wan_mode' => 'required|in:routing,bridging',
+            'wan_type' => 'required|in:dhcp,static,pppoe,manual',
+            'pppoe_username' => 'nullable|string|max:100',
+            'pppoe_password' => 'nullable|string|max:100',
+        ]);
+
+        try {
+            $helper = \App\Helpers\Olt\OltFactory::make($onu->olt);
+
+            $serviceConfig = [
+                'vlan' => (int) $request->wan_vlan,
+                'gem_port' => $onu->vlan_config['gem_port'] ?? 1,
+                'service_id' => $onu->vlan_config['service_id'] ?? 1,
+                'mode' => $onu->vlan_config['service_port_mode'] ?? 'tag',
+            ];
+
+            if ($request->wan_type === 'pppoe' && $request->pppoe_username) {
+                $serviceConfig['pppoe'] = true;
+                $serviceConfig['pppoe_username'] = $request->pppoe_username;
+                $serviceConfig['pppoe_password'] = $request->pppoe_password ?? '';
+            }
+
+            $result = $helper->applyServiceToOnu($onu->slot, $onu->port, $onu->onu_id, $serviceConfig);
+
+            if ($result['success']) {
+                $updateData = [];
+                if ($request->wan_type === 'pppoe' && $request->pppoe_username) {
+                    $updateData['pppoe_username'] = $request->pppoe_username;
+                }
+                $vlanConfig = $onu->vlan_config ?? [];
+                $vlanConfig['vlan_id'] = (int) $request->wan_vlan;
+                $updateData['vlan_config'] = $vlanConfig;
+                if (!empty($updateData)) {
+                    $onu->update($updateData);
+                }
+            }
+
+            return response()->json($result);
+        } catch (Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Get TR069 info from GenieACS for this ONU.
+     */
+    public function getTr069Info(Onu $onu)
+    {
+        try {
+            $genieacs = new \App\Services\GenieAcsService();
+
+            if (!$genieacs->isAvailable()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'GenieACS server tidak tersedia',
+                    'available' => false,
+                ]);
+            }
+
+            $device = $genieacs->findDeviceBySerial($onu->serial_number);
+
+            if (!$device) {
+                return response()->json([
+                    'success' => true,
+                    'available' => true,
+                    'found' => false,
+                    'message' => 'ONU belum terdaftar di GenieACS (TR069 belum aktif)',
+                ]);
+            }
+
+            $deviceInfo = $genieacs->getDeviceInfo($device['device_id']);
+            $wanInfo = $genieacs->getWanInfo($device['device_id']);
+            $lanHosts = $genieacs->getLanHosts($device['device_id']);
+            $tasks = $genieacs->getDeviceTasks($device['device_id']);
+
+            return response()->json([
+                'success' => true,
+                'available' => true,
+                'found' => true,
+                'device' => $deviceInfo,
+                'wan_connections' => $wanInfo,
+                'lan_hosts' => $lanHosts,
+                'pending_tasks' => count($tasks),
+                'genieacs_ui_url' => config('services.genieacs.ui_url') . '/#/devices/' . urlencode($device['device_id']),
+            ]);
+        } catch (Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Refresh TR069 device data.
+     */
+    public function refreshTr069(Onu $onu)
+    {
+        try {
+            $genieacs = new \App\Services\GenieAcsService();
+            $device = $genieacs->findDeviceBySerial($onu->serial_number);
+
+            if (!$device) {
+                return response()->json(['success' => false, 'message' => 'Device tidak ditemukan di GenieACS']);
+            }
+
+            $result = $genieacs->refreshDevice($device['device_id'], 'InternetGatewayDevice.');
+
+            return response()->json($result);
+        } catch (Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Configure WAN via TR069 (PPPoE setup).
+     */
+    public function configureTr069Wan(Onu $onu, Request $request)
+    {
+        $request->validate([
+            'pppoe_username' => 'required|string|max:100',
+            'pppoe_password' => 'required|string|max:100',
+            'wan_path' => 'nullable|string|max:500',
+        ]);
+
+        try {
+            $genieacs = new \App\Services\GenieAcsService();
+            $device = $genieacs->findDeviceBySerial($onu->serial_number);
+
+            if (!$device) {
+                return response()->json(['success' => false, 'message' => 'Device tidak ditemukan di GenieACS']);
+            }
+
+            $result = $genieacs->configureWanPppoe($device['device_id'], [
+                'username' => $request->pppoe_username,
+                'password' => $request->pppoe_password,
+                'vlan' => $onu->vlan_config['vlan_id'] ?? 100,
+                'wan_path' => $request->wan_path,
+            ]);
+
+            if ($result['success']) {
+                $onu->update(['pppoe_username' => $request->pppoe_username]);
+            }
+
+            return response()->json($result);
+        } catch (Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
     }
 }

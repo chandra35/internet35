@@ -457,12 +457,35 @@
                     
                     <div class="alert alert-info">
                         <strong>PON Port:</strong> <span id="reg_pon_display"></span><br>
-                        <strong>Serial Number:</strong> <span id="reg_sn_display"></span>
+                        <strong>Serial Number:</strong> <span id="reg_sn_display"></span><br>
+                        <strong>ONU Type:</strong> <span id="reg_onu_type_display" class="text-primary">-</span>
                     </div>
 
                     <div class="form-group">
                         <label>Nama ONU <span class="text-danger">*</span></label>
                         <input type="text" name="name" class="form-control" required placeholder="Contoh: ONU-AHMAD">
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Zone</label>
+                                <select name="zone_id" id="reg_zone_id" class="form-control">
+                                    <option value="">-- Pilih Zone --</option>
+                                    @foreach($zones as $zone)
+                                    <option value="{{ $zone->id }}">{{ $zone->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>ODP (Splitter)</label>
+                                <select name="odp_id" id="reg_odp_id" class="form-control" disabled>
+                                    <option value="">-- Pilih Zone dulu --</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="form-group">
@@ -884,6 +907,7 @@ $(function() {
         if ($('#form-register')[0]) {
             $('#form-register')[0].reset();
             $('.select2-customer').val(null).trigger('change');
+            $('#reg_odp_id').html('<option value="">-- Pilih Zone dulu --</option>').prop('disabled', true);
         }
         
         $('#reg_slot').val(slot);
@@ -892,9 +916,51 @@ $(function() {
         $('#reg_serial_number').val(sn);
         $('#reg_pon_display').text(pon);
         $('#reg_sn_display').text(sn);
+        $('#reg_onu_type_display').text(detectOnuType(sn));
         
         $('#modal-unregistered').modal('hide');
         $('#modal-register').modal('show');
+    });
+
+    // ONU Type auto-detect from serial number prefix
+    function detectOnuType(sn) {
+        if (!sn || sn.length < 4) return '-';
+        var prefix = sn.substring(0, 4).toUpperCase();
+        var map = {
+            'HWTC': 'Huawei HG8245H', 'HWTG': 'Huawei HG8245H5', 'HWTE': 'Huawei EG8145V5',
+            'ZTEG': 'ZTE F663N', 'ZICG': 'ZTE F663NV9', 'PRTS': 'Proscend',
+            'ALCL': 'Nokia/Alcatel', 'FHTT': 'FiberHome', 'TPLG': 'TP-Link',
+            'DSNW': 'DASAN', 'MSTC': 'ZyXEL', 'SMBS': 'SmartRG',
+        };
+        return map[prefix] || prefix;
+    }
+
+    // Zone/ODP cascading dropdown
+    $('#reg_zone_id').change(function() {
+        var zoneId = $(this).val();
+        var odpSelect = $('#reg_odp_id');
+        
+        if (!zoneId) {
+            odpSelect.html('<option value="">-- Pilih Zone dulu --</option>').prop('disabled', true);
+            return;
+        }
+        
+        odpSelect.html('<option value="">Memuat...</option>').prop('disabled', true);
+        
+        $.get('/admin/olts/{{ $olt->id }}/zones/' + zoneId + '/odps')
+            .done(function(res) {
+                var html = '<option value="">-- Pilih ODP --</option>';
+                (res.odps || []).forEach(function(odp) {
+                    var label = odp.name;
+                    if (odp.code) label += ' (' + odp.code + ')';
+                    if (odp.total_ports) label += ' [' + (odp.used_ports || 0) + '/' + odp.total_ports + ']';
+                    html += '<option value="' + odp.id + '">' + label + '</option>';
+                });
+                odpSelect.html(html).prop('disabled', false);
+            })
+            .fail(function() {
+                odpSelect.html('<option value="">Gagal memuat ODP</option>').prop('disabled', true);
+            });
     });
 
     function applyZteProfileDefaults() {

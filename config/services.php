@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    'genieacs' => [
+        'nbi_url' => env('GENIEACS_NBI_URL', 'http://172.10.10.254:7557'),
+        'cwmp_url' => env('GENIEACS_CWMP_URL', 'http://172.10.10.254:7547'),
+        'ui_url' => env('GENIEACS_UI_URL', 'http://172.10.10.254:3000'),
+        'timeout' => env('GENIEACS_TIMEOUT', 10),
+    ],
+
 ];
