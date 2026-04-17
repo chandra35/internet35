@@ -243,6 +243,8 @@ class OnuController extends Controller implements HasMiddleware
             'vlan' => 'nullable|integer|min:1|max:4094',
             'vlan_id' => 'required|integer|min:1|max:4094',
             'mgmt_vlan' => 'nullable|integer|min:1|max:4094',
+            'pppoe_username' => 'nullable|string|max:100',
+            'pppoe_password' => 'nullable|string|max:100',
             'gem_port' => 'nullable|integer|min:1',
             'tcont_id' => 'nullable|integer|min:1',
             'service_id' => 'nullable|integer|min:1',
@@ -282,6 +284,12 @@ class OnuController extends Controller implements HasMiddleware
             // Pass management VLAN for TR069 DHCP
             if ($request->filled('mgmt_vlan')) {
                 $params['mgmt_vlan'] = (int) $request->mgmt_vlan;
+            }
+
+            // Pass PPPoE credentials for WAN injection
+            if ($request->filled('pppoe_username')) {
+                $params['pppoe_username'] = $request->pppoe_username;
+                $params['pppoe_password'] = $request->pppoe_password ?? '';
             }
 
             $resolvedConfig = [
@@ -339,6 +347,7 @@ class OnuController extends Controller implements HasMiddleware
                     ]),
                     'description' => $request->description,
                     'mgmt_ip' => $request->filled('mgmt_vlan') ? 'dhcp:vlan:' . $request->mgmt_vlan : null,
+                    'pppoe_username' => $request->pppoe_username,
                     'config_status' => 'registered',
                     'status' => 'unknown',
                     'created_by' => auth()->id(),

@@ -208,31 +208,55 @@
                                 <div class="callout callout-info py-2 mb-3">
                                     <h6 class="mb-1"><i class="fas fa-info-circle mr-1"></i>ZTE C320 — Full Provisioning</h6>
                                     <p class="mb-0" style="font-size:13px;">
-                                        Seperti SmartOLT: isi <strong>Nama ONU</strong>, <strong>Service VLAN</strong>, dan <strong>Management VLAN</strong>.
-                                        ONU langsung aktif dan dapat IP untuk TR069.
+                                        Seperti SmartOLT: isi <strong>Service VLAN</strong> + <strong>Management VLAN</strong>.
+                                        ONU langsung aktif, dapat IP, dan terhubung ke ACS (TR069).
                                     </p>
                                 </div>
 
-                                <div class="form-group">
-                                    <label>Service VLAN <span class="text-danger">*</span></label>
-                                    <div class="input-group">
-                                        <div class="input-group-prepend">
-                                            <span class="input-group-text"><i class="fas fa-network-wired"></i></span>
+                                <div class="row">
+                                    <div class="col-6">
+                                        <div class="form-group">
+                                            <label>Service VLAN <span class="text-danger">*</span></label>
+                                            <div class="input-group">
+                                                <div class="input-group-prepend">
+                                                    <span class="input-group-text"><i class="fas fa-network-wired"></i></span>
+                                                </div>
+                                                <input type="number" name="vlan_id" id="reg_vlan_id" class="form-control" min="1" max="4094" required placeholder="Contoh: 100">
+                                            </div>
+                                            <small class="form-text text-muted">VLAN internet pelanggan.</small>
                                         </div>
-                                        <input type="number" name="vlan_id" id="reg_vlan_id" class="form-control" min="1" max="4094" required placeholder="Contoh: 100">
                                     </div>
-                                    <small class="form-text text-muted">VLAN untuk traffic internet pelanggan. <strong>Wajib diisi.</strong></small>
+                                    <div class="col-6">
+                                        <div class="form-group">
+                                            <label>Mgmt VLAN (TR069) <span class="text-danger">*</span></label>
+                                            <div class="input-group">
+                                                <div class="input-group-prepend">
+                                                    <span class="input-group-text"><i class="fas fa-broadcast-tower"></i></span>
+                                                </div>
+                                                <input type="number" name="mgmt_vlan" id="reg_mgmt_vlan" class="form-control" min="1" max="4094" required placeholder="Contoh: 110">
+                                            </div>
+                                            <small class="form-text text-muted">VLAN manajemen DHCP/ACS.</small>
+                                        </div>
+                                    </div>
                                 </div>
 
-                                <div class="form-group">
-                                    <label>Management VLAN (TR069) <span class="text-danger">*</span></label>
-                                    <div class="input-group">
-                                        <div class="input-group-prepend">
-                                            <span class="input-group-text"><i class="fas fa-broadcast-tower"></i></span>
+                                <div class="callout callout-warning py-2 mb-3">
+                                    <h6 class="mb-1"><i class="fas fa-wifi mr-1"></i>PPPoE Internet <span class="badge badge-secondary">Opsional</span></h6>
+                                    <p class="mb-0" style="font-size:12px;">Isi jika ingin langsung set WAN PPPoE saat register. Bisa diisi nanti via TR069.</p>
+                                </div>
+                                <div class="row">
+                                    <div class="col-6">
+                                        <div class="form-group">
+                                            <label>PPPoE Username</label>
+                                            <input type="text" name="pppoe_username" class="form-control" placeholder="username@isp">
                                         </div>
-                                        <input type="number" name="mgmt_vlan" id="reg_mgmt_vlan" class="form-control" min="1" max="4094" required placeholder="Contoh: 110">
                                     </div>
-                                    <small class="form-text text-muted">VLAN manajemen agar ONU dapat DHCP IP untuk TR069/GenieACS.</small>
+                                    <div class="col-6">
+                                        <div class="form-group">
+                                            <label>PPPoE Password</label>
+                                            <input type="text" name="pppoe_password" class="form-control" placeholder="password">
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <!-- Advanced: collapsed by default -->

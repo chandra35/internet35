@@ -1556,9 +1556,14 @@ class ZteC320Helper extends BaseOltHelper
 
             $commands[] = "exit";
 
-            // Add service + management config (SmartOLT-style full provisioning)
+            // Add service + management + WAN + ACS config (SmartOLT-style full provisioning)
             $vlan = $params['vlan'] ?? null;
             $mgmtVlan = $params['mgmt_vlan'] ?? null;
+            $pppoeUser = $params['pppoe_username'] ?? null;
+            $pppoePwd = $params['pppoe_password'] ?? '';
+            $acsUrl = $params['acs_url'] ?? config('services.genieacs.cwmp_url', 'http://172.10.10.254:7547');
+            $acsUser = $params['acs_username'] ?? 'kosong';
+            $acsPwd = $params['acs_password'] ?? 'kosong';
 
             if ($vlan || $mgmtVlan) {
                 $commands[] = "pon-onu-mng gpon_onu-{$slot}/{$port}:{$onuId}";
@@ -1573,6 +1578,21 @@ class ZteC320Helper extends BaseOltHelper
                 if ($mgmtVlan) {
                     $commands[] = "mvlan {$mgmtVlan}";
                 }
+
+                // WAN 1: PPPoE internet (optional — if username provided)
+                if ($pppoeUser && $vlan) {
+                    $commands[] = "wan-ip 1 mode pppoe username {$pppoeUser} password {$pppoePwd} vlan-profile vlan{$vlan} host 1";
+                }
+
+                // WAN 2: DHCP management for TR069
+                if ($mgmtVlan) {
+                    $commands[] = "wan-ip 2 mode dhcp vlan-profile vlan{$mgmtVlan} host 1";
+                }
+
+                // ACS TR069 config
+                $commands[] = "tr069-serv-url {$acsUrl}";
+                $commands[] = "tr069-serv-username {$acsUser}";
+                $commands[] = "tr069-serv-password {$acsPwd}";
 
                 $commands[] = "exit";
             }
