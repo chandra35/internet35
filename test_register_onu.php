@@ -9,7 +9,15 @@ echo "OLT: {$olt->name} ({$olt->ip_address})\n";
 
 $helper = (new \App\Helpers\Olt\ZteC320Helper())->setOlt($olt);
 
-echo "=== Unregistered ONUs ===\n";
+// First try to unregister ONU 19 if it exists from previous test
+echo "=== Unregistering ONU 19 (cleanup) ===\n";
+$unreg = $helper->unregisterOnu(1, 1, 19);
+print_r($unreg);
+
+// Wait for ONU to appear in uncfg list
+sleep(5);
+
+echo "\n=== Unregistered ONUs ===\n";
 $uncfg = $helper->getUnregisteredOnus();
 print_r($uncfg);
 
@@ -33,4 +41,6 @@ if (!empty($uncfg)) {
     
     echo "\n=== Registration Result ===\n";
     print_r($result);
+} else {
+    echo "No unregistered ONUs found\n";
 }

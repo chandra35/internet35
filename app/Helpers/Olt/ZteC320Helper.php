@@ -1618,12 +1618,18 @@ class ZteC320Helper extends BaseOltHelper
             // Execute commands via batch CLI (uses telnetReadUntilPrompt to avoid hanging)
             $output = $this->executeBatchCliCommands($commands);
 
-            if ($this->hasCliError($output)) {
+            // Check if ONU registration itself failed (not just pon-onu-mng config errors)
+            $registrationFailed = !str_contains($output, 'Successful') 
+                && (str_contains($output, 'Not support this ONU') 
+                    || str_contains($output, 'already exist')
+                    || str_contains($output, 'No sn match'));
+
+            if ($registrationFailed) {
                 $result['message'] = "Registration failed: {$output}";
             } else {
                 $result['success'] = true;
                 $result['onu_id'] = $onuId;
-                $result['message'] = "ONU registered successfully at {$slot}/{$port}:{$onuId}";
+                $result['message'] = "ONU registered successfully at 1/{$slot}/{$port}:{$onuId}";
                 $verification = $this->verifyRegisteredOnuConfig($slot, $port, $onuId, [
                     'name' => $name,
                     'line_profile' => $lineProfile,
@@ -2233,7 +2239,7 @@ class ZteC320Helper extends BaseOltHelper
         $vendor = strtoupper(substr($serialNumber, 0, 4));
 
         return match ($vendor) {
-            'HWTC' => 'OPEN_HUAWEI',
+            'HWTC' => 'HG8245H',
             'ZTEG' => 'OPEN_ZTE',
             'ALCL' => 'OPEN_NOKIA',
             'FHTT' => 'OPEN_FIBERHOME',
