@@ -769,7 +769,7 @@ class ZteC320Helper extends BaseOltHelper
                     $result[] = [
                         'slot' => $slot,
                         'port' => $port,
-                        'name' => "gpon-olt_{$slot}/{$port}",
+                        'name' => "gpon-olt_1/{$slot}/{$port}",
                         'tx_power' => $txPower,
                         'rx_power' => $rxPower,
                         'temperature' => $temp,
@@ -862,7 +862,7 @@ class ZteC320Helper extends BaseOltHelper
             $port = $portInfo['port'];
 
             // ZTE command to show PON transceiver info
-            $cmd = "show gpon olt optical-transceiver-diagnosis gpon-olt_{$slot}/{$port}";
+            $cmd = "show gpon olt optical-transceiver-diagnosis gpon-olt_1/{$slot}/{$port}";
             fwrite($fp, $cmd . "\r\n");
             sleep(1);
 
@@ -1540,7 +1540,7 @@ class ZteC320Helper extends BaseOltHelper
             // Interface format: gpon-olt_ and gpon-onu_ (with hyphen before olt/onu)
             $commands = [
                 "configure terminal",
-                "interface gpon-olt_{$slot}/{$port}",
+                "interface gpon-olt_1/{$slot}/{$port}",
                 "onu {$onuId} type auto sn {$serialNumber}",
                 "exit",
             ];
@@ -1549,7 +1549,7 @@ class ZteC320Helper extends BaseOltHelper
             $vlan = $params['vlan'] ?? null;
             $mgmtVlan = $params['mgmt_vlan'] ?? null;
 
-            $commands[] = "interface gpon-onu_{$slot}/{$port}:{$onuId}";
+            $commands[] = "interface gpon-onu_1/{$slot}/{$port}:{$onuId}";
             $commands[] = "name {$name}";
 
             // T-CONT 1: Internet traffic (use SMARTOLT-1G-UP profile)
@@ -1576,7 +1576,7 @@ class ZteC320Helper extends BaseOltHelper
             $acsUrl = $params['acs_url'] ?? config('services.genieacs.cwmp_url', 'http://172.10.10.254:7547');
 
             if ($vlan || $mgmtVlan) {
-                $commands[] = "pon-onu-mng gpon-onu_{$slot}/{$port}:{$onuId}";
+                $commands[] = "pon-onu-mng gpon-onu_1/{$slot}/{$port}:{$onuId}";
 
                 // Service VLAN — internet traffic
                 if ($vlan) {
@@ -1748,7 +1748,7 @@ class ZteC320Helper extends BaseOltHelper
         try {
             $commands = [
                 "configure terminal",
-                "interface gpon-olt_{$slot}/{$port}",
+                "interface gpon-olt_1/{$slot}/{$port}",
                 "no onu {$onuId}",
                 "exit",
                 "exit",
@@ -1785,7 +1785,7 @@ class ZteC320Helper extends BaseOltHelper
         try {
             $commands = [
                 "configure terminal",
-                "pon-onu-mng gpon-onu_{$slot}/{$port}:{$onuId}",
+                "pon-onu-mng gpon-onu_1/{$slot}/{$port}:{$onuId}",
                 "reboot",
                 "y",
                 "exit",
@@ -1911,7 +1911,7 @@ class ZteC320Helper extends BaseOltHelper
 
             $commands = [
                 "configure terminal",
-                "interface gpon-onu_{$slot}/{$port}:{$onuId}",
+                "interface gpon-onu_1/{$slot}/{$port}:{$onuId}",
             ];
 
             // Configure tcont and gemport if not exists
@@ -1922,7 +1922,7 @@ class ZteC320Helper extends BaseOltHelper
             $commands[] = "exit";
 
             // Configure service
-            $commands[] = "pon-onu-mng gpon-onu_{$slot}/{$port}:{$onuId}";
+            $commands[] = "pon-onu-mng gpon-onu_1/{$slot}/{$port}:{$onuId}";
             $commands[] = "service {$serviceId} gemport {$gemPort} vlan {$vlan}";
             $commands[] = "vlan port eth_0/1 mode {$mode} vlan {$vlan}";
 
@@ -2406,7 +2406,7 @@ class ZteC320Helper extends BaseOltHelper
         try {
             $commands = [
                 "configure terminal",
-                "pon-onu-mng gpon-onu_{$slot}/{$port}:{$onuId}",
+                "pon-onu-mng gpon-onu_1/{$slot}/{$port}:{$onuId}",
             ];
 
             if (isset($config['vlan'])) {
@@ -2439,7 +2439,7 @@ class ZteC320Helper extends BaseOltHelper
     public function getOnuRunningConfig(int $slot, int $port, int $onuId): string
     {
         return $this->executeBatchCliCommands([
-            "show running-config interface gpon-onu_{$slot}/{$port}:{$onuId}",
+            "show running-config interface gpon-onu_1/{$slot}/{$port}:{$onuId}",
         ]);
     }
 
@@ -2456,7 +2456,7 @@ class ZteC320Helper extends BaseOltHelper
         try {
             $commands = [
                 "configure terminal",
-                "pon-onu-mng gpon-onu_{$slot}/{$port}:{$onuId}",
+                "pon-onu-mng gpon-onu_1/{$slot}/{$port}:{$onuId}",
                 "restore factory",
                 "y",
                 "exit",
