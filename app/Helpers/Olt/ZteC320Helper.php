@@ -1580,8 +1580,8 @@ class ZteC320Helper extends BaseOltHelper
             $commands[] = "exit";
             $commands[] = "write memory";
 
-            // Execute commands
-            $output = $this->executeCommands($commands);
+            // Execute commands via batch CLI (uses telnetReadUntilPrompt to avoid hanging)
+            $output = $this->executeBatchCliCommands($commands);
 
             if ($this->hasCliError($output)) {
                 $result['message'] = "Registration failed: {$output}";
@@ -1724,7 +1724,7 @@ class ZteC320Helper extends BaseOltHelper
                 "write memory",
             ];
 
-            $output = $this->executeCommands($commands);
+            $output = $this->executeBatchCliCommands($commands);
 
             if (str_contains($output, 'Error') || str_contains($output, 'fail')) {
                 $result['message'] = "Unregistration failed: {$output}";
@@ -1761,7 +1761,7 @@ class ZteC320Helper extends BaseOltHelper
                 "exit",
             ];
 
-            $output = $this->executeCommands($commands);
+            $output = $this->executeBatchCliCommands($commands);
 
             if (preg_match('/Error|fail|invalid|unknown/i', $output)) {
                 $result['message'] = "Reboot command mungkin gagal: " . trim(substr($output, 0, 200));
@@ -1904,7 +1904,7 @@ class ZteC320Helper extends BaseOltHelper
             $commands[] = "exit";
             $commands[] = "write memory";
 
-            $output = $this->executeCommands($commands);
+            $output = $this->executeBatchCliCommands($commands);
 
             if (str_contains($output, 'Error') || str_contains($output, 'fail')) {
                 $result['message'] = "Service configuration failed: {$output}";
@@ -2390,7 +2390,7 @@ class ZteC320Helper extends BaseOltHelper
             $commands[] = "exit";
             $commands[] = "write memory";
 
-            $output = $this->executeCommands($commands);
+            $output = $this->executeBatchCliCommands($commands);
 
             $result['success'] = !str_contains($output, 'Error');
             $result['message'] = $result['success'] ? 'Management configured' : $output;
@@ -2407,7 +2407,9 @@ class ZteC320Helper extends BaseOltHelper
      */
     public function getOnuRunningConfig(int $slot, int $port, int $onuId): string
     {
-        return $this->executeCommand("show running-config interface gpon_onu-{$slot}/{$port}:{$onuId}");
+        return $this->executeBatchCliCommands([
+            "show running-config interface gpon_onu-{$slot}/{$port}:{$onuId}",
+        ]);
     }
 
     /**
@@ -2430,7 +2432,7 @@ class ZteC320Helper extends BaseOltHelper
                 "exit",
             ];
 
-            $output = $this->executeCommands($commands);
+            $output = $this->executeBatchCliCommands($commands);
 
             $result['success'] = true;
             $result['message'] = "Factory reset command sent to ONU {$slot}/{$port}:{$onuId}";
