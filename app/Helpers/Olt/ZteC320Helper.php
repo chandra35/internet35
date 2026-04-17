@@ -1448,39 +1448,47 @@ class ZteC320Helper extends BaseOltHelper
         $unregistered = [];
 
         try {
-            // Try via SNMP first
-            $uncfgOnus = $this->snmpWalk($this->zteOids['zxAnGponOltUncfgOnuSerialNo']);
-
-            foreach ($uncfgOnus as $oid => $serial) {
-                // Uncfg table may use ponIfIndex or slot.port index
-                if (preg_match('/\.(\d+)$/', $oid, $matches)) {
-                    $ponIfIndex = (int) $matches[1];
-                    if ($ponIfIndex > 1000) {
-                        $decoded = $this->decodePonIfIndex($ponIfIndex);
-                        $slot = $decoded['slot'];
-                        $port = $decoded['port'];
-                    } else {
-                        preg_match('/\.(\d+)\.(\d+)$/', $oid, $m2);
-                        if (!$m2) continue;
-                        $slot = (int) $m2[1];
-                        $port = (int) $m2[2];
-                    }
-                } else {
-                    continue;
-                }
-
-                $unregistered[] = [
-                    'slot' => $slot,
-                    'port' => $port,
-                    'serial_number' => $this->parseZteSerialNumber($serial),
-                    'config_status' => 'unregistered',
-                ];
-            }
-
-            // If SNMP fails or returns empty, try CLI
-            if (empty($unregistered) && ($this->supportsTelnet() || $this->supportsSsh())) {
+            // Prefer CLI - more reliable for unconfigured ONU detection
+            if ($this->supportsTelnet() || $this->supportsSsh()) {
                 $output = $this->executeCommand('show gpon onu uncfg');
                 $unregistered = $this->parseUnconfiguredOnuOutput($output);
+            }
+
+            // Fallback to SNMP only if CLI not available
+            if (empty($unregistered) && !$this->supportsTelnet() && !$this->supportsSsh()) {
+                $uncfgOnus = $this->snmpWalk($this->zteOids['zxAnGponOltUncfgOnuSerialNo']);
+
+                foreach ($uncfgOnus as $oid => $serial) {
+                    $cleanSerial = $this->parseZteSerialNumber($serial);
+
+                    // Skip garbage entries (gemport names misinterpreted as serials)
+                    if (empty($cleanSerial) || strlen($cleanSerial) < 8 || preg_match('/^GEMP/i', $cleanSerial)) {
+                        continue;
+                    }
+
+                    if (preg_match('/\.(\d+)\.(\d+)\.(\d+)$/', $oid, $matches)) {
+                        $slot = (int) $matches[2];
+                        $port = (int) $matches[3];
+                    } elseif (preg_match('/\.(\d+)$/', $oid, $matches)) {
+                        $ponIfIndex = (int) $matches[1];
+                        if ($ponIfIndex > 1000) {
+                            $decoded = $this->decodePonIfIndex($ponIfIndex);
+                            $slot = $decoded['slot'];
+                            $port = $decoded['port'];
+                        } else {
+                            continue;
+                        }
+                    } else {
+                        continue;
+                    }
+
+                    $unregistered[] = [
+                        'slot' => $slot,
+                        'port' => $port,
+                        'serial_number' => $cleanSerial,
+                        'config_status' => 'unregistered',
+                    ];
+                }
             }
 
         } catch (Exception $e) {
@@ -2196,12 +2204,39 @@ class ZteC320Helper extends BaseOltHelper
         $lines = explode("\n", $output);
 
         foreach ($lines as $line) {
-            // Match patterns like: gpon_olt-1/1  1  ZTEG12345678
+            $line = trim($line);
+
+            // Format 1: gpon-onu_1/1/1:1  HWTC6ED42F9A  unknown
+            if (preg_match('/gpon-onu_(\d+)\/(\d+)\/(\d+):(\d+)\s+(\w{4,16})\s+/i', $line, $matches)) {
+                $onus[] = [
+                    'slot' => (int) $matches[2],
+                    'port' => (int) $matches[3],
+                    'pon_port' => $matches[2] . '/' . $matches[3],
+                    'serial_number' => strtoupper($matches[5]),
+                    'config_status' => 'unregistered',
+                ];
+                continue;
+            }
+
+            // Format 2: gpon_olt-1/1  1  ZTEG12345678
             if (preg_match('/gpon_olt-(\d+)\/(\d+)\s+\d+\s+(\w+)/', $line, $matches)) {
                 $onus[] = [
                     'slot' => (int) $matches[1],
                     'port' => (int) $matches[2],
-                    'serial_number' => $this->parseSerialNumber($matches[3]),
+                    'pon_port' => $matches[1] . '/' . $matches[2],
+                    'serial_number' => strtoupper($matches[3]),
+                    'config_status' => 'unregistered',
+                ];
+                continue;
+            }
+
+            // Format 3: Just SN column with OnuIndex like 1/1/1:1
+            if (preg_match('/(\d+)\/(\d+)\/(\d+):(\d+)\s+(\w{4,16})\s+/i', $line, $matches)) {
+                $onus[] = [
+                    'slot' => (int) $matches[2],
+                    'port' => (int) $matches[3],
+                    'pon_port' => $matches[2] . '/' . $matches[3],
+                    'serial_number' => strtoupper($matches[5]),
                     'config_status' => 'unregistered',
                 ];
             }
