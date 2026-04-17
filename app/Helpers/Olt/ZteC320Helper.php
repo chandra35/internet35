@@ -1537,12 +1537,15 @@ class ZteC320Helper extends BaseOltHelper
             // Determine ONU ID (auto-assign if not provided)
             $onuId = $params['onu_id'] ?? $this->getNextAvailableOnuId($slot, $port);
 
+            // Determine ONU type from params or vendor prefix
+            $onuType = $params['onu_type'] ?? $this->guessOnuType($serialNumber);
+
             // Build CLI commands — ZTE C320 V2.1.0 syntax
             // Interface format: gpon-olt_ and gpon-onu_ (with hyphen before olt/onu)
             $commands = [
                 "configure terminal",
                 "interface gpon-olt_1/{$slot}/{$port}",
-                "onu {$onuId} type auto sn {$serialNumber}",
+                "onu {$onuId} type {$onuType} sn {$serialNumber}",
                 "exit",
             ];
 
@@ -2220,6 +2223,22 @@ class ZteC320Helper extends BaseOltHelper
         fclose($fp);
 
         return $fullOutput;
+    }
+
+    /**
+     * Guess ONU type from serial number vendor prefix
+     */
+    protected function guessOnuType(string $serialNumber): string
+    {
+        $vendor = strtoupper(substr($serialNumber, 0, 4));
+
+        return match ($vendor) {
+            'HWTC' => 'OPEN_HUAWEI',
+            'ZTEG' => 'OPEN_ZTE',
+            'ALCL' => 'OPEN_NOKIA',
+            'FHTT' => 'OPEN_FIBERHOME',
+            default => 'ALL',
+        };
     }
 
     /**
