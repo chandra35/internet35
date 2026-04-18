@@ -3154,4 +3154,242 @@ class ZteC320Helper extends BaseOltHelper
 
         return $ports;
     }
+
+    // =========================================================================
+    // INFRASTRUCTURE WRITE OPERATIONS
+    // =========================================================================
+
+    /**
+     * Configure uplink port: Add/Remove tagged VLANs, set admin state, description
+     */
+    public function configureUplink(string $interfaceName, array $params): array
+    {
+        $result = ['success' => false, 'message' => '', 'output' => ''];
+
+        try {
+            $commands = ['configure terminal', "interface {$interfaceName}"];
+
+            // Add VLANs
+            if (!empty($params['add_vlans'])) {
+                foreach ($params['add_vlans'] as $vlanId) {
+                    $vlanId = (int) $vlanId;
+                    if ($vlanId > 0 && $vlanId <= 4094) {
+                        $commands[] = "switchport vlan {$vlanId} tag";
+                    }
+                }
+            }
+
+            // Remove VLANs
+            if (!empty($params['remove_vlans'])) {
+                foreach ($params['remove_vlans'] as $vlanId) {
+                    $vlanId = (int) $vlanId;
+                    if ($vlanId > 0 && $vlanId <= 4094) {
+                        $commands[] = "no switchport vlan {$vlanId} tag";
+                    }
+                }
+            }
+
+            // Set native VLAN (PVID)
+            if (isset($params['native_vlan']) && $params['native_vlan'] !== '') {
+                $nv = (int) $params['native_vlan'];
+                if ($nv > 0 && $nv <= 4094) {
+                    $commands[] = "switchport default vlan {$nv}";
+                }
+            }
+
+            // Admin state
+            if (isset($params['admin_status'])) {
+                $commands[] = $params['admin_status'] === 'disabled' ? 'shutdown' : 'no shutdown';
+            }
+
+            // Description
+            if (isset($params['description']) && $params['description'] !== '') {
+                $desc = preg_replace('/[^A-Za-z0-9._\- ]/', '', $params['description']);
+                $commands[] = "description {$desc}";
+            }
+
+            $commands[] = 'exit';
+            $commands[] = 'exit';
+            $commands[] = 'write';
+
+            $output = $this->executeBatchCliCommands($commands);
+            $result['output'] = $output;
+
+            if (preg_match('/Error|fail|invalid|unknown command/i', $output)) {
+                $result['message'] = 'Perintah mungkin gagal. Cek output: ' . trim(substr($output, 0, 300));
+            } else {
+                $result['success'] = true;
+                $result['message'] = "Konfigurasi {$interfaceName} berhasil disimpan";
+            }
+
+        } catch (Exception $e) {
+            $result['message'] = $e->getMessage();
+            Log::error("ZTE configureUplink error: " . $e->getMessage());
+        }
+
+        return $result;
+    }
+
+    /**
+     * Create VLAN on OLT
+     */
+    public function createVlan(int $vlanId, string $name = ''): array
+    {
+        $result = ['success' => false, 'message' => '', 'output' => ''];
+
+        try {
+            if ($vlanId < 2 || $vlanId > 4094) {
+                return ['success' => false, 'message' => 'VLAN ID harus antara 2-4094', 'output' => ''];
+            }
+
+            $commands = [
+                'configure terminal',
+                "vlan {$vlanId}",
+            ];
+
+            if ($name) {
+                $safeName = preg_replace('/[^A-Za-z0-9._\-]/', '', $name);
+                $commands[] = "name {$safeName}";
+            }
+
+            $commands[] = 'exit';
+            $commands[] = 'exit';
+            $commands[] = 'write';
+
+            $output = $this->executeBatchCliCommands($commands);
+            $result['output'] = $output;
+
+            if (preg_match('/Error|fail|invalid/i', $output) && !str_contains($output, 'already exist')) {
+                $result['message'] = 'Gagal membuat VLAN: ' . trim(substr($output, 0, 300));
+            } else {
+                $result['success'] = true;
+                $result['message'] = "VLAN {$vlanId} berhasil dibuat di OLT";
+            }
+
+        } catch (Exception $e) {
+            $result['message'] = $e->getMessage();
+            Log::error("ZTE createVlan error: " . $e->getMessage());
+        }
+
+        return $result;
+    }
+
+    /**
+     * Delete VLAN from OLT
+     */
+    public function deleteVlan(int $vlanId): array
+    {
+        $result = ['success' => false, 'message' => '', 'output' => ''];
+
+        try {
+            if ($vlanId < 2 || $vlanId > 4094) {
+                return ['success' => false, 'message' => 'VLAN ID harus antara 2-4094', 'output' => ''];
+            }
+
+            $commands = [
+                'configure terminal',
+                "no vlan {$vlanId}",
+                'exit',
+                'write',
+            ];
+
+            $output = $this->executeBatchCliCommands($commands);
+            $result['output'] = $output;
+
+            if (preg_match('/Error|fail|in use|cannot/i', $output)) {
+                $result['message'] = 'Gagal menghapus VLAN: ' . trim(substr($output, 0, 300));
+            } else {
+                $result['success'] = true;
+                $result['message'] = "VLAN {$vlanId} berhasil dihapus dari OLT";
+            }
+
+        } catch (Exception $e) {
+            $result['message'] = $e->getMessage();
+            Log::error("ZTE deleteVlan error: " . $e->getMessage());
+        }
+
+        return $result;
+    }
+
+    /**
+     * Reboot a card/slot
+     */
+    public function rebootCard(int $rack, int $shelf, int $slot): array
+    {
+        $result = ['success' => false, 'message' => '', 'output' => ''];
+
+        try {
+            $commands = [
+                'configure terminal',
+                "reboot card {$rack}/{$shelf}/{$slot}",
+                'y',
+                'exit',
+            ];
+
+            $output = $this->executeBatchCliCommands($commands);
+            $result['output'] = $output;
+
+            if (preg_match('/Error|fail|invalid|not exist/i', $output)) {
+                $result['message'] = 'Gagal reboot card: ' . trim(substr($output, 0, 300));
+            } else {
+                $result['success'] = true;
+                $result['message'] = "Card slot {$rack}/{$shelf}/{$slot} sedang di-reboot";
+            }
+
+        } catch (Exception $e) {
+            $result['message'] = $e->getMessage();
+            Log::error("ZTE rebootCard error: " . $e->getMessage());
+        }
+
+        return $result;
+    }
+
+    /**
+     * Reboot all ONUs on a specific PON port
+     */
+    public function rebootAllOnusOnPort(int $slot, int $port): array
+    {
+        $result = ['success' => false, 'message' => '', 'rebooted' => 0, 'output' => ''];
+
+        try {
+            // First get ONU list on this port
+            $stateOutput = $this->executeBatchCliCommands([
+                "show gpon onu state gpon-olt_1/{$slot}/{$port}",
+            ]);
+
+            // Count ONUs to reboot
+            $onuIds = [];
+            foreach (explode("\n", $stateOutput) as $line) {
+                if (preg_match('/^\s*(\d+)\s+\w+\s+(online|offline|los)/i', $line, $m)) {
+                    $onuIds[] = (int) $m[1];
+                }
+            }
+
+            if (empty($onuIds)) {
+                return ['success' => true, 'message' => "Tidak ada ONU di port 1/{$slot}/{$port}", 'rebooted' => 0, 'output' => ''];
+            }
+
+            // Reboot each ONU
+            $commands = ['configure terminal'];
+            foreach ($onuIds as $onuId) {
+                $commands[] = "pon-onu-mng gpon-onu_1/{$slot}/{$port}:{$onuId}";
+                $commands[] = 'reboot';
+                $commands[] = 'y';
+                $commands[] = 'exit';
+            }
+            $commands[] = 'exit';
+
+            $output = $this->executeBatchCliCommands($commands);
+            $result['output'] = $output;
+            $result['success'] = true;
+            $result['rebooted'] = count($onuIds);
+            $result['message'] = count($onuIds) . " ONU di port 1/{$slot}/{$port} sedang di-reboot";
+
+        } catch (Exception $e) {
+            $result['message'] = $e->getMessage();
+            Log::error("ZTE rebootAllOnusOnPort error: " . $e->getMessage());
+        }
+
+        return $result;
+    }
 }

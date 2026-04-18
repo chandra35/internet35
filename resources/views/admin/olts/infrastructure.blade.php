@@ -207,6 +207,182 @@
     </div>
 </div>
 
+<!-- Configure Uplink Modal -->
+<div class="modal fade" id="modal-configure-uplink" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-success">
+                <h5 class="modal-title text-white"><i class="fas fa-cog mr-2"></i>Konfigurasi Uplink Port</h5>
+                <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="cfg-uplink-id">
+                <div class="form-group">
+                    <label>Interface</label>
+                    <input type="text" class="form-control" id="cfg-uplink-name" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Mode</label>
+                    <input type="text" class="form-control" id="cfg-uplink-mode" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Tagged VLANs saat ini</label>
+                    <div id="cfg-uplink-current-vlans" class="form-control-plaintext"></div>
+                </div>
+                <hr>
+                <div class="form-group">
+                    <label>Tambah VLAN <small class="text-muted">(pisah dengan koma, misal: 100,200,300)</small></label>
+                    <input type="text" class="form-control" id="cfg-uplink-add-vlans" placeholder="Contoh: 100, 200">
+                </div>
+                <div class="form-group">
+                    <label>Hapus VLAN <small class="text-muted">(pisah dengan koma)</small></label>
+                    <input type="text" class="form-control" id="cfg-uplink-remove-vlans" placeholder="Contoh: 100, 200">
+                </div>
+                <div class="form-group">
+                    <label>Admin State</label>
+                    <div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="cfg_uplink_admin" id="cfg-uplink-admin-enabled" value="enabled" checked>
+                            <label class="form-check-label" for="cfg-uplink-admin-enabled">Enabled</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="cfg_uplink_admin" id="cfg-uplink-admin-disabled" value="disabled">
+                            <label class="form-check-label" for="cfg-uplink-admin-disabled">Disabled (Shutdown)</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>PVID / Native VLAN <small class="text-muted">(opsional)</small></label>
+                    <input type="number" class="form-control" id="cfg-uplink-pvid" placeholder="Switchport default VLAN" min="1" max="4094">
+                </div>
+                <div class="form-group">
+                    <label>Deskripsi Port <small class="text-muted">(opsional)</small></label>
+                    <input type="text" class="form-control" id="cfg-uplink-desc" placeholder="Port description" maxlength="64">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-success" id="btn-save-uplink-config">
+                    <i class="fas fa-save mr-1"></i>Simpan ke OLT
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create VLAN Modal -->
+<div class="modal fade" id="modal-create-vlan" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-primary">
+                <h5 class="modal-title text-white"><i class="fas fa-plus mr-2"></i>Buat VLAN Baru</h5>
+                <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>VLAN ID <span class="text-danger">*</span></label>
+                    <input type="number" class="form-control" id="new-vlan-id" min="2" max="4094" placeholder="2 - 4094" required>
+                </div>
+                <div class="form-group">
+                    <label>Nama VLAN</label>
+                    <input type="text" class="form-control" id="new-vlan-name" placeholder="Contoh: internet-pppoe" maxlength="32">
+                </div>
+                <div class="form-group">
+                    <label>Tipe</label>
+                    <select class="form-control" id="new-vlan-type">
+                        <option value="other">Lainnya</option>
+                        <option value="service">Service (Internet)</option>
+                        <option value="management">Management (TR069)</option>
+                        <option value="voip">VoIP</option>
+                        <option value="iptv">IPTV</option>
+                        <option value="infra">Infrastructure</option>
+                    </select>
+                </div>
+                <div class="alert alert-warning py-2 mb-0">
+                    <i class="fas fa-exclamation-triangle mr-1"></i>
+                    VLAN akan langsung dibuat di OLT. Untuk menambahkan ke uplink, gunakan tombol Configure di uplink port.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-primary" id="btn-create-vlan">
+                    <i class="fas fa-plus mr-1"></i>Buat VLAN di OLT
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Confirm Delete VLAN Modal -->
+<div class="modal fade" id="modal-delete-vlan" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-sm" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-danger">
+                <h5 class="modal-title text-white"><i class="fas fa-trash mr-2"></i>Hapus VLAN</h5>
+                <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
+            </div>
+            <div class="modal-body text-center">
+                <input type="hidden" id="del-vlan-id">
+                <p>Yakin hapus <strong>VLAN <span id="del-vlan-display"></span></strong> dari OLT?</p>
+                <p class="text-danger small">VLAN akan dihapus dari perangkat OLT. Pastikan tidak ada ONU yang menggunakan VLAN ini.</p>
+            </div>
+            <div class="modal-footer justify-content-center">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-danger" id="btn-confirm-delete-vlan">
+                    <i class="fas fa-trash mr-1"></i>Hapus dari OLT
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Confirm Reboot Card Modal -->
+<div class="modal fade" id="modal-reboot-card" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-sm" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-danger">
+                <h5 class="modal-title text-white"><i class="fas fa-redo mr-2"></i>Reboot Card</h5>
+                <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
+            </div>
+            <div class="modal-body text-center">
+                <input type="hidden" id="reboot-card-id">
+                <p>Yakin reboot <strong>Card Slot <span id="reboot-card-display"></span></strong>?</p>
+                <p class="text-danger small">Card akan restart dan semua ONU di slot ini akan terputus sementara.</p>
+            </div>
+            <div class="modal-footer justify-content-center">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-danger" id="btn-confirm-reboot-card">
+                    <i class="fas fa-redo mr-1"></i>Reboot Card
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Confirm Reboot PON ONUs Modal -->
+<div class="modal fade" id="modal-reboot-pon-onus" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-sm" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title"><i class="fas fa-redo mr-2"></i>Reboot ONUs</h5>
+                <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+            </div>
+            <div class="modal-body text-center">
+                <input type="hidden" id="reboot-pon-slot">
+                <input type="hidden" id="reboot-pon-port">
+                <p>Yakin reboot semua ONU di <strong>port <span id="reboot-pon-display"></span></strong>?</p>
+                <p class="text-warning small">Semua ONU di port ini akan restart dan terputus sementara.</p>
+            </div>
+            <div class="modal-footer justify-content-center">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-warning" id="btn-confirm-reboot-pon-onus">
+                    <i class="fas fa-redo mr-1"></i>Reboot ONUs
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Header -->
 <div class="row mb-3">
     <div class="col-12">
@@ -308,6 +484,7 @@
                                     <th>SW Ver</th>
                                     <th>Status</th>
                                     <th class="text-center">ONU (Online/Total)</th>
+                                    <th width="80" class="text-center">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -332,6 +509,17 @@
                                             <span>{{ $regOnu }}</span>
                                         @else
                                             <span class="text-muted">-</span>
+                                        @endif
+                                    </td>
+                                    <td class="text-center">
+                                        @if($card->status !== 'standby')
+                                        <button class="btn btn-xs btn-outline-danger btn-reboot-card"
+                                                data-id="{{ $card->id }}"
+                                                data-slot="{{ $card->slot }}"
+                                                data-type="{{ $card->real_type ?: $card->configured_type }}"
+                                                title="Reboot Card">
+                                            <i class="fas fa-redo"></i>
+                                        </button>
                                         @endif
                                     </td>
                                 </tr>
@@ -471,6 +659,7 @@
                                 <th width="90" class="text-center">RX Min</th>
                                 <th width="90" class="text-center">RX Max</th>
                                 <th width="90" class="text-center">RX Avg</th>
+                                <th width="60" class="text-center">Aksi</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -555,6 +744,17 @@
                                             <span class="text-muted">-</span>
                                         @endif
                                     </td>
+                                    <td class="text-center">
+                                        @if($reg > 0)
+                                        <button class="btn btn-xs btn-outline-warning btn-reboot-pon-onus"
+                                                data-slot="{{ $card->slot }}"
+                                                data-port="{{ $p }}"
+                                                data-count="{{ $reg }}"
+                                                title="Reboot {{ $reg }} ONUs">
+                                            <i class="fas fa-redo"></i>
+                                        </button>
+                                        @endif
+                                    </td>
                                 </tr>
                             @endfor
                         </tbody>
@@ -564,7 +764,7 @@
                                 <td class="text-center">{{ $card->ponPorts->sum('registered_onu') }}</td>
                                 <td class="text-center text-success">{{ $card->ponPorts->sum('online_onu') }}</td>
                                 <td class="text-center text-danger">{{ $card->ponPorts->sum('registered_onu') - $card->ponPorts->sum('online_onu') }}</td>
-                                <td colspan="5"></td>
+                                <td colspan="6"></td>
                             </tr>
                         </tfoot>
                     </table>
@@ -583,6 +783,9 @@
             <div class="card-header">
                 <h3 class="card-title"><i class="fas fa-tags mr-2"></i>VLAN Database</h3>
                 <div class="card-tools">
+                    <button type="button" class="btn btn-sm btn-primary mr-1" id="btn-open-create-vlan">
+                        <i class="fas fa-plus mr-1"></i>Buat VLAN
+                    </button>
                     <span class="badge badge-info">{{ $olt->vlans->count() }} VLANs</span>
                     @if($olt->vlans->sum('service_port_count') > 0)
                         <span class="badge badge-success ml-1">{{ $olt->vlans->sum('service_port_count') }} service-port</span>
@@ -634,7 +837,7 @@
                                         @endif
                                     </td>
                                     <td><small>{{ $vlan->description ?? '-' }}</small></td>
-                                    <td>
+                                    <td class="text-nowrap">
                                         <button class="btn btn-xs btn-outline-info btn-edit-vlan"
                                                 data-id="{{ $vlan->id }}"
                                                 data-vlan-id="{{ $vlan->vlan_id }}"
@@ -643,6 +846,13 @@
                                                 data-description="{{ $vlan->description }}"
                                                 title="Ubah Tipe">
                                             <i class="fas fa-tag"></i>
+                                        </button>
+                                        <button class="btn btn-xs btn-outline-danger btn-delete-vlan"
+                                                data-id="{{ $vlan->id }}"
+                                                data-vlan-id="{{ $vlan->vlan_id }}"
+                                                data-svc="{{ $vlan->service_port_count }}"
+                                                title="Hapus VLAN dari OLT">
+                                            <i class="fas fa-trash"></i>
                                         </button>
                                     </td>
                                 </tr>
@@ -679,6 +889,7 @@
                                     <th width="50" class="text-center">Status</th>
                                     <th>Mode</th>
                                     <th>Tagged VLANs</th>
+                                    <th width="55" class="text-center">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -719,6 +930,18 @@
                                         @else
                                             <span class="text-muted">-</span>
                                         @endif
+                                    </td>
+                                    <td class="text-center">
+                                        <button class="btn btn-xs btn-outline-success btn-configure-uplink"
+                                                data-id="{{ $uplink->id }}"
+                                                data-name="{{ $uplink->interface_name }}"
+                                                data-mode="{{ $uplink->switchport_mode ?? 'trunk' }}"
+                                                data-vlans="{{ $uplink->tagged_vlans ? implode(', ', $uplink->tagged_vlans) : '' }}"
+                                                data-admin="{{ $uplink->admin_status ?? 'enabled' }}"
+                                                data-pvid="{{ $uplink->native_vlan ?? '' }}"
+                                                title="Konfigurasi">
+                                            <i class="fas fa-cog"></i>
+                                        </button>
                                     </td>
                                 </tr>
                                 @endforeach
@@ -919,6 +1142,221 @@ $(function() {
             },
             complete: function() {
                 btn.prop('disabled', false).html('<i class="fas fa-save mr-1"></i>Simpan');
+            }
+        });
+    });
+
+    // =========================================================================
+    // Configure Uplink
+    // =========================================================================
+    $(document).on('click', '.btn-configure-uplink', function() {
+        let btn = $(this);
+        $('#cfg-uplink-id').val(btn.data('id'));
+        $('#cfg-uplink-name').val(btn.data('name'));
+        $('#cfg-uplink-mode').val(btn.data('mode') || 'trunk');
+        $('#cfg-uplink-current-vlans').text(btn.data('vlans') || 'Tidak ada');
+        $('#cfg-uplink-add-vlans').val('');
+        $('#cfg-uplink-remove-vlans').val('');
+        $('#cfg-uplink-desc').val('');
+        $('#cfg-uplink-pvid').val(btn.data('pvid') || '');
+        $('input[name="cfg_uplink_admin"][value="' + (btn.data('admin') || 'enabled') + '"]').prop('checked', true);
+        $('#modal-configure-uplink').modal('show');
+    });
+
+    $('#btn-save-uplink-config').click(function() {
+        let btn = $(this);
+        let uplinkId = $('#cfg-uplink-id').val();
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Menyimpan ke OLT...');
+
+        $.ajax({
+            url: '{{ route("admin.olts.infrastructure.uplinks.configure", [$olt, "__UPLINK__"]) }}'.replace('__UPLINK__', uplinkId),
+            method: 'PUT',
+            data: {
+                _token: '{{ csrf_token() }}',
+                add_vlans: $('#cfg-uplink-add-vlans').val(),
+                remove_vlans: $('#cfg-uplink-remove-vlans').val(),
+                admin_status: $('input[name="cfg_uplink_admin"]:checked').val(),
+                native_vlan: $('#cfg-uplink-pvid').val() || null,
+                description: $('#cfg-uplink-desc').val(),
+            },
+            success: function(res) {
+                if (res.success) {
+                    toastr.success(res.message);
+                    $('#modal-configure-uplink').modal('hide');
+                    location.reload();
+                } else {
+                    toastr.warning(res.message);
+                }
+            },
+            error: function(xhr) {
+                toastr.error(xhr.responseJSON?.message || 'Gagal menyimpan konfigurasi');
+            },
+            complete: function() {
+                btn.prop('disabled', false).html('<i class="fas fa-save mr-1"></i>Simpan ke OLT');
+            }
+        });
+    });
+
+    // =========================================================================
+    // Create VLAN
+    // =========================================================================
+    $('#btn-open-create-vlan').click(function() {
+        $('#new-vlan-id').val('');
+        $('#new-vlan-name').val('');
+        $('#new-vlan-type').val('other');
+        $('#modal-create-vlan').modal('show');
+    });
+
+    $('#btn-create-vlan').click(function() {
+        let btn = $(this);
+        let vlanId = $('#new-vlan-id').val();
+        if (!vlanId || vlanId < 2 || vlanId > 4094) {
+            toastr.error('VLAN ID harus antara 2 - 4094');
+            return;
+        }
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Membuat VLAN...');
+
+        $.ajax({
+            url: '{{ route("admin.olts.infrastructure.vlans.create", $olt) }}',
+            method: 'POST',
+            data: {
+                _token: '{{ csrf_token() }}',
+                vlan_id: vlanId,
+                name: $('#new-vlan-name').val(),
+                type: $('#new-vlan-type').val(),
+            },
+            success: function(res) {
+                if (res.success) {
+                    toastr.success(res.message);
+                    $('#modal-create-vlan').modal('hide');
+                    location.reload();
+                } else {
+                    toastr.warning(res.message);
+                }
+            },
+            error: function(xhr) {
+                toastr.error(xhr.responseJSON?.message || 'Gagal membuat VLAN');
+            },
+            complete: function() {
+                btn.prop('disabled', false).html('<i class="fas fa-plus mr-1"></i>Buat VLAN di OLT');
+            }
+        });
+    });
+
+    // =========================================================================
+    // Delete VLAN
+    // =========================================================================
+    $(document).on('click', '.btn-delete-vlan', function() {
+        let btn = $(this);
+        let svc = btn.data('svc') || 0;
+        if (svc > 0) {
+            toastr.error('VLAN masih digunakan oleh ' + svc + ' service-port. Tidak bisa dihapus.');
+            return;
+        }
+        $('#del-vlan-id').val(btn.data('id'));
+        $('#del-vlan-display').text(btn.data('vlan-id'));
+        $('#modal-delete-vlan').modal('show');
+    });
+
+    $('#btn-confirm-delete-vlan').click(function() {
+        let btn = $(this);
+        let vlanId = $('#del-vlan-id').val();
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Menghapus...');
+
+        $.ajax({
+            url: '{{ route("admin.olts.infrastructure.vlans.destroy", [$olt, "__VLAN__"]) }}'.replace('__VLAN__', vlanId),
+            method: 'DELETE',
+            data: { _token: '{{ csrf_token() }}' },
+            success: function(res) {
+                if (res.success) {
+                    toastr.success(res.message);
+                    $('#modal-delete-vlan').modal('hide');
+                    location.reload();
+                } else {
+                    toastr.warning(res.message);
+                }
+            },
+            error: function(xhr) {
+                toastr.error(xhr.responseJSON?.message || 'Gagal menghapus VLAN');
+            },
+            complete: function() {
+                btn.prop('disabled', false).html('<i class="fas fa-trash mr-1"></i>Hapus dari OLT');
+            }
+        });
+    });
+
+    // =========================================================================
+    // Reboot Card
+    // =========================================================================
+    $(document).on('click', '.btn-reboot-card', function() {
+        let btn = $(this);
+        $('#reboot-card-id').val(btn.data('id'));
+        $('#reboot-card-display').text(btn.data('slot') + ' (' + btn.data('type') + ')');
+        $('#modal-reboot-card').modal('show');
+    });
+
+    $('#btn-confirm-reboot-card').click(function() {
+        let btn = $(this);
+        let cardId = $('#reboot-card-id').val();
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Rebooting...');
+
+        $.ajax({
+            url: '{{ route("admin.olts.infrastructure.cards.reboot", [$olt, "__CARD__"]) }}'.replace('__CARD__', cardId),
+            method: 'POST',
+            data: { _token: '{{ csrf_token() }}' },
+            success: function(res) {
+                if (res.success) {
+                    toastr.success(res.message);
+                    $('#modal-reboot-card').modal('hide');
+                } else {
+                    toastr.warning(res.message);
+                }
+            },
+            error: function(xhr) {
+                toastr.error(xhr.responseJSON?.message || 'Gagal reboot card');
+            },
+            complete: function() {
+                btn.prop('disabled', false).html('<i class="fas fa-redo mr-1"></i>Reboot Card');
+            }
+        });
+    });
+
+    // =========================================================================
+    // Reboot All ONUs on PON Port
+    // =========================================================================
+    $(document).on('click', '.btn-reboot-pon-onus', function() {
+        let btn = $(this);
+        $('#reboot-pon-slot').val(btn.data('slot'));
+        $('#reboot-pon-port').val(btn.data('port'));
+        $('#reboot-pon-display').text('1/' + btn.data('slot') + '/' + btn.data('port') + ' (' + btn.data('count') + ' ONU)');
+        $('#modal-reboot-pon-onus').modal('show');
+    });
+
+    $('#btn-confirm-reboot-pon-onus').click(function() {
+        let btn = $(this);
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Rebooting...');
+
+        $.ajax({
+            url: '{{ route("admin.olts.infrastructure.reboot-pon-onus", $olt) }}',
+            method: 'POST',
+            data: {
+                _token: '{{ csrf_token() }}',
+                slot: $('#reboot-pon-slot').val(),
+                port: $('#reboot-pon-port').val(),
+            },
+            success: function(res) {
+                if (res.success) {
+                    toastr.success(res.message);
+                    $('#modal-reboot-pon-onus').modal('hide');
+                } else {
+                    toastr.warning(res.message);
+                }
+            },
+            error: function(xhr) {
+                toastr.error(xhr.responseJSON?.message || 'Gagal reboot ONUs');
+            },
+            complete: function() {
+                btn.prop('disabled', false).html('<i class="fas fa-redo mr-1"></i>Reboot ONUs');
             }
         });
     });

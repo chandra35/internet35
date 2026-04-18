@@ -366,6 +366,13 @@ Route::prefix('admin')->middleware(['auth', 'role:superadmin|admin|admin-pop|tek
         Route::get('/{olt}/infrastructure/vlans', [\App\Http\Controllers\Admin\OltController::class, 'getVlans'])->name('infrastructure.vlans');
         Route::get('/{olt}/infrastructure/uplinks', [\App\Http\Controllers\Admin\OltController::class, 'getUplinks'])->name('infrastructure.uplinks');
         Route::put('/{olt}/infrastructure/vlans/{vlan}', [\App\Http\Controllers\Admin\OltController::class, 'updateVlanType'])->name('infrastructure.vlans.update-type');
+
+        // Infrastructure WRITE operations
+        Route::put('/{olt}/infrastructure/uplinks/{uplink}/configure', [\App\Http\Controllers\Admin\OltController::class, 'configureUplink'])->name('infrastructure.uplinks.configure');
+        Route::post('/{olt}/infrastructure/vlans', [\App\Http\Controllers\Admin\OltController::class, 'createVlan'])->name('infrastructure.vlans.create');
+        Route::delete('/{olt}/infrastructure/vlans/{vlan}', [\App\Http\Controllers\Admin\OltController::class, 'destroyVlan'])->name('infrastructure.vlans.destroy');
+        Route::post('/{olt}/infrastructure/cards/{card}/reboot', [\App\Http\Controllers\Admin\OltController::class, 'rebootCard'])->name('infrastructure.cards.reboot');
+        Route::post('/{olt}/infrastructure/reboot-pon-onus', [\App\Http\Controllers\Admin\OltController::class, 'rebootPonOnus'])->name('infrastructure.reboot-pon-onus');
     });
 
     // ONU (Optical Network Unit) Management

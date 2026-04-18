@@ -944,4 +944,153 @@ class OltController extends Controller implements HasMiddleware
 
         return response()->json(['success' => true, 'message' => 'Tipe VLAN diperbarui']);
     }
+
+    /**
+     * Configure uplink port on OLT (WRITE)
+     */
+    public function configureUplink(Olt $olt, OltUplink $uplink, Request $request)
+    {
+        $request->validate([
+            'add_vlans' => 'nullable|string',
+            'remove_vlans' => 'nullable|string',
+            'native_vlan' => 'nullable|integer|min:1|max:4094',
+            'admin_status' => 'nullable|in:enabled,disabled',
+            'description' => 'nullable|string|max:64',
+        ]);
+
+        try {
+            $helper = OltFactory::make($olt);
+
+            $params = [];
+            if ($request->add_vlans) {
+                $params['add_vlans'] = array_filter(array_map('intval', preg_split('/[\s,]+/', $request->add_vlans)));
+            }
+            if ($request->remove_vlans) {
+                $params['remove_vlans'] = array_filter(array_map('intval', preg_split('/[\s,]+/', $request->remove_vlans)));
+            }
+            if ($request->has('native_vlan') && $request->native_vlan !== null) {
+                $params['native_vlan'] = $request->native_vlan;
+            }
+            if ($request->admin_status) {
+                $params['admin_status'] = $request->admin_status;
+            }
+            if ($request->description !== null) {
+                $params['description'] = $request->description;
+            }
+
+            $result = $helper->configureUplink($uplink->interface_name, $params);
+
+            // Re-sync uplinks after change
+            if ($result['success']) {
+                try { $helper->syncUplinks(); } catch (\Exception $e) {}
+            }
+
+            return response()->json($result);
+
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Create VLAN on OLT (WRITE)
+     */
+    public function createVlan(Olt $olt, Request $request)
+    {
+        $request->validate([
+            'vlan_id' => 'required|integer|min:2|max:4094',
+            'name' => 'nullable|string|max:32',
+            'type' => 'nullable|in:service,management,voip,iptv,infra,other',
+        ]);
+
+        try {
+            $helper = OltFactory::make($olt);
+            $result = $helper->createVlan($request->vlan_id, $request->name ?? '');
+
+            // Also save locally
+            if ($result['success']) {
+                OltVlan::updateOrCreate(
+                    ['olt_id' => $olt->id, 'vlan_id' => $request->vlan_id],
+                    [
+                        'name' => $request->name ?? "VLAN{$request->vlan_id}",
+                        'type' => $request->type ?? 'other',
+                        'is_synced' => true,
+                        'last_sync_at' => now(),
+                    ]
+                );
+            }
+
+            return response()->json($result);
+
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Delete VLAN from OLT (WRITE)
+     */
+    public function destroyVlan(Olt $olt, OltVlan $vlan)
+    {
+        try {
+            $helper = OltFactory::make($olt);
+
+            // Check if VLAN has service ports (ONUs using it)
+            if ($vlan->service_port_count > 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "VLAN {$vlan->vlan_id} masih digunakan oleh {$vlan->service_port_count} service-port. Hapus service-port terlebih dahulu.",
+                ], 422);
+            }
+
+            $result = $helper->deleteVlan($vlan->vlan_id);
+
+            // Remove from local DB
+            if ($result['success']) {
+                $vlan->delete();
+            }
+
+            return response()->json($result);
+
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Reboot a card/slot on OLT (WRITE)
+     */
+    public function rebootCard(Olt $olt, OltCard $card)
+    {
+        try {
+            $helper = OltFactory::make($olt);
+            $result = $helper->rebootCard($card->rack, $card->shelf, $card->slot);
+
+            return response()->json($result);
+
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Reboot all ONUs on a specific PON port (WRITE)
+     */
+    public function rebootPonOnus(Olt $olt, Request $request)
+    {
+        $request->validate([
+            'slot' => 'required|integer',
+            'port' => 'required|integer',
+        ]);
+
+        try {
+            $helper = OltFactory::make($olt);
+            $result = $helper->rebootAllOnusOnPort($request->slot, $request->port);
+
+            return response()->json($result);
+
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
 }
