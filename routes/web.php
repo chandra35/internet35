@@ -358,6 +358,14 @@ Route::prefix('admin')->middleware(['auth', 'role:superadmin|admin|admin-pop|tek
         Route::get('/{olt}/signal-history', [\App\Http\Controllers\Admin\OltController::class, 'getSignalHistory'])->name('signal-history');
         Route::get('/{olt}/traffic-stats', [\App\Http\Controllers\Admin\OltController::class, 'getTrafficStats'])->name('traffic-stats');
         Route::get('/{olt}/onus', [\App\Http\Controllers\Admin\OltController::class, 'getOnus'])->name('onus');
+
+        // Infrastructure (Cards, VLANs, Uplinks) - READ ONLY from OLT
+        Route::get('/{olt}/infrastructure', [\App\Http\Controllers\Admin\OltController::class, 'infrastructure'])->name('infrastructure');
+        Route::get('/{olt}/sync-infrastructure-stream', [\App\Http\Controllers\Admin\OltController::class, 'syncInfrastructureStream'])->name('sync-infrastructure-stream');
+        Route::get('/{olt}/infrastructure/cards', [\App\Http\Controllers\Admin\OltController::class, 'getCards'])->name('infrastructure.cards');
+        Route::get('/{olt}/infrastructure/vlans', [\App\Http\Controllers\Admin\OltController::class, 'getVlans'])->name('infrastructure.vlans');
+        Route::get('/{olt}/infrastructure/uplinks', [\App\Http\Controllers\Admin\OltController::class, 'getUplinks'])->name('infrastructure.uplinks');
+        Route::put('/{olt}/infrastructure/vlans/{vlan}', [\App\Http\Controllers\Admin\OltController::class, 'updateVlanType'])->name('infrastructure.vlans.update-type');
     });
 
     // ONU (Optical Network Unit) Management

@@ -125,6 +125,9 @@
                 <button type="button" class="btn btn-primary btn-sm btn-test-connection" data-id="{{ $olt->id }}">
                     <i class="fas fa-plug"></i> Test
                 </button>
+                <a href="{{ route('admin.olts.infrastructure', $olt) }}" class="btn btn-dark btn-sm">
+                    <i class="fas fa-server"></i> Infrastruktur
+                </a>
             </div>
         </div>
 

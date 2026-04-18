@@ -4,6 +4,9 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Olt;
+use App\Models\OltCard;
+use App\Models\OltVlan;
+use App\Models\OltUplink;
 use App\Models\Router;
 use App\Models\User;
 use App\Models\Customer;
@@ -784,5 +787,138 @@ class OltController extends Controller implements HasMiddleware
                 'message' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Show OLT infrastructure page (Cards, VLANs, Uplinks)
+     */
+    public function infrastructure(Olt $olt)
+    {
+        $olt->load(['pop', 'cards' => fn($q) => $q->orderBy('slot'), 'vlans' => fn($q) => $q->orderBy('vlan_id'), 'uplinks' => fn($q) => $q->orderBy('interface_name')]);
+
+        return view('admin.olts.infrastructure', compact('olt'));
+    }
+
+    /**
+     * SSE stream: Sync infrastructure data from OLT (READ-ONLY)
+     */
+    public function syncInfrastructureStream(Olt $olt)
+    {
+        return response()->stream(function() use ($olt) {
+            if (ob_get_level()) ob_end_clean();
+            set_time_limit(120);
+
+            $this->sendProgress('Memulai sync infrastruktur OLT...', 0);
+
+            try {
+                $helper = OltFactory::make($olt);
+
+                // Step 1: Sync Cards
+                $this->sendProgress('Membaca data kartu (show card)...', 10);
+                $cardsResult = $helper->syncCards();
+                $this->sendProgress("Kartu: {$cardsResult['synced']} slot tersinkronisasi", 35);
+
+                if (!empty($cardsResult['errors'])) {
+                    foreach ($cardsResult['errors'] as $err) {
+                        $this->sendProgress("Card warning: {$err}", 35, 'warning');
+                    }
+                }
+
+                // Step 2: Sync VLANs
+                $this->sendProgress('Membaca database VLAN (show vlan)...', 40);
+                $vlansResult = $helper->syncVlans();
+                $this->sendProgress("VLAN: {$vlansResult['synced']} VLAN tersinkronisasi", 65);
+
+                if (!empty($vlansResult['errors'])) {
+                    foreach ($vlansResult['errors'] as $err) {
+                        $this->sendProgress("VLAN warning: {$err}", 65, 'warning');
+                    }
+                }
+
+                // Step 3: Sync Uplinks
+                $this->sendProgress('Membaca uplink ports (show interface brief)...', 70);
+                $uplinksResult = $helper->syncUplinks();
+                $this->sendProgress("Uplink: {$uplinksResult['synced']} port tersinkronisasi", 95);
+
+                if (!empty($uplinksResult['errors'])) {
+                    foreach ($uplinksResult['errors'] as $err) {
+                        $this->sendProgress("Uplink warning: {$err}", 95, 'warning');
+                    }
+                }
+
+                $message = "Sync infrastruktur selesai. Kartu: {$cardsResult['synced']}, VLAN: {$vlansResult['synced']}, Uplink: {$uplinksResult['synced']}";
+                $this->sendProgress($message, 100, 'success');
+                $this->sendComplete(true, $message, [
+                    'cards_synced' => $cardsResult['synced'],
+                    'vlans_synced' => $vlansResult['synced'],
+                    'uplinks_synced' => $uplinksResult['synced'],
+                ]);
+
+            } catch (Exception $e) {
+                $this->sendProgress('Error: ' . $e->getMessage(), 100, 'error');
+                $this->sendComplete(false, $e->getMessage());
+            }
+
+        }, 200, [
+            'Content-Type' => 'text/event-stream',
+            'Cache-Control' => 'no-cache',
+            'Connection' => 'keep-alive',
+            'X-Accel-Buffering' => 'no',
+        ]);
+    }
+
+    /**
+     * API: Get cards data (JSON)
+     */
+    public function getCards(Olt $olt)
+    {
+        $cards = OltCard::where('olt_id', $olt->id)
+            ->orderBy('slot')
+            ->get();
+
+        return response()->json(['success' => true, 'data' => $cards]);
+    }
+
+    /**
+     * API: Get VLANs data (JSON)
+     */
+    public function getVlans(Olt $olt)
+    {
+        $vlans = OltVlan::where('olt_id', $olt->id)
+            ->orderBy('vlan_id')
+            ->get();
+
+        return response()->json(['success' => true, 'data' => $vlans]);
+    }
+
+    /**
+     * API: Get uplinks data (JSON)
+     */
+    public function getUplinks(Olt $olt)
+    {
+        $uplinks = OltUplink::where('olt_id', $olt->id)
+            ->with('card:id,slot,real_type')
+            ->orderBy('interface_name')
+            ->get();
+
+        return response()->json(['success' => true, 'data' => $uplinks]);
+    }
+
+    /**
+     * Update VLAN type classification (local only, not touching OLT)
+     */
+    public function updateVlanType(Olt $olt, OltVlan $vlan, Request $request)
+    {
+        $request->validate([
+            'type' => 'required|in:service,management,voip,iptv,infra,other',
+            'description' => 'nullable|string|max:255',
+        ]);
+
+        $vlan->update([
+            'type' => $request->type,
+            'description' => $request->description,
+        ]);
+
+        return response()->json(['success' => true, 'message' => 'Tipe VLAN diperbarui']);
     }
 }

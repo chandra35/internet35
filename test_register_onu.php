@@ -15,7 +15,8 @@ $unreg = $helper->unregisterOnu(1, 1, 19);
 print_r($unreg);
 
 // Wait for ONU to appear in uncfg list
-sleep(5);
+echo "Waiting 20s for ONU to re-appear...\n";
+sleep(20);
 
 echo "\n=== Unregistered ONUs ===\n";
 $uncfg = $helper->getUnregisteredOnus();

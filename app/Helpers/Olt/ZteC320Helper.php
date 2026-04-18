@@ -5,6 +5,9 @@ namespace App\Helpers\Olt;
 use Exception;
 use App\Models\Zone;
 use App\Models\Odp;
+use App\Models\OltCard;
+use App\Models\OltVlan;
+use App\Models\OltUplink;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -2545,6 +2548,403 @@ class ZteC320Helper extends BaseOltHelper
 
         } catch (Exception $e) {
             $result['message'] = $e->getMessage();
+        }
+
+        return $result;
+    }
+
+    // =========================================================================
+    // READ-ONLY INFRASTRUCTURE SYNC METHODS
+    // =========================================================================
+
+    /**
+     * Sync card/shelf information from OLT (READ-ONLY)
+     * Parses `show card` output to update olt_cards table
+     */
+    public function syncCards(): array
+    {
+        $result = ['synced' => 0, 'errors' => []];
+
+        try {
+            $output = $this->executeBatchCliCommands([
+                'show card',
+            ]);
+
+            $cards = $this->parseShowCard($output);
+
+            foreach ($cards as $cardData) {
+                try {
+                    OltCard::updateOrCreate(
+                        [
+                            'olt_id' => $this->olt->id,
+                            'rack' => $cardData['rack'],
+                            'shelf' => $cardData['shelf'],
+                            'slot' => $cardData['slot'],
+                        ],
+                        [
+                            'configured_type' => $cardData['configured_type'],
+                            'real_type' => $cardData['real_type'],
+                            'port_count' => $cardData['port_count'],
+                            'hardware_version' => $cardData['hardware_version'],
+                            'software_version' => $cardData['software_version'],
+                            'status' => $cardData['status'],
+                            'role' => $cardData['role'],
+                            'last_sync_at' => now(),
+                        ]
+                    );
+                    $result['synced']++;
+                } catch (Exception $e) {
+                    $result['errors'][] = "Slot {$cardData['slot']}: " . $e->getMessage();
+                }
+            }
+
+            // Link PON ports to their GPON cards
+            $gponCards = OltCard::where('olt_id', $this->olt->id)
+                ->where('role', 'gpon')
+                ->get();
+
+            foreach ($gponCards as $card) {
+                $this->olt->ponPorts()
+                    ->where('slot', $card->slot)
+                    ->update(['card_id' => $card->id]);
+            }
+
+        } catch (Exception $e) {
+            $result['errors'][] = $e->getMessage();
+            Log::error("ZTE syncCards error: " . $e->getMessage());
+        }
+
+        return $result;
+    }
+
+    /**
+     * Parse `show card` CLI output
+     */
+    protected function parseShowCard(string $output): array
+    {
+        $cards = [];
+        $lines = explode("\n", $output);
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+
+            // Match format: "1  1  1  GTGH    GTGHK   16   V2.1.0  V2.1.0  INSERVICE"
+            // or: "1  1  3  SMXA    SMXA    3    V2.1.0  V2.1.0  INSERVICE"
+            if (preg_match('/^(\d+)\s+(\d+)\s+(\d+)\s+(\S+)\s+(\S+)\s+(\d+)\s+(\S+)\s+(\S+)\s+(\S+)/i', $line, $m)) {
+                $configuredType = $m[4];
+                $realType = $m[5];
+                $role = $this->detectCardRole($configuredType, $realType);
+
+                $cards[] = [
+                    'rack' => (int)$m[1],
+                    'shelf' => (int)$m[2],
+                    'slot' => (int)$m[3],
+                    'configured_type' => $configuredType !== '--' ? $configuredType : null,
+                    'real_type' => $realType !== '--' ? $realType : null,
+                    'port_count' => (int)$m[6],
+                    'hardware_version' => $m[7] !== '--' ? $m[7] : null,
+                    'software_version' => $m[8] !== '--' ? $m[8] : null,
+                    'status' => strtolower($m[9]),
+                    'role' => $role,
+                ];
+            }
+        }
+
+        return $cards;
+    }
+
+    /**
+     * Detect card role from its type string
+     */
+    protected function detectCardRole(string $configuredType, string $realType): string
+    {
+        $type = strtoupper($realType ?: $configuredType);
+
+        // GPON cards: GTGH, GTGO, GTGV, GFGI, GFGH, etc.
+        if (preg_match('/^(GT|GF)/i', $type)) {
+            return 'gpon';
+        }
+        // EPON cards: ETGH, ETGO, etc.
+        if (preg_match('/^ET/i', $type)) {
+            return 'epon';
+        }
+        // Management/uplink: SMXA, SCXN, SCXL, HUVQ, etc.
+        if (preg_match('/^(SM|SC|HU)/i', $type)) {
+            return 'management';
+        }
+        // Power: PRWH, PRWG
+        if (preg_match('/^PR/i', $type)) {
+            return 'power';
+        }
+        // Fan: FANA, FANB
+        if (preg_match('/^FAN/i', $type)) {
+            return 'fan';
+        }
+
+        return 'other';
+    }
+
+    /**
+     * Sync VLAN database from OLT (READ-ONLY)
+     * Parses `show vlan` output to update olt_vlans table
+     */
+    public function syncVlans(): array
+    {
+        $result = ['synced' => 0, 'errors' => []];
+
+        try {
+            $output = $this->executeBatchCliCommands([
+                'show vlan',
+            ]);
+
+            $vlans = $this->parseShowVlan($output);
+
+            // Also get uplink port VLAN associations
+            $uplinkVlans = $this->getUplinkVlanMapping();
+
+            foreach ($vlans as $vlanData) {
+                try {
+                    // Find uplink ports carrying this VLAN
+                    $uplinkPorts = [];
+                    foreach ($uplinkVlans as $ifName => $vlanIds) {
+                        if (in_array($vlanData['vlan_id'], $vlanIds)) {
+                            $uplinkPorts[] = $ifName;
+                        }
+                    }
+
+                    OltVlan::updateOrCreate(
+                        [
+                            'olt_id' => $this->olt->id,
+                            'vlan_id' => $vlanData['vlan_id'],
+                        ],
+                        [
+                            'name' => $vlanData['name'],
+                            'uplink_ports' => !empty($uplinkPorts) ? $uplinkPorts : null,
+                            'is_synced' => true,
+                            'last_sync_at' => now(),
+                        ]
+                    );
+                    $result['synced']++;
+                } catch (Exception $e) {
+                    $result['errors'][] = "VLAN {$vlanData['vlan_id']}: " . $e->getMessage();
+                }
+            }
+
+        } catch (Exception $e) {
+            $result['errors'][] = $e->getMessage();
+            Log::error("ZTE syncVlans error: " . $e->getMessage());
+        }
+
+        return $result;
+    }
+
+    /**
+     * Parse `show vlan` CLI output
+     */
+    protected function parseShowVlan(string $output): array
+    {
+        $vlans = [];
+        $lines = explode("\n", $output);
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+
+            // Match: "111  VLAN0111  Enabled  Active" or similar
+            if (preg_match('/^(\d+)\s+(\S+)\s+(Enabled|Disabled)\s+(Active|Inactive)/i', $line, $m)) {
+                $vlanId = (int)$m[1];
+                if ($vlanId >= 1 && $vlanId <= 4094) {
+                    $vlans[] = [
+                        'vlan_id' => $vlanId,
+                        'name' => $m[2],
+                    ];
+                }
+            }
+            // Also match simpler "vlan 111" lines from vlan database
+            elseif (preg_match('/^vlan\s+(\d+)/i', $line, $m)) {
+                $vlanId = (int)$m[1];
+                if ($vlanId >= 1 && $vlanId <= 4094) {
+                    $vlans[] = [
+                        'vlan_id' => $vlanId,
+                        'name' => "VLAN" . str_pad($vlanId, 4, '0', STR_PAD_LEFT),
+                    ];
+                }
+            }
+        }
+
+        // Deduplicate by vlan_id
+        $unique = [];
+        foreach ($vlans as $v) {
+            $unique[$v['vlan_id']] = $v;
+        }
+
+        return array_values($unique);
+    }
+
+    /**
+     * Get VLAN-to-uplink-port mapping from running config (READ-ONLY)
+     */
+    protected function getUplinkVlanMapping(): array
+    {
+        $mapping = []; // interface_name => [vlan_ids]
+
+        try {
+            $output = $this->executeBatchCliCommands([
+                'show running-config | begin interface gei',
+            ]);
+
+            $currentIf = null;
+            $lines = explode("\n", $output);
+
+            foreach ($lines as $line) {
+                $line = trim($line);
+
+                // Match interface line: "interface gei_1/3/1" or "interface xgei_1/3/2"
+                if (preg_match('/^interface\s+((x?gei)_\d+\/\d+\/\d+)/', $line, $m)) {
+                    $currentIf = $m[1];
+                    $mapping[$currentIf] = $mapping[$currentIf] ?? [];
+                }
+                // Match switchport vlan trunk line
+                elseif ($currentIf && preg_match('/switchport\s+vlan\s+(\d+)\s+tag/i', $line, $m)) {
+                    $mapping[$currentIf][] = (int)$m[1];
+                }
+                // Exit interface context on blank line or !
+                elseif ($currentIf && ($line === '!' || $line === '' || str_starts_with($line, 'interface '))) {
+                    if (str_starts_with($line, 'interface ')) {
+                        // New interface — handled by the if above on next iteration
+                        if (preg_match('/^interface\s+((x?gei)_\d+\/\d+\/\d+)/', $line, $m)) {
+                            $currentIf = $m[1];
+                            $mapping[$currentIf] = $mapping[$currentIf] ?? [];
+                        } else {
+                            $currentIf = null;
+                        }
+                    } elseif ($line === '!' || $line === '') {
+                        $currentIf = null;
+                    }
+                }
+            }
+        } catch (Exception $e) {
+            Log::warning("ZTE getUplinkVlanMapping error: " . $e->getMessage());
+        }
+
+        return $mapping;
+    }
+
+    /**
+     * Sync uplink port information from OLT (READ-ONLY)
+     * Parses interface status + switchport config
+     */
+    public function syncUplinks(): array
+    {
+        $result = ['synced' => 0, 'errors' => []];
+
+        try {
+            $output = $this->executeBatchCliCommands([
+                'show interface brief',
+            ]);
+
+            $interfaces = $this->parseInterfaceBrief($output);
+
+            // Get VLAN mapping for trunk info
+            $uplinkVlans = $this->getUplinkVlanMapping();
+
+            // Get management cards to link uplinks
+            $mgmtCards = OltCard::where('olt_id', $this->olt->id)
+                ->whereIn('role', ['management', 'uplink'])
+                ->get()
+                ->keyBy('slot');
+
+            foreach ($interfaces as $ifData) {
+                try {
+                    $cardId = $mgmtCards[$ifData['slot']]->id ?? null;
+
+                    OltUplink::updateOrCreate(
+                        [
+                            'olt_id' => $this->olt->id,
+                            'interface_name' => $ifData['interface_name'],
+                        ],
+                        [
+                            'card_id' => $cardId,
+                            'interface_type' => $ifData['interface_type'],
+                            'rack' => $ifData['rack'],
+                            'shelf' => $ifData['shelf'],
+                            'slot' => $ifData['slot'],
+                            'port' => $ifData['port'],
+                            'status' => $ifData['oper_status'],
+                            'admin_status' => $ifData['admin_status'],
+                            'tagged_vlans' => $uplinkVlans[$ifData['interface_name']] ?? null,
+                            'switchport_mode' => !empty($uplinkVlans[$ifData['interface_name']]) ? 'trunk' : null,
+                            'last_sync_at' => now(),
+                        ]
+                    );
+                    $result['synced']++;
+                } catch (Exception $e) {
+                    $result['errors'][] = "{$ifData['interface_name']}: " . $e->getMessage();
+                }
+            }
+
+        } catch (Exception $e) {
+            $result['errors'][] = $e->getMessage();
+            Log::error("ZTE syncUplinks error: " . $e->getMessage());
+        }
+
+        return $result;
+    }
+
+    /**
+     * Parse `show interface brief` output for uplink/management ports
+     */
+    protected function parseInterfaceBrief(string $output): array
+    {
+        $interfaces = [];
+        $lines = explode("\n", $output);
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+
+            // Match: "xgei_1/3/2  enable  up" or "gei_1/3/1  enable  up"
+            if (preg_match('/^(x?gei)_(\d+)\/(\d+)\/(\d+)\s+(\w+)\s+(\w+)/i', $line, $m)) {
+                $interfaces[] = [
+                    'interface_name' => "{$m[1]}_{$m[2]}/{$m[3]}/{$m[4]}",
+                    'interface_type' => strtolower($m[1]),
+                    'rack' => (int)$m[2],
+                    'shelf' => (int)$m[3],
+                    'slot' => (int)$m[3],
+                    'port' => (int)$m[4],
+                    'admin_status' => strtolower($m[5]) === 'enable' ? 'enabled' : 'disabled',
+                    'oper_status' => strtolower($m[6]) === 'up' ? 'up' : 'down',
+                ];
+            }
+        }
+
+        return $interfaces;
+    }
+
+    /**
+     * Sync all infrastructure data from OLT (READ-ONLY)
+     * Cards → VLANs → Uplinks (in correct dependency order)
+     */
+    public function syncInfrastructure(): array
+    {
+        $result = [
+            'success' => true,
+            'cards' => ['synced' => 0, 'errors' => []],
+            'vlans' => ['synced' => 0, 'errors' => []],
+            'uplinks' => ['synced' => 0, 'errors' => []],
+        ];
+
+        try {
+            // 1. Sync cards first (uplinks depend on card_id)
+            $result['cards'] = $this->syncCards();
+
+            // 2. Sync VLANs
+            $result['vlans'] = $this->syncVlans();
+
+            // 3. Sync uplinks (needs card_id from step 1)
+            $result['uplinks'] = $this->syncUplinks();
+
+        } catch (Exception $e) {
+            $result['success'] = false;
+            Log::error("ZTE syncInfrastructure error: " . $e->getMessage());
         }
 
         return $result;

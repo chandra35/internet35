@@ -14,6 +14,7 @@ class OltPonPort extends Model
 
     protected $fillable = [
         'olt_id',
+        'card_id',
         'slot',
         'port',
         'name',
@@ -104,6 +105,11 @@ class OltPonPort extends Model
     public function olt(): BelongsTo
     {
         return $this->belongsTo(Olt::class);
+    }
+
+    public function card(): BelongsTo
+    {
+        return $this->belongsTo(OltCard::class, 'card_id');
     }
 
     public function onus(): HasMany

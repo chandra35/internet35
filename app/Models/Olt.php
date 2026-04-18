@@ -237,6 +237,21 @@ class Olt extends Model
         return $this->hasMany(OltPonPort::class);
     }
 
+    public function cards(): HasMany
+    {
+        return $this->hasMany(OltCard::class);
+    }
+
+    public function vlans(): HasMany
+    {
+        return $this->hasMany(OltVlan::class);
+    }
+
+    public function uplinks(): HasMany
+    {
+        return $this->hasMany(OltUplink::class);
+    }
+
     public function onus(): HasMany
     {
         return $this->hasMany(Onu::class);
