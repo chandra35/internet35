@@ -385,10 +385,11 @@ class GenieAcsService
 
         $params = [
             "{$wanPath}.Enable" => [true, 'xsd:boolean'],
-            "{$wanPath}.ConnectionType" => ['PPPoE_Bridged', 'xsd:string'],
+            "{$wanPath}.ConnectionType" => ['IP_Routed', 'xsd:string'],
             "{$wanPath}.Username" => [$username, 'xsd:string'],
             "{$wanPath}.Password" => [$password, 'xsd:string'],
             "{$wanPath}.NATEnabled" => [true, 'xsd:boolean'],
+            "{$wanPath}.X_HW_VLAN" => [(int) $vlan, 'xsd:int'],
         ];
 
         if (isset($config['name'])) {
@@ -396,6 +397,183 @@ class GenieAcsService
         }
 
         return $this->setParameterValues($deviceId, $params);
+    }
+
+    /**
+     * Get WiFi (WLAN) configuration from device.
+     */
+    public function getWifiInfo(string $deviceId): array
+    {
+        try {
+            $response = Http::timeout($this->timeout)
+                ->get("{$this->nbiUrl}/devices", [
+                    'query' => json_encode(['_id' => $deviceId]),
+                ]);
+
+            if (!$response->ok()) return [];
+
+            $devices = $response->json();
+            if (empty($devices)) return [];
+
+            $device = $devices[0];
+            $igd = $device['InternetGatewayDevice'] ?? $device['Device'] ?? [];
+            $lanDevice = $igd['LANDevice'] ?? [];
+            $wlans = [];
+
+            foreach ($lanDevice as $ldKey => $ldValue) {
+                if (!is_array($ldValue) || $ldKey === '_object' || $ldKey === '_writable' || $ldKey === '_timestamp') continue;
+                $wlanConfig = $ldValue['WLANConfiguration'] ?? [];
+                foreach ($wlanConfig as $wKey => $wValue) {
+                    if (!is_array($wValue) || $wKey === '_object' || $wKey === '_writable' || $wKey === '_timestamp') continue;
+                    $wlans[] = [
+                        'path' => "InternetGatewayDevice.LANDevice.{$ldKey}.WLANConfiguration.{$wKey}",
+                        'ssid' => $this->getValue($wValue, 'SSID'),
+                        'enabled' => $this->getValue($wValue, 'Enable'),
+                        'channel' => $this->getValue($wValue, 'Channel'),
+                        'standard' => $this->getValue($wValue, 'Standard'),
+                        'security_mode' => $this->getValue($wValue, 'BeaconType'),
+                        'encryption' => $this->getValue($wValue, 'WPAEncryptionModes') ?? $this->getValue($wValue, 'IEEE11iEncryptionModes'),
+                        'password' => $this->getValue($wValue, 'PreSharedKey.1.PreSharedKey') ?? $this->getValue($wValue, 'KeyPassphrase'),
+                        'mac_address' => $this->getValue($wValue, 'BSSID'),
+                        'total_associations' => $this->getValue($wValue, 'TotalAssociations'),
+                    ];
+                }
+            }
+
+            return $wlans;
+        } catch (Exception $e) {
+            Log::error("GenieACS getWifiInfo error: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Configure WiFi SSID and password.
+     */
+    public function configureWifi(string $deviceId, array $config): array
+    {
+        $wlanPath = $config['wlan_path'] ?? 'InternetGatewayDevice.LANDevice.1.WLANConfiguration.1';
+
+        $params = [];
+
+        if (isset($config['ssid'])) {
+            $params["{$wlanPath}.SSID"] = [$config['ssid'], 'xsd:string'];
+        }
+
+        if (isset($config['password'])) {
+            $params["{$wlanPath}.PreSharedKey.1.PreSharedKey"] = [$config['password'], 'xsd:string'];
+            $params["{$wlanPath}.KeyPassphrase"] = [$config['password'], 'xsd:string'];
+        }
+
+        if (isset($config['enabled'])) {
+            $params["{$wlanPath}.Enable"] = [(bool) $config['enabled'], 'xsd:boolean'];
+        }
+
+        if (empty($params)) {
+            return ['success' => false, 'message' => 'No parameters to set'];
+        }
+
+        return $this->setParameterValues($deviceId, $params);
+    }
+
+    /**
+     * Get LAN port info from device.
+     */
+    public function getLanPortInfo(string $deviceId): array
+    {
+        try {
+            $response = Http::timeout($this->timeout)
+                ->get("{$this->nbiUrl}/devices", [
+                    'query' => json_encode(['_id' => $deviceId]),
+                ]);
+
+            if (!$response->ok()) return [];
+
+            $devices = $response->json();
+            if (empty($devices)) return [];
+
+            $device = $devices[0];
+            $igd = $device['InternetGatewayDevice'] ?? $device['Device'] ?? [];
+            $lanDevice = $igd['LANDevice'] ?? [];
+            $ports = [];
+
+            foreach ($lanDevice as $ldKey => $ldValue) {
+                if (!is_array($ldValue) || $ldKey === '_object' || $ldKey === '_writable' || $ldKey === '_timestamp') continue;
+                $ethConfig = $ldValue['LANEthernetInterfaceConfig'] ?? [];
+                foreach ($ethConfig as $eKey => $eValue) {
+                    if (!is_array($eValue) || $eKey === '_object' || $eKey === '_writable' || $eKey === '_timestamp') continue;
+                    $ports[] = [
+                        'path' => "InternetGatewayDevice.LANDevice.{$ldKey}.LANEthernetInterfaceConfig.{$eKey}",
+                        'name' => "eth_0/{$eKey}",
+                        'enabled' => $this->getValue($eValue, 'Enable'),
+                        'status' => $this->getValue($eValue, 'Status'),
+                        'mac_address' => $this->getValue($eValue, 'MACAddress'),
+                        'max_bit_rate' => $this->getValue($eValue, 'MaxBitRate'),
+                        'duplex_mode' => $this->getValue($eValue, 'DuplexMode'),
+                    ];
+                }
+            }
+
+            return $ports;
+        } catch (Exception $e) {
+            Log::error("GenieACS getLanPortInfo error: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Add an object instance (e.g. create new WAN connection).
+     */
+    public function addObject(string $deviceId, string $objectPath): array
+    {
+        try {
+            $response = Http::timeout($this->timeout)
+                ->post("{$this->nbiUrl}/devices/{$deviceId}/tasks?connection_request", [
+                    'name' => 'addObject',
+                    'objectName' => $objectPath,
+                ]);
+
+            return [
+                'success' => $response->status() === 200 || $response->status() === 202,
+                'task_id' => $response->json('_id'),
+            ];
+        } catch (Exception $e) {
+            Log::error("GenieACS addObject error: " . $e->getMessage());
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Delete a pending task.
+     */
+    public function deleteTask(string $taskId): bool
+    {
+        try {
+            $response = Http::timeout($this->timeout)
+                ->delete("{$this->nbiUrl}/tasks/{$taskId}");
+            return $response->ok();
+        } catch (Exception $e) {
+            Log::error("GenieACS deleteTask error: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Get comprehensive device summary for TR069 management page.
+     */
+    public function getDeviceSummary(string $deviceId): ?array
+    {
+        $deviceInfo = $this->getDeviceInfo($deviceId);
+        if (!$deviceInfo) return null;
+
+        return [
+            'device' => $deviceInfo,
+            'wan_connections' => $this->getWanInfo($deviceId) ?? [],
+            'wifi' => $this->getWifiInfo($deviceId),
+            'lan_ports' => $this->getLanPortInfo($deviceId),
+            'lan_hosts' => $this->getLanHosts($deviceId),
+            'tasks' => $this->getDeviceTasks($deviceId),
+        ];
     }
 
     /**

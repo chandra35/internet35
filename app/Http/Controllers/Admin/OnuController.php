@@ -998,4 +998,95 @@ class OnuController extends Controller implements HasMiddleware
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
+
+    /**
+     * Get full TR069 device summary (for management panel).
+     */
+    public function getTr069Summary(Onu $onu)
+    {
+        try {
+            $genieacs = new \App\Services\GenieAcsService();
+
+            if (!$genieacs->isAvailable()) {
+                return response()->json([
+                    'success' => false,
+                    'available' => false,
+                    'message' => 'GenieACS server tidak tersedia',
+                ]);
+            }
+
+            $device = $genieacs->findDeviceBySerial($onu->serial_number);
+
+            if (!$device) {
+                return response()->json([
+                    'success' => true,
+                    'available' => true,
+                    'found' => false,
+                    'message' => 'ONU belum terdaftar di GenieACS',
+                ]);
+            }
+
+            $summary = $genieacs->getDeviceSummary($device['device_id']);
+
+            return response()->json([
+                'success' => true,
+                'available' => true,
+                'found' => true,
+                'data' => $summary,
+                'genieacs_ui_url' => config('services.genieacs.ui_url') . '/#/devices/' . urlencode($device['device_id']),
+            ]);
+        } catch (Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Configure WiFi via TR069.
+     */
+    public function configureTr069Wifi(Onu $onu, Request $request)
+    {
+        $request->validate([
+            'wlan_path' => 'required|string|max:500',
+            'ssid' => 'nullable|string|max:32',
+            'password' => 'nullable|string|min:8|max:63',
+            'enabled' => 'nullable|boolean',
+        ]);
+
+        try {
+            $genieacs = new \App\Services\GenieAcsService();
+            $device = $genieacs->findDeviceBySerial($onu->serial_number);
+
+            if (!$device) {
+                return response()->json(['success' => false, 'message' => 'Device tidak ditemukan di GenieACS']);
+            }
+
+            $config = ['wlan_path' => $request->wlan_path];
+            if ($request->filled('ssid')) $config['ssid'] = $request->ssid;
+            if ($request->filled('password')) $config['password'] = $request->password;
+            if ($request->has('enabled')) $config['enabled'] = $request->boolean('enabled');
+
+            $result = $genieacs->configureWifi($device['device_id'], $config);
+
+            return response()->json($result);
+        } catch (Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Delete a pending TR069 task.
+     */
+    public function deleteTr069Task(Onu $onu, Request $request)
+    {
+        $request->validate(['task_id' => 'required|string']);
+
+        try {
+            $genieacs = new \App\Services\GenieAcsService();
+            $result = $genieacs->deleteTask($request->task_id);
+
+            return response()->json(['success' => $result]);
+        } catch (Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
 }
