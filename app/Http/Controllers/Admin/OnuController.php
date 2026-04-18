@@ -955,7 +955,8 @@ class OnuController extends Controller implements HasMiddleware
                 return response()->json(['success' => false, 'message' => 'Device tidak ditemukan di GenieACS']);
             }
 
-            $result = $genieacs->refreshDevice($device['device_id'], 'InternetGatewayDevice.');
+            // Use smartRefresh to avoid task accumulation
+            $result = $genieacs->smartRefresh($device['device_id']);
 
             return response()->json($result);
         } catch (Exception $e) {
@@ -1084,6 +1085,136 @@ class OnuController extends Controller implements HasMiddleware
             $result = $genieacs->deleteTask($request->task_id);
 
             return response()->json(['success' => $result]);
+        } catch (Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Get security info via TR069.
+     */
+    public function getTr069Security(Onu $onu)
+    {
+        try {
+            $genieacs = new \App\Services\GenieAcsService();
+            $device = $genieacs->findDeviceBySerial($onu->serial_number);
+
+            if (!$device) {
+                return response()->json(['success' => false, 'message' => 'Device tidak ditemukan di GenieACS']);
+            }
+
+            $security = $genieacs->getSecurityInfo($device['device_id']);
+
+            return response()->json(['success' => true, 'data' => $security]);
+        } catch (Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Get connected users/hosts via TR069.
+     */
+    public function getTr069Users(Onu $onu)
+    {
+        try {
+            $genieacs = new \App\Services\GenieAcsService();
+            $device = $genieacs->findDeviceBySerial($onu->serial_number);
+
+            if (!$device) {
+                return response()->json(['success' => false, 'message' => 'Device tidak ditemukan di GenieACS']);
+            }
+
+            $users = $genieacs->getConnectedUsers($device['device_id']);
+
+            return response()->json(['success' => true, 'data' => $users]);
+        } catch (Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Reboot ONU via TR069.
+     */
+    public function rebootTr069(Onu $onu)
+    {
+        try {
+            $genieacs = new \App\Services\GenieAcsService();
+            $device = $genieacs->findDeviceBySerial($onu->serial_number);
+
+            if (!$device) {
+                return response()->json(['success' => false, 'message' => 'Device tidak ditemukan di GenieACS']);
+            }
+
+            $result = $genieacs->rebootDevice($device['device_id']);
+
+            return response()->json(array_merge($result, ['message' => 'Perintah reboot dikirim ke ONU']));
+        } catch (Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Factory reset via TR069.
+     */
+    public function factoryResetTr069(Onu $onu)
+    {
+        try {
+            $genieacs = new \App\Services\GenieAcsService();
+            $device = $genieacs->findDeviceBySerial($onu->serial_number);
+
+            if (!$device) {
+                return response()->json(['success' => false, 'message' => 'Device tidak ditemukan di GenieACS']);
+            }
+
+            $result = $genieacs->factoryReset($device['device_id']);
+
+            return response()->json(array_merge($result, ['message' => 'Perintah factory reset dikirim ke ONU']));
+        } catch (Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Clear all pending TR069 tasks.
+     */
+    public function clearTr069Tasks(Onu $onu)
+    {
+        try {
+            $genieacs = new \App\Services\GenieAcsService();
+            $device = $genieacs->findDeviceBySerial($onu->serial_number);
+
+            if (!$device) {
+                return response()->json(['success' => false, 'message' => 'Device tidak ditemukan di GenieACS']);
+            }
+
+            $cleared = $genieacs->clearDeviceTasks($device['device_id']);
+
+            return response()->json(['success' => true, 'cleared' => $cleared, 'message' => "$cleared task dihapus"]);
+        } catch (Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Download firmware to ONU via TR069.
+     */
+    public function downloadFirmwareTr069(Onu $onu, Request $request)
+    {
+        $request->validate([
+            'file_url' => 'required|url|max:500',
+        ]);
+
+        try {
+            $genieacs = new \App\Services\GenieAcsService();
+            $device = $genieacs->findDeviceBySerial($onu->serial_number);
+
+            if (!$device) {
+                return response()->json(['success' => false, 'message' => 'Device tidak ditemukan di GenieACS']);
+            }
+
+            $result = $genieacs->downloadFirmware($device['device_id'], $request->file_url);
+
+            return response()->json($result);
         } catch (Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }

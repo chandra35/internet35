@@ -398,6 +398,12 @@ Route::prefix('admin')->middleware(['auth', 'role:superadmin|admin|admin-pop|tek
         Route::post('/{onu}/tr069-wan', [\App\Http\Controllers\Admin\OnuController::class, 'configureTr069Wan'])->name('tr069-wan');
         Route::post('/{onu}/tr069-wifi', [\App\Http\Controllers\Admin\OnuController::class, 'configureTr069Wifi'])->name('tr069-wifi');
         Route::post('/{onu}/tr069-task-delete', [\App\Http\Controllers\Admin\OnuController::class, 'deleteTr069Task'])->name('tr069-task-delete');
+        Route::get('/{onu}/tr069-security', [\App\Http\Controllers\Admin\OnuController::class, 'getTr069Security'])->name('tr069-security');
+        Route::get('/{onu}/tr069-users', [\App\Http\Controllers\Admin\OnuController::class, 'getTr069Users'])->name('tr069-users');
+        Route::post('/{onu}/tr069-reboot', [\App\Http\Controllers\Admin\OnuController::class, 'rebootTr069'])->name('tr069-reboot');
+        Route::post('/{onu}/tr069-factory-reset', [\App\Http\Controllers\Admin\OnuController::class, 'factoryResetTr069'])->name('tr069-factory-reset');
+        Route::post('/{onu}/tr069-clear-tasks', [\App\Http\Controllers\Admin\OnuController::class, 'clearTr069Tasks'])->name('tr069-clear-tasks');
+        Route::post('/{onu}/tr069-firmware', [\App\Http\Controllers\Admin\OnuController::class, 'downloadFirmwareTr069'])->name('tr069-firmware');
     });
 
     // Network Map

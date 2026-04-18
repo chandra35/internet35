@@ -616,6 +616,204 @@ class GenieAcsService
     }
 
     /**
+     * Clear all pending tasks for a device before creating new ones.
+     */
+    public function clearDeviceTasks(string $deviceId, ?string $taskName = null): int
+    {
+        $tasks = $this->getDeviceTasks($deviceId);
+        $cleared = 0;
+        foreach ($tasks as $task) {
+            if ($taskName && ($task['name'] ?? '') !== $taskName) continue;
+            if ($this->deleteTask($task['_id'] ?? '')) {
+                $cleared++;
+            }
+        }
+        return $cleared;
+    }
+
+    /**
+     * Smart refresh: clear existing getParameterValues tasks first, then create one.
+     */
+    public function smartRefresh(string $deviceId): array
+    {
+        // Clear existing pending getParameterValues tasks to avoid accumulation
+        $this->clearDeviceTasks($deviceId, 'getParameterValues');
+
+        return $this->refreshDevice($deviceId, 'InternetGatewayDevice.');
+    }
+
+    /**
+     * Get security/firewall info from device.
+     */
+    public function getSecurityInfo(string $deviceId): array
+    {
+        try {
+            $response = Http::timeout($this->timeout)
+                ->get("{$this->nbiUrl}/devices", [
+                    'query' => json_encode(['_id' => $deviceId]),
+                ]);
+
+            if (!$response->ok()) return [];
+            $devices = $response->json();
+            if (empty($devices)) return [];
+
+            $device = $devices[0];
+            $igd = $device['InternetGatewayDevice'] ?? $device['Device'] ?? [];
+
+            // Layer3Forwarding
+            $l3fwd = $igd['Layer3Forwarding'] ?? [];
+            $defaultGw = $this->getValue($l3fwd, 'DefaultConnectionService');
+
+            // Firewall
+            $fw = $igd['X_HW_Security'] ?? $igd['Firewall'] ?? [];
+            $firewallLevel = $this->getValue($fw, 'Level') ?? $this->getValue($fw, 'Config');
+
+            // DNS
+            $dns = [];
+            $wanDevices = $igd['WANDevice'] ?? [];
+            foreach ($wanDevices as $wdKey => $wdValue) {
+                if (!is_array($wdValue) || $wdKey[0] === '_') continue;
+                $wcd = $wdValue['WANConnectionDevice'] ?? [];
+                foreach ($wcd as $wcKey => $wcValue) {
+                    if (!is_array($wcValue) || $wcKey[0] === '_') continue;
+                    foreach (['WANPPPConnection', 'WANIPConnection'] as $connType) {
+                        $conns = $wcValue[$connType] ?? [];
+                        foreach ($conns as $cKey => $cValue) {
+                            if (!is_array($cValue) || $cKey[0] === '_') continue;
+                            $d1 = $this->getValue($cValue, 'DNSServers');
+                            if ($d1) $dns = array_merge($dns, explode(',', $d1));
+                        }
+                    }
+                }
+            }
+
+            // UserInterface - remote management
+            $ui = $igd['UserInterface'] ?? [];
+            $remoteAccess = [];
+            if (!empty($ui)) {
+                $ra = $ui['RemoteAccess'] ?? [];
+                $remoteAccess = [
+                    'enabled' => $this->getValue($ra, 'Enable'),
+                    'port' => $this->getValue($ra, 'Port'),
+                    'protocol' => $this->getValue($ra, 'SupportedProtocols'),
+                ];
+            }
+
+            // ManagementServer (ACS info)
+            $ms = $igd['ManagementServer'] ?? [];
+            $acsInfo = [
+                'url' => $this->getValue($ms, 'URL'),
+                'username' => $this->getValue($ms, 'Username'),
+                'periodic_inform' => $this->getValue($ms, 'PeriodicInformEnable'),
+                'periodic_interval' => $this->getValue($ms, 'PeriodicInformInterval'),
+                'connection_request_url' => $this->getValue($ms, 'ConnectionRequestURL'),
+            ];
+
+            return [
+                'firewall_level' => $firewallLevel,
+                'default_gateway' => $defaultGw,
+                'dns_servers' => array_unique(array_filter($dns)),
+                'remote_access' => $remoteAccess,
+                'acs' => $acsInfo,
+            ];
+        } catch (Exception $e) {
+            Log::error("GenieACS getSecurityInfo error: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Get current firmware info and check if download is possible.
+     */
+    public function getFirmwareInfo(string $deviceId): array
+    {
+        $info = $this->getDeviceInfo($deviceId);
+        return [
+            'current_version' => $info['software_version'] ?? null,
+            'hardware_version' => $info['hardware_version'] ?? null,
+            'model' => $info['model'] ?? null,
+            'manufacturer' => $info['manufacturer'] ?? null,
+        ];
+    }
+
+    /**
+     * Send firmware download task to device.
+     */
+    public function downloadFirmware(string $deviceId, string $fileUrl, string $fileSize = '0'): array
+    {
+        try {
+            $response = Http::timeout(30)
+                ->post("{$this->nbiUrl}/devices/{$deviceId}/tasks?connection_request", [
+                    'name' => 'download',
+                    'file' => $fileUrl,
+                    'fileType' => '1 Firmware Upgrade Image',
+                ]);
+
+            return [
+                'success' => $response->status() === 200 || $response->status() === 202,
+                'task_id' => $response->json('_id'),
+                'message' => $response->status() === 200 ? 'Firmware download selesai' : 'Task firmware download dikirim',
+            ];
+        } catch (Exception $e) {
+            Log::error("GenieACS downloadFirmware error: " . $e->getMessage());
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Factory reset device via TR069.
+     */
+    public function factoryReset(string $deviceId): array
+    {
+        try {
+            $response = Http::timeout($this->timeout)
+                ->post("{$this->nbiUrl}/devices/{$deviceId}/tasks?connection_request", [
+                    'name' => 'setParameterValues',
+                    'parameterValues' => [
+                        ['InternetGatewayDevice.DeviceInfo.X_HW_ResetFactory', true, 'xsd:boolean'],
+                    ],
+                ]);
+
+            return [
+                'success' => $response->status() === 200 || $response->status() === 202,
+                'task_id' => $response->json('_id'),
+            ];
+        } catch (Exception $e) {
+            Log::error("GenieACS factoryReset error: " . $e->getMessage());
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Get users currently connected to ONU (from DHCP leases / hosts).
+     * Returns formatted host list with connection details.
+     */
+    public function getConnectedUsers(string $deviceId): array
+    {
+        $hosts = $this->getLanHosts($deviceId);
+        $wifis = $this->getWifiInfo($deviceId);
+
+        // Build MAC → WiFi SSID map from associated devices
+        $wifiMacs = [];
+        // (Note: not all devices expose per-SSID association MACs via TR069)
+
+        $users = [];
+        foreach ($hosts as $host) {
+            $users[] = [
+                'hostname' => $host['host_name'] ?? $host['hostname'] ?? '',
+                'ip' => $host['ip'] ?? '',
+                'mac' => $host['mac'] ?? '',
+                'active' => $host['active'] ?? false,
+                'interface' => $host['interface'] ?? $host['layer2_interface'] ?? '',
+                'address_source' => $host['address_source'] ?? 'DHCP',
+                'lease_time' => $host['lease_time_remaining'] ?? null,
+            ];
+        }
+
+        return $users;
+    }
+
+    /**
      * Check if GenieACS server is reachable.
      */
     public function isAvailable(): bool
