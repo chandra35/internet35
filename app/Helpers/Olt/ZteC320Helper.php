@@ -2693,12 +2693,14 @@ class ZteC320Helper extends BaseOltHelper
         $result = ['synced' => 0, 'service_ports' => 0, 'errors' => []];
 
         try {
+            // Step 1: Get VLAN list + service-port data in one session
             $output = $this->executeBatchCliCommands([
-                'show vlan',
+                'show vlan summary',
                 'show service-port all',
             ]);
 
-            $vlans = $this->parseShowVlan($output);
+            // Parse VLAN IDs from summary
+            $vlanIds = $this->parseVlanSummary($output);
 
             // Parse full service-port data (global + per-slot)
             $svcData = $this->parseServicePortData($output);
@@ -2706,41 +2708,84 @@ class ZteC320Helper extends BaseOltHelper
             $perSlotVlans = $svcData['per_slot'];
             $result['service_ports'] = array_sum($svcPortCounts);
 
+            // Step 2: Get detail for each VLAN (description, ports, etc.)
+            if (!empty($vlanIds)) {
+                $detailCommands = [];
+                foreach ($vlanIds as $vid) {
+                    $detailCommands[] = "show vlan {$vid}";
+                }
+                $detailOutput = $this->executeBatchCliCommands($detailCommands);
+                $vlanDetails = $this->parseVlanDetails($detailOutput);
+            } else {
+                $vlanDetails = [];
+            }
+
             // Also get uplink port VLAN associations
             $uplinkVlans = $this->getUplinkVlanMapping();
 
             // Build VLAN name lookup for card vlan_config display
             $vlanNames = [];
-            foreach ($vlans as $v) {
+            foreach ($vlanDetails as $v) {
                 $vlanNames[$v['vlan_id']] = $v['name'];
             }
+            // Fallback for VLANs found in service-port but not in detail
+            foreach ($vlanIds as $vid) {
+                if (!isset($vlanNames[$vid])) {
+                    $vlanNames[$vid] = 'VLAN' . str_pad($vid, 4, '0', STR_PAD_LEFT);
+                }
+            }
 
-            foreach ($vlans as $vlanData) {
+            // Merge VLAN IDs from summary + any extra from service-port data
+            $allVlanIds = array_unique(array_merge($vlanIds, array_keys($svcPortCounts)));
+            sort($allVlanIds);
+
+            foreach ($allVlanIds as $vlanId) {
                 try {
+                    $detail = $vlanDetails[$vlanId] ?? null;
+
                     // Find uplink ports carrying this VLAN
                     $uplinkPorts = [];
-                    foreach ($uplinkVlans as $ifName => $vlanIds) {
-                        if (in_array($vlanData['vlan_id'], $vlanIds)) {
+                    foreach ($uplinkVlans as $ifName => $vlanIdList) {
+                        if (in_array($vlanId, $vlanIdList)) {
                             $uplinkPorts[] = $ifName;
+                        }
+                    }
+
+                    $updateData = [
+                        'name' => $detail['name'] ?? $vlanNames[$vlanId] ?? "VLAN{$vlanId}",
+                        'uplink_ports' => !empty($uplinkPorts) ? $uplinkPorts : null,
+                        'service_port_count' => $svcPortCounts[$vlanId] ?? 0,
+                        'is_synced' => true,
+                        'last_sync_at' => now(),
+                    ];
+
+                    // Add detail data if available
+                    if ($detail) {
+                        $desc = $detail['description'] ?? null;
+                        if ($desc && $desc !== 'N/A') {
+                            $updateData['description'] = $desc;
+                        }
+                        if (!empty($detail['tagged_ports'])) {
+                            $updateData['tagged_ports'] = $detail['tagged_ports'];
+                        }
+                        if (!empty($detail['untagged_ports'])) {
+                            $updateData['untagged_ports'] = $detail['untagged_ports'];
+                        }
+                        if ($detail['multicast_mode'] ?? null) {
+                            $updateData['multicast_mode'] = $detail['multicast_mode'];
                         }
                     }
 
                     OltVlan::updateOrCreate(
                         [
                             'olt_id' => $this->olt->id,
-                            'vlan_id' => $vlanData['vlan_id'],
+                            'vlan_id' => $vlanId,
                         ],
-                        [
-                            'name' => $vlanData['name'],
-                            'uplink_ports' => !empty($uplinkPorts) ? $uplinkPorts : null,
-                            'service_port_count' => $svcPortCounts[$vlanData['vlan_id']] ?? 0,
-                            'is_synced' => true,
-                            'last_sync_at' => now(),
-                        ]
+                        $updateData
                     );
                     $result['synced']++;
                 } catch (Exception $e) {
-                    $result['errors'][] = "VLAN {$vlanData['vlan_id']}: " . $e->getMessage();
+                    $result['errors'][] = "VLAN {$vlanId}: " . $e->getMessage();
                 }
             }
 
@@ -2779,7 +2824,128 @@ class ZteC320Helper extends BaseOltHelper
     }
 
     /**
-     * Parse `show vlan` CLI output
+     * Parse `show vlan summary` output to get list of VLAN IDs.
+     * Output format: "All created vlan num: 11\nDetails are following:\n    1,11-12,20,100,111,334-335,338,1035,2035"
+     */
+    protected function parseVlanSummary(string $output): array
+    {
+        $vlanIds = [];
+        $lines = explode("\n", $output);
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+            // Match the detail line with comma-separated VLAN IDs and ranges
+            if (preg_match('/^[\d,\-]+$/', $line) && strpos($line, ',') !== false) {
+                $parts = explode(',', $line);
+                foreach ($parts as $part) {
+                    $part = trim($part);
+                    if (preg_match('/^(\d+)-(\d+)$/', $part, $m)) {
+                        // Range: 334-335
+                        for ($i = (int)$m[1]; $i <= (int)$m[2]; $i++) {
+                            if ($i >= 1 && $i <= 4094) {
+                                $vlanIds[] = $i;
+                            }
+                        }
+                    } elseif (is_numeric($part)) {
+                        $vid = (int)$part;
+                        if ($vid >= 1 && $vid <= 4094) {
+                            $vlanIds[] = $vid;
+                        }
+                    }
+                }
+            }
+        }
+
+        return array_unique($vlanIds);
+    }
+
+    /**
+     * Parse multiple `show vlan {id}` outputs into structured detail data.
+     * Each VLAN detail block:
+     *   vlanid          :111
+     *   name            :VLAN0111
+     *   description     :ACS
+     *   multicast-packet:flood-unknown
+     *   tpid            :0x8100
+     *   vlan connect    :disable
+     *   port(untagged):
+     *     ...
+     *   port(tagged):
+     *     gpon-onu_1/1/1:1-8:2
+     *     xgei_1/3/2
+     */
+    protected function parseVlanDetails(string $output): array
+    {
+        $vlans = []; // vlan_id => detail array
+        $lines = explode("\n", $output);
+        $currentVlan = null;
+        $section = null; // 'tagged' or 'untagged'
+
+        foreach ($lines as $line) {
+            $trimmed = trim($line);
+
+            // vlanid :111
+            if (preg_match('/^vlanid\s*:\s*(\d+)/', $trimmed, $m)) {
+                $currentVlan = (int)$m[1];
+                $vlans[$currentVlan] = [
+                    'vlan_id' => $currentVlan,
+                    'name' => null,
+                    'description' => null,
+                    'multicast_mode' => null,
+                    'tagged_ports' => [],
+                    'untagged_ports' => [],
+                ];
+                $section = null;
+            }
+            if (!$currentVlan) continue;
+
+            // name :VLAN0111
+            if (preg_match('/^name\s*:\s*(.+)/', $trimmed, $m)) {
+                $vlans[$currentVlan]['name'] = trim($m[1]);
+            }
+            // description :ACS
+            elseif (preg_match('/^description\s*:\s*(.+)/', $trimmed, $m)) {
+                $vlans[$currentVlan]['description'] = trim($m[1]);
+            }
+            // multicast-packet:flood-unknown
+            elseif (preg_match('/^multicast-packet\s*:\s*(.+)/', $trimmed, $m)) {
+                $vlans[$currentVlan]['multicast_mode'] = trim($m[1]);
+            }
+            // port(untagged):
+            elseif (preg_match('/^port\s*\(\s*untagged\s*\)\s*:/', $trimmed)) {
+                $section = 'untagged';
+            }
+            // port(tagged):
+            elseif (preg_match('/^port\s*\(\s*tagged\s*\)\s*:/', $trimmed)) {
+                $section = 'tagged';
+            }
+            // Port entries (indented lines under tagged/untagged)
+            elseif ($section && $trimmed !== '' && !preg_match('/^(vlanid|name|description|multicast|tpid|vlan connect|port\()/', $trimmed)) {
+                // Check if this is a port line or a prompt/command line
+                if (preg_match('/^(gpon-onu|gei|xgei)/', $trimmed) || preg_match('/^\S+_\d+\/\d+/', $trimmed)) {
+                    // Split by whitespace — multiple port entries can be on one line
+                    $portEntries = preg_split('/\s{2,}/', $trimmed);
+                    foreach ($portEntries as $entry) {
+                        $entry = trim($entry);
+                        if ($entry !== '') {
+                            $key = $section === 'tagged' ? 'tagged_ports' : 'untagged_ports';
+                            $vlans[$currentVlan][$key][] = $entry;
+                        }
+                    }
+                }
+                // Reset section on prompt or new block
+                elseif (preg_match('/[#>]\s*$/', $trimmed) || preg_match('/^show\s/', $trimmed)) {
+                    $section = null;
+                    $currentVlan = null;
+                }
+            }
+        }
+
+        return $vlans;
+    }
+
+    /**
+     * Parse `show vlan` CLI output (legacy fallback)
      */
     protected function parseShowVlan(string $output): array
     {

@@ -811,6 +811,7 @@
                                     </th>
                                     <th>Uplink Ports</th>
                                     <th>Keterangan</th>
+                                    <th class="text-center" title="Jumlah tagged port pada VLAN">Tagged</th>
                                     <th width="45">Aksi</th>
                                 </tr>
                             </thead>
@@ -836,7 +837,21 @@
                                             <span class="text-muted">-</span>
                                         @endif
                                     </td>
-                                    <td><small>{{ $vlan->description ?? '-' }}</small></td>
+                                    <td>
+                                        <small>{{ $vlan->description ?? '-' }}</small>
+                                        @if($vlan->multicast_mode && $vlan->multicast_mode !== 'flood-unknown')
+                                            <br><span class="badge badge-sm badge-light">MC: {{ $vlan->multicast_mode }}</span>
+                                        @endif
+                                    </td>
+                                    <td class="text-center">
+                                        @if($vlan->tagged_ports && count($vlan->tagged_ports) > 0)
+                                            <span class="badge badge-info" title="{{ implode(', ', $vlan->tagged_ports) }}" style="cursor:help">
+                                                {{ count($vlan->tagged_ports) }}
+                                            </span>
+                                        @else
+                                            <span class="text-muted">-</span>
+                                        @endif
+                                    </td>
                                     <td class="text-nowrap">
                                         <button class="btn btn-xs btn-outline-info btn-edit-vlan"
                                                 data-id="{{ $vlan->id }}"
