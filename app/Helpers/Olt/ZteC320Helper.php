@@ -1381,6 +1381,11 @@ class ZteC320Helper extends BaseOltHelper
         // Execute each command and collect output
         $fullOutput = '';
         foreach ($commands as $cmd) {
+            // Support __WAIT__N for delays (e.g. waiting for ONU sync)
+            if (preg_match('/^__WAIT__(\d+)$/', $cmd, $m)) {
+                sleep((int) $m[1]);
+                continue;
+            }
             fwrite($fp, $cmd . "\r\n");
             usleep(300000);
             $fullOutput .= $this->telnetReadUntilPrompt($fp);
@@ -1583,6 +1588,9 @@ class ZteC320Helper extends BaseOltHelper
             }
 
             $commands[] = "exit";
+
+            // Wait for ONU to synchronize before configuring pon-onu-mng
+            $commands[] = "__WAIT__5";
 
             // pon-onu-mng context: service, vlan, WAN, ACS config
             $pppoeUser = $params['pppoe_username'] ?? null;

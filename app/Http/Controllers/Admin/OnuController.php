@@ -323,40 +323,50 @@ class OnuController extends Controller implements HasMiddleware
             $result = $helper->registerOnu($params);
             
             if ($result['success']) {
-                // Save to database (updateOrCreate to handle re-registration of existing/soft-deleted ONU)
-                $onu = Onu::withTrashed()->updateOrCreate(
-                    [
+                // Save to database — handle re-registration of soft-deleted ONU
+                $onuData = [
+                    'slot' => $slot,
+                    'port' => $port,
+                    'onu_id' => $result['onu_id'],
+                    'name' => $request->name,
+                    'onu_type' => $this->detectOnuType($request->serial_number),
+                    'customer_id' => $request->customer_id,
+                    'zone_id' => $request->zone_id,
+                    'odp_id' => $request->odp_id,
+                    'odp_port' => $request->odp_port,
+                    'line_profile' => $lineProfile,
+                    'service_profile' => $serviceProfile,
+                    'vlan_config' => $this->buildVlanConfigPayload([
+                        'vlan_id' => $vlanValue,
+                        'gem_port' => $resolvedConfig['gem_port'] ?? null,
+                        'tcont_id' => $resolvedConfig['tcont_id'] ?? null,
+                        'service_id' => $resolvedConfig['service_id'] ?? null,
+                        'service_port_mode' => $resolvedConfig['service_port_mode'] ?? null,
+                    ]),
+                    'description' => $request->description,
+                    'mgmt_ip' => $request->filled('mgmt_vlan') ? 'dhcp:vlan:' . $request->mgmt_vlan : null,
+                    'pppoe_username' => $request->pppoe_username,
+                    'config_status' => 'registered',
+                    'status' => 'unknown',
+                    'created_by' => auth()->id(),
+                ];
+
+                $onu = Onu::withTrashed()
+                    ->where('olt_id', $olt->id)
+                    ->where('serial_number', strtoupper($request->serial_number))
+                    ->first();
+
+                if ($onu) {
+                    if ($onu->trashed()) {
+                        $onu->restore();
+                    }
+                    $onu->update($onuData);
+                } else {
+                    $onu = Onu::create(array_merge($onuData, [
                         'olt_id' => $olt->id,
                         'serial_number' => strtoupper($request->serial_number),
-                    ],
-                    [
-                        'slot' => $slot,
-                        'port' => $port,
-                        'onu_id' => $result['onu_id'],
-                        'name' => $request->name,
-                        'onu_type' => $this->detectOnuType($request->serial_number),
-                        'customer_id' => $request->customer_id,
-                        'zone_id' => $request->zone_id,
-                        'odp_id' => $request->odp_id,
-                        'odp_port' => $request->odp_port,
-                        'line_profile' => $lineProfile,
-                        'service_profile' => $serviceProfile,
-                        'vlan_config' => $this->buildVlanConfigPayload([
-                            'vlan_id' => $vlanValue,
-                            'gem_port' => $resolvedConfig['gem_port'] ?? null,
-                            'tcont_id' => $resolvedConfig['tcont_id'] ?? null,
-                            'service_id' => $resolvedConfig['service_id'] ?? null,
-                            'service_port_mode' => $resolvedConfig['service_port_mode'] ?? null,
-                        ]),
-                        'description' => $request->description,
-                        'mgmt_ip' => $request->filled('mgmt_vlan') ? 'dhcp:vlan:' . $request->mgmt_vlan : null,
-                        'pppoe_username' => $request->pppoe_username,
-                        'config_status' => 'registered',
-                        'status' => 'unknown',
-                        'created_by' => auth()->id(),
-                        'deleted_at' => null,
-                    ]
-                );
+                    ]));
+                }
                 
                 $this->activityLog->log('onus', "Registered ONU: {$onu->serial_number} on {$olt->name}");
 
