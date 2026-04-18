@@ -12,29 +12,91 @@
 @endsection
 
 @section('content')
-<!-- Progress Modal -->
+<!-- Progress Modal (Full Overlay) -->
 <div class="modal fade" id="modal-progress" tabindex="-1" role="dialog" data-backdrop="static" data-keyboard="false">
-    <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
         <div class="modal-content">
             <div class="modal-header bg-dark">
                 <h5 class="modal-title text-white">
                     <i class="fas fa-cog fa-spin mr-2" id="progress-spinner"></i>
-                    <span id="progress-title">Sync Infrastruktur...</span>
+                    <span id="progress-title">Sync Infrastruktur dari OLT...</span>
                 </h5>
             </div>
             <div class="modal-body">
-                <div class="progress mb-3" style="height: 25px;">
+                <!-- Progress Bar -->
+                <div class="progress mb-3" style="height: 28px;">
                     <div class="progress-bar progress-bar-striped progress-bar-animated bg-dark" 
                          role="progressbar" id="progress-bar"
                          style="width: 0%">0%</div>
                 </div>
-                <div id="progress-logs" style="max-height: 300px; overflow-y: auto; font-family: monospace; font-size: 12px;">
+
+                <!-- Step Indicators -->
+                <div class="row text-center mb-3" id="step-indicators">
+                    <div class="col-4">
+                        <div class="p-2 rounded" id="step-cards" style="background: #f4f6f9;">
+                            <i class="fas fa-microchip fa-lg mb-1 text-muted" id="step-cards-icon"></i>
+                            <div class="font-weight-bold" style="font-size: 13px;">Kartu/Slot</div>
+                            <small class="text-muted" id="step-cards-status">Menunggu...</small>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="p-2 rounded" id="step-vlans" style="background: #f4f6f9;">
+                            <i class="fas fa-tags fa-lg mb-1 text-muted" id="step-vlans-icon"></i>
+                            <div class="font-weight-bold" style="font-size: 13px;">VLAN</div>
+                            <small class="text-muted" id="step-vlans-status">Menunggu...</small>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="p-2 rounded" id="step-uplinks" style="background: #f4f6f9;">
+                            <i class="fas fa-arrow-up fa-lg mb-1 text-muted" id="step-uplinks-icon"></i>
+                            <div class="font-weight-bold" style="font-size: 13px;">Uplink</div>
+                            <small class="text-muted" id="step-uplinks-status">Menunggu...</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Log Output -->
+                <div class="card card-outline card-secondary mb-0">
+                    <div class="card-header py-1">
+                        <h6 class="card-title mb-0"><i class="fas fa-terminal mr-1"></i>Log</h6>
+                    </div>
+                    <div class="card-body p-2" id="progress-logs" 
+                         style="max-height: 200px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 12px; background: #1e1e1e; color: #d4d4d4; border-radius: 0 0 4px 4px;">
+                    </div>
+                </div>
+
+                <!-- Results Preview (hidden until complete) -->
+                <div id="sync-results" class="mt-3" style="display: none;">
+                    <div class="alert mb-0" id="sync-results-alert">
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="fas fa-2x mr-3" id="sync-results-icon"></i>
+                            <div>
+                                <strong id="sync-results-title"></strong>
+                                <div class="text-sm" id="sync-results-message"></div>
+                            </div>
+                        </div>
+                        <hr class="my-2">
+                        <div class="row text-center" id="sync-results-counts">
+                            <div class="col-4">
+                                <div class="h4 mb-0" id="result-cards-count">0</div>
+                                <small>Kartu</small>
+                            </div>
+                            <div class="col-4">
+                                <div class="h4 mb-0" id="result-vlans-count">0</div>
+                                <small>VLAN</small>
+                            </div>
+                            <div class="col-4">
+                                <div class="h4 mb-0" id="result-uplinks-count">0</div>
+                                <small>Uplink</small>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer" id="progress-footer" style="display: none;">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
                 <button type="button" class="btn btn-dark" onclick="location.reload()">
-                    <i class="fas fa-sync mr-1"></i>Refresh
+                    <i class="fas fa-sync mr-1"></i>Refresh Halaman
                 </button>
             </div>
         </div>
@@ -317,67 +379,173 @@
 </div>
 @endsection
 
-@section('js')
+@push('js')
 <script>
 $(function() {
+    // =========================================================================
     // Sync Infrastructure via SSE
+    // =========================================================================
     $('#btn-sync-infra').click(function() {
         let btn = $(this);
-        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Sync...');
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Syncing...');
 
+        // Reset modal state
         $('#progress-logs').html('');
-        $('#progress-bar').css('width', '0%').text('0%').removeClass('bg-success bg-danger bg-warning').addClass('bg-dark');
+        $('#progress-bar').css('width', '0%').text('0%')
+            .removeClass('bg-success bg-danger bg-warning').addClass('bg-dark progress-bar-animated');
         $('#progress-footer').hide();
+        $('#sync-results').hide();
+        $('#progress-spinner').addClass('fa-spin');
+        $('#progress-title').text('Sync Infrastruktur dari OLT...');
+
+        // Reset step indicators
+        ['cards', 'vlans', 'uplinks'].forEach(function(step) {
+            $('#step-' + step).css('background', '#f4f6f9');
+            $('#step-' + step + '-icon').removeClass('text-success text-primary text-danger').addClass('text-muted');
+            $('#step-' + step + '-status').text('Menunggu...').removeClass('text-success text-primary text-danger').addClass('text-muted');
+        });
+
         $('#modal-progress').modal('show');
 
         let url = '{{ route("admin.olts.sync-infrastructure-stream", $olt) }}';
         let eventSource = new EventSource(url);
 
+        function appendLog(message, status) {
+            let color = '#d4d4d4';
+            let icon = '&#9679;';
+            if (status === 'success') { color = '#6bcf7f'; icon = '&#10003;'; }
+            else if (status === 'warning') { color = '#f0ad4e'; icon = '&#9888;'; }
+            else if (status === 'error') { color = '#e74c3c'; icon = '&#10007;'; }
+            else if (status === 'info') { color = '#87ceeb'; icon = '&#8226;'; }
+
+            let time = new Date().toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+            $('#progress-logs').append(
+                '<div style="color:' + color + ';">' + icon + ' <span style="color:#888;">[' + time + ']</span> ' + message + '</div>'
+            );
+            let el = $('#progress-logs')[0];
+            el.scrollTop = el.scrollHeight;
+        }
+
+        function setStepActive(step) {
+            $('#step-' + step).css('background', '#e3f2fd');
+            $('#step-' + step + '-icon').removeClass('text-muted').addClass('text-primary');
+            $('#step-' + step + '-status').text('Memproses...').removeClass('text-muted').addClass('text-primary');
+        }
+
+        function setStepDone(step, count) {
+            $('#step-' + step).css('background', '#e8f5e9');
+            $('#step-' + step + '-icon').removeClass('text-primary text-muted').addClass('text-success');
+            $('#step-' + step + '-status').text(count + ' tersinkronisasi').removeClass('text-primary text-muted').addClass('text-success');
+        }
+
+        function setStepError(step) {
+            $('#step-' + step).css('background', '#fbe9e7');
+            $('#step-' + step + '-icon').removeClass('text-primary text-muted').addClass('text-danger');
+            $('#step-' + step + '-status').text('Error').removeClass('text-primary text-muted').addClass('text-danger');
+        }
+
         eventSource.onmessage = function(event) {
             let data = JSON.parse(event.data);
 
             if (data.type === 'progress') {
+                // Update progress bar
                 $('#progress-bar').css('width', data.percent + '%').text(data.percent + '%');
 
-                let colorClass = 'text-dark';
-                let icon = 'fas fa-info-circle';
-                if (data.status === 'success') { colorClass = 'text-success'; icon = 'fas fa-check-circle'; }
-                else if (data.status === 'warning') { colorClass = 'text-warning'; icon = 'fas fa-exclamation-triangle'; }
-                else if (data.status === 'error') { colorClass = 'text-danger'; icon = 'fas fa-times-circle'; }
+                // Detect which step is active based on message
+                let msg = data.message.toLowerCase();
+                if (msg.includes('kartu') || msg.includes('show card') || msg.includes('card')) {
+                    if (msg.includes('show card') || msg.includes('membaca data kartu')) {
+                        setStepActive('cards');
+                    }
+                    let match = data.message.match(/(\d+)\s+slot\s+tersinkronisasi/i);
+                    if (match) {
+                        setStepDone('cards', match[1]);
+                    }
+                }
+                if (msg.includes('vlan') || msg.includes('show vlan')) {
+                    if (msg.includes('show vlan') || msg.includes('membaca database vlan')) {
+                        setStepActive('vlans');
+                    }
+                    let match = data.message.match(/(\d+)\s+vlan\s+tersinkronisasi/i);
+                    if (match) {
+                        setStepDone('vlans', match[1]);
+                    }
+                }
+                if (msg.includes('uplink') || msg.includes('interface brief')) {
+                    if (msg.includes('interface brief') || msg.includes('membaca uplink')) {
+                        setStepActive('uplinks');
+                    }
+                    let match = data.message.match(/(\d+)\s+port\s+tersinkronisasi/i);
+                    if (match) {
+                        setStepDone('uplinks', match[1]);
+                    }
+                }
 
-                $('#progress-logs').append(
-                    '<div class="' + colorClass + '"><i class="' + icon + ' mr-1"></i><small>[' + data.time + '] ' + data.message + '</small></div>'
-                );
-                $('#progress-logs').scrollTop($('#progress-logs')[0].scrollHeight);
+                appendLog(data.message, data.status);
             }
 
             if (data.type === 'complete') {
                 eventSource.close();
+
+                // Stop spinner
                 $('#progress-spinner').removeClass('fa-spin');
-                $('#progress-footer').show();
-                btn.prop('disabled', false).html('<i class="fas fa-sync mr-1"></i>Sync dari OLT');
+                $('#progress-bar').removeClass('progress-bar-animated');
+
+                // Show results preview
+                $('#sync-results').show();
 
                 if (data.success) {
                     $('#progress-bar').removeClass('bg-dark').addClass('bg-success');
-                    $('#progress-title').text('Sync Berhasil');
+                    $('#progress-title').text('Sync Berhasil!');
+                    $('#sync-results-alert').removeClass('alert-danger').addClass('alert-success');
+                    $('#sync-results-icon').removeClass('fa-times-circle text-danger').addClass('fa-check-circle text-success');
+                    $('#sync-results-title').text('Sync Infrastruktur Berhasil');
+                    $('#sync-results-message').text(data.message);
                 } else {
                     $('#progress-bar').removeClass('bg-dark').addClass('bg-danger');
                     $('#progress-title').text('Sync Gagal');
+                    $('#sync-results-alert').removeClass('alert-success').addClass('alert-danger');
+                    $('#sync-results-icon').removeClass('fa-check-circle text-success').addClass('fa-times-circle text-danger');
+                    $('#sync-results-title').text('Sync Gagal');
+                    $('#sync-results-message').text(data.message);
+                    setStepError('cards');
+                    setStepError('vlans');
+                    setStepError('uplinks');
                 }
+
+                // Update result counts
+                $('#result-cards-count').text(data.cards_synced || 0);
+                $('#result-vlans-count').text(data.vlans_synced || 0);
+                $('#result-uplinks-count').text(data.uplinks_synced || 0);
+
+                // Show footer buttons
+                $('#progress-footer').show();
+                btn.prop('disabled', false).html('<i class="fas fa-sync mr-1"></i>Sync dari OLT');
+
+                appendLog('--- Selesai ---', data.success ? 'success' : 'error');
             }
         };
 
         eventSource.onerror = function() {
             eventSource.close();
             $('#progress-spinner').removeClass('fa-spin');
+            $('#progress-bar').removeClass('progress-bar-animated bg-dark').addClass('bg-danger').css('width', '100%').text('Error');
             $('#progress-footer').show();
             btn.prop('disabled', false).html('<i class="fas fa-sync mr-1"></i>Sync dari OLT');
-            $('#progress-bar').removeClass('bg-dark').addClass('bg-danger').css('width', '100%').text('Error');
-            $('#progress-logs').append('<div class="text-danger"><i class="fas fa-times-circle mr-1"></i><small>Koneksi terputus</small></div>');
+            appendLog('Koneksi SSE terputus. Periksa koneksi ke OLT.', 'error');
+
+            // Show error result
+            $('#sync-results').show();
+            $('#sync-results-alert').removeClass('alert-success').addClass('alert-danger');
+            $('#sync-results-icon').addClass('fa-exclamation-triangle text-danger');
+            $('#sync-results-title').text('Koneksi Terputus');
+            $('#sync-results-message').text('Tidak dapat terhubung ke server. Pastikan OLT dapat dijangkau.');
         };
     });
 
+    // =========================================================================
     // Edit VLAN Type
+    // =========================================================================
     $(document).on('click', '.btn-edit-vlan', function() {
         let btn = $(this);
         $('#edit-vlan-id').val(btn.data('id'));
@@ -387,7 +555,6 @@ $(function() {
         $('#modal-edit-vlan').modal('show');
     });
 
-    // Save VLAN Type
     $('#btn-save-vlan-type').click(function() {
         let btn = $(this);
         let vlanId = $('#edit-vlan-id').val();
@@ -417,4 +584,4 @@ $(function() {
     });
 });
 </script>
-@endsection
+@endpush
