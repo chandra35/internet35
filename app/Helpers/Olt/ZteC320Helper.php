@@ -1571,9 +1571,11 @@ class ZteC320Helper extends BaseOltHelper
             $commands[] = "interface gpon-onu_1/{$slot}/{$port}:{$onuId}";
             $commands[] = "name {$name}";
 
-            // T-CONT 1: Internet traffic (use SMARTOLT-1G-UP profile)
+            // T-CONT 1: Internet traffic
             $commands[] = "tcont {$tcontId} profile {$lineProfile}";
             $commands[] = "gemport {$gemPort} tcont {$tcontId}";
+            // Traffic shaping (downstream limit on gemport)
+            $commands[] = "gemport {$gemPort} traffic-limit downstream SMARTOLT-1G-DOWN";
 
             // Service-port for internet VLAN
             if ($vlan) {
@@ -1584,25 +1586,29 @@ class ZteC320Helper extends BaseOltHelper
             if ($mgmtVlan) {
                 $commands[] = "tcont 2 profile SMARTOLT-VOIPMNG-10M";
                 $commands[] = "gemport 2 tcont 2";
+                $commands[] = "gemport 2 traffic-limit downstream SMARTOLT-VOIPMNG-10M";
                 $commands[] = "service-port 2 vport 2 user-vlan {$mgmtVlan} vlan {$mgmtVlan}";
             }
 
             $commands[] = "exit";
 
             // Wait for ONU to synchronize before configuring pon-onu-mng
-            $commands[] = "__WAIT__5";
+            $commands[] = "__WAIT__8";
 
             // pon-onu-mng context: service, vlan, WAN, ACS config
             $pppoeUser = $params['pppoe_username'] ?? null;
             $pppoePwd = $params['pppoe_password'] ?? '';
             $acsUrl = $params['acs_url'] ?? config('services.genieacs.cwmp_url', 'http://172.10.10.254:7547');
+            $acsUser = config('services.genieacs.cwmp_username', '');
+            $acsPwd = config('services.genieacs.cwmp_password', '');
 
             if ($vlan || $mgmtVlan) {
                 $commands[] = "pon-onu-mng gpon-onu_1/{$slot}/{$port}:{$onuId}";
 
-                // SmartOLT-style flow-based VLAN configuration
-                // (matches running-config pattern of existing working ONUs)
+                // VoIP protocol (required by SmartOLT pattern)
+                $commands[] = "voip protocol sip";
 
+                // SmartOLT-style flow-based VLAN configuration
                 if ($mgmtVlan) {
                     $commands[] = "flow 2 switch switch_0/1";
                 }
@@ -1668,7 +1674,12 @@ class ZteC320Helper extends BaseOltHelper
                 if ($mgmtVlan) {
                     $commands[] = "veip 1 port udp 1232 host 2";
                     $commands[] = "tr069-mgmt 1 state unlock";
-                    $commands[] = "tr069-mgmt 1 acs {$acsUrl}";
+                    // ACS URL with optional basic auth credentials
+                    $acsCmd = "tr069-mgmt 1 acs {$acsUrl}";
+                    if ($acsUser && $acsPwd) {
+                        $acsCmd .= " validate basic username {$acsUser} password {$acsPwd}";
+                    }
+                    $commands[] = $acsCmd;
                     $commands[] = "tr069-mgmt 1 tag pri 2 vlan {$mgmtVlan}";
                 }
 
