@@ -2700,12 +2700,20 @@ class ZteC320Helper extends BaseOltHelper
 
             $vlans = $this->parseShowVlan($output);
 
-            // Count service-ports per VLAN
-            $svcPortCounts = $this->parseServicePortCounts($output);
+            // Parse full service-port data (global + per-slot)
+            $svcData = $this->parseServicePortData($output);
+            $svcPortCounts = $svcData['global'];
+            $perSlotVlans = $svcData['per_slot'];
             $result['service_ports'] = array_sum($svcPortCounts);
 
             // Also get uplink port VLAN associations
             $uplinkVlans = $this->getUplinkVlanMapping();
+
+            // Build VLAN name lookup for card vlan_config display
+            $vlanNames = [];
+            foreach ($vlans as $v) {
+                $vlanNames[$v['vlan_id']] = $v['name'];
+            }
 
             foreach ($vlans as $vlanData) {
                 try {
@@ -2733,6 +2741,32 @@ class ZteC320Helper extends BaseOltHelper
                     $result['synced']++;
                 } catch (Exception $e) {
                     $result['errors'][] = "VLAN {$vlanData['vlan_id']}: " . $e->getMessage();
+                }
+            }
+
+            // Update GPON cards with their VLAN config
+            $gponCards = OltCard::where('olt_id', $this->olt->id)
+                ->where('role', 'gpon')
+                ->get();
+
+            foreach ($gponCards as $card) {
+                $slotVlans = $perSlotVlans[$card->slot] ?? [];
+                if (!empty($slotVlans)) {
+                    // Build structured vlan_config: [{vlan_id, name, count, ports}]
+                    $vlanConfig = [];
+                    foreach ($slotVlans as $vlanId => $info) {
+                        $vlanConfig[] = [
+                            'vlan_id' => $vlanId,
+                            'name' => $vlanNames[$vlanId] ?? 'VLAN' . $vlanId,
+                            'service_ports' => $info['count'],
+                            'pon_ports' => $info['ports'],
+                        ];
+                    }
+                    // Sort by service_ports desc
+                    usort($vlanConfig, fn($a, $b) => $b['service_ports'] <=> $a['service_ports']);
+                    $card->update(['vlan_config' => $vlanConfig]);
+                } else {
+                    $card->update(['vlan_config' => null]);
                 }
             }
 
@@ -2789,24 +2823,47 @@ class ZteC320Helper extends BaseOltHelper
     /**
      * Parse `show service-port all` output to count service-ports per VLAN
      * Each line: "1  1  gpon-onu_1/1/1:1  gemport 1  user  vlan 335  ..." 
+     * Returns: ['global' => [vlan_id => count], 'per_slot' => [slot => [vlan_id => ['count' => N, 'ports' => [port_nums]]]]]
      */
-    protected function parseServicePortCounts(string $output): array
+    protected function parseServicePortData(string $output): array
     {
-        $counts = []; // vlan_id => count
+        $global = [];  // vlan_id => count
+        $perSlot = []; // slot => vlan_id => ['count' => N, 'ports' => []]
         $lines = explode("\n", $output);
 
         foreach ($lines as $line) {
             $line = trim($line);
-            // Match service-port line with vlan: 
-            // Index  VPort  Port  GemPort  Type  SVLAN  CVLAN  ...
-            // The key is: "vlan XXX" pattern in the line
-            if (preg_match('/gpon-onu_\d+\/\d+\/\d+:\d+/', $line) && preg_match('/vlan\s+(\d+)/i', $line, $m)) {
-                $vlanId = (int)$m[1];
-                $counts[$vlanId] = ($counts[$vlanId] ?? 0) + 1;
+            // Match: gpon-onu_1/SLOT/PORT:ONU ... vlan VLAN_ID
+            if (preg_match('/gpon-onu_\d+\/(\d+)\/(\d+):(\d+)/', $line, $onuMatch) &&
+                preg_match('/vlan\s+(\d+)/i', $line, $vlanMatch)) {
+                $slot = (int)$onuMatch[1];
+                $port = (int)$onuMatch[2];
+                $vlanId = (int)$vlanMatch[1];
+
+                // Global count
+                $global[$vlanId] = ($global[$vlanId] ?? 0) + 1;
+
+                // Per-slot breakdown
+                if (!isset($perSlot[$slot][$vlanId])) {
+                    $perSlot[$slot][$vlanId] = ['count' => 0, 'ports' => []];
+                }
+                $perSlot[$slot][$vlanId]['count']++;
+                if (!in_array($port, $perSlot[$slot][$vlanId]['ports'])) {
+                    $perSlot[$slot][$vlanId]['ports'][] = $port;
+                    sort($perSlot[$slot][$vlanId]['ports']);
+                }
             }
         }
 
-        return $counts;
+        return ['global' => $global, 'per_slot' => $perSlot];
+    }
+
+    /**
+     * Backward-compatible wrapper returning only global VLAN counts
+     */
+    protected function parseServicePortCounts(string $output): array
+    {
+        return $this->parseServicePortData($output)['global'];
     }
 
     /**

@@ -25,6 +25,7 @@ class OltCard extends Model
         'status',
         'role',
         'description',
+        'vlan_config',
         'last_sync_at',
     ];
 
@@ -33,6 +34,7 @@ class OltCard extends Model
         'shelf' => 'integer',
         'slot' => 'integer',
         'port_count' => 'integer',
+        'vlan_config' => 'array',
         'last_sync_at' => 'datetime',
     ];
 

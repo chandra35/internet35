@@ -368,6 +368,9 @@
                         <span class="badge badge-danger mr-1">{{ $cardOff }} offline</span>
                     @endif
                     <span class="badge badge-primary mr-1">{{ $cardActivePorts }}/{{ $card->port_count }} port aktif</span>
+                    @if($card->vlan_config)
+                        <span class="badge badge-info mr-1">{{ count($card->vlan_config) }} VLAN</span>
+                    @endif
                     <button type="button" class="btn btn-tool"><i class="fas fa-plus"></i></button>
                 </div>
             </div>
@@ -401,6 +404,56 @@
                         @endfor
                     </div>
                 </div>
+
+                <!-- VLAN Config per Card -->
+                @if($card->vlan_config && count($card->vlan_config) > 0)
+                <div class="mb-3">
+                    <h6 class="font-weight-bold mb-2">
+                        <i class="fas fa-tags mr-1 text-info"></i>VLAN yang Digunakan
+                        <span class="badge badge-info ml-1">{{ count($card->vlan_config) }} VLAN</span>
+                        <span class="badge badge-secondary ml-1">{{ collect($card->vlan_config)->sum('service_ports') }} service-port</span>
+                    </h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered mb-0" style="font-size: 12px;">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th width="80">VLAN ID</th>
+                                    <th>Nama</th>
+                                    <th width="100" class="text-center">Service Port</th>
+                                    <th>PON Ports yang Menggunakan</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($card->vlan_config as $vc)
+                                <tr>
+                                    <td><strong>{{ $vc['vlan_id'] }}</strong></td>
+                                    <td>
+                                        {{ $vc['name'] }}
+                                        @php
+                                            $vlanModel = $olt->vlans->firstWhere('vlan_id', $vc['vlan_id']);
+                                        @endphp
+                                        @if($vlanModel)
+                                            {!! $vlanModel->type_badge !!}
+                                        @endif
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge badge-success vlan-svc-badge">{{ $vc['service_ports'] }}</span>
+                                    </td>
+                                    <td>
+                                        @foreach($vc['pon_ports'] as $ponPort)
+                                            <span class="badge badge-outline-primary" style="font-size: 10px; border: 1px solid #007bff; color: #007bff; margin: 1px;">
+                                                1/{{ $card->slot }}/{{ $ponPort }}
+                                            </span>
+                                        @endforeach
+                                        <small class="text-muted ml-1">({{ count($vc['pon_ports']) }} port)</small>
+                                    </td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                @endif
 
                 <!-- PON Port Detail Table -->
                 <div class="table-responsive">
