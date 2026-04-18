@@ -2690,14 +2690,19 @@ class ZteC320Helper extends BaseOltHelper
      */
     public function syncVlans(): array
     {
-        $result = ['synced' => 0, 'errors' => []];
+        $result = ['synced' => 0, 'service_ports' => 0, 'errors' => []];
 
         try {
             $output = $this->executeBatchCliCommands([
                 'show vlan',
+                'show service-port all',
             ]);
 
             $vlans = $this->parseShowVlan($output);
+
+            // Count service-ports per VLAN
+            $svcPortCounts = $this->parseServicePortCounts($output);
+            $result['service_ports'] = array_sum($svcPortCounts);
 
             // Also get uplink port VLAN associations
             $uplinkVlans = $this->getUplinkVlanMapping();
@@ -2720,6 +2725,7 @@ class ZteC320Helper extends BaseOltHelper
                         [
                             'name' => $vlanData['name'],
                             'uplink_ports' => !empty($uplinkPorts) ? $uplinkPorts : null,
+                            'service_port_count' => $svcPortCounts[$vlanData['vlan_id']] ?? 0,
                             'is_synced' => true,
                             'last_sync_at' => now(),
                         ]
@@ -2778,6 +2784,29 @@ class ZteC320Helper extends BaseOltHelper
         }
 
         return array_values($unique);
+    }
+
+    /**
+     * Parse `show service-port all` output to count service-ports per VLAN
+     * Each line: "1  1  gpon-onu_1/1/1:1  gemport 1  user  vlan 335  ..." 
+     */
+    protected function parseServicePortCounts(string $output): array
+    {
+        $counts = []; // vlan_id => count
+        $lines = explode("\n", $output);
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+            // Match service-port line with vlan: 
+            // Index  VPort  Port  GemPort  Type  SVLAN  CVLAN  ...
+            // The key is: "vlan XXX" pattern in the line
+            if (preg_match('/gpon-onu_\d+\/\d+\/\d+:\d+/', $line) && preg_match('/vlan\s+(\d+)/i', $line, $m)) {
+                $vlanId = (int)$m[1];
+                $counts[$vlanId] = ($counts[$vlanId] ?? 0) + 1;
+            }
+        }
+
+        return $counts;
     }
 
     /**
@@ -2921,7 +2950,7 @@ class ZteC320Helper extends BaseOltHelper
 
     /**
      * Sync all infrastructure data from OLT (READ-ONLY)
-     * Cards → VLANs → Uplinks (in correct dependency order)
+     * Cards → VLANs → Uplinks → PON Ports (in correct dependency order)
      */
     public function syncInfrastructure(): array
     {
@@ -2930,17 +2959,23 @@ class ZteC320Helper extends BaseOltHelper
             'cards' => ['synced' => 0, 'errors' => []],
             'vlans' => ['synced' => 0, 'errors' => []],
             'uplinks' => ['synced' => 0, 'errors' => []],
+            'pon_ports' => ['synced' => 0, 'errors' => []],
+            'service_ports' => 0,
         ];
 
         try {
             // 1. Sync cards first (uplinks depend on card_id)
             $result['cards'] = $this->syncCards();
 
-            // 2. Sync VLANs
+            // 2. Sync VLANs + service-port count
             $result['vlans'] = $this->syncVlans();
+            $result['service_ports'] = $result['vlans']['service_ports'] ?? 0;
 
             // 3. Sync uplinks (needs card_id from step 1)
             $result['uplinks'] = $this->syncUplinks();
+
+            // 4. Sync PON port ONU state per GPON card
+            $result['pon_ports'] = $this->syncPonPortsFromCli();
 
         } catch (Exception $e) {
             $result['success'] = false;
@@ -2948,5 +2983,118 @@ class ZteC320Helper extends BaseOltHelper
         }
 
         return $result;
+    }
+
+    /**
+     * Sync PON port ONU state from CLI (READ-ONLY)
+     * Parses `show gpon onu state gpon-olt_1/{slot}/{port}` per active GPON port
+     */
+    public function syncPonPortsFromCli(): array
+    {
+        $result = ['synced' => 0, 'errors' => []];
+
+        try {
+            // Get GPON cards to know which slots have PON ports
+            $gponCards = OltCard::where('olt_id', $this->olt->id)
+                ->where('role', 'gpon')
+                ->where('status', 'inservice')
+                ->get();
+
+            if ($gponCards->isEmpty()) {
+                $result['errors'][] = 'Tidak ada kartu GPON aktif';
+                return $result;
+            }
+
+            // Build commands: show gpon onu state per port
+            $commands = [];
+            foreach ($gponCards as $card) {
+                for ($port = 1; $port <= $card->port_count; $port++) {
+                    $commands[] = "show gpon onu state gpon-olt_1/{$card->slot}/{$port}";
+                }
+            }
+
+            $output = $this->executeBatchCliCommands($commands);
+
+            // Parse output for each port
+            $portData = $this->parseGponOnuState($output);
+
+            foreach ($portData as $key => $data) {
+                try {
+                    $card = $gponCards->firstWhere('slot', $data['slot']);
+
+                    $this->olt->ponPorts()->updateOrCreate(
+                        [
+                            'olt_id' => $this->olt->id,
+                            'slot' => $data['slot'],
+                            'port' => $data['port'],
+                        ],
+                        [
+                            'card_id' => $card?->id,
+                            'registered_onu' => $data['registered'],
+                            'online_onu' => $data['online'],
+                            'status' => $data['registered'] > 0 ? 'up' : 'down',
+                            'last_sync_at' => now(),
+                        ]
+                    );
+                    $result['synced']++;
+                } catch (Exception $e) {
+                    $result['errors'][] = "PON 1/{$data['slot']}/{$data['port']}: " . $e->getMessage();
+                }
+            }
+
+        } catch (Exception $e) {
+            $result['errors'][] = $e->getMessage();
+            Log::error("ZTE syncPonPortsFromCli error: " . $e->getMessage());
+        }
+
+        return $result;
+    }
+
+    /**
+     * Parse `show gpon onu state gpon-olt_1/X/Y` output
+     * Returns per-port ONU counts: registered, online, offline, by status
+     */
+    protected function parseGponOnuState(string $output): array
+    {
+        $ports = [];
+        $currentSlot = null;
+        $currentPort = null;
+
+        $lines = explode("\n", $output);
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+
+            // Detect port context: "gpon-olt_1/1/3" or from command echo
+            if (preg_match('/gpon-olt_1\/(\d+)\/(\d+)/', $line, $m)) {
+                $currentSlot = (int)$m[1];
+                $currentPort = (int)$m[2];
+                $key = "{$currentSlot}/{$currentPort}";
+                if (!isset($ports[$key])) {
+                    $ports[$key] = [
+                        'slot' => $currentSlot,
+                        'port' => $currentPort,
+                        'registered' => 0,
+                        'online' => 0,
+                        'onus' => [],
+                    ];
+                }
+            }
+
+            // Match ONU state line: "1  working  online  1/1/3   1" or similar
+            // Format: OnuIndex  Admin  OperState  PON  OnuID
+            if ($currentSlot && $currentPort &&
+                preg_match('/^\d+\s+\w+\s+(online|offline|los|dying.?gasp|unknown|low.?power)/i', $line, $m)) {
+                $key = "{$currentSlot}/{$currentPort}";
+                $status = strtolower($m[1]);
+                $ports[$key]['registered']++;
+                if ($status === 'online') {
+                    $ports[$key]['online']++;
+                }
+                $ports[$key]['onus'][] = $status;
+            }
+        }
+
+        return $ports;
     }
 }

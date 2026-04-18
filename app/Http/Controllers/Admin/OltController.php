@@ -794,9 +794,18 @@ class OltController extends Controller implements HasMiddleware
      */
     public function infrastructure(Olt $olt)
     {
-        $olt->load(['pop', 'cards' => fn($q) => $q->orderBy('slot'), 'vlans' => fn($q) => $q->orderBy('vlan_id'), 'uplinks' => fn($q) => $q->orderBy('interface_name')]);
+        $olt->load([
+            'pop',
+            'cards' => fn($q) => $q->orderBy('slot'),
+            'cards.ponPorts' => fn($q) => $q->orderBy('port'),
+            'vlans' => fn($q) => $q->orderBy('vlan_id'),
+            'uplinks' => fn($q) => $q->orderBy('interface_name'),
+        ]);
 
-        return view('admin.olts.infrastructure', compact('olt'));
+        // Also load unlinked PON ports (card_id null) for display
+        $orphanPonPorts = $olt->ponPorts()->whereNull('card_id')->orderBy('slot')->orderBy('port')->get();
+
+        return view('admin.olts.infrastructure', compact('olt', 'orphanPonPorts'));
     }
 
     /**
@@ -806,7 +815,7 @@ class OltController extends Controller implements HasMiddleware
     {
         return response()->stream(function() use ($olt) {
             if (ob_get_level()) ob_end_clean();
-            set_time_limit(120);
+            set_time_limit(180);
 
             $this->sendProgress('Memulai sync infrastruktur OLT...', 0);
 
@@ -814,44 +823,58 @@ class OltController extends Controller implements HasMiddleware
                 $helper = OltFactory::make($olt);
 
                 // Step 1: Sync Cards
-                $this->sendProgress('Membaca data kartu (show card)...', 10);
+                $this->sendProgress('Membaca data kartu (show card)...', 5);
                 $cardsResult = $helper->syncCards();
-                $this->sendProgress("Kartu: {$cardsResult['synced']} slot tersinkronisasi", 35);
+                $this->sendProgress("Kartu: {$cardsResult['synced']} slot tersinkronisasi", 20);
 
                 if (!empty($cardsResult['errors'])) {
                     foreach ($cardsResult['errors'] as $err) {
-                        $this->sendProgress("Card warning: {$err}", 35, 'warning');
+                        $this->sendProgress("Card warning: {$err}", 20, 'warning');
                     }
                 }
 
-                // Step 2: Sync VLANs
-                $this->sendProgress('Membaca database VLAN (show vlan)...', 40);
+                // Step 2: Sync VLANs + Service-Ports
+                $this->sendProgress('Membaca database VLAN & service-port...', 25);
                 $vlansResult = $helper->syncVlans();
-                $this->sendProgress("VLAN: {$vlansResult['synced']} VLAN tersinkronisasi", 65);
+                $svcCount = $vlansResult['service_ports'] ?? 0;
+                $this->sendProgress("VLAN: {$vlansResult['synced']} VLAN, {$svcCount} service-port tersinkronisasi", 45);
 
                 if (!empty($vlansResult['errors'])) {
                     foreach ($vlansResult['errors'] as $err) {
-                        $this->sendProgress("VLAN warning: {$err}", 65, 'warning');
+                        $this->sendProgress("VLAN warning: {$err}", 45, 'warning');
                     }
                 }
 
                 // Step 3: Sync Uplinks
-                $this->sendProgress('Membaca uplink ports (show interface brief)...', 70);
+                $this->sendProgress('Membaca uplink ports (show interface brief)...', 50);
                 $uplinksResult = $helper->syncUplinks();
-                $this->sendProgress("Uplink: {$uplinksResult['synced']} port tersinkronisasi", 95);
+                $this->sendProgress("Uplink: {$uplinksResult['synced']} port tersinkronisasi", 65);
 
                 if (!empty($uplinksResult['errors'])) {
                     foreach ($uplinksResult['errors'] as $err) {
-                        $this->sendProgress("Uplink warning: {$err}", 95, 'warning');
+                        $this->sendProgress("Uplink warning: {$err}", 65, 'warning');
                     }
                 }
 
-                $message = "Sync infrastruktur selesai. Kartu: {$cardsResult['synced']}, VLAN: {$vlansResult['synced']}, Uplink: {$uplinksResult['synced']}";
+                // Step 4: Sync PON Port ONU state
+                $this->sendProgress('Membaca status ONU per PON port...', 70);
+                $ponResult = $helper->syncPonPortsFromCli();
+                $this->sendProgress("PON Port: {$ponResult['synced']} port tersinkronisasi", 95);
+
+                if (!empty($ponResult['errors'])) {
+                    foreach ($ponResult['errors'] as $err) {
+                        $this->sendProgress("PON warning: {$err}", 95, 'warning');
+                    }
+                }
+
+                $message = "Sync selesai. Kartu: {$cardsResult['synced']}, VLAN: {$vlansResult['synced']}, Uplink: {$uplinksResult['synced']}, PON: {$ponResult['synced']}";
                 $this->sendProgress($message, 100, 'success');
                 $this->sendComplete(true, $message, [
                     'cards_synced' => $cardsResult['synced'],
                     'vlans_synced' => $vlansResult['synced'],
                     'uplinks_synced' => $uplinksResult['synced'],
+                    'pon_ports_synced' => $ponResult['synced'],
+                    'service_ports' => $svcCount,
                 ]);
 
             } catch (Exception $e) {

@@ -18,6 +18,7 @@ class OltVlan extends Model
         'type',
         'description',
         'uplink_ports',
+        'service_port_count',
         'is_synced',
         'last_sync_at',
     ];
@@ -25,6 +26,7 @@ class OltVlan extends Model
     protected $casts = [
         'vlan_id' => 'integer',
         'uplink_ports' => 'array',
+        'service_port_count' => 'integer',
         'is_synced' => 'boolean',
         'last_sync_at' => 'datetime',
     ];
