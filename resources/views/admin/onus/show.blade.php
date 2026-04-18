@@ -1250,9 +1250,18 @@ $(function() {
             vlan: $(this).find('[name="vlan"]').val(),
         })
         .done(function(res) {
-            if (res.success) {
+            if (res.pending) {
                 $('#modal-pppoe').modal('hide');
-                Swal.fire('Berhasil', 'PPPoE WAN task dikirim. Tunggu beberapa saat lalu refresh.', 'success');
+                Swal.fire({
+                    icon: 'info',
+                    title: 'Menunggu ONU',
+                    html: (res.message || 'Task sedang diproses.') + '<br><br><small class="text-muted">Klik <b>Refresh Data</b> setelah 1-3 menit, kemudian coba Setup PPPoE WAN kembali.</small>',
+                    confirmButtonText: 'OK'
+                });
+                setTimeout(loadTr069Summary, 3000);
+            } else if (res.success) {
+                $('#modal-pppoe').modal('hide');
+                Swal.fire('Berhasil', 'PPPoE WAN berhasil dikonfigurasi! Tunggu beberapa saat untuk koneksi aktif.', 'success');
                 setTimeout(loadTr069Summary, 5000);
             } else {
                 Swal.fire('Gagal', res.message || 'Gagal mengirim task', 'error');

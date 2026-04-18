@@ -402,20 +402,37 @@ class GenieAcsService
             // Use existing PPP connection
             $wanPath = $existingPpp;
         } else {
-            // Create new WANPPPConnection instance via AddObject (wait for completion)
+            // Check if there's already a pending addObject task for WANPPPConnection (avoid duplicates)
+            $pendingTasks = $this->getDeviceTasks($deviceId);
+            foreach ($pendingTasks as $task) {
+                if (($task['name'] ?? '') === 'addObject' &&
+                    str_contains($task['objectName'] ?? '', 'WANPPPConnection')) {
+                    return [
+                        'success' => false,
+                        'pending' => true,
+                        'message' => 'Task AddObject WANPPPConnection masih dalam antrian. Tunggu ONU terhubung ke ACS (1-3 menit), lalu klik "Setup PPPoE WAN" lagi untuk mengatur username/password.',
+                    ];
+                }
+            }
+
+            // Create new WANPPPConnection instance via AddObject
             $addResult = $this->addObject($deviceId, "{$basePath}.", true);
             if (!$addResult['success']) {
                 return ['success' => false, 'message' => 'Gagal membuat WANPPPConnection: ' . ($addResult['message'] ?? 'unknown error')];
             }
 
-            // Use instance number from response, fallback to 1
+            // If addObject not yet completed (202), task is queued — ONU will process on next inform
+            if (!($addResult['completed'] ?? false)) {
+                return [
+                    'success' => false,
+                    'pending' => true,
+                    'message' => 'Perintah AddObject telah dikirim ke antrian GenieACS. Tunggu ONU terhubung ke ACS (1-3 menit), lalu klik "Setup PPPoE WAN" lagi untuk mengatur username/password.',
+                ];
+            }
+
+            // AddObject completed synchronously — use returned instance number
             $instance = $addResult['instance'] ?? 1;
             $wanPath = "{$basePath}.{$instance}";
-
-            // If addObject not yet completed (202), just return success - setParam will be sent on next attempt
-            if (!($addResult['completed'] ?? false)) {
-                return ['success' => true, 'message' => 'WANPPPConnection sedang dibuat. Silakan coba setup PPPoE lagi setelah beberapa detik.', 'pending' => true];
-            }
         }
 
         $params = [
