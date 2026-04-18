@@ -234,9 +234,6 @@
                             <i class="fas fa-trash mr-1"></i>Unregister
                         </button>
                         @endcan
-                        <a href="{{ route('admin.onus.edit', $onu) }}" class="btn btn-secondary btn-sm quick-action-btn mb-1">
-                            <i class="fas fa-edit mr-1"></i>Edit ONU
-                        </a>
                     </div>
 
                     {{-- Assign Customer --}}
