@@ -1693,8 +1693,14 @@ class ZteC320Helper extends BaseOltHelper
             $commands[] = "exit";
             $commands[] = "write";
 
+            // Log commands for debugging
+            \Log::info('ZTE registerOnu commands', ['commands' => $commands]);
+
             // Execute commands via batch CLI (uses telnetReadUntilPrompt to avoid hanging)
             $output = $this->executeBatchCliCommands($commands);
+
+            // Log telnet output for debugging
+            \Log::info('ZTE registerOnu telnet output', ['output' => $output]);
 
             // Check if ONU registration itself failed (not just pon-onu-mng config errors)
             $registrationFailed = !str_contains($output, 'Successful') 
