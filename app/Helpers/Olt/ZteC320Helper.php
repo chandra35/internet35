@@ -84,6 +84,13 @@ class ZteC320Helper extends BaseOltHelper
         // Unconfigured ONUs
         'zxAnGponOltUncfgOnuTable' => '1.3.6.1.4.1.3902.1082.500.10.2.3.5.1',
         'zxAnGponOltUncfgOnuSerialNo' => '1.3.6.1.4.1.3902.1082.500.10.2.3.5.1.2',
+
+        // Q-BRIDGE-MIB — Standard VLAN management (IEEE 802.1Q)
+        'dot1qVlanStaticName' => '1.3.6.1.2.1.17.7.1.4.3.1.1',
+        'dot1qVlanStaticEgressPorts' => '1.3.6.1.2.1.17.7.1.4.3.1.2',
+        'dot1qVlanStaticUntaggedPorts' => '1.3.6.1.2.1.17.7.1.4.3.1.4',
+        'dot1qVlanStaticRowStatus' => '1.3.6.1.2.1.17.7.1.4.3.1.5',
+        'dot1qNumVlans' => '1.3.6.1.2.1.17.7.1.1.4.0',
     ];
 
     /**
@@ -3554,6 +3561,423 @@ class ZteC320Helper extends BaseOltHelper
         } catch (Exception $e) {
             $result['message'] = $e->getMessage();
             Log::error("ZTE rebootAllOnusOnPort error: " . $e->getMessage());
+        }
+
+        return $result;
+    }
+
+    // =========================================================================
+    // SNMP VLAN Management (Q-BRIDGE-MIB)
+    // =========================================================================
+
+    /**
+     * Port index map for Q-BRIDGE bitmap byte 24.
+     * ZTE C320 maps slot 3 uplink ports to bits in byte 24 (0-indexed) of the 192-byte PortList.
+     * Bit 7 (0x80) = gei_1/3/1, Bit 6 (0x40) = xgei_1/3/2, Bit 5 (0x20) = gei_1/3/3
+     */
+    protected array $uplinkBitMap = [
+        'gei_1/3/1'  => ['byte' => 24, 'bit' => 7],  // 0x80
+        'xgei_1/3/2' => ['byte' => 24, 'bit' => 6],  // 0x40
+        'gei_1/3/3'  => ['byte' => 24, 'bit' => 5],  // 0x20
+    ];
+
+    protected const PORTLIST_BYTES = 192;
+
+    /**
+     * Read all VLANs via SNMP Q-BRIDGE-MIB.
+     * Returns array of VLANs with name, tagged/untagged ports.
+     */
+    public function getVlansViaSnmp(): array
+    {
+        $vlans = [];
+
+        $names = $this->snmpWalk($this->zteOids['dot1qVlanStaticName']);
+        $egressPorts = $this->snmpWalk($this->zteOids['dot1qVlanStaticEgressPorts']);
+        $untaggedPorts = $this->snmpWalk($this->zteOids['dot1qVlanStaticUntaggedPorts']);
+
+        if (empty($names)) {
+            return $vlans;
+        }
+
+        $baseOid = $this->zteOids['dot1qVlanStaticName'];
+
+        foreach ($names as $oid => $name) {
+            // OID suffix is the VLAN ID: ...1.3.6.1.2.1.17.7.1.4.3.1.1.{vlanId}
+            $vlanId = (int) substr($oid, strlen($baseOid) + 1);
+            if ($vlanId < 1 || $vlanId > 4094) continue;
+
+            $egressOid = $this->zteOids['dot1qVlanStaticEgressPorts'] . '.' . $vlanId;
+            $untagOid = $this->zteOids['dot1qVlanStaticUntaggedPorts'] . '.' . $vlanId;
+
+            $egressBitmap = $egressPorts[$egressOid] ?? '';
+            $untagBitmap = $untaggedPorts[$untagOid] ?? '';
+
+            $tagged = $this->parsePortBitmap($egressBitmap, $untagBitmap, 'tagged');
+            $untagged = $this->parsePortBitmap($egressBitmap, $untagBitmap, 'untagged');
+
+            $vlans[$vlanId] = [
+                'vlan_id' => $vlanId,
+                'name' => trim($name, '"'),
+                'tagged_ports' => $tagged,
+                'untagged_ports' => $untagged,
+            ];
+        }
+
+        ksort($vlans);
+        return $vlans;
+    }
+
+    /**
+     * Parse Q-BRIDGE PortList bitmaps into port name arrays.
+     * Egress = all ports in VLAN, Untagged = untagged subset.
+     * Tagged = Egress AND NOT Untagged.
+     */
+    protected function parsePortBitmap(string $egressHex, string $untagHex, string $mode = 'tagged'): array
+    {
+        $ports = [];
+
+        foreach ($this->uplinkBitMap as $portName => $map) {
+            $byteIndex = $map['byte'];
+            $bitIndex = $map['bit'];
+
+            $egressByte = $this->getHexByte($egressHex, $byteIndex);
+            $untagByte = $this->getHexByte($untagHex, $byteIndex);
+
+            $inEgress = ($egressByte >> $bitIndex) & 1;
+            $inUntag = ($untagByte >> $bitIndex) & 1;
+
+            if ($mode === 'tagged' && $inEgress && !$inUntag) {
+                $ports[] = $portName;
+            } elseif ($mode === 'untagged' && $inUntag) {
+                $ports[] = $portName;
+            }
+        }
+
+        return $ports;
+    }
+
+    /**
+     * Get a single byte value from SNMP hex string.
+     * SNMP returns Hex-STRING like "00 00 00 ... E0 00 ..." with spaces.
+     */
+    protected function getHexByte(string $hexString, int $byteIndex): int
+    {
+        // SNMP_VALUE_PLAIN mode returns raw binary or hex string
+        // Try hex space-separated format first: "00 00 00 E0 00 ..."
+        $hexString = trim($hexString);
+        if (preg_match('/^[0-9A-Fa-f]{2}(\s+[0-9A-Fa-f]{2})*$/', $hexString)) {
+            $bytes = preg_split('/\s+/', $hexString);
+            return isset($bytes[$byteIndex]) ? hexdec($bytes[$byteIndex]) : 0;
+        }
+
+        // Binary string
+        if (isset($hexString[$byteIndex])) {
+            return ord($hexString[$byteIndex]);
+        }
+
+        return 0;
+    }
+
+    /**
+     * Build a 192-byte PortList bitmap from port names and mode.
+     * Returns hex string suitable for SNMP SET.
+     */
+    protected function buildPortBitmap(array $taggedPorts, array $untaggedPorts, string $mode = 'egress'): string
+    {
+        $bytes = array_fill(0, self::PORTLIST_BYTES, 0);
+
+        $ports = ($mode === 'egress')
+            ? array_merge($taggedPorts, $untaggedPorts)  // Egress = tagged + untagged
+            : $untaggedPorts;                             // Untagged = just untagged
+
+        foreach ($ports as $portName) {
+            if (isset($this->uplinkBitMap[$portName])) {
+                $map = $this->uplinkBitMap[$portName];
+                $bytes[$map['byte']] |= (1 << $map['bit']);
+            }
+        }
+
+        // Build hex string
+        $hex = '';
+        foreach ($bytes as $b) {
+            $hex .= sprintf('%02X ', $b);
+        }
+
+        return trim($hex);
+    }
+
+    /**
+     * Update VLAN port membership via SNMP SET.
+     * Sets both EgressPorts and UntaggedPorts bitmaps.
+     */
+    public function updateVlanPortsViaSnmp(int $vlanId, array $taggedPorts, array $untaggedPorts): array
+    {
+        $result = ['success' => false, 'message' => ''];
+
+        try {
+            if (!$this->supportsSnmpWrite()) {
+                throw new Exception('SNMP RW community tidak dikonfigurasi pada OLT ini');
+            }
+
+            // Build bitmaps
+            $egressHex = $this->buildPortBitmap($taggedPorts, $untaggedPorts, 'egress');
+            $untagHex = $this->buildPortBitmap($taggedPorts, $untaggedPorts, 'untagged');
+
+            // Convert hex string to binary for SNMP SET
+            $egressBin = $this->hexToBinaryString($egressHex);
+            $untagBin = $this->hexToBinaryString($untagHex);
+
+            // SET EgressPorts
+            $oid1 = $this->zteOids['dot1qVlanStaticEgressPorts'] . '.' . $vlanId;
+            $ok1 = $this->snmpSet($oid1, 'x', $egressHex);
+            if (!$ok1) {
+                throw new Exception("Gagal SET EgressPorts untuk VLAN {$vlanId}");
+            }
+
+            // SET UntaggedPorts
+            $oid2 = $this->zteOids['dot1qVlanStaticUntaggedPorts'] . '.' . $vlanId;
+            $ok2 = $this->snmpSet($oid2, 'x', $untagHex);
+            if (!$ok2) {
+                throw new Exception("Gagal SET UntaggedPorts untuk VLAN {$vlanId}");
+            }
+
+            $result['success'] = true;
+            $result['message'] = "Port membership VLAN {$vlanId} berhasil diubah via SNMP";
+
+        } catch (Exception $e) {
+            $result['message'] = $e->getMessage();
+            Log::error("ZTE updateVlanPortsViaSnmp error: " . $e->getMessage());
+        }
+
+        return $result;
+    }
+
+    /**
+     * Convert hex string ("E0 00 00 ...") to packed hex for SNMP SET type 'x'.
+     */
+    protected function hexToBinaryString(string $hexSpaced): string
+    {
+        return str_replace(' ', '', $hexSpaced);
+    }
+
+    /**
+     * Create VLAN via SNMP SET (dot1qVlanStaticRowStatus = createAndGo(4)).
+     */
+    public function createVlanViaSnmp(int $vlanId, string $name = ''): array
+    {
+        $result = ['success' => false, 'message' => ''];
+
+        try {
+            if (!$this->supportsSnmpWrite()) {
+                throw new Exception('SNMP RW community tidak dikonfigurasi');
+            }
+
+            // Create VLAN via RowStatus = 4 (createAndGo)
+            $oid = $this->zteOids['dot1qVlanStaticRowStatus'] . '.' . $vlanId;
+            $ok = $this->snmpSet($oid, 'i', '4');
+            if (!$ok) {
+                throw new Exception("Gagal membuat VLAN {$vlanId} via SNMP");
+            }
+
+            // Set name if provided
+            if ($name) {
+                $nameOid = $this->zteOids['dot1qVlanStaticName'] . '.' . $vlanId;
+                $this->snmpSet($nameOid, 's', $name);
+            }
+
+            $result['success'] = true;
+            $result['message'] = "VLAN {$vlanId} berhasil dibuat via SNMP";
+
+        } catch (Exception $e) {
+            $result['message'] = $e->getMessage();
+            Log::error("ZTE createVlanViaSnmp error: " . $e->getMessage());
+        }
+
+        return $result;
+    }
+
+    /**
+     * Delete VLAN via SNMP SET (dot1qVlanStaticRowStatus = destroy(6)).
+     */
+    public function deleteVlanViaSnmp(int $vlanId): array
+    {
+        $result = ['success' => false, 'message' => ''];
+
+        try {
+            if (!$this->supportsSnmpWrite()) {
+                throw new Exception('SNMP RW community tidak dikonfigurasi');
+            }
+
+            $oid = $this->zteOids['dot1qVlanStaticRowStatus'] . '.' . $vlanId;
+            $ok = $this->snmpSet($oid, 'i', '6');
+            if (!$ok) {
+                throw new Exception("Gagal menghapus VLAN {$vlanId} via SNMP");
+            }
+
+            $result['success'] = true;
+            $result['message'] = "VLAN {$vlanId} berhasil dihapus via SNMP";
+
+        } catch (Exception $e) {
+            $result['message'] = $e->getMessage();
+            Log::error("ZTE deleteVlanViaSnmp error: " . $e->getMessage());
+        }
+
+        return $result;
+    }
+
+    /**
+     * Update VLAN name via SNMP SET.
+     */
+    public function renameVlanViaSnmp(int $vlanId, string $name): array
+    {
+        $result = ['success' => false, 'message' => ''];
+
+        try {
+            if (!$this->supportsSnmpWrite()) {
+                throw new Exception('SNMP RW community tidak dikonfigurasi');
+            }
+
+            $oid = $this->zteOids['dot1qVlanStaticName'] . '.' . $vlanId;
+            $ok = $this->snmpSet($oid, 's', $name);
+            if (!$ok) {
+                throw new Exception("Gagal rename VLAN {$vlanId} via SNMP");
+            }
+
+            $result['success'] = true;
+            $result['message'] = "Nama VLAN {$vlanId} berhasil diubah via SNMP";
+
+        } catch (Exception $e) {
+            $result['message'] = $e->getMessage();
+        }
+
+        return $result;
+    }
+
+    /**
+     * Set VLAN description via CLI (not available in Q-BRIDGE-MIB).
+     */
+    public function setVlanDescriptionViaCli(int $vlanId, string $description): array
+    {
+        $result = ['success' => false, 'message' => ''];
+
+        try {
+            $commands = [
+                'configure terminal',
+                "vlan {$vlanId}",
+                "description {$description}",
+                'exit',
+                'exit',
+                'write',
+            ];
+
+            $this->executeBatchCliCommands($commands);
+            $result['success'] = true;
+            $result['message'] = "Deskripsi VLAN {$vlanId} berhasil diubah";
+
+        } catch (Exception $e) {
+            $result['message'] = $e->getMessage();
+            Log::error("ZTE setVlanDescriptionViaCli error: " . $e->getMessage());
+        }
+
+        return $result;
+    }
+
+    /**
+     * Hybrid VLAN update: SNMP for ports/name, CLI for description.
+     */
+    public function updateVlanHybrid(int $vlanId, array $params): array
+    {
+        $result = ['success' => true, 'message' => '', 'details' => []];
+
+        // Update port membership via SNMP
+        if (isset($params['tagged_ports']) || isset($params['untagged_ports'])) {
+            $tagged = $params['tagged_ports'] ?? [];
+            $untagged = $params['untagged_ports'] ?? [];
+
+            if ($this->supportsSnmpWrite()) {
+                $portResult = $this->updateVlanPortsViaSnmp($vlanId, $tagged, $untagged);
+            } else {
+                // Fallback to CLI
+                $portResult = $this->updateVlanPortsViaCli($vlanId, $tagged, $untagged);
+            }
+
+            $result['details'][] = $portResult;
+            if (!$portResult['success']) {
+                $result['success'] = false;
+            }
+        }
+
+        // Update name via SNMP
+        if (!empty($params['name'])) {
+            if ($this->supportsSnmpWrite()) {
+                $nameResult = $this->renameVlanViaSnmp($vlanId, $params['name']);
+            } else {
+                $nameResult = ['success' => true, 'message' => 'Name update via CLI not supported'];
+            }
+            $result['details'][] = $nameResult;
+        }
+
+        // Update description via CLI (not in Q-BRIDGE-MIB)
+        if (isset($params['description'])) {
+            $descResult = $this->setVlanDescriptionViaCli($vlanId, $params['description']);
+            $result['details'][] = $descResult;
+            if (!$descResult['success']) {
+                $result['success'] = false;
+            }
+        }
+
+        // Build summary message
+        $messages = array_column($result['details'], 'message');
+        $result['message'] = $result['success']
+            ? 'VLAN ' . $vlanId . ' berhasil diperbarui'
+            : implode('; ', array_filter($messages));
+
+        return $result;
+    }
+
+    /**
+     * Fallback: update VLAN port membership via CLI when SNMP RW is not available.
+     */
+    protected function updateVlanPortsViaCli(int $vlanId, array $taggedPorts, array $untaggedPorts): array
+    {
+        $result = ['success' => false, 'message' => ''];
+
+        try {
+            $commands = ['configure terminal'];
+
+            // Get all uplink port names we know about
+            $allPorts = array_keys($this->uplinkBitMap);
+
+            foreach ($allPorts as $portName) {
+                $isTagged = in_array($portName, $taggedPorts);
+                $isUntagged = in_array($portName, $untaggedPorts);
+
+                if ($isTagged || $isUntagged) {
+                    $commands[] = "interface {$portName}";
+                    if ($isTagged) {
+                        $commands[] = "switchport vlan {$vlanId} tag";
+                    } else {
+                        $commands[] = "switchport vlan {$vlanId} untag";
+                    }
+                    $commands[] = 'exit';
+                } else {
+                    // Remove from port
+                    $commands[] = "interface {$portName}";
+                    $commands[] = "no switchport vlan {$vlanId}";
+                    $commands[] = 'exit';
+                }
+            }
+
+            $commands[] = 'exit'; // exit configure
+            $commands[] = 'write';
+
+            $this->executeBatchCliCommands($commands);
+            $result['success'] = true;
+            $result['message'] = "Port membership VLAN {$vlanId} berhasil diubah via CLI";
+
+        } catch (Exception $e) {
+            $result['message'] = $e->getMessage();
+            Log::error("ZTE updateVlanPortsViaCli error: " . $e->getMessage());
         }
 
         return $result;

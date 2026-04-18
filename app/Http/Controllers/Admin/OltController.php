@@ -124,6 +124,7 @@ class OltController extends Controller implements HasMiddleware
             'ip_address' => 'required|ip',
             'snmp_port' => 'nullable|integer|min:1|max:65535',
             'snmp_community' => 'nullable|string|max:100',
+            'snmp_community_rw' => 'nullable|string|max:100',
             'telnet_enabled' => 'nullable|boolean',
             'telnet_port' => 'nullable|integer|min:1|max:65535',
             'telnet_username' => 'nullable|string|max:100',
@@ -154,6 +155,7 @@ class OltController extends Controller implements HasMiddleware
                 'ip_address' => $request->ip_address,
                 'snmp_port' => $request->snmp_port ?? 161,
                 'snmp_community' => $request->snmp_community ?? 'public',
+                'snmp_community_rw' => $request->snmp_community_rw,
                 'telnet_enabled' => $request->boolean('telnet_enabled'),
                 'telnet_port' => $request->telnet_port ?? 23,
                 'telnet_username' => $request->telnet_username,
@@ -263,6 +265,7 @@ class OltController extends Controller implements HasMiddleware
             'model' => 'nullable|string|max:100',
             'ip_address' => 'required|ip',
             'snmp_community' => 'nullable|string|max:100',
+            'snmp_community_rw' => 'nullable|string|max:100',
             'telnet_enabled' => 'nullable|boolean',
             'telnet_username' => 'nullable|string|max:100',
             'ssh_enabled' => 'nullable|boolean',
@@ -284,6 +287,7 @@ class OltController extends Controller implements HasMiddleware
                 'ip_address' => $request->ip_address,
                 'snmp_port' => $request->snmp_port ?? 161,
                 'snmp_community' => $request->snmp_community,
+                'snmp_community_rw' => $request->snmp_community_rw,
                 'telnet_enabled' => $request->boolean('telnet_enabled'),
                 'telnet_port' => $request->telnet_port ?? 23,
                 'telnet_username' => $request->telnet_username,
@@ -928,21 +932,63 @@ class OltController extends Controller implements HasMiddleware
     }
 
     /**
-     * Update VLAN type classification (local only, not touching OLT)
+     * Update VLAN: type/description locally + port membership on OLT (hybrid SNMP/CLI)
      */
     public function updateVlanType(Olt $olt, OltVlan $vlan, Request $request)
     {
         $request->validate([
             'type' => 'required|in:service,management,voip,iptv,infra,other',
             'description' => 'nullable|string|max:255',
+            'tagged_ports' => 'nullable|array',
+            'tagged_ports.*' => 'string',
+            'untagged_ports' => 'nullable|array',
+            'untagged_ports.*' => 'string',
         ]);
 
+        // Always update local DB
         $vlan->update([
             'type' => $request->type,
             'description' => $request->description,
+            'tagged_ports' => $request->tagged_ports ?? [],
+            'untagged_ports' => $request->untagged_ports ?? [],
         ]);
 
-        return response()->json(['success' => true, 'message' => 'Tipe VLAN diperbarui']);
+        // Push changes to OLT if port membership or description changed
+        $oltMessage = '';
+        try {
+            $helper = OltFactory::make($olt);
+
+            if (method_exists($helper, 'updateVlanHybrid')) {
+                $params = [
+                    'tagged_ports' => $request->tagged_ports ?? [],
+                    'untagged_ports' => $request->untagged_ports ?? [],
+                ];
+
+                if ($request->description) {
+                    $params['description'] = $request->description;
+                }
+
+                $result = $helper->updateVlanHybrid($vlan->vlan_id, $params);
+                $oltMessage = $result['message'];
+
+                if (!$result['success']) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'DB diperbarui, tapi gagal push ke OLT: ' . $oltMessage,
+                    ], 422);
+                }
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'DB diperbarui, tapi error push ke OLT: ' . $e->getMessage(),
+            ], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'VLAN diperbarui' . ($oltMessage ? '. ' . $oltMessage : ''),
+        ]);
     }
 
     /**

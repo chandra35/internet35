@@ -218,18 +218,26 @@
                 </div>
                 <div class="card-body">
                     <div class="row">
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <div class="form-group">
                                 <label>SNMP Port</label>
                                 <input type="number" name="snmp_port" id="snmp_port" class="form-control" 
                                        value="{{ old('snmp_port', $olt->snmp_port) }}" min="1" max="65535">
                             </div>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <div class="form-group">
-                                <label>Community</label>
+                                <label>Community (Read-Only)</label>
                                 <input type="text" name="snmp_community" id="snmp_community" class="form-control" 
                                        value="{{ old('snmp_community', $olt->snmp_community) }}">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label>Community (Read-Write)</label>
+                                <input type="text" name="snmp_community_rw" id="snmp_community_rw" class="form-control" 
+                                       value="{{ old('snmp_community_rw', $olt->snmp_community_rw) }}" placeholder="Opsional">
+                                <small class="form-text text-muted">Untuk SNMP SET (VLAN, ONU config)</small>
                             </div>
                         </div>
                     </div>

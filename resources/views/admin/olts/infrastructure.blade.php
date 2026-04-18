@@ -167,39 +167,94 @@
     </div>
 </div>
 
-<!-- Edit VLAN Type Modal -->
+<!-- Edit VLAN Modal -->
 <div class="modal fade" id="modal-edit-vlan" tabindex="-1" role="dialog">
-    <div class="modal-dialog" role="document">
+    <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
             <div class="modal-header bg-info">
-                <h5 class="modal-title text-white"><i class="fas fa-tag mr-2"></i>Klasifikasi VLAN</h5>
+                <h5 class="modal-title text-white"><i class="fas fa-edit mr-2"></i>Edit VLAN</h5>
                 <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
             </div>
             <div class="modal-body">
                 <input type="hidden" id="edit-vlan-id">
-                <div class="form-group">
-                    <label>VLAN ID</label>
-                    <input type="text" class="form-control" id="edit-vlan-display" readonly>
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label>VLAN ID</label>
+                            <input type="text" class="form-control" id="edit-vlan-display" readonly>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label>Tipe <span class="text-danger">*</span></label>
+                            <select class="form-control" id="edit-vlan-type">
+                                <option value="service">Service (Internet/PPPoE/IPoE)</option>
+                                <option value="management">Management (TR069/CWMP)</option>
+                                <option value="voip">VoIP</option>
+                                <option value="iptv">IPTV</option>
+                                <option value="infra">Infrastructure</option>
+                                <option value="other">Lainnya</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label>Keterangan</label>
+                            <input type="text" class="form-control" id="edit-vlan-description" placeholder="Opsional">
+                        </div>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>Tipe <span class="text-danger">*</span></label>
-                    <select class="form-control" id="edit-vlan-type">
-                        <option value="service">Service (Internet/PPPoE/IPoE)</option>
-                        <option value="management">Management (TR069/CWMP)</option>
-                        <option value="voip">VoIP</option>
-                        <option value="iptv">IPTV</option>
-                        <option value="infra">Infrastructure</option>
-                        <option value="other">Lainnya</option>
-                    </select>
+
+                <!-- Port Membership -->
+                <hr class="my-2">
+                <h6 class="mb-3"><i class="fas fa-network-wired mr-1"></i>Port Membership (Uplink)</h6>
+                @php
+                    $uplinkPorts = [
+                        'gei_1/3/1' => 'gei_1/3/1 (GE Uplink 1)',
+                        'xgei_1/3/2' => 'xgei_1/3/2 (10G Uplink)',
+                        'gei_1/3/3' => 'gei_1/3/3 (GE Uplink 3)',
+                    ];
+                @endphp
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered mb-0">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Port</th>
+                                <th class="text-center" width="100">Tagged</th>
+                                <th class="text-center" width="100">Untagged</th>
+                                <th class="text-center" width="100">None</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($uplinkPorts as $portKey => $portLabel)
+                            <tr>
+                                <td><code>{{ $portLabel }}</code></td>
+                                <td class="text-center">
+                                    <input type="radio" name="port_{{ Str::slug($portKey) }}" value="tagged"
+                                           data-port="{{ $portKey }}" class="port-radio">
+                                </td>
+                                <td class="text-center">
+                                    <input type="radio" name="port_{{ Str::slug($portKey) }}" value="untagged"
+                                           data-port="{{ $portKey }}" class="port-radio">
+                                </td>
+                                <td class="text-center">
+                                    <input type="radio" name="port_{{ Str::slug($portKey) }}" value="none"
+                                           data-port="{{ $portKey }}" class="port-radio" checked>
+                                </td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
                 </div>
-                <div class="form-group">
-                    <label>Keterangan</label>
-                    <input type="text" class="form-control" id="edit-vlan-description" placeholder="Opsional">
-                </div>
+                <small class="form-text text-muted mt-1">
+                    <i class="fas fa-info-circle mr-1"></i>
+                    Port membership diubah via {{ $olt->snmp_community_rw ? 'SNMP SET' : 'Telnet CLI' }}.
+                    Deskripsi selalu via CLI (tidak ada di Q-BRIDGE-MIB).
+                </small>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
-                <button type="button" class="btn btn-info" id="btn-save-vlan-type">
+                <button type="button" class="btn btn-info" id="btn-save-vlan">
                     <i class="fas fa-save mr-1"></i>Simpan
                 </button>
             </div>
@@ -859,8 +914,10 @@
                                                 data-name="{{ $vlan->name }}"
                                                 data-type="{{ $vlan->type }}"
                                                 data-description="{{ $vlan->description }}"
-                                                title="Ubah Tipe">
-                                            <i class="fas fa-tag"></i>
+                                                data-tagged="{{ json_encode($vlan->tagged_ports ?? []) }}"
+                                                data-untagged="{{ json_encode($vlan->untagged_ports ?? []) }}"
+                                                title="Edit VLAN">
+                                            <i class="fas fa-edit"></i>
                                         </button>
                                         <button class="btn btn-xs btn-outline-danger btn-delete-vlan"
                                                 data-id="{{ $vlan->id }}"
@@ -1122,7 +1179,7 @@ $(function() {
     });
 
     // =========================================================================
-    // Edit VLAN Type
+    // Edit VLAN
     // =========================================================================
     $(document).on('click', '.btn-edit-vlan', function() {
         let btn = $(this);
@@ -1130,13 +1187,45 @@ $(function() {
         $('#edit-vlan-display').val(btn.data('vlan-id') + ' - ' + btn.data('name'));
         $('#edit-vlan-type').val(btn.data('type'));
         $('#edit-vlan-description').val(btn.data('description') || '');
+
+        // Set port radios
+        let tagged = btn.data('tagged') || [];
+        let untagged = btn.data('untagged') || [];
+        if (typeof tagged === 'string') tagged = JSON.parse(tagged);
+        if (typeof untagged === 'string') untagged = JSON.parse(untagged);
+
+        // Reset all to none
+        $('.port-radio[value="none"]').prop('checked', true);
+
+        // Set tagged ports
+        tagged.forEach(function(port) {
+            let slug = port.replace(/[\/\_]/g, '-');
+            $('input[name="port_' + slug + '"][value="tagged"]').prop('checked', true);
+        });
+
+        // Set untagged ports
+        untagged.forEach(function(port) {
+            let slug = port.replace(/[\/\_]/g, '-');
+            $('input[name="port_' + slug + '"][value="untagged"]').prop('checked', true);
+        });
+
         $('#modal-edit-vlan').modal('show');
     });
 
-    $('#btn-save-vlan-type').click(function() {
+    $('#btn-save-vlan').click(function() {
         let btn = $(this);
         let vlanId = $('#edit-vlan-id').val();
         btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Menyimpan...');
+
+        // Collect port membership
+        let taggedPorts = [];
+        let untaggedPorts = [];
+        $('.port-radio:checked').each(function() {
+            let port = $(this).data('port');
+            let val = $(this).val();
+            if (val === 'tagged') taggedPorts.push(port);
+            else if (val === 'untagged') untaggedPorts.push(port);
+        });
 
         $.ajax({
             url: '{{ route("admin.olts.infrastructure.vlans.update-type", [$olt, "__VLAN__"]) }}'.replace('__VLAN__', vlanId),
@@ -1145,6 +1234,8 @@ $(function() {
                 _token: '{{ csrf_token() }}',
                 type: $('#edit-vlan-type').val(),
                 description: $('#edit-vlan-description').val(),
+                tagged_ports: taggedPorts,
+                untagged_ports: untaggedPorts,
             },
             success: function(res) {
                 if (res.success) {

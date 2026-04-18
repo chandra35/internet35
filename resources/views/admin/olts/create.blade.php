@@ -98,9 +98,19 @@
                             </div>
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <label>SNMP Community</label>
+                                    <label>Community (Read-Only)</label>
                                     <input type="text" name="snmp_community" id="snmp_community" class="form-control" 
                                            value="{{ old('snmp_community', 'public') }}" placeholder="public">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Community (Read-Write) <small class="text-muted">opsional</small></label>
+                                    <input type="text" name="snmp_community_rw" id="snmp_community_rw" class="form-control" 
+                                           value="{{ old('snmp_community_rw') }}" placeholder="private">
+                                    <small class="form-text text-muted">Untuk VLAN config, ONU management via SNMP SET</small>
                                 </div>
                             </div>
                         </div>

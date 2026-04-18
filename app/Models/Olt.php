@@ -28,6 +28,7 @@ class Olt extends Model
         'ip_address',
         'snmp_port',
         'snmp_community',
+        'snmp_community_rw',
         'snmp_version',
         'snmp_username',
         'snmp_auth_protocol',
@@ -77,6 +78,7 @@ class Olt extends Model
 
     protected $hidden = [
         'snmp_community',
+        'snmp_community_rw',
         'snmp_auth_password',
         'snmp_priv_password',
         'telnet_password',

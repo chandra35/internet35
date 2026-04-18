@@ -138,7 +138,15 @@ abstract class BaseOltHelper implements OltInterface
     }
 
     /**
-     * Execute SNMP SET
+     * Check if SNMP RW (write) is configured
+     */
+    public function supportsSnmpWrite(): bool
+    {
+        return !empty($this->olt->snmp_community_rw);
+    }
+
+    /**
+     * Execute SNMP SET (uses RW community)
      */
     protected function snmpSet(string $oid, string $type, mixed $value): bool
     {
@@ -146,13 +154,13 @@ abstract class BaseOltHelper implements OltInterface
             throw new Exception('PHP SNMP extension is not installed');
         }
 
-        if (!$this->supportsSnmp()) {
-            throw new Exception('SNMP is not configured for this OLT');
+        if (!$this->supportsSnmpWrite()) {
+            throw new Exception('SNMP RW community is not configured for this OLT');
         }
 
         $result = @snmpset(
             $this->olt->ip_address,
-            $this->olt->snmp_community,
+            $this->olt->snmp_community_rw,
             $oid,
             $type,
             $value,
