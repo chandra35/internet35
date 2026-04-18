@@ -267,7 +267,7 @@ class GenieAcsService
     /**
      * Set parameter values on device.
      */
-    public function setParameterValues(string $deviceId, array $parameterValues): array
+    public function setParameterValues(string $deviceId, array $parameterValues, bool $connectionRequest = false): array
     {
         try {
             $params = [];
@@ -275,8 +275,13 @@ class GenieAcsService
                 $params[] = [$name, $value[0], $value[1] ?? 'xsd:string'];
             }
 
+            $url = "{$this->nbiUrl}/devices/{$deviceId}/tasks";
+            if ($connectionRequest) {
+                $url .= '?connection_request';
+            }
+
             $response = Http::timeout($this->timeout)
-                ->post("{$this->nbiUrl}/devices/{$deviceId}/tasks", [
+                ->post($url, [
                     'name' => 'setParameterValues',
                     'parameterValues' => $params,
                 ]);
@@ -397,13 +402,20 @@ class GenieAcsService
             // Use existing PPP connection
             $wanPath = $existingPpp;
         } else {
-            // Create new WANPPPConnection instance via AddObject
-            $addResult = $this->addObject($deviceId, "{$basePath}.");
+            // Create new WANPPPConnection instance via AddObject (wait for completion)
+            $addResult = $this->addObject($deviceId, "{$basePath}.", true);
             if (!$addResult['success']) {
                 return ['success' => false, 'message' => 'Gagal membuat WANPPPConnection: ' . ($addResult['message'] ?? 'unknown error')];
             }
-            // After AddObject, the new instance will be at index 1 (first instance)
-            $wanPath = "{$basePath}.1";
+
+            // Use instance number from response, fallback to 1
+            $instance = $addResult['instance'] ?? 1;
+            $wanPath = "{$basePath}.{$instance}";
+
+            // If addObject not yet completed (202), just return success - setParam will be sent on next attempt
+            if (!($addResult['completed'] ?? false)) {
+                return ['success' => true, 'message' => 'WANPPPConnection sedang dibuat. Silakan coba setup PPPoE lagi setelah beberapa detik.', 'pending' => true];
+            }
         }
 
         $params = [
@@ -416,7 +428,7 @@ class GenieAcsService
             "{$wanPath}.Name" => ['PPPoE_WAN', 'xsd:string'],
         ];
 
-        return $this->setParameterValues($deviceId, $params);
+        return $this->setParameterValues($deviceId, $params, true);
     }
 
     /**
@@ -544,18 +556,25 @@ class GenieAcsService
     /**
      * Add an object instance (e.g. create new WAN connection).
      */
-    public function addObject(string $deviceId, string $objectPath): array
+    public function addObject(string $deviceId, string $objectPath, bool $waitComplete = false): array
     {
         try {
-            $response = Http::timeout($this->timeout)
-                ->post("{$this->nbiUrl}/devices/{$deviceId}/tasks?connection_request", [
+            $url = "{$this->nbiUrl}/devices/{$deviceId}/tasks?connection_request";
+            if ($waitComplete) {
+                $url .= '&timeout=15000';
+            }
+
+            $response = Http::timeout(30)
+                ->post($url, [
                     'name' => 'addObject',
                     'objectName' => $objectPath,
                 ]);
 
             return [
                 'success' => $response->status() === 200 || $response->status() === 202,
+                'completed' => $response->status() === 200,
                 'task_id' => $response->json('_id'),
+                'instance' => $response->json('instanceNumber'),
             ];
         } catch (Exception $e) {
             Log::error("GenieACS addObject error: " . $e->getMessage());
