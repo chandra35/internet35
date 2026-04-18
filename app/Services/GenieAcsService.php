@@ -584,7 +584,7 @@ class GenieAcsService
             $response = Http::timeout(30)
                 ->post($url, [
                     'name' => 'addObject',
-                    'objectName' => $objectPath,
+                    'objectName' => rtrim($objectPath, '.'),
                 ]);
 
             return [
