@@ -379,9 +379,32 @@ class GenieAcsService
         $vlan = $config['vlan'] ?? 100;
         $username = $config['username'] ?? '';
         $password = $config['password'] ?? '';
+        $basePath = 'InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection';
 
-        // Find existing WANPPPConnection path or create new
-        $wanPath = $config['wan_path'] ?? 'InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1';
+        // Check if WANPPPConnection instance already exists
+        $wanInfo = $this->getWanInfo($deviceId);
+        $existingPpp = null;
+        if ($wanInfo) {
+            foreach ($wanInfo as $wan) {
+                if ($wan['type'] === 'PPPoE' && !empty($wan['path'])) {
+                    $existingPpp = $wan['path'];
+                    break;
+                }
+            }
+        }
+
+        if ($existingPpp) {
+            // Use existing PPP connection
+            $wanPath = $existingPpp;
+        } else {
+            // Create new WANPPPConnection instance via AddObject
+            $addResult = $this->addObject($deviceId, "{$basePath}.");
+            if (!$addResult['success']) {
+                return ['success' => false, 'message' => 'Gagal membuat WANPPPConnection: ' . ($addResult['message'] ?? 'unknown error')];
+            }
+            // After AddObject, the new instance will be at index 1 (first instance)
+            $wanPath = "{$basePath}.1";
+        }
 
         $params = [
             "{$wanPath}.Enable" => [true, 'xsd:boolean'],
@@ -390,11 +413,8 @@ class GenieAcsService
             "{$wanPath}.Password" => [$password, 'xsd:string'],
             "{$wanPath}.NATEnabled" => [true, 'xsd:boolean'],
             "{$wanPath}.X_HW_VLAN" => [(int) $vlan, 'xsd:int'],
+            "{$wanPath}.Name" => ['PPPoE_WAN', 'xsd:string'],
         ];
-
-        if (isset($config['name'])) {
-            $params["{$wanPath}.Name"] = [$config['name'], 'xsd:string'];
-        }
 
         return $this->setParameterValues($deviceId, $params);
     }

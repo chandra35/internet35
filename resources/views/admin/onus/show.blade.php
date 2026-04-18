@@ -1179,6 +1179,7 @@ $(function() {
             _token: '{{ csrf_token() }}',
             pppoe_username: $(this).find('[name="pppoe_username"]').val(),
             pppoe_password: $(this).find('[name="pppoe_password"]').val(),
+            vlan: $(this).find('[name="vlan"]').val(),
         })
         .done(function(res) {
             if (res.success) {

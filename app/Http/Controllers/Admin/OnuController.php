@@ -971,7 +971,7 @@ class OnuController extends Controller implements HasMiddleware
         $request->validate([
             'pppoe_username' => 'required|string|max:100',
             'pppoe_password' => 'required|string|max:100',
-            'wan_path' => 'nullable|string|max:500',
+            'vlan' => 'nullable|integer|min:1|max:4094',
         ]);
 
         try {
@@ -985,8 +985,7 @@ class OnuController extends Controller implements HasMiddleware
             $result = $genieacs->configureWanPppoe($device['device_id'], [
                 'username' => $request->pppoe_username,
                 'password' => $request->pppoe_password,
-                'vlan' => $onu->vlan_config['vlan_id'] ?? 100,
-                'wan_path' => $request->wan_path,
+                'vlan' => $request->vlan ?? $onu->vlan_config['vlan_id'] ?? 100,
             ]);
 
             if ($result['success']) {
