@@ -37,16 +37,24 @@ $out .= telnetCmd($sock, "show running-config interface gpon-onu_1/1/1:19", 2);
 $out .= "\n\n=== ONU 20 gpon-onu running-config ===\n";
 $out .= telnetCmd($sock, "show running-config interface gpon-onu_1/1/1:20", 2);
 
-$out .= "\n\n=== ONU 19 pon-onu-mng (via config mode) ===\n";
+$out .= "\n\n=== ONU 19 pon-onu-mng show commands ===\n";
 $out .= telnetCmd($sock, "configure terminal", 1);
 $out .= telnetCmd($sock, "pon-onu-mng gpon-onu_1/1/1:19", 1);
-$out .= telnetCmd($sock, "show this", 3);
+$out .= telnetCmd($sock, "show pppoe", 2);
+$out .= telnetCmd($sock, "show flow", 2);
+$out .= telnetCmd($sock, "show ip-host", 2);
+$out .= telnetCmd($sock, "show vlan-filter", 2);
+$out .= telnetCmd($sock, "show gemport", 2);
 $out .= telnetCmd($sock, "end", 1);
 
-$out .= "\n\n=== ONU 20 pon-onu-mng (via config mode) ===\n";
+$out .= "\n\n=== ONU 20 pon-onu-mng show commands ===\n";
 $out .= telnetCmd($sock, "configure terminal", 1);
 $out .= telnetCmd($sock, "pon-onu-mng gpon-onu_1/1/1:20", 1);
-$out .= telnetCmd($sock, "show this", 3);
+$out .= telnetCmd($sock, "show pppoe", 2);
+$out .= telnetCmd($sock, "show flow", 2);
+$out .= telnetCmd($sock, "show ip-host", 2);
+$out .= telnetCmd($sock, "show vlan-filter", 2);
+$out .= telnetCmd($sock, "show gemport", 2);
 $out .= telnetCmd($sock, "end", 1);
 
 fclose($sock);
