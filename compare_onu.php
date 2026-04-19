@@ -36,9 +36,9 @@ echo "\n\n=== ONU 20 gpon-onu running-config ===\n";
 echo telnetCmd($sock, "show running-config interface gpon-onu_1/1/1:20", 2);
 
 echo "\n\n=== ONU 19 pon-onu-mng running-config ===\n";
-echo telnetCmd($sock, "show running-config interface gpon-onu-mng_1/1/1:19", 2);
+echo telnetCmd($sock, "show running-config interface gpon-onu-mng_1/1/1:19", 4);
 
 echo "\n\n=== ONU 20 pon-onu-mng running-config ===\n";
-echo telnetCmd($sock, "show running-config interface gpon-onu-mng_1/1/1:20", 2);
+echo telnetCmd($sock, "show running-config interface gpon-onu-mng_1/1/1:20", 4);
 
 fclose($sock);
