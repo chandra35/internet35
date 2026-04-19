@@ -736,6 +736,39 @@
     </div>
 </div>
 
+{{-- WAN Edit Modal --}}
+<div class="modal fade" id="modal-wan-edit" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary">
+                <h5 class="modal-title text-white"><i class="fas fa-edit mr-2"></i>Edit PPPoE WAN</h5>
+                <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
+            </div>
+            <form id="form-wan-edit">
+                <input type="hidden" id="wan-edit-path">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>WAN VLAN-ID</label>
+                        <input type="number" id="wan-edit-vlan" class="form-control" min="1" max="4094" placeholder="VLAN ID">
+                    </div>
+                    <div class="form-group">
+                        <label>PPPoE Username</label>
+                        <input type="text" id="wan-edit-username" class="form-control" placeholder="username@isp" required>
+                    </div>
+                    <div class="form-group">
+                        <label>PPPoE Password <small class="text-muted">(kosongkan jika tidak ingin mengubah)</small></label>
+                        <input type="text" id="wan-edit-password" class="form-control" placeholder="Password baru (opsional)">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-save mr-1"></i>Simpan Perubahan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 @endsection
 
 @push('js')
@@ -1040,14 +1073,29 @@ $(function() {
             wans.forEach(function(wan, i) {
                 var sc = wan.status === 'Connected' ? 'connected' : (wan.status === 'Connecting' ? 'connecting' : 'disconnected');
                 var statusBadge = wan.status === 'Connected' ? 'success' : (wan.status === 'Connecting' ? 'warning' : 'secondary');
+                var isPppoe = wan.type === 'PPPoE';
                 wanHtml += '<div class="wan-connection-card ' + sc + '">';
                 wanHtml += '<div class="d-flex justify-content-between align-items-center">';
                 wanHtml += '<div>';
                 wanHtml += '<strong><i class="fas fa-globe mr-1"></i>' + (wan.type || 'WAN') + ' ' + (i + 1) + '</strong>';
                 if (wan.name) wanHtml += ' <small class="text-muted">(' + wan.name + ')</small>';
                 wanHtml += '</div>';
-                wanHtml += '<span class="badge badge-' + statusBadge + '">' + (wan.status || 'Unknown') + '</span>';
-                wanHtml += '</div>';
+                wanHtml += '<div class="d-flex align-items-center">';
+                wanHtml += '<span class="badge badge-' + statusBadge + ' mr-2">' + (wan.status || 'Unknown') + '</span>';
+                if (isPppoe) {
+                    wanHtml += '<button type="button" class="btn btn-xs btn-outline-primary mr-1 btn-edit-wan" '
+                        + 'data-path="' + (wan.path || '') + '" '
+                        + 'data-username="' + (wan.username || '') + '" '
+                        + 'data-vlan="' + (wan.vlan_id || '') + '">'
+                        + '<i class="fas fa-edit"></i></button>';
+                    wanHtml += '<button type="button" class="btn btn-xs btn-outline-danger btn-delete-wan" '
+                        + 'data-path="' + (wan.path || '') + '" '
+                        + 'data-name="' + (wan.name || ('WAN ' + (i + 1))) + '">'
+                        + '<i class="fas fa-trash"></i></button>';
+                } else {
+                    wanHtml += '<span class="badge badge-light" title="WAN management — tidak dapat diedit/dihapus"><i class="fas fa-lock mr-1"></i>Protected</span>';
+                }
+                wanHtml += '</div></div>';
                 wanHtml += '<div class="mt-2 small">';
                 if (wan.username) wanHtml += '<div><i class="fas fa-user text-muted mr-1"></i>Username: <strong>' + wan.username + '</strong></div>';
                 if (wan.external_ip) wanHtml += '<div><i class="fas fa-network-wired text-muted mr-1"></i>IP: <code>' + wan.external_ip + '</code></div>';
@@ -1302,6 +1350,77 @@ $(function() {
         })
         .fail(function(xhr) { Swal.fire('Error', xhr.responseJSON?.message || 'Server error', 'error'); })
         .always(function() { btn.prop('disabled', false).html('<i class="fas fa-save mr-1"></i>Simpan'); });
+    });
+
+    // WAN Edit
+    $(document).on('click', '.btn-edit-wan', function() {
+        $('#wan-edit-path').val($(this).data('path'));
+        $('#wan-edit-username').val($(this).data('username'));
+        $('#wan-edit-vlan').val($(this).data('vlan'));
+        $('#wan-edit-password').val('');
+        $('#modal-wan-edit').modal('show');
+    });
+
+    $('#form-wan-edit').submit(function(e) {
+        e.preventDefault();
+        var btn = $(this).find('button[type="submit"]');
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Menyimpan...');
+        $.ajax({
+            url: '/admin/onus/{{ $onu->id }}/tr069-wan',
+            method: 'PUT',
+            data: {
+                _token: '{{ csrf_token() }}',
+                wan_path: $('#wan-edit-path').val(),
+                pppoe_username: $('#wan-edit-username').val(),
+                pppoe_password: $('#wan-edit-password').val(),
+                vlan: $('#wan-edit-vlan').val(),
+            },
+        })
+        .done(function(res) {
+            if (res.success) {
+                $('#modal-wan-edit').modal('hide');
+                Swal.fire('Berhasil', 'PPPoE WAN berhasil diperbarui.', 'success');
+                setTimeout(loadTr069Summary, 4000);
+            } else {
+                Swal.fire('Gagal', res.message || 'Gagal memperbarui WAN', 'error');
+            }
+        })
+        .fail(function(xhr) { Swal.fire('Error', xhr.responseJSON?.message || 'Server error', 'error'); })
+        .always(function() { btn.prop('disabled', false).html('<i class="fas fa-save mr-1"></i>Simpan Perubahan'); });
+    });
+
+    // WAN Delete
+    $(document).on('click', '.btn-delete-wan', function() {
+        var wanPath = $(this).data('path');
+        var wanName = $(this).data('name');
+        Swal.fire({
+            title: 'Hapus WAN?',
+            html: 'Apakah Anda yakin ingin menghapus koneksi <strong>' + wanName + '</strong>?<br><small class="text-danger">Koneksi PPPoE akan dihapus dari perangkat.</small>',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            confirmButtonText: 'Ya, Hapus!',
+            cancelButtonText: 'Batal',
+        }).then(function(result) {
+            if (!result.isConfirmed) return;
+            $.ajax({
+                url: '/admin/onus/{{ $onu->id }}/tr069-wan',
+                method: 'DELETE',
+                data: {
+                    _token: '{{ csrf_token() }}',
+                    wan_path: wanPath,
+                },
+            })
+            .done(function(res) {
+                if (res.success || res.pending) {
+                    Swal.fire('Berhasil', res.message || 'WAN berhasil dihapus.', 'success');
+                    setTimeout(loadTr069Summary, 4000);
+                } else {
+                    Swal.fire('Gagal', res.message || 'Gagal menghapus WAN', 'error');
+                }
+            })
+            .fail(function(xhr) { Swal.fire('Error', xhr.responseJSON?.message || 'Server error', 'error'); });
+        });
     });
 
     // Security tab: load on demand

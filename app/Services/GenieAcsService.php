@@ -571,6 +571,68 @@ class GenieAcsService
     }
 
     /**
+     * Delete a WAN connection instance (WANPPPConnection only — never call on IP/management WANs).
+     */
+    public function deleteWanConnection(string $deviceId, string $wanPath): array
+    {
+        // Safety guard: only allow deleting PPPoE connections
+        if (!str_contains($wanPath, 'WANPPPConnection')) {
+            return ['success' => false, 'message' => 'Hanya WAN PPPoE yang boleh dihapus.'];
+        }
+
+        try {
+            $url = "{$this->nbiUrl}/devices/{$deviceId}/tasks?connection_request&timeout=15000";
+
+            $response = Http::timeout(30)
+                ->post($url, [
+                    'name' => 'deleteObject',
+                    'objectName' => rtrim($wanPath, '.'),
+                ]);
+
+            $ok = $response->status() === 200 || $response->status() === 202;
+
+            return [
+                'success' => $ok,
+                'pending' => $response->status() === 202,
+                'message' => $ok ? 'WAN berhasil dihapus.' : 'Gagal menghapus WAN: ' . $response->body(),
+            ];
+        } catch (Exception $e) {
+            Log::error("GenieACS deleteWanConnection error: " . $e->getMessage());
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Update an existing PPPoE WAN connection (username, password, VLAN).
+     * $wanPath must point to an existing WANPPPConnection.X path.
+     */
+    public function updateWanPppoe(string $deviceId, string $wanPath, array $config): array
+    {
+        // Safety guard: only allow editing PPPoE connections
+        if (!str_contains($wanPath, 'WANPPPConnection')) {
+            return ['success' => false, 'message' => 'Hanya WAN PPPoE yang boleh diedit.'];
+        }
+
+        $params = [];
+
+        if (isset($config['username'])) {
+            $params["{$wanPath}.Username"] = [$config['username'], 'xsd:string'];
+        }
+        if (isset($config['password']) && $config['password'] !== '') {
+            $params["{$wanPath}.Password"] = [$config['password'], 'xsd:string'];
+        }
+        if (isset($config['vlan'])) {
+            $params["{$wanPath}.X_HW_VLAN"] = [(int) $config['vlan'], 'xsd:int'];
+        }
+
+        if (empty($params)) {
+            return ['success' => false, 'message' => 'Tidak ada parameter yang diubah.'];
+        }
+
+        return $this->setParameterValues($deviceId, $params, true);
+    }
+
+    /**
      * Add an object instance (e.g. create new WAN connection).
      */
     public function addObject(string $deviceId, string $objectPath, bool $waitComplete = false): array

@@ -1032,6 +1032,81 @@ class OnuController extends Controller implements HasMiddleware
     }
 
     /**
+     * Edit an existing PPPoE WAN connection via TR-069.
+     */
+    public function editTr069Wan(Onu $onu, Request $request)
+    {
+        $request->validate([
+            'wan_path'       => 'required|string|max:300',
+            'pppoe_username' => 'required|string|max:100',
+            'pppoe_password' => 'nullable|string|max:100',
+            'vlan'           => 'nullable|integer|min:1|max:4094',
+        ]);
+
+        // Server-side protection: only PPPoE paths allowed
+        if (!str_contains($request->wan_path, 'WANPPPConnection')) {
+            return response()->json(['success' => false, 'message' => 'Hanya WAN PPPoE yang boleh diedit.'], 403);
+        }
+
+        try {
+            $genieacs = new \App\Services\GenieAcsService();
+            $device = $genieacs->findDeviceBySerial($onu->serial_number);
+
+            if (!$device) {
+                return response()->json(['success' => false, 'message' => 'Device tidak ditemukan di GenieACS']);
+            }
+
+            $config = ['username' => $request->pppoe_username];
+            if ($request->filled('pppoe_password')) {
+                $config['password'] = $request->pppoe_password;
+            }
+            if ($request->filled('vlan')) {
+                $config['vlan'] = $request->vlan;
+            }
+
+            $result = $genieacs->updateWanPppoe($device['device_id'], $request->wan_path, $config);
+
+            if ($result['success']) {
+                $onu->update(['pppoe_username' => $request->pppoe_username]);
+            }
+
+            return response()->json($result);
+        } catch (Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Delete a PPPoE WAN connection via TR-069.
+     */
+    public function deleteTr069Wan(Onu $onu, Request $request)
+    {
+        $request->validate([
+            'wan_path' => 'required|string|max:300',
+        ]);
+
+        // Server-side protection: only PPPoE paths allowed
+        if (!str_contains($request->wan_path, 'WANPPPConnection')) {
+            return response()->json(['success' => false, 'message' => 'Hanya WAN PPPoE yang boleh dihapus.'], 403);
+        }
+
+        try {
+            $genieacs = new \App\Services\GenieAcsService();
+            $device = $genieacs->findDeviceBySerial($onu->serial_number);
+
+            if (!$device) {
+                return response()->json(['success' => false, 'message' => 'Device tidak ditemukan di GenieACS']);
+            }
+
+            $result = $genieacs->deleteWanConnection($device['device_id'], $request->wan_path);
+
+            return response()->json($result);
+        } catch (Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * Get full TR069 device summary (for management panel).
      */
     public function getTr069Summary(Onu $onu)
