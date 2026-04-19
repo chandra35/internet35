@@ -220,6 +220,10 @@ class OnuController extends Controller implements HasMiddleware
         $profiles = OltProfile::where('olt_id', $olt->id)->orderBy('name')
             ->get(['id', 'name', 'type', 'config']);
 
+        $vlans = \App\Models\OltVlan::where('olt_id', $olt->id)
+            ->orderBy('vlan_id')
+            ->get(['vlan_id', 'name', 'type']);
+
         return response()->json([
             'success' => true,
             'olt' => [
@@ -230,6 +234,7 @@ class OnuController extends Controller implements HasMiddleware
             ],
             'zones' => $zones,
             'profiles' => $profiles,
+            'vlans' => $vlans,
         ]);
     }
 
