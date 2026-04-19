@@ -1,14 +1,17 @@
 <?php
 /**
- * Fix ONU 19 in-place:
- * 1. Fix gpon-onu: service-port VLAN 355 → 335
- * 2. Fix pon-onu-mng: flow/vlan-filter 355→335, add pppoe/dhcp-ip/security-mgmt, remove bad vlan port line
- * 3. Fix DB: vlan_config.vlan_id 355 → 335
+ * Fix ONU 19 in-place + verify final config
+ * Pass --verify to only check current config (no changes)
  */
 
 require __DIR__ . '/vendor/autoload.php';
 $app = require __DIR__ . '/bootstrap/app.php';
 $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+
+$olt = App\Models\Olt::where('ip_address', '136.1.1.100')->firstOrFail();
+$helper = App\Helpers\Olt\OltFactory::make($olt);
+$ref = new ReflectionMethod($helper, 'executeBatchCliCommands');
+$ref->setAccessible(true);
 
 $onu = App\Models\Onu::where('serial_number', 'HWTC6ED42F9A')->firstOrFail();
 
