@@ -1410,7 +1410,8 @@ class OnuController extends Controller implements HasMiddleware
                 $params["{$newPath}.PreSharedKey.1.PreSharedKey"] = [$request->password, 'xsd:string'];
                 $params["{$newPath}.KeyPassphrase"] = [$request->password, 'xsd:string'];
             }
-            $genieacs->setParameterValues($deviceId, $params);
+            // connection_request=true: wake device immediately for rename task
+            $genieacs->setParameterValues($deviceId, $params, true);
 
             $sync = $addResult['completed'] ?? false;
             return response()->json([
@@ -1420,6 +1421,46 @@ class OnuController extends Controller implements HasMiddleware
                 'message'   => $sync
                     ? "SSID \"{$request->ssid}\" berhasil dibuat (index {$newIndex})."
                     : "addObject dikirim. SSID akan muncul setelah device check-in. Nama akan diset otomatis.",
+            ]);
+        } catch (Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Delete a WiFi SSID instance via TR-069 DeleteObject.
+     */
+    public function deleteTr069Wifi(Onu $onu, Request $request)
+    {
+        $request->validate([
+            'wlan_path' => 'required|string',
+        ]);
+
+        // Safety: only allow deleting secondary SSIDs (index > 1)
+        if (!preg_match('/WLANConfiguration\.(\d+)$/', $request->wlan_path, $m) || (int) $m[1] <= 1) {
+            return response()->json(['success' => false, 'message' => 'SSID utama (index 1) tidak boleh dihapus.']);
+        }
+
+        try {
+            $genieacs = new \App\Services\GenieAcsService();
+            $device   = $genieacs->findDeviceBySerial($onu->serial_number);
+
+            if (!$device) {
+                return response()->json(['success' => false, 'message' => 'Device tidak ditemukan di GenieACS']);
+            }
+
+            $result = $genieacs->deleteObject($device['device_id'], $request->wlan_path);
+
+            if (!$result['success']) {
+                return response()->json(['success' => false, 'message' => 'Gagal mengirim deleteObject task']);
+            }
+
+            return response()->json([
+                'success'   => true,
+                'completed' => $result['completed'] ?? false,
+                'message'   => ($result['completed'] ?? false)
+                    ? 'SSID berhasil dihapus.'
+                    : 'Perintah hapus dikirim. SSID akan hilang setelah device check-in.',
             ]);
         } catch (Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);

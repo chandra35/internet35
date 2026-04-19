@@ -674,6 +674,31 @@ class GenieAcsService
     }
 
     /**
+     * Delete an object instance on device (TR-069 DeleteObject).
+     */
+    public function deleteObject(string $deviceId, string $objectPath): array
+    {
+        try {
+            $url = "{$this->nbiUrl}/devices/{$deviceId}/tasks?connection_request&timeout=15000";
+
+            $response = Http::timeout(30)
+                ->post($url, [
+                    'name' => 'deleteObject',
+                    'objectName' => rtrim($objectPath, '.'),
+                ]);
+
+            return [
+                'success'   => $response->status() === 200 || $response->status() === 202,
+                'completed' => $response->status() === 200,
+                'pending'   => $response->status() === 202,
+            ];
+        } catch (Exception $e) {
+            Log::error("GenieACS deleteObject error: " . $e->getMessage());
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
      * Delete a pending task.
      */
     public function deleteTask(string $taskId): bool

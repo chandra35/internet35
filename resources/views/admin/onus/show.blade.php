@@ -1311,6 +1311,12 @@ $(function() {
                 entries.forEach(function(entry) {
                     var wifi = entry.wifi, i = entry.i;
                     var enabledClass = wifi.enabled ? 'success' : 'secondary';
+                    // Extract index from path e.g. WLANConfiguration.2
+                    var wlanIndex = 1;
+                    var idxMatch = (wifi.path || '').match(/WLANConfiguration\.(\d+)/);
+                    if (idxMatch) wlanIndex = parseInt(idxMatch[1], 10);
+                    var canDelete = wlanIndex > 1;
+
                     wifiHtml += '<div class="wifi-card mb-2">';
                     wifiHtml += '<div class="d-flex justify-content-between align-items-center">';
                     wifiHtml += '<div>';
@@ -1320,11 +1326,19 @@ $(function() {
                     if (wifi.total_associations !== null && wifi.total_associations !== undefined && wifi.total_associations !== '')
                         wifiHtml += ' <span class="badge badge-light ml-1"><i class="fas fa-laptop mr-1"></i>' + wifi.total_associations + '</span>';
                     wifiHtml += '</div>';
+                    wifiHtml += '<div class="btn-group btn-group-sm">';
                     wifiHtml += '<button type="button" class="btn btn-xs btn-outline-info btn-edit-wifi"'
                         + ' data-path="' + (wifi.path || '') + '"'
                         + ' data-ssid="' + (wifi.ssid || '') + '"'
                         + ' data-enabled="' + (wifi.enabled ? '1' : '0') + '">'
                         + '<i class="fas fa-edit mr-1"></i>Edit</button>';
+                    if (canDelete) {
+                        wifiHtml += '<button type="button" class="btn btn-xs btn-outline-danger btn-delete-wifi"'
+                            + ' data-path="' + (wifi.path || '') + '"'
+                            + ' data-ssid="' + (wifi.ssid || 'SSID ' + wlanIndex) + '">'
+                            + '<i class="fas fa-trash"></i></button>';
+                    }
+                    wifiHtml += '</div>';
                     wifiHtml += '</div>';
                     if (wifi.standard || wifi.security_mode || wifi.encryption) {
                         wifiHtml += '<div class="mt-1 small text-muted">';
@@ -1466,7 +1480,11 @@ $(function() {
                     var done = false;
                     if (mode === 'wifi') {
                         var wifiCount = (data.wifi || []).length;
-                        done = (wifiCount >= (extra.expectedCount || 2));
+                        if (extra.mode === 'decrease') {
+                            done = (wifiCount <= (extra.expectedCount));
+                        } else {
+                            done = (wifiCount >= (extra.expectedCount || 2));
+                        }
                     } else {
                         // 'refresh' mode: done when no getParameterValues tasks pending
                         var pending = tasks.filter(function(t) { return t.name === 'getParameterValues'; });
@@ -1677,6 +1695,47 @@ $(function() {
         })
         .fail(function(xhr) { Swal.fire('Error', xhr.responseJSON?.message || 'Server error', 'error'); })
         .always(function() { btn.prop('disabled', false).html('<i class="fas fa-plus mr-1"></i>Tambah SSID'); });
+    });
+
+    // Delete SSID
+    $(document).on('click', '.btn-delete-wifi', function() {
+        var path = $(this).data('path');
+        var ssid = $(this).data('ssid');
+        Swal.fire({
+            title: 'Hapus SSID?',
+            html: 'SSID <strong>' + $('<div>').text(ssid).html() + '</strong> akan dihapus dari device.<br><small class="text-muted">Pengguna yang terhubung akan diputus.</small>',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            confirmButtonText: 'Ya, Hapus',
+            cancelButtonText: 'Batal'
+        }).then(function(result) {
+            if (!result.isConfirmed) return;
+            var currentCount = parseInt($('#tr069-wifi-count').text(), 10) || 1;
+            $.ajax({
+                url: '/admin/onus/{{ $onu->id }}/tr069-wifi',
+                method: 'DELETE',
+                data: { _token: '{{ csrf_token() }}', wlan_path: path },
+            })
+            .done(function(res) {
+                if (res.success) {
+                    if (res.completed) {
+                        loadTr069Summary();
+                        toastr.success('SSID berhasil dihapus.');
+                    } else {
+                        Swal.fire({
+                            title: 'Perintah Dikirim',
+                            html: res.message + '<br><small class="text-muted">App akan otomatis refresh saat SSID hilang.</small>',
+                            icon: 'info', timer: 4000, showConfirmButton: false
+                        });
+                        startPoll(null, 'wifi', { expectedCount: currentCount - 1, mode: 'decrease' });
+                    }
+                } else {
+                    Swal.fire('Gagal', res.message || 'Gagal menghapus SSID', 'error');
+                }
+            })
+            .fail(function(xhr) { Swal.fire('Error', xhr.responseJSON?.message || 'Server error', 'error'); });
+        });
     });
 
     // WAN Edit
