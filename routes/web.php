@@ -406,6 +406,7 @@ Route::prefix('admin')->middleware(['auth', 'role:superadmin|admin|admin-pop|tek
         Route::post('/{onu}/tr069-wan', [\App\Http\Controllers\Admin\OnuController::class, 'configureTr069Wan'])->name('tr069-wan');
         Route::put('/{onu}/tr069-wan', [\App\Http\Controllers\Admin\OnuController::class, 'editTr069Wan'])->name('tr069-wan-edit');
         Route::delete('/{onu}/tr069-wan', [\App\Http\Controllers\Admin\OnuController::class, 'deleteTr069Wan'])->name('tr069-wan-delete');
+        Route::post('/{onu}/reapply-profiles', [\App\Http\Controllers\Admin\OnuController::class, 'reapplyProfiles'])->name('reapply-profiles');
         Route::post('/{onu}/tr069-wifi', [\App\Http\Controllers\Admin\OnuController::class, 'configureTr069Wifi'])->name('tr069-wifi');
         Route::post('/{onu}/tr069-task-delete', [\App\Http\Controllers\Admin\OnuController::class, 'deleteTr069Task'])->name('tr069-task-delete');
         Route::get('/{onu}/tr069-security', [\App\Http\Controllers\Admin\OnuController::class, 'getTr069Security'])->name('tr069-security');

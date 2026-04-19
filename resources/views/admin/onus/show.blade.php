@@ -656,6 +656,76 @@
                         </div>
                     </div>
                 </div>
+                {{-- Re-apply OLT Profile (TCONT + Traffic) --}}
+                @if($onu->olt->brand === 'zte')
+                <div class="col-lg-6 mb-3">
+                    <div class="acs-card">
+                        <div class="acs-section-header">
+                            <i class="fas fa-sliders-h mr-1 text-primary"></i>Re-apply OLT Profile
+                            @php
+                                $currentTcont   = $onu->line_profile ?? 'default';
+                                $currentTraffic = $onu->traffic_profile ?? null;
+                                $profileWarning = $currentTcont === 'default' || $currentTcont === '';
+                            @endphp
+                            @if($profileWarning)
+                            <span class="badge badge-danger float-right"><i class="fas fa-exclamation-triangle mr-1"></i>Profile Bermasalah</span>
+                            @else
+                            <span class="badge badge-success float-right"><i class="fas fa-check mr-1"></i>OK</span>
+                            @endif
+                        </div>
+                        <div class="card-body">
+                            @if($profileWarning)
+                            <div class="alert alert-warning alert-sm py-2 mb-2">
+                                <i class="fas fa-exclamation-triangle mr-1"></i>
+                                TCONT profile <strong>{{ $currentTcont ?: 'tidak terset' }}</strong> tidak mendukung bandwidth penuh.
+                                Ganti ke profile yang sesuai agar PPPoE bisa dial.
+                            </div>
+                            @endif
+                            <p class="small text-muted mb-2">
+                                Saat ini: TCONT = <code>{{ $currentTcont ?: '-' }}</code> | Traffic = <code>{{ $currentTraffic ?: '-' }}</code>
+                            </p>
+                            <form id="form-reapply-profile">
+                                <div class="form-group mb-2">
+                                    <label class="small font-weight-bold">TCONT Profile (Upstream)</label>
+                                    <select name="tcont_profile" id="sel-tcont-profile" class="form-control form-control-sm" required>
+                                        @foreach($oltTcontProfiles as $p)
+                                        <option value="{{ $p->name }}" {{ $p->name === $currentTcont ? 'selected' : '' }}>
+                                            {{ $p->name }}
+                                        </option>
+                                        @endforeach
+                                        @if($oltTcontProfiles->isEmpty())
+                                        <option value="">-- Sync profile dari OLT terlebih dahulu --</option>
+                                        @endif
+                                    </select>
+                                </div>
+                                <div class="form-group mb-2">
+                                    <label class="small font-weight-bold">Traffic Profile (Downstream)</label>
+                                    <select name="traffic_profile" id="sel-traffic-profile" class="form-control form-control-sm" required>
+                                        @foreach($oltTrafficProfiles as $p)
+                                        <option value="{{ $p->name }}" {{ $p->name === $currentTraffic ? 'selected' : '' }}>
+                                            {{ $p->name }}
+                                        </option>
+                                        @endforeach
+                                        @if($oltTrafficProfiles->isEmpty())
+                                        <option value="">-- Sync profile dari OLT terlebih dahulu --</option>
+                                        @endif
+                                    </select>
+                                </div>
+                                @if($oltTcontProfiles->isEmpty() || $oltTrafficProfiles->isEmpty())
+                                <a href="{{ route('admin.olts.profiles.sync', $onu->olt) }}" class="btn btn-outline-secondary btn-sm btn-block mb-2">
+                                    <i class="fas fa-sync mr-1"></i>Sync Profile dari OLT
+                                </a>
+                                @endif
+                                <button type="submit" class="btn btn-primary btn-sm btn-block"
+                                    {{ ($oltTcontProfiles->isEmpty() || $oltTrafficProfiles->isEmpty()) ? 'disabled' : '' }}>
+                                    <i class="fas fa-check mr-1"></i>Terapkan Profile
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                @endif
+
             </div>
         </div>
 
@@ -983,6 +1053,43 @@ $(function() {
             },
             error: function(xhr) { Swal.fire('Error', xhr.responseJSON?.message || 'Gagal konfigurasi WAN', 'error'); },
             complete: function() { btn.prop('disabled', false).html('<i class="fas fa-save mr-1"></i>Update WAN'); }
+        });
+    });
+
+    // ========== Re-apply OLT Profile ==========
+    $('#form-reapply-profile').submit(function(e) {
+        e.preventDefault();
+        var tcont   = $('#sel-tcont-profile').val();
+        var traffic = $('#sel-traffic-profile').val();
+        if (!tcont || !traffic) {
+            Swal.fire('Error', 'Pilih TCONT dan Traffic profile terlebih dahulu.', 'error');
+            return;
+        }
+        Swal.fire({
+            title: 'Konfirmasi Re-apply Profile',
+            html: 'Terapkan:<br><strong>TCONT:</strong> ' + tcont + '<br><strong>Traffic:</strong> ' + traffic + '<br><br><small class="text-muted">ONU akan di-update tanpa unregister.</small>',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, Terapkan!',
+            cancelButtonText: 'Batal',
+        }).then(function(result) {
+            if (!result.isConfirmed) return;
+            var btn = $('#form-reapply-profile button[type="submit"]');
+            btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Menerapkan...');
+            $.post('/admin/onus/{{ $onu->id }}/reapply-profiles', {
+                _token: '{{ csrf_token() }}',
+                tcont_profile: tcont,
+                traffic_profile: traffic,
+            })
+            .done(function(res) {
+                if (res.success) {
+                    Swal.fire('Berhasil', res.message, 'success').then(function() { location.reload(); });
+                } else {
+                    Swal.fire('Gagal', res.message || 'Gagal menerapkan profile', 'error');
+                }
+            })
+            .fail(function(xhr) { Swal.fire('Error', xhr.responseJSON?.message || 'Server error', 'error'); })
+            .always(function() { btn.prop('disabled', false).html('<i class="fas fa-check mr-1"></i>Terapkan Profile'); });
         });
     });
 

@@ -2048,6 +2048,41 @@ class ZteC320Helper extends BaseOltHelper
     }
 
     /**
+     * Re-apply TCONT + Traffic profile on an already-registered ONU (without unregistering).
+     * Use this to fix profile issues (e.g. ONU registered with 'default' 10Mbps profile).
+     */
+    public function reapplyProfiles(int $slot, int $port, int $onuId, string $tcontProfile, string $trafficProfile, int $tcontId = 1, int $gemPort = 1): array
+    {
+        $result = ['success' => false, 'message' => '', 'output' => ''];
+
+        try {
+            $commands = [
+                "configure terminal",
+                "interface gpon-onu_1/{$slot}/{$port}:{$onuId}",
+                "tcont {$tcontId} profile {$tcontProfile}",
+                "gemport {$gemPort} traffic-limit downstream {$trafficProfile}",
+                "exit",
+                "write",
+            ];
+
+            $output = $this->executeBatchCliCommands($commands);
+            $result['output'] = $output;
+
+            if (stripos($output, 'error') !== false || stripos($output, 'fail') !== false || stripos($output, 'invalid') !== false) {
+                $result['message'] = "Re-apply profile gagal: {$output}";
+            } else {
+                $result['success'] = true;
+                $result['message'] = "Profile berhasil diterapkan ulang (TCONT: {$tcontProfile}, Traffic: {$trafficProfile})";
+            }
+        } catch (Exception $e) {
+            $result['message'] = $e->getMessage();
+            Log::error("ZTE reapplyProfiles error: " . $e->getMessage());
+        }
+
+        return $result;
+    }
+
+    /**
      * Get uplink ports status
      */
     public function getUplinkPorts(): array

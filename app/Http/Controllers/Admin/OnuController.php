@@ -128,8 +128,18 @@ class OnuController extends Controller implements HasMiddleware
             ->whereDoesntHave('onu')
             ->orderBy('name')
             ->get();
-        
-        return view('admin.onus.show', compact('onu', 'signalHistory', 'customers', 'chartLabels', 'chartRxData', 'chartTxData'));
+
+        // Get OLT profiles (TCONT + Traffic) from DB for re-apply profile form
+        $oltTcontProfiles  = \App\Models\OltProfile::where('olt_id', $onu->olt_id)
+            ->tcontProfiles()->orderBy('name')->get();
+        $oltTrafficProfiles = \App\Models\OltProfile::where('olt_id', $onu->olt_id)
+            ->trafficProfiles()->orderBy('name')->get();
+
+        return view('admin.onus.show', compact(
+            'onu', 'signalHistory', 'customers',
+            'chartLabels', 'chartRxData', 'chartTxData',
+            'oltTcontProfiles', 'oltTrafficProfiles'
+        ));
     }
 
     /**
@@ -1023,6 +1033,50 @@ class OnuController extends Controller implements HasMiddleware
 
             if ($result['success']) {
                 $onu->update(['pppoe_username' => $request->pppoe_username]);
+            }
+
+            return response()->json($result);
+        } catch (Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Re-apply TCONT + Traffic profile on an existing ONU (without unregistering).
+     */
+    public function reapplyProfiles(Onu $onu, Request $request)
+    {
+        $request->validate([
+            'tcont_profile'   => 'required|string|max:64',
+            'traffic_profile' => 'required|string|max:64',
+        ]);
+
+        try {
+            $helper = OltFactory::make($onu->olt);
+
+            if (!method_exists($helper, 'reapplyProfiles')) {
+                return response()->json(['success' => false, 'message' => 'OLT brand ini belum mendukung re-apply profile.'], 422);
+            }
+
+            $vlanConfig = $onu->vlan_config ?? [];
+            $tcontId = (int) ($vlanConfig['tcont_id'] ?? 1);
+            $gemPort = (int) ($vlanConfig['gem_port'] ?? 1);
+
+            $result = $helper->reapplyProfiles(
+                (int) $onu->slot,
+                (int) $onu->port,
+                (int) $onu->onu_id,
+                $request->tcont_profile,
+                $request->traffic_profile,
+                $tcontId,
+                $gemPort
+            );
+
+            if ($result['success']) {
+                $onu->update([
+                    'line_profile'    => $request->tcont_profile,
+                    'traffic_profile' => $request->traffic_profile,
+                ]);
             }
 
             return response()->json($result);
