@@ -38,10 +38,16 @@ $out .= "\n\n=== ONU 20 gpon-onu running-config ===\n";
 $out .= telnetCmd($sock, "show running-config interface gpon-onu_1/1/1:20", 2);
 
 $out .= "\n\n=== ONU 19 pon-onu-mng running-config ===\n";
-$out .= telnetCmd($sock, "show running-config interface gpon-onu-mng_1/1/1:19", 5);
+$out .= telnetCmd($sock, "show running-config interface pon-onu-mng_1/1/1:19", 3);
 
 $out .= "\n\n=== ONU 20 pon-onu-mng running-config ===\n";
-$out .= telnetCmd($sock, "show running-config interface gpon-onu-mng_1/1/1:20", 5);
+$out .= telnetCmd($sock, "show running-config interface pon-onu-mng_1/1/1:20", 3);
+
+$out .= "\n\n=== ONU 19 gpon onu detail ===\n";
+$out .= telnetCmd($sock, "show gpon onu detail-info gpon-onu_1/1/1:19", 3);
+
+$out .= "\n\n=== ONU 20 gpon onu detail ===\n";
+$out .= telnetCmd($sock, "show gpon onu detail-info gpon-onu_1/1/1:20", 3);
 
 fclose($sock);
 
