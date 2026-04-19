@@ -265,34 +265,6 @@ class GenieAcsService
     }
 
     /**
-     * Add a new object instance on device (TR-069 AddObject).
-     */
-    public function addObject(string $deviceId, string $objectName, bool $connectionRequest = false): array
-    {
-        try {
-            $url = "{$this->nbiUrl}/devices/{$deviceId}/tasks";
-            if ($connectionRequest) {
-                $url .= '?connection_request';
-            }
-
-            $response = Http::timeout($this->timeout)
-                ->post($url, [
-                    'name' => 'addObject',
-                    'objectName' => $objectName,
-                ]);
-
-            return [
-                'success' => $response->status() === 200 || $response->status() === 202,
-                'task_id' => $response->json('_id'),
-                'status'  => $response->status(),
-            ];
-        } catch (Exception $e) {
-            Log::error("GenieACS addObject error: " . $e->getMessage());
-            return ['success' => false, 'message' => $e->getMessage()];
-        }
-    }
-
-    /**
      * Set parameter values on device.
      */
     public function setParameterValues(string $deviceId, array $parameterValues, bool $connectionRequest = false): array
