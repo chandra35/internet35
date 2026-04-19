@@ -253,6 +253,7 @@ class OnuController extends Controller implements HasMiddleware
             'line_profile' => 'nullable|string|max:255',
             'service_profile' => 'nullable|string|max:255',
             'traffic_profile' => 'nullable|string|max:64',
+            'wan_mode' => 'nullable|in:skip,omci,tr069',
             'description' => 'nullable|string|max:1000',
         ]);
 
@@ -292,8 +293,9 @@ class OnuController extends Controller implements HasMiddleware
                 $params['traffic_profile'] = $request->traffic_profile;
             }
 
-            // Pass PPPoE credentials for WAN injection
-            if ($request->filled('pppoe_username')) {
+            // Pass PPPoE credentials only for OMCI mode (ZTE pon-onu-mng)
+            $wanMode = $request->input('wan_mode', 'skip');
+            if ($wanMode === 'omci' && $request->filled('pppoe_username')) {
                 $params['pppoe_username'] = $request->pppoe_username;
                 $params['pppoe_password'] = $request->pppoe_password ?? '';
             }
@@ -376,10 +378,34 @@ class OnuController extends Controller implements HasMiddleware
                 
                 $this->activityLog->log('onus', "Registered ONU: {$onu->serial_number} on {$olt->name}");
 
+                // TR-069 mode: push PPPoE to ACS after ONU is saved in DB
+                $acsMessage = '';
+                if ($wanMode === 'tr069' && $request->filled('pppoe_username')) {
+                    try {
+                        $genieacs = new \App\Services\GenieAcsService();
+                        $acsDevice = $genieacs->findDeviceBySerial($onu->serial_number);
+                        if ($acsDevice) {
+                            $acsResult = $genieacs->configureWanPppoe($acsDevice['device_id'], [
+                                'username' => $request->pppoe_username,
+                                'password' => $request->pppoe_password ?? '',
+                                'vlan'     => $vlanValue,
+                            ]);
+                            $acsMessage = $acsResult['success']
+                                ? ' PPPoE WAN berhasil dikonfigurasi via TR-069.'
+                                : ' Credentials tersimpan — ONU belum terhubung ke ACS, akan dikonfigurasi otomatis setelah online.';
+                        } else {
+                            $acsMessage = ' Credentials tersimpan — ONU belum terhubung ke ACS, akan dikonfigurasi otomatis setelah online.';
+                        }
+                    } catch (\Exception $e) {
+                        \Log::warning('TR-069 WAN push post-register failed: ' . $e->getMessage());
+                        $acsMessage = ' Credentials tersimpan — push ke ACS gagal, coba lagi dari halaman ONU.';
+                    }
+                }
+
                 return $this->registerResponse(
                     $request,
                     true,
-                    $result['message'],
+                    $result['message'] . $acsMessage,
                     ['redirect_url' => route('admin.onus.show', $onu)]
                 );
             } else {

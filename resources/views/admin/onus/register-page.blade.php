@@ -240,25 +240,6 @@
                                     </div>
                                 </div>
 
-                                <div class="callout callout-warning py-2 mb-3">
-                                    <h6 class="mb-1"><i class="fas fa-wifi mr-1"></i>PPPoE Internet <span class="badge badge-secondary">Opsional</span></h6>
-                                    <p class="mb-0" style="font-size:12px;">Isi jika ingin langsung set WAN PPPoE saat register. Bisa diisi nanti via TR069.</p>
-                                </div>
-                                <div class="row">
-                                    <div class="col-6">
-                                        <div class="form-group">
-                                            <label>PPPoE Username</label>
-                                            <input type="text" name="pppoe_username" class="form-control" placeholder="username@isp">
-                                        </div>
-                                    </div>
-                                    <div class="col-6">
-                                        <div class="form-group">
-                                            <label>PPPoE Password</label>
-                                            <input type="text" name="pppoe_password" class="form-control" placeholder="password">
-                                        </div>
-                                    </div>
-                                </div>
-
                                 <!-- Advanced: collapsed by default -->
                                 <div class="card card-outline card-secondary mb-0 collapsed-card" id="zte-advanced-card">
                                     <div class="card-header py-2" data-card-widget="collapse" style="cursor:pointer;">
@@ -333,6 +314,65 @@
                                     <select name="profile_id" id="reg_profile_id" class="form-control">
                                         <option value="">-- Opsional --</option>
                                     </select>
+                                </div>
+                            </div>
+
+                            <!-- WAN Setup Mode — shown for all OLT brands -->
+                            <div id="wan-setup-section" style="display:none;" class="mt-2">
+                                <hr class="my-2">
+                                <label class="font-weight-bold d-block mb-1">
+                                    <i class="fas fa-wifi mr-1 text-primary"></i>Setup WAN
+                                </label>
+                                <div class="btn-group btn-group-toggle w-100 mb-2" data-toggle="buttons" id="wan-mode-group">
+                                    <label class="btn btn-outline-secondary active" style="flex:1; font-size:12px;">
+                                        <input type="radio" name="wan_mode" value="skip" checked>
+                                        <i class="fas fa-ban mr-1"></i>Skip
+                                    </label>
+                                    <label class="btn btn-outline-warning omci-only-option" style="flex:1; font-size:12px; display:none;">
+                                        <input type="radio" name="wan_mode" value="omci">
+                                        <i class="fas fa-microchip mr-1"></i>OMCI <small>(ZTE)</small>
+                                    </label>
+                                    <label class="btn btn-outline-info" style="flex:1; font-size:12px;">
+                                        <input type="radio" name="wan_mode" value="tr069">
+                                        <i class="fas fa-cloud mr-1"></i>TR-069/ACS
+                                    </label>
+                                </div>
+                                <p id="wan-mode-hint" class="text-muted mb-2" style="font-size:12px;">
+                                    Tidak ada konfigurasi WAN sekarang. Pelanggan set sendiri via halaman ONU.
+                                </p>
+                                <div id="pppoe-fields" style="display:none;">
+                                    <div class="callout py-2 mb-2" id="pppoe-callout">
+                                        <p id="pppoe-callout-text" class="mb-0" style="font-size:12px;"></p>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <div class="form-group mb-2">
+                                                <label class="small mb-1">PPPoE Username <span class="text-danger">*</span></label>
+                                                <div class="input-group input-group-sm">
+                                                    <div class="input-group-prepend">
+                                                        <span class="input-group-text"><i class="fas fa-user"></i></span>
+                                                    </div>
+                                                    <input type="text" name="pppoe_username" id="reg_pppoe_username" class="form-control" placeholder="user@isp" autocomplete="off">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="form-group mb-2">
+                                                <label class="small mb-1">PPPoE Password <span class="text-danger">*</span></label>
+                                                <div class="input-group input-group-sm">
+                                                    <div class="input-group-prepend">
+                                                        <span class="input-group-text"><i class="fas fa-lock"></i></span>
+                                                    </div>
+                                                    <input type="password" name="pppoe_password" id="reg_pppoe_password" class="form-control" placeholder="password" autocomplete="new-password">
+                                                    <div class="input-group-append">
+                                                        <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-toggle-pwd" tabindex="-1">
+                                                            <i class="fas fa-eye"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -545,6 +585,26 @@ $(function() {
             $('#zte-settings, #generic-profile-settings').hide();
         }
 
+        // ── WAN Setup section ──
+        $('#wan-setup-section').show();
+
+        // OMCI option: hanya untuk ZTE
+        if (currentOltBrand === 'zte') {
+            $('.omci-only-option').css('display', '').removeClass('d-none');
+        } else {
+            // Non-ZTE: sembunyikan OMCI, reset ke skip
+            $('.omci-only-option').hide();
+            $('input[name="wan_mode"][value="skip"]').prop('checked', true).closest('label')
+                .addClass('active').siblings().removeClass('active');
+        }
+        // Reset WAN mode to skip & hide pppoe
+        $('input[name="wan_mode"][value="skip"]').prop('checked', true)
+            .closest('label').addClass('active').siblings().removeClass('active');
+        $('#pppoe-fields').hide();
+        $('#wan-mode-hint').text('Tidak ada konfigurasi WAN sekarang. Pelanggan set sendiri via halaman ONU.');
+        $('#reg_pppoe_username').val('');
+        $('#reg_pppoe_password').val('');
+
         // Init Select2 for customer
         if (!$('#reg_customer_id').hasClass('select2-hidden-accessible')) {
             $('#reg_customer_id').select2({
@@ -604,6 +664,44 @@ $(function() {
     // Cancel register
     $('#btn-cancel-register, #btn-cancel-register-2').click(function() {
         $('#register-section').hide();
+    });
+
+    // ========== WAN Mode Toggle ==========
+    $(document).on('change', 'input[name="wan_mode"]', function() {
+        var mode = $(this).val();
+        if (mode === 'skip') {
+            $('#pppoe-fields').hide();
+            $('#reg_pppoe_username').prop('required', false);
+            $('#reg_pppoe_password').prop('required', false);
+            $('#wan-mode-hint').text('Tidak ada konfigurasi WAN sekarang. Pelanggan set sendiri via halaman ONU.');
+        } else if (mode === 'omci') {
+            $('#pppoe-callout').removeClass('callout-info').addClass('callout-warning');
+            $('#pppoe-callout-text').html('<i class="fas fa-microchip mr-1"></i><strong>OMCI:</strong> PPPoE dikonfigurasi langsung ke hardware ONU via GPON OMCI saat register. Hanya untuk ONU ZTE.');
+            $('#pppoe-fields').show();
+            $('#reg_pppoe_username').prop('required', true);
+            $('#reg_pppoe_password').prop('required', true);
+            $('#wan-mode-hint').text('PPPoE akan di-inject via pon-onu-mng saat ONU diregister.');
+        } else if (mode === 'tr069') {
+            $('#pppoe-callout').removeClass('callout-warning').addClass('callout-info');
+            $('#pppoe-callout-text').html('<i class="fas fa-cloud mr-1"></i><strong>TR-069/ACS:</strong> Credentials disimpan & dikirim ke GenieACS. ONU akan dikonfigurasi otomatis setelah terhubung ke ACS (1–3 menit).');
+            $('#pppoe-fields').show();
+            $('#reg_pppoe_username').prop('required', true);
+            $('#reg_pppoe_password').prop('required', true);
+            $('#wan-mode-hint').text('PPPoE akan dikonfigurasi ke ONU via GenieACS (TR-069) setelah ONU online.');
+        }
+    });
+
+    // Toggle password visibility
+    $(document).on('click', '#btn-toggle-pwd', function() {
+        var input = $('#reg_pppoe_password');
+        var icon = $(this).find('i');
+        if (input.attr('type') === 'password') {
+            input.attr('type', 'text');
+            icon.removeClass('fa-eye').addClass('fa-eye-slash');
+        } else {
+            input.attr('type', 'password');
+            icon.removeClass('fa-eye-slash').addClass('fa-eye');
+        }
     });
 
     // Submit register
