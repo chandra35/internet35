@@ -5,7 +5,7 @@ $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
 $kernel->bootstrap();
 
 use App\Models\Olt;
-use App\Services\OltFactory;
+use App\Helpers\Olt\OltFactory;
 
 $olt = Olt::where('ip_address', '136.1.1.100')->first();
 $helper = OltFactory::make($olt);
