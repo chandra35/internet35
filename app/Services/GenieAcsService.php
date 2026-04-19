@@ -474,11 +474,23 @@ class GenieAcsService
                 $wlanConfig = $ldValue['WLANConfiguration'] ?? [];
                 foreach ($wlanConfig as $wKey => $wValue) {
                     if (!is_array($wValue) || $wKey === '_object' || $wKey === '_writable' || $wKey === '_timestamp') continue;
+                    $channel = $this->getValue($wValue, 'Channel');
+                    // Detect band: prefer explicit OperatingFrequencyBand, fallback to channel number
+                    $freqBand = $this->getValue($wValue, 'OperatingFrequencyBand')
+                        ?? $this->getValue($wValue, 'X_HW_FrequencyBand')
+                        ?? $this->getValue($wValue, 'X_HW_FREQ_BAND');
+                    if (!$freqBand && $channel !== null && $channel !== '') {
+                        $ch = (int) $channel;
+                        $freqBand = ($ch >= 36) ? '5GHz' : '2.4GHz';
+                    }
+
                     $wlans[] = [
                         'path' => "InternetGatewayDevice.LANDevice.{$ldKey}.WLANConfiguration.{$wKey}",
+                        'index' => $wKey,
                         'ssid' => $this->getValue($wValue, 'SSID'),
                         'enabled' => $this->getValue($wValue, 'Enable'),
-                        'channel' => $this->getValue($wValue, 'Channel'),
+                        'channel' => $channel,
+                        'band' => $freqBand,
                         'standard' => $this->getValue($wValue, 'Standard'),
                         'security_mode' => $this->getValue($wValue, 'BeaconType'),
                         'encryption' => $this->getValue($wValue, 'WPAEncryptionModes') ?? $this->getValue($wValue, 'IEEE11iEncryptionModes'),

@@ -1223,25 +1223,63 @@ $(function() {
             $('#tr069-wifi-empty').show();
         } else {
             $('#tr069-wifi-empty').hide();
-            var wifiHtml = '';
+
+            // Group by band — only show groups that actually have entries
+            var bands = {};
             wifis.forEach(function(wifi, i) {
-                var enabledClass = wifi.enabled ? 'success' : 'secondary';
-                wifiHtml += '<div class="wifi-card">';
-                wifiHtml += '<div class="d-flex justify-content-between align-items-center">';
-                wifiHtml += '<div>';
-                wifiHtml += '<strong><i class="fas fa-wifi text-' + enabledClass + ' mr-1"></i>' + (wifi.ssid || 'SSID ' + (i + 1)) + '</strong>';
-                wifiHtml += ' <span class="badge badge-' + enabledClass + '">' + (wifi.enabled ? 'Enabled' : 'Disabled') + '</span>';
-                if (wifi.channel) wifiHtml += ' <small class="text-muted ml-1">Ch.' + wifi.channel + '</small>';
-                if (wifi.total_associations) wifiHtml += ' <span class="badge badge-light ml-1"><i class="fas fa-laptop mr-1"></i>' + wifi.total_associations + '</span>';
+                var b = wifi.band || 'Unknown';
+                if (!bands[b]) bands[b] = [];
+                bands[b].push({ wifi: wifi, i: i });
+            });
+
+            var bandOrder = ['2.4GHz', '5GHz', 'Unknown'];
+            var bandColors = { '2.4GHz': 'info', '5GHz': 'primary', 'Unknown': 'secondary' };
+            var bandIcons  = { '2.4GHz': 'fa-wifi', '5GHz': 'fa-broadcast-tower', 'Unknown': 'fa-wifi' };
+
+            var wifiHtml = '';
+            bandOrder.forEach(function(band) {
+                if (!bands[band]) return; // skip band if device doesn't have it
+                var entries = bands[band];
+                var bc = bandColors[band];
+                var bi = bandIcons[band];
+
+                wifiHtml += '<div class="mb-3">';
+                wifiHtml += '<div class="d-flex align-items-center mb-2">';
+                wifiHtml += '<span class="badge badge-' + bc + ' mr-2"><i class="fas ' + bi + ' mr-1"></i>' + band + '</span>';
+                wifiHtml += '<small class="text-muted">' + entries.length + ' SSID</small>';
                 wifiHtml += '</div>';
-                wifiHtml += '<button type="button" class="btn btn-xs btn-outline-info btn-edit-wifi" data-path="' + (wifi.path || '') + '" data-ssid="' + (wifi.ssid || '') + '" data-enabled="' + (wifi.enabled ? '1' : '0') + '"><i class="fas fa-edit mr-1"></i>Edit</button>';
-                wifiHtml += '</div>';
-                if (wifi.standard || wifi.security_mode) {
-                    wifiHtml += '<div class="mt-1 small text-muted">';
-                    if (wifi.standard) wifiHtml += '<span class="mr-2">Standard: ' + wifi.standard + '</span>';
-                    if (wifi.security_mode) wifiHtml += '<span>Security: ' + wifi.security_mode + '</span>';
+
+                entries.forEach(function(entry) {
+                    var wifi = entry.wifi, i = entry.i;
+                    var enabledClass = wifi.enabled ? 'success' : 'secondary';
+                    wifiHtml += '<div class="wifi-card mb-2">';
+                    wifiHtml += '<div class="d-flex justify-content-between align-items-center">';
+                    wifiHtml += '<div>';
+                    wifiHtml += '<strong><i class="fas fa-wifi text-' + enabledClass + ' mr-1"></i>' + (wifi.ssid || 'SSID ' + (i + 1)) + '</strong>';
+                    wifiHtml += ' <span class="badge badge-' + enabledClass + '">' + (wifi.enabled ? 'Enabled' : 'Disabled') + '</span>';
+                    if (wifi.channel) wifiHtml += ' <small class="text-muted ml-1">Ch.' + wifi.channel + '</small>';
+                    if (wifi.total_associations !== null && wifi.total_associations !== undefined && wifi.total_associations !== '')
+                        wifiHtml += ' <span class="badge badge-light ml-1"><i class="fas fa-laptop mr-1"></i>' + wifi.total_associations + '</span>';
                     wifiHtml += '</div>';
-                }
+                    wifiHtml += '<button type="button" class="btn btn-xs btn-outline-info btn-edit-wifi"'
+                        + ' data-path="' + (wifi.path || '') + '"'
+                        + ' data-ssid="' + (wifi.ssid || '') + '"'
+                        + ' data-enabled="' + (wifi.enabled ? '1' : '0') + '">'
+                        + '<i class="fas fa-edit mr-1"></i>Edit</button>';
+                    wifiHtml += '</div>';
+                    if (wifi.standard || wifi.security_mode || wifi.encryption) {
+                        wifiHtml += '<div class="mt-1 small text-muted">';
+                        if (wifi.standard) wifiHtml += '<span class="mr-2">Std: ' + wifi.standard + '</span>';
+                        if (wifi.security_mode) wifiHtml += '<span class="mr-2">Security: ' + wifi.security_mode + '</span>';
+                        if (wifi.encryption) wifiHtml += '<span>Enc: ' + wifi.encryption + '</span>';
+                        wifiHtml += '</div>';
+                    }
+                    if (wifi.mac_address) {
+                        wifiHtml += '<div class="mt-1 small text-muted"><i class="fas fa-fingerprint mr-1"></i>BSSID: <code>' + wifi.mac_address + '</code></div>';
+                    }
+                    wifiHtml += '</div>';
+                });
+
                 wifiHtml += '</div>';
             });
             $('#tr069-wifi-list').html(wifiHtml);
