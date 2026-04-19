@@ -1320,8 +1320,39 @@ class OnuController extends Controller implements HasMiddleware
     }
 
     /**
-     * Factory reset via TR069.
+     * Set TR-069 PeriodicInformInterval on device.
      */
+    public function setTr069InformInterval(Onu $onu, Request $request)
+    {
+        $request->validate([
+            'interval' => 'required|integer|min:30|max:86400',
+        ]);
+
+        try {
+            $genieacs = new \App\Services\GenieAcsService();
+            $device = $genieacs->findDeviceBySerial($onu->serial_number);
+
+            if (!$device) {
+                return response()->json(['success' => false, 'message' => 'Device tidak ditemukan di GenieACS']);
+            }
+
+            $interval = (int) $request->interval;
+            $result = $genieacs->setParameterValues($device['device_id'], [
+                'InternetGatewayDevice.ManagementServer.PeriodicInformEnable' => [true, 'xsd:boolean'],
+                'InternetGatewayDevice.ManagementServer.PeriodicInformInterval' => [$interval, 'xsd:unsignedInt'],
+            ], true);
+
+            return response()->json(array_merge($result, [
+                'message' => $result['success']
+                    ? "Inform interval berhasil diset ke {$interval} detik"
+                    : ($result['message'] ?? 'Gagal'),
+            ]));
+        } catch (Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+
     public function factoryResetTr069(Onu $onu)
     {
         try {

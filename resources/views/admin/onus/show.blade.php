@@ -464,6 +464,18 @@
                                             <div class="card-body p-0">
                                                 <table class="table table-sm table-striped table-acs mb-0" id="tr069-acs-table"></table>
                                             </div>
+                                            <div class="card-body border-top pt-2 pb-2" id="tr069-inform-form-wrap" style="display:none">
+                                                <div class="small font-weight-bold mb-1"><i class="fas fa-clock mr-1 text-info"></i>Edit Periodic Inform Interval</div>
+                                                <div class="input-group input-group-sm">
+                                                    <input type="number" id="tr069-inform-input" class="form-control" min="30" max="86400" placeholder="detik (min 30, max 86400)" style="max-width:200px">
+                                                    <div class="input-group-append">
+                                                        <button class="btn btn-primary btn-sm" id="btn-save-inform-interval" type="button">
+                                                            <i class="fas fa-save mr-1"></i>Simpan
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <div class="small text-muted mt-1" id="tr069-inform-hint"></div>
+                                            </div>
                                         </div>
                                     </div>
                                     <div class="col-lg-6">
@@ -1356,6 +1368,67 @@ $(function() {
         return parts.join(' ') || '< 1m';
     }
 
+    // ── Auto-poll after Refresh Data ──
+    var pollTimer = null;
+    var pollAttempts = 0;
+    var MAX_POLL = 24; // max ~2 menit (24 × 5s)
+
+    function stopPoll() {
+        if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+        pollAttempts = 0;
+        $('#tr069-poll-status').remove();
+    }
+
+    function startPoll(btn) {
+        stopPoll();
+        pollAttempts = 0;
+
+        // Inject status bar below toolbar
+        if (!$('#tr069-poll-status').length) {
+            $('#tr069-main .d-flex.justify-content-between').after(
+                '<div id="tr069-poll-status" class="alert alert-info py-2 px-3 small mb-2">' +
+                '<i class="fas fa-spinner fa-spin mr-1"></i>' +
+                '<span id="tr069-poll-msg">Menunggu device check-in...</span>' +
+                ' <button type="button" class="close ml-2" style="font-size:14px" id="btn-stop-poll"><span>&times;</span></button>' +
+                '</div>'
+            );
+            $('#btn-stop-poll').on('click', function() {
+                stopPoll();
+                btn.find('i').removeClass('fa-spin');
+            });
+        }
+
+        pollTimer = setInterval(function() {
+            pollAttempts++;
+            $.get('/admin/onus/{{ $onu->id }}/tr069-summary')
+                .done(function(res) {
+                    if (!res.success || !res.found) return;
+                    var tasks = (res.data && res.data.tasks) ? res.data.tasks : [];
+                    var pending = tasks.filter(function(t) { return t.name === 'getParameterValues'; });
+
+                    if (pending.length === 0) {
+                        // Task selesai — reload data
+                        stopPoll();
+                        btn.find('i').removeClass('fa-spin');
+                        tr069Data = res.data;
+                        renderTr069(res.data);
+                        toastr.success('Data berhasil diperbarui dari device.');
+                    } else {
+                        var elapsed = pollAttempts * 5;
+                        $('#tr069-poll-msg').text('Menunggu device check-in... (' + elapsed + 's / ' + (MAX_POLL * 5) + 's maks)');
+                    }
+                });
+
+            if (pollAttempts >= MAX_POLL) {
+                stopPoll();
+                btn.find('i').removeClass('fa-spin');
+                $('#tr069-poll-status').removeClass('alert-info').addClass('alert-warning')
+                    .html('<i class="fas fa-exclamation-triangle mr-1"></i>Device belum check-in setelah 2 menit. Coba Refresh Data lagi saat device online.');
+                setTimeout(function() { $('#tr069-poll-status').remove(); }, 8000);
+            }
+        }, 5000);
+    }
+
     // Refresh TR069
     $(document).on('click', '.btn-refresh-tr069, .btn-refresh-tr069-data', function() {
         var btn = $(this);
@@ -1363,13 +1436,16 @@ $(function() {
         $.post('/admin/onus/{{ $onu->id }}/tr069-refresh', { _token: '{{ csrf_token() }}' })
             .done(function(res) {
                 if (res.success) {
-                    setTimeout(function() { loadTr069Summary(); }, 3000);
+                    startPoll(btn);
                 } else {
+                    btn.find('i').removeClass('fa-spin');
                     Swal.fire('Info', res.message || 'Tidak dapat refresh', 'info');
                 }
             })
-            .fail(function() { loadTr069Summary(); })
-            .always(function() { setTimeout(function() { btn.find('i').removeClass('fa-spin'); }, 1000); });
+            .fail(function() {
+                btn.find('i').removeClass('fa-spin');
+                loadTr069Summary();
+            });
     });
 
     // Reboot via TR069
@@ -1590,6 +1666,15 @@ $(function() {
                         acsRows += '<tr><td>Periodic Inform</td><td><span class="badge badge-' + (d.acs.periodic_inform ? 'success' : 'secondary') + '">' + (d.acs.periodic_inform ? 'Enabled' : 'Disabled') + '</span></td></tr>';
                         acsRows += '<tr><td>Inform Interval</td><td>' + (d.acs.periodic_interval ? d.acs.periodic_interval + 's' : '-') + '</td></tr>';
                         acsRows += '<tr><td>Connection Req. URL</td><td><code class="small">' + (d.acs.connection_request_url || '-') + '</code></td></tr>';
+
+                        // Populate inform interval editor
+                        var iv = d.acs.periodic_interval;
+                        if (iv) {
+                            $('#tr069-inform-input').val(iv);
+                            var mins = Math.round(iv / 60);
+                            $('#tr069-inform-hint').text('Saat ini: ' + iv + ' detik ≈ ' + mins + ' menit');
+                        }
+                        $('#tr069-inform-form-wrap').show();
                     }
                     $('#tr069-acs-table').html(acsRows);
 
@@ -1618,6 +1703,28 @@ $(function() {
                 $('#tr069-security-loading').html('<span class="text-danger"><i class="fas fa-times mr-1"></i>Gagal memuat data security</span>');
             });
     }
+
+    // Save PeriodicInformInterval
+    $(document).on('click', '#btn-save-inform-interval', function() {
+        var iv = parseInt($('#tr069-inform-input').val(), 10);
+        if (!iv || iv < 30 || iv > 86400) {
+            toastr.warning('Interval harus antara 30 – 86400 detik');
+            return;
+        }
+        var btn = $(this).prop('disabled', true).find('i').addClass('fa-spin').end();
+        $.post('/admin/onus/{{ $onu->id }}/tr069-inform-interval', { _token: '{{ csrf_token() }}', interval: iv })
+            .done(function(res) {
+                if (res.success) {
+                    var mins = Math.round(iv / 60);
+                    $('#tr069-inform-hint').text('Tersimpan: ' + iv + ' detik ≈ ' + mins + ' menit');
+                    toastr.success(res.message || 'Interval berhasil disimpan');
+                } else {
+                    toastr.error(res.message || 'Gagal menyimpan interval');
+                }
+            })
+            .fail(function() { toastr.error('Koneksi gagal'); })
+            .always(function() { btn.prop('disabled', false).find('i').removeClass('fa-spin'); });
+    });
 
     // Users tab: refresh
     $('.btn-refresh-users').click(function() {

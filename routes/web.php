@@ -415,6 +415,7 @@ Route::prefix('admin')->middleware(['auth', 'role:superadmin|admin|admin-pop|tek
         Route::post('/{onu}/tr069-factory-reset', [\App\Http\Controllers\Admin\OnuController::class, 'factoryResetTr069'])->name('tr069-factory-reset');
         Route::post('/{onu}/tr069-clear-tasks', [\App\Http\Controllers\Admin\OnuController::class, 'clearTr069Tasks'])->name('tr069-clear-tasks');
         Route::post('/{onu}/tr069-firmware', [\App\Http\Controllers\Admin\OnuController::class, 'downloadFirmwareTr069'])->name('tr069-firmware');
+        Route::post('/{onu}/tr069-inform-interval', [\App\Http\Controllers\Admin\OnuController::class, 'setTr069InformInterval'])->name('tr069-inform-interval');
     });
 
     // Network Map
