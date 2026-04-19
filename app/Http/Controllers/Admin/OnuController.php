@@ -1389,29 +1389,37 @@ class OnuController extends Controller implements HasMiddleware
                 return response()->json(['success' => false, 'message' => 'Maksimal 4 SSID sudah tercapai']);
             }
 
-            $basePath      = "InternetGatewayDevice.LANDevice.{$ldNum}.WLANConfiguration.";
-            $predictedPath = $basePath . ($maxIndex + 1);
+            $basePath = "InternetGatewayDevice.LANDevice.{$ldNum}.WLANConfiguration.";
 
-            // Step 1: addObject (with connection request to wake device)
+            // Send addObject with waitComplete — GenieACS will return instanceNumber if device responds within timeout
             $addResult = $genieacs->addObject($deviceId, $basePath, true);
             if (!$addResult['success']) {
                 return response()->json(['success' => false, 'message' => 'Gagal mengirim addObject task']);
             }
 
-            // Step 2: set params on predicted path (best-effort, runs after addObject)
+            // If device responded synchronously, use actual instanceNumber; else fall back to prediction
+            $newIndex = $addResult['instance'] ?? ($maxIndex + 1);
+            $newPath  = $basePath . $newIndex;
+
+            // Set SSID name/password/enabled — only if we have a reliable index
             $params = [
-                "{$predictedPath}.SSID"  => [$request->ssid, 'xsd:string'],
-                "{$predictedPath}.Enable" => [(bool) ($request->input('enabled', true)), 'xsd:boolean'],
+                "{$newPath}.SSID"   => [$request->ssid, 'xsd:string'],
+                "{$newPath}.Enable" => [(bool) ($request->input('enabled', true)), 'xsd:boolean'],
             ];
             if ($request->filled('password')) {
-                $params["{$predictedPath}.PreSharedKey.1.PreSharedKey"] = [$request->password, 'xsd:string'];
-                $params["{$predictedPath}.KeyPassphrase"] = [$request->password, 'xsd:string'];
+                $params["{$newPath}.PreSharedKey.1.PreSharedKey"] = [$request->password, 'xsd:string'];
+                $params["{$newPath}.KeyPassphrase"] = [$request->password, 'xsd:string'];
             }
             $genieacs->setParameterValues($deviceId, $params);
 
+            $sync = $addResult['completed'] ?? false;
             return response()->json([
-                'success' => true,
-                'message' => 'SSID baru dijadwalkan. Tunggu device check-in untuk konfirmasi.',
+                'success'   => true,
+                'completed' => $sync,
+                'wifi_count' => count($wifis) + 1, // expected count after add
+                'message'   => $sync
+                    ? "SSID \"{$request->ssid}\" berhasil dibuat (index {$newIndex})."
+                    : "addObject dikirim. SSID akan muncul setelah device check-in. Nama akan diset otomatis.",
             ]);
         } catch (Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);

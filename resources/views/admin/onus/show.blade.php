@@ -1415,7 +1415,7 @@ $(function() {
         return parts.join(' ') || '< 1m';
     }
 
-    // ── Auto-poll after Refresh Data ──
+    // ── Auto-poll after Refresh Data / addObject ──
     var pollTimer = null;
     var pollAttempts = 0;
     var MAX_POLL = 24; // max ~2 menit (24 × 5s)
@@ -1426,9 +1426,16 @@ $(function() {
         $('#tr069-poll-status').remove();
     }
 
-    function startPoll(btn) {
+    /**
+     * startPoll(btn, mode, extra)
+     *  mode 'refresh' — stop when getParameterValues tasks all gone
+     *  mode 'wifi'    — stop when wifi count reaches extra.expectedCount
+     */
+    function startPoll(btn, mode, extra) {
         stopPoll();
         pollAttempts = 0;
+        mode  = mode  || 'refresh';
+        extra = extra || {};
 
         // Inject status bar below toolbar
         if (!$('#tr069-poll-status').length) {
@@ -1441,34 +1448,42 @@ $(function() {
             );
             $('#btn-stop-poll').on('click', function() {
                 stopPoll();
-                btn.find('i').removeClass('fa-spin');
+                if (btn) btn.find('i').removeClass('fa-spin');
             });
         }
 
         pollTimer = setInterval(function() {
             pollAttempts++;
+            var elapsed = pollAttempts * 5;
+            $('#tr069-poll-msg').text('Menunggu device check-in... (' + elapsed + 's / ' + (MAX_POLL * 5) + 's maks)');
+
             $.get('/admin/onus/{{ $onu->id }}/tr069-summary')
                 .done(function(res) {
                     if (!res.success || !res.found) return;
-                    var tasks = (res.data && res.data.tasks) ? res.data.tasks : [];
-                    var pending = tasks.filter(function(t) { return t.name === 'getParameterValues'; });
+                    var data  = res.data || {};
+                    var tasks = data.tasks || [];
 
-                    if (pending.length === 0) {
-                        // Task selesai — reload data
-                        stopPoll();
-                        btn.find('i').removeClass('fa-spin');
-                        tr069Data = res.data;
-                        renderTr069(res.data);
-                        toastr.success('Data berhasil diperbarui dari device.');
+                    var done = false;
+                    if (mode === 'wifi') {
+                        var wifiCount = (data.wifi || []).length;
+                        done = (wifiCount >= (extra.expectedCount || 2));
                     } else {
-                        var elapsed = pollAttempts * 5;
-                        $('#tr069-poll-msg').text('Menunggu device check-in... (' + elapsed + 's / ' + (MAX_POLL * 5) + 's maks)');
+                        // 'refresh' mode: done when no getParameterValues tasks pending
+                        var pending = tasks.filter(function(t) { return t.name === 'getParameterValues'; });
+                        done = (pending.length === 0);
+                    }
+
+                    if (done) {
+                        stopPoll();
+                        if (btn) btn.find('i').removeClass('fa-spin');
+                        renderTr069(data);
+                        toastr.success('Data berhasil diperbarui dari device.');
                     }
                 });
 
             if (pollAttempts >= MAX_POLL) {
                 stopPoll();
-                btn.find('i').removeClass('fa-spin');
+                if (btn) btn.find('i').removeClass('fa-spin');
                 $('#tr069-poll-status').removeClass('alert-info').addClass('alert-warning')
                     .html('<i class="fas fa-exclamation-triangle mr-1"></i>Device belum check-in setelah 2 menit. Coba Refresh Data lagi saat device online.');
                 setTimeout(function() { $('#tr069-poll-status').remove(); }, 8000);
@@ -1632,6 +1647,7 @@ $(function() {
         e.preventDefault();
         var btn = $(this).find('button[type="submit"]');
         btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Mengirim...');
+        var currentCount = parseInt($('#tr069-wifi-count').text(), 10) || 0;
         $.post('/admin/onus/{{ $onu->id }}/tr069-wifi-add', {
             _token: '{{ csrf_token() }}',
             ssid: $('#add-ssid-name').val(),
@@ -1641,8 +1657,20 @@ $(function() {
         .done(function(res) {
             if (res.success) {
                 $('#modal-add-ssid').modal('hide');
-                Swal.fire('Dikirim!', res.message, 'success');
-                startPoll($('.btn-refresh-tr069').first());
+                if (res.completed) {
+                    // Device responded sync — reload langsung
+                    loadTr069Summary();
+                    toastr.success(res.message);
+                } else {
+                    // Task dikirim async — poll sampai wifi count bertambah
+                    var expected = res.wifi_count || (currentCount + 1);
+                    Swal.fire({
+                        title: 'Task Dikirim!',
+                        html: res.message + '<br><small class="text-muted">App akan otomatis refresh saat SSID muncul.</small>',
+                        icon: 'info', timer: 4000, showConfirmButton: false
+                    });
+                    startPoll(null, 'wifi', { expectedCount: expected });
+                }
             } else {
                 Swal.fire('Gagal', res.message || 'Gagal menambah SSID', 'error');
             }
