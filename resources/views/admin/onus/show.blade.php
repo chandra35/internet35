@@ -1604,14 +1604,14 @@ $(function() {
                 Swal.fire({
                     icon: 'info',
                     title: 'Menunggu ONU',
-                    html: (res.message || 'Task sedang diproses.') + '<br><br><small class="text-muted">Klik <b>Refresh Data</b> setelah 1-3 menit, kemudian coba Setup PPPoE WAN kembali.</small>',
-                    confirmButtonText: 'OK'
+                    html: (res.message || 'Task sedang diproses.') + '<br><small class="text-muted">App akan otomatis refresh saat task selesai.</small>',
+                    timer: 4000, showConfirmButton: false
                 });
-                setTimeout(loadTr069Summary, 3000);
+                startPoll(null, 'refresh');
             } else if (res.success) {
                 $('#modal-pppoe').modal('hide');
-                Swal.fire('Berhasil', 'PPPoE WAN berhasil dikonfigurasi! Tunggu beberapa saat untuk koneksi aktif.', 'success');
-                setTimeout(loadTr069Summary, 5000);
+                Swal.fire({ title: 'Berhasil', text: 'PPPoE WAN berhasil dikonfigurasi!', icon: 'success', timer: 2500, showConfirmButton: false });
+                startPoll(null, 'refresh');
             } else {
                 Swal.fire('Gagal', res.message || 'Gagal mengirim task', 'error');
             }
@@ -1643,8 +1643,8 @@ $(function() {
         .done(function(res) {
             if (res.success) {
                 $('#modal-wifi').modal('hide');
-                Swal.fire('Berhasil', 'Konfigurasi WiFi dikirim.', 'success');
-                setTimeout(loadTr069Summary, 5000);
+                Swal.fire({ title: 'Berhasil', text: 'Konfigurasi WiFi dikirim.', icon: 'success', timer: 2000, showConfirmButton: false });
+                startPoll(null, 'refresh');
             } else {
                 Swal.fire('Gagal', res.message || 'Gagal mengirim task', 'error');
             }
@@ -1765,8 +1765,8 @@ $(function() {
         .done(function(res) {
             if (res.success) {
                 $('#modal-wan-edit').modal('hide');
-                Swal.fire('Berhasil', 'PPPoE WAN berhasil diperbarui.', 'success');
-                setTimeout(loadTr069Summary, 4000);
+                Swal.fire({ title: 'Berhasil', text: 'PPPoE WAN berhasil diperbarui.', icon: 'success', timer: 2000, showConfirmButton: false });
+                startPoll(null, 'refresh');
             } else {
                 Swal.fire('Gagal', res.message || 'Gagal memperbarui WAN', 'error');
             }
@@ -1799,8 +1799,8 @@ $(function() {
             })
             .done(function(res) {
                 if (res.success || res.pending) {
-                    Swal.fire('Berhasil', res.message || 'WAN berhasil dihapus.', 'success');
-                    setTimeout(loadTr069Summary, 4000);
+                    Swal.fire({ title: 'Berhasil', text: res.message || 'WAN berhasil dihapus.', icon: 'success', timer: 2000, showConfirmButton: false });
+                    startPoll(null, 'refresh');
                 } else {
                     Swal.fire('Gagal', res.message || 'Gagal menghapus WAN', 'error');
                 }

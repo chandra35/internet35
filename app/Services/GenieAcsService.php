@@ -534,7 +534,8 @@ class GenieAcsService
             return ['success' => false, 'message' => 'No parameters to set'];
         }
 
-        return $this->setParameterValues($deviceId, $params);
+        // Always use connection_request so device is woken immediately
+        return $this->setParameterValues($deviceId, $params, true);
     }
 
     /**
