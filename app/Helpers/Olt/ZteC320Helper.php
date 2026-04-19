@@ -2062,6 +2062,7 @@ class ZteC320Helper extends BaseOltHelper
                 "tcont {$tcontId} profile {$tcontProfile}",
                 "gemport {$gemPort} traffic-limit downstream {$trafficProfile}",
                 "exit",
+                "exit",
                 "write",
             ];
 
