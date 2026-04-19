@@ -1353,6 +1353,72 @@ class OnuController extends Controller implements HasMiddleware
     }
 
 
+    /**
+     * Add a new WiFi SSID instance via TR-069 AddObject.
+     */
+    public function addTr069Wifi(Onu $onu, Request $request)
+    {
+        $request->validate([
+            'ssid'     => 'required|string|max:32',
+            'password' => 'nullable|string|min:8|max:63',
+            'enabled'  => 'nullable',
+        ]);
+
+        try {
+            $genieacs = new \App\Services\GenieAcsService();
+            $device   = $genieacs->findDeviceBySerial($onu->serial_number);
+
+            if (!$device) {
+                return response()->json(['success' => false, 'message' => 'Device tidak ditemukan di GenieACS']);
+            }
+
+            $deviceId = $device['device_id'];
+
+            // Determine LANDevice parent from existing WiFi list
+            $wifis    = $genieacs->getWifiInfo($deviceId);
+            $ldNum    = 1;
+            $maxIndex = 0;
+            foreach ($wifis as $w) {
+                if (preg_match('/LANDevice\.(\d+)\.WLANConfiguration\.(\d+)/', $w['path'], $m)) {
+                    $ldNum    = (int) $m[1];
+                    $maxIndex = max($maxIndex, (int) $m[2]);
+                }
+            }
+
+            if ($maxIndex >= 4) {
+                return response()->json(['success' => false, 'message' => 'Maksimal 4 SSID sudah tercapai']);
+            }
+
+            $basePath      = "InternetGatewayDevice.LANDevice.{$ldNum}.WLANConfiguration.";
+            $predictedPath = $basePath . ($maxIndex + 1);
+
+            // Step 1: addObject (with connection request to wake device)
+            $addResult = $genieacs->addObject($deviceId, $basePath, true);
+            if (!$addResult['success']) {
+                return response()->json(['success' => false, 'message' => 'Gagal mengirim addObject task']);
+            }
+
+            // Step 2: set params on predicted path (best-effort, runs after addObject)
+            $params = [
+                "{$predictedPath}.SSID"  => [$request->ssid, 'xsd:string'],
+                "{$predictedPath}.Enable" => [(bool) ($request->input('enabled', true)), 'xsd:boolean'],
+            ];
+            if ($request->filled('password')) {
+                $params["{$predictedPath}.PreSharedKey.1.PreSharedKey"] = [$request->password, 'xsd:string'];
+                $params["{$predictedPath}.KeyPassphrase"] = [$request->password, 'xsd:string'];
+            }
+            $genieacs->setParameterValues($deviceId, $params);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'SSID baru dijadwalkan. Tunggu device check-in untuk konfirmasi.',
+            ]);
+        } catch (Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+
     public function factoryResetTr069(Onu $onu)
     {
         try {

@@ -310,7 +310,7 @@
                 {{-- Main ACS Content --}}
                 <div id="tr069-main" style="display:none">
                     {{-- ACS Toolbar --}}
-                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap">
+                    <div id="tr069-acs-toolbar" class="d-flex justify-content-between align-items-center mb-3 flex-wrap">
                         <div>
                             <span class="badge badge-success mr-2" id="tr069-conn-badge">
                                 <i class="fas fa-check-circle mr-1"></i>Connected
@@ -401,7 +401,12 @@
 
                         {{-- WiFi --}}
                         <div class="tab-pane fade" id="acs-wifi">
-                            <h6 class="mb-3"><i class="fas fa-wifi mr-1"></i>Wireless LAN</h6>
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="mb-0"><i class="fas fa-wifi mr-1"></i>Wireless LAN</h6>
+                                <button type="button" class="btn btn-sm btn-outline-success btn-add-ssid" id="btn-add-ssid">
+                                    <i class="fas fa-plus mr-1"></i>Tambah SSID
+                                </button>
+                            </div>
                             <div id="tr069-wifi-list"></div>
                             <div id="tr069-wifi-empty" class="text-center py-4 text-muted" style="display:none">
                                 <i class="fas fa-wifi fa-2x mb-2 d-block text-secondary"></i>
@@ -812,6 +817,42 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
                     <button type="submit" class="btn btn-info"><i class="fas fa-save mr-1"></i>Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{{-- Add SSID Modal --}}
+<div class="modal fade" id="modal-add-ssid" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success">
+                <h5 class="modal-title text-white"><i class="fas fa-plus-circle mr-2"></i>Tambah SSID Baru</h5>
+                <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
+            </div>
+            <form id="form-add-ssid">
+                <div class="modal-body">
+                    <div class="alert alert-info py-2 small"><i class="fas fa-info-circle mr-1"></i>SSID baru akan dibuat setelah device check-in ke ACS. Maks 4 SSID.</div>
+                    <div class="form-group">
+                        <label>SSID <span class="text-danger">*</span></label>
+                        <input type="text" name="ssid" id="add-ssid-name" class="form-control" maxlength="32" required placeholder="Nama WiFi">
+                    </div>
+                    <div class="form-group">
+                        <label>Password <small class="text-muted">(min 8 karakter)</small></label>
+                        <input type="text" name="password" id="add-ssid-password" class="form-control" minlength="8" maxlength="63" placeholder="Kosongkan = tidak diset">
+                    </div>
+                    <div class="form-group">
+                        <label>Status</label>
+                        <select name="enabled" id="add-ssid-enabled" class="form-control">
+                            <option value="1">Enabled</option>
+                            <option value="0">Disabled</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-success"><i class="fas fa-plus mr-1"></i>Tambah SSID</button>
                 </div>
             </form>
         </div>
@@ -1230,6 +1271,12 @@ $(function() {
         // WiFi
         var wifis = data.wifi || [];
         $('#tr069-wifi-count').text(wifis.length);
+        // Show/hide Add SSID button based on count (max 4)
+        if (wifis.length >= 4) {
+            $('#btn-add-ssid').hide();
+        } else {
+            $('#btn-add-ssid').show();
+        }
         if (wifis.length === 0) {
             $('#tr069-wifi-list').empty();
             $('#tr069-wifi-empty').show();
@@ -1385,7 +1432,7 @@ $(function() {
 
         // Inject status bar below toolbar
         if (!$('#tr069-poll-status').length) {
-            $('#tr069-main .d-flex.justify-content-between').after(
+            $('#tr069-acs-toolbar').after(
                 '<div id="tr069-poll-status" class="alert alert-info py-2 px-3 small mb-2">' +
                 '<i class="fas fa-spinner fa-spin mr-1"></i>' +
                 '<span id="tr069-poll-msg">Menunggu device check-in...</span>' +
@@ -1571,6 +1618,37 @@ $(function() {
         })
         .fail(function(xhr) { Swal.fire('Error', xhr.responseJSON?.message || 'Server error', 'error'); })
         .always(function() { btn.prop('disabled', false).html('<i class="fas fa-save mr-1"></i>Simpan'); });
+    });
+
+    // Open add-ssid modal
+    $(document).on('click', '#btn-add-ssid', function() {
+        $('#add-ssid-name').val('');
+        $('#add-ssid-password').val('');
+        $('#add-ssid-enabled').val('1');
+        $('#modal-add-ssid').modal('show');
+    });
+
+    $('#form-add-ssid').submit(function(e) {
+        e.preventDefault();
+        var btn = $(this).find('button[type="submit"]');
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Mengirim...');
+        $.post('/admin/onus/{{ $onu->id }}/tr069-wifi-add', {
+            _token: '{{ csrf_token() }}',
+            ssid: $('#add-ssid-name').val(),
+            password: $('#add-ssid-password').val() || undefined,
+            enabled: $('#add-ssid-enabled').val(),
+        })
+        .done(function(res) {
+            if (res.success) {
+                $('#modal-add-ssid').modal('hide');
+                Swal.fire('Dikirim!', res.message, 'success');
+                startPoll($('.btn-refresh-tr069').first());
+            } else {
+                Swal.fire('Gagal', res.message || 'Gagal menambah SSID', 'error');
+            }
+        })
+        .fail(function(xhr) { Swal.fire('Error', xhr.responseJSON?.message || 'Server error', 'error'); })
+        .always(function() { btn.prop('disabled', false).html('<i class="fas fa-plus mr-1"></i>Tambah SSID'); });
     });
 
     // WAN Edit
