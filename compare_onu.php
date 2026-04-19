@@ -1,23 +1,44 @@
 <?php
-require __DIR__ . '/vendor/autoload.php';
-$app = require __DIR__ . '/bootstrap/app.php';
-$kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
-$kernel->bootstrap();
+// Direct telnet compare ONU 19 vs 20
 
-use App\Models\Olt;
-use App\Helpers\Olt\OltFactory;
+$host = '136.1.1.100';
+$port = 23;
+$user = 'zte';
+$pass = 'zte';
 
-$olt = Olt::where('ip_address', '136.1.1.100')->first();
-$helper = OltFactory::make($olt);
+function telnetCmd($sock, string $cmd, float $wait = 1.5): string {
+    fwrite($sock, $cmd . "\r\n");
+    usleep((int)($wait * 1000000));
+    $out = '';
+    while ($chunk = fread($sock, 4096)) {
+        $out .= $chunk;
+    }
+    return $out;
+}
 
-echo "=== ONU 19 running-config ===\n";
-echo $helper->executeBatchCliCommands(['show running-config interface gpon-onu_1/1/1:19']);
+$sock = fsockopen($host, $port, $errno, $errstr, 10);
+if (!$sock) die("Connect failed: $errstr\n");
+stream_set_blocking($sock, false);
+sleep(2);
+fread($sock, 4096); // banner
 
-echo "\n\n=== ONU 20 running-config ===\n";
-echo $helper->executeBatchCliCommands(['show running-config interface gpon-onu_1/1/1:20']);
+// login
+fwrite($sock, "$user\r\n"); sleep(1); fread($sock, 4096);
+fwrite($sock, "$pass\r\n"); sleep(2); fread($sock, 4096);
 
-echo "\n\n=== ONU 19 pon-onu-mng ===\n";
-echo $helper->executeBatchCliCommands(['show running-config interface gpon-onu-mng_1/1/1:19']);
+// terminal length 0
+telnetCmd($sock, "terminal length 0", 1);
 
-echo "\n\n=== ONU 20 pon-onu-mng ===\n";
-echo $helper->executeBatchCliCommands(['show running-config interface gpon-onu-mng_1/1/1:20']);
+echo "=== ONU 19 gpon-onu running-config ===\n";
+echo telnetCmd($sock, "show running-config interface gpon-onu_1/1/1:19", 2);
+
+echo "\n\n=== ONU 20 gpon-onu running-config ===\n";
+echo telnetCmd($sock, "show running-config interface gpon-onu_1/1/1:20", 2);
+
+echo "\n\n=== ONU 19 pon-onu-mng running-config ===\n";
+echo telnetCmd($sock, "show running-config interface gpon-onu-mng_1/1/1:19", 2);
+
+echo "\n\n=== ONU 20 pon-onu-mng running-config ===\n";
+echo telnetCmd($sock, "show running-config interface gpon-onu-mng_1/1/1:20", 2);
+
+fclose($sock);
