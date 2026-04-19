@@ -39,14 +39,14 @@ $out .= telnetCmd($sock, "show running-config interface gpon-onu_1/1/1:20", 2);
 
 $out .= "\n\n=== ONU 19 pon-onu-mng (via config mode) ===\n";
 $out .= telnetCmd($sock, "configure terminal", 1);
-$out .= telnetCmd($sock, "interface gpon-onu-mng_1/1/1:19", 1);
-$out .= telnetCmd($sock, "show running-config", 3);
+$out .= telnetCmd($sock, "pon-onu-mng gpon-onu_1/1/1:19", 1);
+$out .= telnetCmd($sock, "show this", 3);
 $out .= telnetCmd($sock, "end", 1);
 
 $out .= "\n\n=== ONU 20 pon-onu-mng (via config mode) ===\n";
 $out .= telnetCmd($sock, "configure terminal", 1);
-$out .= telnetCmd($sock, "interface gpon-onu-mng_1/1/1:20", 1);
-$out .= telnetCmd($sock, "show running-config", 3);
+$out .= telnetCmd($sock, "pon-onu-mng gpon-onu_1/1/1:20", 1);
+$out .= telnetCmd($sock, "show this", 3);
 $out .= telnetCmd($sock, "end", 1);
 
 fclose($sock);
