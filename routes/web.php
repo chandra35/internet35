@@ -373,6 +373,14 @@ Route::prefix('admin')->middleware(['auth', 'role:superadmin|admin|admin-pop|tek
         Route::delete('/{olt}/infrastructure/vlans/{vlan}', [\App\Http\Controllers\Admin\OltController::class, 'destroyVlan'])->name('infrastructure.vlans.destroy');
         Route::post('/{olt}/infrastructure/cards/{card}/reboot', [\App\Http\Controllers\Admin\OltController::class, 'rebootCard'])->name('infrastructure.cards.reboot');
         Route::post('/{olt}/infrastructure/reboot-pon-onus', [\App\Http\Controllers\Admin\OltController::class, 'rebootPonOnus'])->name('infrastructure.reboot-pon-onus');
+
+        // OLT Profiles (TCONT + Traffic) CRUD
+        Route::prefix('/{olt}/profiles')->name('profiles.')->group(function () {
+            Route::get('/',           [\App\Http\Controllers\Admin\OltProfileController::class, 'index'])->name('index');
+            Route::get('/sync',       [\App\Http\Controllers\Admin\OltProfileController::class, 'sync'])->name('sync');
+            Route::post('/',          [\App\Http\Controllers\Admin\OltProfileController::class, 'store'])->name('store');
+            Route::delete('/{profile}', [\App\Http\Controllers\Admin\OltProfileController::class, 'destroy'])->name('destroy');
+        });
     });
 
     // ONU (Optical Network Unit) Management

@@ -1,0 +1,25 @@
+#!/usr/bin/expect -f
+set timeout 60
+set pon [lindex $argv 0]
+set onuid [lindex $argv 1]
+log_user 1
+spawn telnet 136.1.1.100
+expect {
+    "Username:" { send "zte\r" }
+    timeout { exit 1 }
+}
+expect {
+    "Password:" { send "zte\r" }
+    timeout { exit 1 }
+}
+expect "#"
+send "terminal length 0\r"
+expect "#"
+send "show running-config interface gpon-onu_$pon:$onuid\r"
+expect "#"
+send "exit\r"
+expect {
+    "confirm" { send "yes\r" }
+    eof {}
+}
+expect eof

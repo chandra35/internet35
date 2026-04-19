@@ -128,6 +128,9 @@
                 <a href="{{ route('admin.olts.infrastructure', $olt) }}" class="btn btn-dark btn-sm">
                     <i class="fas fa-server"></i> Infrastruktur
                 </a>
+                <a href="{{ route('admin.olts.profiles.index', $olt) }}" class="btn btn-warning btn-sm">
+                    <i class="fas fa-sliders-h"></i> Profiles
+                </a>
             </div>
         </div>
 

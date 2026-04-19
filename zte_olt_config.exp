@@ -1,0 +1,23 @@
+#!/usr/bin/expect -f
+set timeout 60
+log_user 1
+spawn telnet 136.1.1.100
+expect {
+    "Username:" { send "zte\r" }
+    timeout { exit 1 }
+}
+expect {
+    "Password:" { send "zte\r" }
+    timeout { exit 1 }
+}
+expect "#"
+send "terminal length 0\r"
+expect "#"
+send "show running-config interface gpon-olt_1/1/1\r"
+expect "#"
+send "exit\r"
+expect {
+    "confirm" { send "yes\r" }
+    eof {}
+}
+expect eof

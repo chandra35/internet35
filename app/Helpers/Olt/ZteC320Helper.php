@@ -4007,4 +4007,266 @@ class ZteC320Helper extends BaseOltHelper
 
         return $result;
     }
+
+    // ─────────────────────────────────────────────────────────────────
+    //  GPON PROFILE MANAGEMENT (TCONT + Traffic/Gemport)
+    // ─────────────────────────────────────────────────────────────────
+
+    /**
+     * Read all TCONT (DBA) profiles from OLT via CLI.
+     *
+     * Returns array of:
+     *   ['name' => str, 'type' => int, 'fbw' => int, 'abw' => int, 'mbw' => int]
+     */
+    public function getTcontProfiles(): array
+    {
+        $profiles = [];
+
+        $output = $this->executeBatchCliCommands(['show gpon profile tcont']);
+
+        // Parse blocks:
+        // Profile name :NAME
+        //  Type  FBW   ABW   MBW   PRIORITY  WEIGHT
+        //  5     64    64    1048064  N/A     N/A
+        $blocks = preg_split('/Profile name\s*:/i', $output);
+        foreach (array_slice($blocks, 1) as $block) {
+            $lines = array_values(array_filter(explode("\n", $block), fn($l) => trim($l) !== ''));
+            if (empty($lines)) continue;
+
+            $name = trim($lines[0]);
+            // Skip header line (Type / FBW / ABW...)
+            $dataLine = '';
+            foreach (array_slice($lines, 1) as $line) {
+                if (preg_match('/^\s*(\d)\s+([\d]+)\s+([\d]+)\s+([\d]+)/', $line, $m)) {
+                    $dataLine = $line;
+                    break;
+                }
+            }
+
+            if ($dataLine && preg_match('/^\s*(\d)\s+([\d]+)\s+([\d]+)\s+([\d]+)/', $dataLine, $m)) {
+                $profiles[] = [
+                    'name' => $name,
+                    'type' => (int) $m[1],
+                    'fbw'  => (int) $m[2],
+                    'abw'  => (int) $m[3],
+                    'mbw'  => (int) $m[4],
+                ];
+            }
+        }
+
+        return $profiles;
+    }
+
+    /**
+     * Read all Traffic (gemport downstream shaping) profiles from OLT via CLI.
+     *
+     * Returns array of:
+     *   ['name' => str, 'sir' => int, 'pir' => int]
+     */
+    public function getTrafficProfiles(): array
+    {
+        $profiles = [];
+
+        $output = $this->executeBatchCliCommands(['show gpon profile traffic']);
+
+        // Parse blocks:
+        // Profile name  :NAME
+        //   SIR(kbps)  PIR(kbps)  CBS  PBS
+        //   1048064    1048064    default  default
+        $blocks = preg_split('/Profile name\s*:/i', $output);
+        foreach (array_slice($blocks, 1) as $block) {
+            $lines = array_values(array_filter(explode("\n", $block), fn($l) => trim($l) !== ''));
+            if (empty($lines)) continue;
+
+            $name = trim($lines[0]);
+            // Find first line with numeric kbps values
+            $dataLine = '';
+            foreach (array_slice($lines, 1) as $line) {
+                if (preg_match('/^\s*([\d]+)\s+([\d]+)/', $line)) {
+                    $dataLine = $line;
+                    break;
+                }
+            }
+
+            if ($dataLine && preg_match('/^\s*([\d]+)\s+([\d]+)/', $dataLine, $m)) {
+                $profiles[] = [
+                    'name' => $name,
+                    'sir'  => (int) $m[1],
+                    'pir'  => (int) $m[2],
+                ];
+            }
+        }
+
+        return $profiles;
+    }
+
+    /**
+     * Create a TCONT (DBA) profile on the OLT.
+     *
+     * @param string $name  Profile name (alphanumeric + hyphen/underscore)
+     * @param int    $type  DBA type: 1=Fixed, 2=Assured, 3=NonAssured, 4=BestEffort, 5=Hybrid
+     * @param int    $fbw   Fixed bandwidth kbps  (types 1 & 5)
+     * @param int    $abw   Assured bandwidth kbps (types 2, 3 & 5)
+     * @param int    $mbw   Max bandwidth kbps     (types 3, 4 & 5)
+     */
+    public function createTcontProfile(string $name, int $type, int $fbw = 0, int $abw = 0, int $mbw = 0): array
+    {
+        $result = ['success' => false, 'message' => '', 'output' => ''];
+
+        try {
+            $safeName = preg_replace('/[^A-Za-z0-9._\-]/', '', $name);
+            if (empty($safeName)) {
+                return ['success' => false, 'message' => 'Nama profile tidak valid', 'output' => ''];
+            }
+
+            // Build bandwidth arguments based on type
+            $bwArgs = match ($type) {
+                1 => "fix {$fbw}",
+                2 => "assure {$abw}",
+                3 => "assure {$abw} max {$mbw}",
+                4 => "max {$mbw}",
+                5 => "fix {$fbw} assure {$abw} max {$mbw}",
+                default => throw new Exception("Tipe DBA tidak valid: {$type}. Gunakan 1-5.")
+            };
+
+            $commands = [
+                'configure terminal',
+                "gpon profile tcont {$safeName} type {$type} {$bwArgs}",
+                'exit',
+                'write',
+            ];
+
+            $output = $this->executeBatchCliCommands($commands);
+            $result['output'] = $output;
+
+            if (preg_match('/Error|fail|invalid|unknown command/i', $output)) {
+                $result['message'] = 'Gagal membuat TCONT profile. Output: ' . trim(substr($output, 0, 300));
+            } else {
+                $result['success'] = true;
+                $result['message'] = "TCONT profile '{$safeName}' berhasil dibuat di OLT";
+            }
+
+        } catch (Exception $e) {
+            $result['message'] = $e->getMessage();
+            Log::error("ZTE createTcontProfile error: " . $e->getMessage());
+        }
+
+        return $result;
+    }
+
+    /**
+     * Delete a TCONT profile from the OLT.
+     */
+    public function deleteTcontProfile(string $name): array
+    {
+        $result = ['success' => false, 'message' => '', 'output' => ''];
+
+        try {
+            $safeName = preg_replace('/[^A-Za-z0-9._\-]/', '', $name);
+
+            $commands = [
+                'configure terminal',
+                "no gpon profile tcont {$safeName}",
+                'exit',
+                'write',
+            ];
+
+            $output = $this->executeBatchCliCommands($commands);
+            $result['output'] = $output;
+
+            if (preg_match('/Error|fail|invalid|unknown command/i', $output)) {
+                $result['message'] = 'Gagal hapus TCONT profile. Output: ' . trim(substr($output, 0, 300));
+            } else {
+                $result['success'] = true;
+                $result['message'] = "TCONT profile '{$safeName}' berhasil dihapus dari OLT";
+            }
+
+        } catch (Exception $e) {
+            $result['message'] = $e->getMessage();
+            Log::error("ZTE deleteTcontProfile error: " . $e->getMessage());
+        }
+
+        return $result;
+    }
+
+    /**
+     * Create a Traffic (gemport downstream) profile on the OLT.
+     *
+     * @param string $name Profile name
+     * @param int    $sir  Sustained Information Rate kbps
+     * @param int    $pir  Peak Information Rate kbps
+     */
+    public function createTrafficProfile(string $name, int $sir, int $pir): array
+    {
+        $result = ['success' => false, 'message' => '', 'output' => ''];
+
+        try {
+            $safeName = preg_replace('/[^A-Za-z0-9._\-]/', '', $name);
+            if (empty($safeName)) {
+                return ['success' => false, 'message' => 'Nama profile tidak valid', 'output' => ''];
+            }
+
+            if ($pir < $sir) {
+                $pir = $sir; // PIR must be >= SIR
+            }
+
+            $commands = [
+                'configure terminal',
+                "gpon profile traffic {$safeName} sir {$sir} pir {$pir}",
+                'exit',
+                'write',
+            ];
+
+            $output = $this->executeBatchCliCommands($commands);
+            $result['output'] = $output;
+
+            if (preg_match('/Error|fail|invalid|unknown command/i', $output)) {
+                $result['message'] = 'Gagal membuat Traffic profile. Output: ' . trim(substr($output, 0, 300));
+            } else {
+                $result['success'] = true;
+                $result['message'] = "Traffic profile '{$safeName}' berhasil dibuat di OLT";
+            }
+
+        } catch (Exception $e) {
+            $result['message'] = $e->getMessage();
+            Log::error("ZTE createTrafficProfile error: " . $e->getMessage());
+        }
+
+        return $result;
+    }
+
+    /**
+     * Delete a Traffic profile from the OLT.
+     */
+    public function deleteTrafficProfile(string $name): array
+    {
+        $result = ['success' => false, 'message' => '', 'output' => ''];
+
+        try {
+            $safeName = preg_replace('/[^A-Za-z0-9._\-]/', '', $name);
+
+            $commands = [
+                'configure terminal',
+                "no gpon profile traffic {$safeName}",
+                'exit',
+                'write',
+            ];
+
+            $output = $this->executeBatchCliCommands($commands);
+            $result['output'] = $output;
+
+            if (preg_match('/Error|fail|invalid|unknown command/i', $output)) {
+                $result['message'] = 'Gagal hapus Traffic profile. Output: ' . trim(substr($output, 0, 300));
+            } else {
+                $result['success'] = true;
+                $result['message'] = "Traffic profile '{$safeName}' berhasil dihapus dari OLT";
+            }
+
+        } catch (Exception $e) {
+            $result['message'] = $e->getMessage();
+            Log::error("ZTE deleteTrafficProfile error: " . $e->getMessage());
+        }
+
+        return $result;
+    }
 }
