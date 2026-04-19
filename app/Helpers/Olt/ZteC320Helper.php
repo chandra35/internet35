@@ -1544,6 +1544,7 @@ class ZteC320Helper extends BaseOltHelper
             $name = preg_replace('/[^A-Za-z0-9._-]/', '-', $params['name'] ?? $serialNumber);
             $lineProfile = $params['line_profile'] ?? 'default';
             $serviceProfile = $params['service_profile'] ?? 'default';
+            $trafficProfile = $params['traffic_profile'] ?? 'SMARTOLT-1G-DOWN';
             $tcontId = $params['tcont_id'] ?? 1;
             $gemPort = $params['gem_port'] ?? 1;
             $serviceId = $params['service_id'] ?? 1;
@@ -1575,7 +1576,7 @@ class ZteC320Helper extends BaseOltHelper
             $commands[] = "tcont {$tcontId} profile {$lineProfile}";
             $commands[] = "gemport {$gemPort} tcont {$tcontId}";
             // Traffic shaping (downstream limit on gemport)
-            $commands[] = "gemport {$gemPort} traffic-limit downstream SMARTOLT-1G-DOWN";
+            $commands[] = "gemport {$gemPort} traffic-limit downstream {$trafficProfile}";
 
             // Service-port for internet VLAN
             if ($vlan) {

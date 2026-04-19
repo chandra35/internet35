@@ -274,12 +274,43 @@
                                         <div class="row">
                                             <div class="col-6">
                                                 <div class="form-group mb-2">
-                                                    <label class="small mb-1">Line Profile</label>
-                                                    <input type="text" name="line_profile" id="reg_line_profile" class="form-control form-control-sm" value="default" placeholder="default">
-                                                    <small class="form-text text-muted">Bandwidth profile (tcont)</small>
+                                                    <label class="small mb-1">TCONT Profile (Upstream)</label>
+                                                    <select name="line_profile" id="reg_line_profile" class="form-control form-control-sm">
+                                                        <option value="default">default</option>
+                                                    </select>
+                                                    <small class="form-text text-muted">Profile DBA upstream bandwidth.</small>
                                                 </div>
                                             </div>
                                             <div class="col-6">
+                                                <div class="form-group mb-2">
+                                                    <label class="small mb-1">Traffic Profile (Downstream)</label>
+                                                    <select name="traffic_profile" id="reg_traffic_profile" class="form-control form-control-sm">
+                                                        <option value="">-- Pilih profile --</option>
+                                                    </select>
+                                                    <small class="form-text text-muted">Shaping kecepatan downstream.</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-3">
+                                                <div class="form-group mb-2">
+                                                    <label class="small mb-1">GEM Port</label>
+                                                    <input type="number" name="gem_port" class="form-control form-control-sm" min="1" value="1">
+                                                </div>
+                                            </div>
+                                            <div class="col-3">
+                                                <div class="form-group mb-2">
+                                                    <label class="small mb-1">T-CONT ID</label>
+                                                    <input type="number" name="tcont_id" class="form-control form-control-sm" min="1" value="1">
+                                                </div>
+                                            </div>
+                                            <div class="col-3">
+                                                <div class="form-group mb-2">
+                                                    <label class="small mb-1">Service ID</label>
+                                                    <input type="number" name="service_id" class="form-control form-control-sm" min="1" value="1">
+                                                </div>
+                                            </div>
+                                            <div class="col-3">
                                                 <div class="form-group mb-2">
                                                     <label class="small mb-1">Service Port Mode</label>
                                                     <select name="service_port_mode" class="form-control form-control-sm">
@@ -287,26 +318,6 @@
                                                         <option value="translate">Translate</option>
                                                         <option value="transparent">Transparent</option>
                                                     </select>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="row">
-                                            <div class="col-4">
-                                                <div class="form-group mb-2">
-                                                    <label class="small mb-1">GEM Port</label>
-                                                    <input type="number" name="gem_port" class="form-control form-control-sm" min="1" value="1">
-                                                </div>
-                                            </div>
-                                            <div class="col-4">
-                                                <div class="form-group mb-2">
-                                                    <label class="small mb-1">T-CONT ID</label>
-                                                    <input type="number" name="tcont_id" class="form-control form-control-sm" min="1" value="1">
-                                                </div>
-                                            </div>
-                                            <div class="col-4">
-                                                <div class="form-group mb-2">
-                                                    <label class="small mb-1">Service ID</label>
-                                                    <input type="number" name="service_id" class="form-control form-control-sm" min="1" value="1">
                                                 </div>
                                             </div>
                                         </div>
@@ -499,6 +510,28 @@ $(function() {
         if (currentOltBrand === 'zte') {
             $('#zte-settings').show();
             $('#generic-profile-settings').hide();
+
+            // Populate TCONT profiles dropdown
+            var tcontHtml = '<option value="default">default</option>';
+            var trafficHtml = '<option value="">-- Pilih profile --</option>';
+            oltProfiles.forEach(function(p) {
+                if (p.type === 'tcont') {
+                    tcontHtml += '<option value="' + p.name + '">' + p.name + '</option>';
+                }
+                if (p.type === 'traffic') {
+                    trafficHtml += '<option value="' + p.name + '">' + p.name + '</option>';
+                }
+            });
+            $('#reg_line_profile').html(tcontHtml);
+            $('#reg_traffic_profile').html(trafficHtml);
+
+            // Auto-select first TCONT & first Traffic profile if available
+            if ($('#reg_line_profile option').length > 1) {
+                $('#reg_line_profile').val($('#reg_line_profile option:eq(1)').val());
+            }
+            if ($('#reg_traffic_profile option').length > 1) {
+                $('#reg_traffic_profile').val($('#reg_traffic_profile option:eq(1)').val());
+            }
         } else if (oltProfiles.length > 0) {
             $('#zte-settings').hide();
             $('#generic-profile-settings').show();

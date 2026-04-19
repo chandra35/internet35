@@ -252,6 +252,7 @@ class OnuController extends Controller implements HasMiddleware
             'profile_id' => 'nullable|exists:olt_profiles,id',
             'line_profile' => 'nullable|string|max:255',
             'service_profile' => 'nullable|string|max:255',
+            'traffic_profile' => 'nullable|string|max:64',
             'description' => 'nullable|string|max:1000',
         ]);
 
@@ -284,6 +285,11 @@ class OnuController extends Controller implements HasMiddleware
             // Pass management VLAN for TR069 DHCP
             if ($request->filled('mgmt_vlan')) {
                 $params['mgmt_vlan'] = (int) $request->mgmt_vlan;
+            }
+
+            // Pass traffic (downstream shaping) profile
+            if ($request->filled('traffic_profile')) {
+                $params['traffic_profile'] = $request->traffic_profile;
             }
 
             // Pass PPPoE credentials for WAN injection
