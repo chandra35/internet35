@@ -206,6 +206,27 @@
         .infra-header .d-flex.align-items-center.flex-wrap { gap: 8px !important; }
         .stat-mini { min-width: 70px; }
     }
+
+    /* ── Tag Input ── */
+    .tag-input-wrap {
+        border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 8px;
+        min-height: 44px; background: #fff; cursor: text;
+        display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
+    }
+    .tag-input-wrap:focus-within { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+    .tag-field {
+        border: none; outline: none; flex: 1; min-width: 100px;
+        font-size: 12px; padding: 2px 4px; background: transparent;
+    }
+    .tag-chip {
+        display: inline-flex; align-items: center; gap: 4px;
+        padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 600;
+        white-space: nowrap;
+    }
+    .tag-chip.chip-tagged  { background: #eff6ff; color: #2563eb; border: 1px solid rgba(37,99,235,0.2); }
+    .tag-chip.chip-untagged { background: #f0fdf4; color: #16a34a; border: 1px solid rgba(22,163,74,0.2); }
+    .tag-chip .rm { cursor: pointer; opacity: 0.5; font-size: 9px; line-height: 1; }
+    .tag-chip .rm:hover { opacity: 1; }
 </style>
 @endpush
 
@@ -294,19 +315,27 @@
             </div>
             <div class="modal-body">
                 <input type="hidden" id="edit-vlan-id">
-                <div class="row">
-                    <div class="col-md-3">
+
+                {{-- Row 1: Basic Info --}}
+                <div class="row mb-1">
+                    <div class="col-md-2">
                         <div class="form-group">
-                            <label class="font-weight-bold">VLAN ID</label>
-                            <input type="text" class="form-control font-weight-bold text-center" id="edit-vlan-display" readonly style="font-size: 18px;">
+                            <label class="font-weight-bold small">VLAN ID</label>
+                            <input type="text" class="form-control font-weight-bold text-center" id="edit-vlan-display" readonly style="font-size:20px; background:#f8fafc;">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label class="font-weight-bold small">Nama</label>
+                            <input type="text" class="form-control" id="edit-vlan-name" placeholder="Nama VLAN">
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="form-group">
-                            <label class="font-weight-bold">Tipe <span class="text-danger">*</span></label>
+                            <label class="font-weight-bold small">Tipe <span class="text-danger">*</span></label>
                             <select class="form-control" id="edit-vlan-type">
                                 <option value="service">Service (Internet)</option>
-                                <option value="management">Management (TR069)</option>
+                                <option value="management">Management</option>
                                 <option value="voip">VoIP</option>
                                 <option value="iptv">IPTV</option>
                                 <option value="infra">Infrastructure</option>
@@ -314,75 +343,103 @@
                             </select>
                         </div>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-3">
                         <div class="form-group">
-                            <label class="font-weight-bold">Keterangan</label>
-                            <input type="text" class="form-control" id="edit-vlan-description" placeholder="Deskripsi VLAN">
+                            <label class="font-weight-bold small">Keterangan</label>
+                            <input type="text" class="form-control" id="edit-vlan-description" placeholder="Deskripsi">
                         </div>
                     </div>
                 </div>
 
-                <!-- Port Membership -->
+                {{-- Port Membership --}}
                 <div class="section-title mt-1">
-                    <i class="fas fa-exchange-alt"></i>Port Membership (Uplink)
+                    <i class="fas fa-exchange-alt"></i>Port Membership
                 </div>
+
                 @if($olt->uplinks->isNotEmpty())
-                <div class="table-responsive">
-                    <table class="table table-sm mb-0">
-                        <thead>
-                            <tr>
-                                <th style="width: 35%">Interface</th>
-                                <th class="text-center" style="width: 15%">Status</th>
-                                <th class="text-center" style="width: 50%">Membership</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach($olt->uplinks as $uplink)
-                            @php $slug = Str::slug($uplink->interface_name); @endphp
-                            <tr class="port-membership-row">
-                                <td>
-                                    <strong>{{ $uplink->interface_name }}</strong>
-                                    @if($uplink->interface_type === 'xgei')
-                                        <span class="badge badge-info ml-1" style="font-size: 9px;">10G</span>
-                                    @endif
-                                    @if($uplink->description)
-                                        <br><small class="text-muted">{{ $uplink->description }}</small>
-                                    @endif
-                                </td>
-                                <td class="text-center">{!! $uplink->status_badge !!}</td>
-                                <td>
-                                    <div class="port-radio-group">
-                                        <label class="mb-0">
-                                            <input type="radio" name="port_{{ $slug }}" value="tagged"
-                                                   data-port="{{ $uplink->interface_name }}" class="port-radio">
-                                            <span class="d-block"><i class="fas fa-tag mr-1"></i>Tagged</span>
-                                        </label>
-                                        <label class="mb-0">
-                                            <input type="radio" name="port_{{ $slug }}" value="untagged"
-                                                   data-port="{{ $uplink->interface_name }}" class="port-radio">
-                                            <span class="d-block"><i class="fas fa-minus-circle mr-1"></i>Untagged</span>
-                                        </label>
-                                        <label class="mb-0">
-                                            <input type="radio" name="port_{{ $slug }}" value="none"
-                                                   data-port="{{ $uplink->interface_name }}" class="port-radio" checked>
-                                            <span class="d-block"><i class="fas fa-times mr-1"></i>None</span>
-                                        </label>
-                                    </div>
-                                </td>
-                            </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-                @else
-                <div class="alert alert-warning py-2 mb-0">
-                    <i class="fas fa-exclamation-triangle mr-1"></i>Belum ada data uplink. Sync terlebih dahulu.
+                {{-- Uplink radio buttons --}}
+                <div class="mb-3">
+                    <label class="small font-weight-bold text-muted mb-2 d-block">
+                        <i class="fas fa-arrow-up mr-1"></i>Uplink Ports
+                    </label>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0" style="font-size:13px;">
+                            <thead>
+                                <tr>
+                                    <th style="width:38%">Interface</th>
+                                    <th class="text-center" style="width:15%">Status</th>
+                                    <th>Mode</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($olt->uplinks as $uplink)
+                                @php $slug = Str::slug($uplink->interface_name); @endphp
+                                <tr class="port-membership-row">
+                                    <td>
+                                        <strong>{{ $uplink->interface_name }}</strong>
+                                        @if($uplink->interface_type === 'xgei')
+                                            <span class="badge badge-info ml-1" style="font-size:9px;">10G</span>
+                                        @endif
+                                        @if($uplink->description)
+                                            <br><small class="text-muted">{{ $uplink->description }}</small>
+                                        @endif
+                                    </td>
+                                    <td class="text-center">{!! $uplink->status_badge !!}</td>
+                                    <td>
+                                        <div class="port-radio-group">
+                                            <label class="mb-0">
+                                                <input type="radio" name="port_{{ $slug }}" value="tagged" data-port="{{ $uplink->interface_name }}" class="port-radio">
+                                                <span class="d-block"><i class="fas fa-tag mr-1"></i>Tagged</span>
+                                            </label>
+                                            <label class="mb-0">
+                                                <input type="radio" name="port_{{ $slug }}" value="untagged" data-port="{{ $uplink->interface_name }}" class="port-radio">
+                                                <span class="d-block"><i class="fas fa-minus-circle mr-1"></i>Untagged</span>
+                                            </label>
+                                            <label class="mb-0">
+                                                <input type="radio" name="port_{{ $slug }}" value="none" data-port="{{ $uplink->interface_name }}" class="port-radio" checked>
+                                                <span class="d-block"><i class="fas fa-times mr-1"></i>None</span>
+                                            </label>
+                                        </div>
+                                    </td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
                 @endif
-                <small class="form-text text-muted mt-2">
+
+                {{-- Tag inputs for non-uplink / extra ports --}}
+                <div class="row">
+                    <div class="col-md-6">
+                        <label class="small font-weight-bold mb-1">
+                            <span style="color:#2563eb;"><i class="fas fa-tag mr-1"></i>Tagged Ports</span>
+                            @if($olt->uplinks->isNotEmpty())
+                                <small class="text-muted font-weight-normal">(non-uplink)</small>
+                            @endif
+                        </label>
+                        <div class="tag-input-wrap" id="edit-tagged-wrap">
+                            <input type="text" class="tag-field" placeholder="Nama port lalu Enter...">
+                        </div>
+                        <small class="text-muted" style="font-size:10px;">Contoh: <code>gpon-onu_1/1/1:1</code> &bull; pisahkan dengan Enter</small>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="small font-weight-bold mb-1">
+                            <span style="color:#16a34a;"><i class="fas fa-minus-circle mr-1"></i>Untagged Ports</span>
+                            @if($olt->uplinks->isNotEmpty())
+                                <small class="text-muted font-weight-normal">(non-uplink)</small>
+                            @endif
+                        </label>
+                        <div class="tag-input-wrap" id="edit-untagged-wrap">
+                            <input type="text" class="tag-field" placeholder="Nama port lalu Enter...">
+                        </div>
+                        <small class="text-muted" style="font-size:10px;">Contoh: <code>gei_1/1/1</code> &bull; pisahkan dengan Enter</small>
+                    </div>
+                </div>
+
+                <small class="form-text text-muted mt-3">
                     <i class="fas fa-info-circle mr-1"></i>
                     Push via <strong>{{ $olt->snmp_community_rw ? 'SNMP SET (Q-BRIDGE)' : 'Telnet CLI' }}</strong>.
-                    Deskripsi via CLI.
                 </small>
             </div>
             <div class="modal-footer">
@@ -452,33 +509,32 @@
 
 <!-- Create VLAN Modal -->
 <div class="modal fade" id="modal-create-vlan" tabindex="-1" role="dialog">
-    <div class="modal-dialog" role="document">
+    <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content border-0 shadow-lg" style="border-radius: 14px; overflow: hidden;">
             <div class="modal-header" style="background: linear-gradient(135deg, #2563eb, #3b82f6); border: none;">
                 <h5 class="modal-title text-white"><i class="fas fa-plus mr-2"></i>Buat VLAN Baru</h5>
                 <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
             </div>
             <div class="modal-body">
+                {{-- Row 1: Basic Info --}}
                 <div class="row">
-                    <div class="col-4">
+                    <div class="col-md-2">
                         <div class="form-group">
-                            <label>VLAN ID <span class="text-danger">*</span></label>
-                            <input type="number" class="form-control" id="create-vlan-id" min="2" max="4094" required>
+                            <label class="font-weight-bold small">VLAN ID <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control font-weight-bold text-center" id="create-vlan-id" min="2" max="4094" required style="font-size:18px;">
                         </div>
                     </div>
-                    <div class="col-8">
+                    <div class="col-md-4">
                         <div class="form-group">
-                            <label>Nama</label>
+                            <label class="font-weight-bold small">Nama</label>
                             <input type="text" class="form-control" id="create-vlan-name" placeholder="Opsional">
                         </div>
                     </div>
-                </div>
-                <div class="row">
-                    <div class="col-6">
+                    <div class="col-md-3">
                         <div class="form-group">
-                            <label>Tipe</label>
+                            <label class="font-weight-bold small">Tipe</label>
                             <select class="form-control" id="create-vlan-type">
-                                <option value="service">Service</option>
+                                <option value="service">Service (Internet)</option>
                                 <option value="management">Management</option>
                                 <option value="voip">VoIP</option>
                                 <option value="iptv">IPTV</option>
@@ -487,11 +543,95 @@
                             </select>
                         </div>
                     </div>
-                    <div class="col-6">
+                    <div class="col-md-3">
                         <div class="form-group">
-                            <label>Keterangan</label>
+                            <label class="font-weight-bold small">Keterangan</label>
                             <input type="text" class="form-control" id="create-vlan-desc" placeholder="Opsional">
                         </div>
+                    </div>
+                </div>
+
+                {{-- Port Membership --}}
+                <div class="section-title mt-1">
+                    <i class="fas fa-exchange-alt"></i>Port Membership <small class="text-muted font-weight-normal">(opsional)</small>
+                </div>
+
+                @if($olt->uplinks->isNotEmpty())
+                <div class="mb-3">
+                    <label class="small font-weight-bold text-muted mb-2 d-block">
+                        <i class="fas fa-arrow-up mr-1"></i>Uplink Ports
+                    </label>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0" style="font-size:13px;">
+                            <thead>
+                                <tr>
+                                    <th style="width:38%">Interface</th>
+                                    <th class="text-center" style="width:15%">Status</th>
+                                    <th>Mode</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($olt->uplinks as $uplink)
+                                @php $slugC = 'c_' . Str::slug($uplink->interface_name); @endphp
+                                <tr class="port-membership-row">
+                                    <td>
+                                        <strong>{{ $uplink->interface_name }}</strong>
+                                        @if($uplink->interface_type === 'xgei')
+                                            <span class="badge badge-info ml-1" style="font-size:9px;">10G</span>
+                                        @endif
+                                        @if($uplink->description)
+                                            <br><small class="text-muted">{{ $uplink->description }}</small>
+                                        @endif
+                                    </td>
+                                    <td class="text-center">{!! $uplink->status_badge !!}</td>
+                                    <td>
+                                        <div class="port-radio-group">
+                                            <label class="mb-0">
+                                                <input type="radio" name="create_port_{{ $slugC }}" value="tagged" data-port="{{ $uplink->interface_name }}" class="create-port-radio">
+                                                <span class="d-block"><i class="fas fa-tag mr-1"></i>Tagged</span>
+                                            </label>
+                                            <label class="mb-0">
+                                                <input type="radio" name="create_port_{{ $slugC }}" value="untagged" data-port="{{ $uplink->interface_name }}" class="create-port-radio">
+                                                <span class="d-block"><i class="fas fa-minus-circle mr-1"></i>Untagged</span>
+                                            </label>
+                                            <label class="mb-0">
+                                                <input type="radio" name="create_port_{{ $slugC }}" value="none" data-port="{{ $uplink->interface_name }}" class="create-port-radio" checked>
+                                                <span class="d-block"><i class="fas fa-times mr-1"></i>None</span>
+                                            </label>
+                                        </div>
+                                    </td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                @endif
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <label class="small font-weight-bold mb-1">
+                            <span style="color:#2563eb;"><i class="fas fa-tag mr-1"></i>Tagged Ports</span>
+                            @if($olt->uplinks->isNotEmpty())
+                                <small class="text-muted font-weight-normal">(non-uplink)</small>
+                            @endif
+                        </label>
+                        <div class="tag-input-wrap" id="create-tagged-wrap">
+                            <input type="text" class="tag-field" placeholder="Nama port lalu Enter...">
+                        </div>
+                        <small class="text-muted" style="font-size:10px;">Contoh: <code>gpon-onu_1/1/1:1</code></small>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="small font-weight-bold mb-1">
+                            <span style="color:#16a34a;"><i class="fas fa-minus-circle mr-1"></i>Untagged Ports</span>
+                            @if($olt->uplinks->isNotEmpty())
+                                <small class="text-muted font-weight-normal">(non-uplink)</small>
+                            @endif
+                        </label>
+                        <div class="tag-input-wrap" id="create-untagged-wrap">
+                            <input type="text" class="tag-field" placeholder="Nama port lalu Enter...">
+                        </div>
+                        <small class="text-muted" style="font-size:10px;">Contoh: <code>gei_1/1/1</code></small>
                     </div>
                 </div>
             </div>
@@ -1394,6 +1534,56 @@ $(function() {
     });
 
     // =========================================================================
+    // Tag Input Helpers
+    // =========================================================================
+    let uplinkNames = [
+        @foreach($olt->uplinks as $u)
+            '{{ $u->interface_name }}',
+        @endforeach
+    ];
+
+    function tagInit(wrapperId) {
+        let $w = $('#' + wrapperId);
+        $w.on('keydown', '.tag-field', function(e) {
+            if (e.key === 'Enter' || e.key === ',') {
+                e.preventDefault();
+                let v = $(this).val().trim().replace(/,+$/, '');
+                if (v) tagAdd(wrapperId, v, $w.data('chipclass') || 'chip-tagged');
+                $(this).val('');
+            } else if (e.key === 'Backspace' && $(this).val() === '') {
+                $w.find('.tag-chip').last().remove();
+            }
+        });
+        $w.on('click', '.rm', function() { $(this).closest('.tag-chip').remove(); });
+        $w.on('click', function(e) {
+            if (!$(e.target).closest('.tag-chip, .rm').length) $w.find('.tag-field').focus();
+        });
+    }
+    function tagAdd(wrapperId, val, cls) {
+        let $w = $('#' + wrapperId);
+        if ($w.find('.tag-chip').filter(function() { return $(this).data('val') === val; }).length) return;
+        let $chip = $('<span class="tag-chip ' + (cls || 'chip-tagged') + '" data-val="' + val + '"><span class="chip-val">' + val + '</span><span class="rm ml-1"><i class="fas fa-times"></i></span></span>');
+        $w.find('.tag-field').before($chip);
+    }
+    function tagSet(wrapperId, values, cls) {
+        $('#' + wrapperId).find('.tag-chip').remove();
+        (values || []).forEach(v => tagAdd(wrapperId, v, cls));
+    }
+    function tagGet(wrapperId) {
+        return $('#' + wrapperId).find('.tag-chip').map(function() { return $(this).data('val'); }).get();
+    }
+
+    // Init tag inputs
+    $('#edit-tagged-wrap').data('chipclass', 'chip-tagged');
+    $('#edit-untagged-wrap').data('chipclass', 'chip-untagged');
+    $('#create-tagged-wrap').data('chipclass', 'chip-tagged');
+    $('#create-untagged-wrap').data('chipclass', 'chip-untagged');
+    tagInit('edit-tagged-wrap');
+    tagInit('edit-untagged-wrap');
+    tagInit('create-tagged-wrap');
+    tagInit('create-untagged-wrap');
+
+    // =========================================================================
     // Edit VLAN
     // =========================================================================
     $(document).on('click', '.btn-edit-vlan', function() {
@@ -1401,6 +1591,7 @@ $(function() {
         $('#edit-vlan-id').val(btn.data('id'));
         $('#edit-vlan-display').val(btn.data('vlan-id'));
         $('#edit-vlan-title-id').text(btn.data('vlan-id'));
+        $('#edit-vlan-name').val(btn.data('name') || '');
         $('#edit-vlan-type').val(btn.data('type'));
         $('#edit-vlan-description').val(btn.data('description') || '');
 
@@ -1409,30 +1600,47 @@ $(function() {
         if (typeof tagged === 'string') tagged = JSON.parse(tagged);
         if (typeof untagged === 'string') untagged = JSON.parse(untagged);
 
-        // Reset all to none
+        // Reset uplink radios
         $('.port-radio[value="none"]').prop('checked', true);
         $('.port-radio-group label').removeClass('active-tagged active-untagged active-none');
         $('.port-radio[value="none"]').closest('label').addClass('active-none');
 
+        // Separate uplink ports vs extra ports
+        let extraTagged = [], extraUntagged = [];
         tagged.forEach(function(port) {
-            let slug = port.replace(/[\/\_]/g, '-');
-            let radio = $('input[name="port_' + slug + '"][value="tagged"]');
-            if (radio.length) {
-                radio.prop('checked', true);
-                radio.closest('.port-radio-group').find('label').removeClass('active-tagged active-untagged active-none');
-                radio.closest('label').addClass('active-tagged');
+            if (uplinkNames.includes(port)) {
+                let slug = port.replace(/[\/\:\._]/g, '-');
+                let radio = $('input.port-radio[data-port="' + port + '"][value="tagged"]');
+                if (radio.length) {
+                    radio.prop('checked', true);
+                    radio.closest('.port-radio-group').find('label').removeClass('active-tagged active-untagged active-none');
+                    radio.closest('label').addClass('active-tagged');
+                }
+            } else {
+                extraTagged.push(port);
             }
         });
         untagged.forEach(function(port) {
-            let slug = port.replace(/[\/\_]/g, '-');
-            let radio = $('input[name="port_' + slug + '"][value="untagged"]');
-            if (radio.length) {
-                radio.prop('checked', true);
-                radio.closest('.port-radio-group').find('label').removeClass('active-tagged active-untagged active-none');
-                radio.closest('label').addClass('active-untagged');
+            if (uplinkNames.includes(port)) {
+                let radio = $('input.port-radio[data-port="' + port + '"][value="untagged"]');
+                if (radio.length) {
+                    radio.prop('checked', true);
+                    radio.closest('.port-radio-group').find('label').removeClass('active-tagged active-untagged active-none');
+                    radio.closest('label').addClass('active-untagged');
+                }
+            } else {
+                extraUntagged.push(port);
             }
         });
 
+        // If no uplinks, put ALL ports in extra
+        if (uplinkNames.length === 0) {
+            extraTagged = tagged;
+            extraUntagged = untagged;
+        }
+
+        tagSet('edit-tagged-wrap', extraTagged, 'chip-tagged');
+        tagSet('edit-untagged-wrap', extraUntagged, 'chip-untagged');
         $('#modal-edit-vlan').modal('show');
     });
 
@@ -1441,6 +1649,7 @@ $(function() {
         let vlanId = $('#edit-vlan-id').val();
         btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Menyimpan...');
 
+        // Collect from uplink radios
         let taggedPorts = [], untaggedPorts = [];
         $('.port-radio:checked').each(function() {
             let port = $(this).data('port');
@@ -1448,12 +1657,16 @@ $(function() {
             if (val === 'tagged') taggedPorts.push(port);
             else if (val === 'untagged') untaggedPorts.push(port);
         });
+        // Merge extra tag-input ports
+        tagGet('edit-tagged-wrap').forEach(p => { if (!taggedPorts.includes(p)) taggedPorts.push(p); });
+        tagGet('edit-untagged-wrap').forEach(p => { if (!untaggedPorts.includes(p)) untaggedPorts.push(p); });
 
         $.ajax({
             url: '{{ route("admin.olts.infrastructure.vlans.update-type", [$olt, "__VLAN__"]) }}'.replace('__VLAN__', vlanId),
             method: 'PUT',
             data: {
                 _token: '{{ csrf_token() }}',
+                name: $('#edit-vlan-name').val(),
                 type: $('#edit-vlan-type').val(),
                 description: $('#edit-vlan-description').val(),
                 tagged_ports: taggedPorts,
@@ -1513,16 +1726,49 @@ $(function() {
     // =========================================================================
     $('#btn-open-create-vlan').click(function() {
         $('#create-vlan-id, #create-vlan-name, #create-vlan-desc').val('');
+        $('#create-vlan-type').val('service');
+        // Reset create uplink radios
+        $('.create-port-radio[value="none"]').prop('checked', true);
+        $('.port-radio-group label').each(function() {
+            let radio = $(this).find('.create-port-radio');
+            if (radio.length) {
+                $(this).closest('.port-radio-group').find('label').removeClass('active-tagged active-untagged active-none');
+                $(this).closest('.port-radio-group').find('label:last-child').addClass('active-none');
+            }
+        });
+        tagSet('create-tagged-wrap', [], 'chip-tagged');
+        tagSet('create-untagged-wrap', [], 'chip-untagged');
         $('#modal-create-vlan').modal('show');
     });
 
     $('#btn-create-vlan').click(function() {
         let btn = $(this);
+        let vid = $('#create-vlan-id').val();
+        if (!vid || vid < 2 || vid > 4094) { toastr.warning('VLAN ID harus antara 2 - 4094'); return; }
         btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Membuat...');
+
+        // Collect port membership
+        let taggedPorts = [], untaggedPorts = [];
+        $('.create-port-radio:checked').each(function() {
+            let port = $(this).data('port'), val = $(this).val();
+            if (val === 'tagged') taggedPorts.push(port);
+            else if (val === 'untagged') untaggedPorts.push(port);
+        });
+        tagGet('create-tagged-wrap').forEach(p => { if (!taggedPorts.includes(p)) taggedPorts.push(p); });
+        tagGet('create-untagged-wrap').forEach(p => { if (!untaggedPorts.includes(p)) untaggedPorts.push(p); });
+
         $.ajax({
             url: '{{ route("admin.olts.infrastructure.vlans.create", $olt) }}',
             method: 'POST',
-            data: { _token: '{{ csrf_token() }}', vlan_id: $('#create-vlan-id').val(), name: $('#create-vlan-name').val(), type: $('#create-vlan-type').val(), description: $('#create-vlan-desc').val() },
+            data: {
+                _token: '{{ csrf_token() }}',
+                vlan_id: vid,
+                name: $('#create-vlan-name').val(),
+                type: $('#create-vlan-type').val(),
+                description: $('#create-vlan-desc').val(),
+                tagged_ports: taggedPorts,
+                untagged_ports: untaggedPorts,
+            },
             success: function(res) { if (res.success) { toastr.success(res.message); location.reload(); } else { toastr.warning(res.message); } },
             error: function(xhr) { toastr.error(xhr.responseJSON?.message || 'Gagal membuat VLAN'); },
             complete: function() { btn.prop('disabled', false).html('<i class="fas fa-plus mr-1"></i>Buat di OLT'); }

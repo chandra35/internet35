@@ -938,20 +938,25 @@ class OltController extends Controller implements HasMiddleware
     {
         $request->validate([
             'type' => 'required|in:service,management,voip,iptv,infra,other',
+            'name' => 'nullable|string|max:64',
             'description' => 'nullable|string|max:255',
             'tagged_ports' => 'nullable|array',
-            'tagged_ports.*' => 'string',
+            'tagged_ports.*' => 'string|max:64',
             'untagged_ports' => 'nullable|array',
-            'untagged_ports.*' => 'string',
+            'untagged_ports.*' => 'string|max:64',
         ]);
 
         // Always update local DB
-        $vlan->update([
+        $updateData = [
             'type' => $request->type,
             'description' => $request->description,
             'tagged_ports' => $request->tagged_ports ?? [],
             'untagged_ports' => $request->untagged_ports ?? [],
-        ]);
+        ];
+        if ($request->filled('name')) {
+            $updateData['name'] = $request->name;
+        }
+        $vlan->update($updateData);
 
         // Push changes to OLT if port membership or description changed
         $oltMessage = '';
@@ -1045,8 +1050,13 @@ class OltController extends Controller implements HasMiddleware
     {
         $request->validate([
             'vlan_id' => 'required|integer|min:2|max:4094',
-            'name' => 'nullable|string|max:32',
+            'name' => 'nullable|string|max:64',
             'type' => 'nullable|in:service,management,voip,iptv,infra,other',
+            'description' => 'nullable|string|max:255',
+            'tagged_ports' => 'nullable|array',
+            'tagged_ports.*' => 'string|max:64',
+            'untagged_ports' => 'nullable|array',
+            'untagged_ports.*' => 'string|max:64',
         ]);
 
         try {
@@ -1055,15 +1065,27 @@ class OltController extends Controller implements HasMiddleware
 
             // Also save locally
             if ($result['success']) {
-                OltVlan::updateOrCreate(
+                $vlan = OltVlan::updateOrCreate(
                     ['olt_id' => $olt->id, 'vlan_id' => $request->vlan_id],
                     [
                         'name' => $request->name ?? "VLAN{$request->vlan_id}",
                         'type' => $request->type ?? 'other',
+                        'description' => $request->description,
+                        'tagged_ports' => $request->tagged_ports ?? [],
+                        'untagged_ports' => $request->untagged_ports ?? [],
                         'is_synced' => true,
                         'last_sync_at' => now(),
                     ]
                 );
+                // Push port membership if specified
+                if (($request->tagged_ports || $request->untagged_ports) && method_exists($helper, 'updateVlanHybrid')) {
+                    try {
+                        $helper->updateVlanHybrid($request->vlan_id, [
+                            'tagged_ports' => $request->tagged_ports ?? [],
+                            'untagged_ports' => $request->untagged_ports ?? [],
+                        ]);
+                    } catch (\Exception $e) {}
+                }
             }
 
             return response()->json($result);
