@@ -1756,13 +1756,6 @@
                         <p class="text-muted mb-0">Belum ada data uplink.</p>
                     </div>
                 @else
-                <div class="card-body p-0">
-                @if($olt->uplinks->isEmpty())
-                    <div class="text-center py-4">
-                        <i class="fas fa-plug" style="color:#94a3b8;font-size:28px;"></i>
-                        <p class="text-muted small mt-2 mb-0">Belum ada data uplink. Sync dari OLT terlebih dahulu.</p>
-                    </div>
-                @else
                 <div class="uplink-grid">
                     @foreach($olt->uplinks as $uplink)
                     @php
