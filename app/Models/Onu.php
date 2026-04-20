@@ -56,6 +56,7 @@ class Onu extends Model
         'odp_port',
         'description',
         'notes',
+        'blocked_clients',
         'last_sync_at',
         'created_by',
     ];
@@ -78,6 +79,7 @@ class Onu extends Model
         'out_packets' => 'integer',
         'service_ports' => 'array',
         'vlan_config' => 'array',
+        'blocked_clients' => 'array',
         'odp_port' => 'integer',
         'last_online_at' => 'datetime',
         'last_offline_at' => 'datetime',

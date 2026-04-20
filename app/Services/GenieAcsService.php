@@ -636,6 +636,165 @@ class GenieAcsService
     }
 
     /**
+     * Set LAN / DHCP server configuration.
+     * Writes to LANDevice.1.LANHostConfigManagement (standard TR-098, works on all brands).
+     */
+    public function setLanDhcpConfig(string $deviceId, array $config): array
+    {
+        try {
+            $base = 'InternetGatewayDevice.LANDevice.1.LANHostConfigManagement';
+            $paramMap = [
+                'gateway_ip'         => "{$base}.IPRouters",
+                'subnet_mask'        => "{$base}.SubnetMask",
+                'dhcp_server_enable' => "{$base}.DHCPServerEnable",
+                'min_address'        => "{$base}.MinAddress",
+                'max_address'        => "{$base}.MaxAddress",
+                'lease_time'         => "{$base}.DHCPLeaseTime",
+                'dns_servers'        => "{$base}.DNSServers",
+                'domain_name'        => "{$base}.DomainName",
+            ];
+
+            $paramValues = [];
+            foreach ($paramMap as $key => $oid) {
+                if (!array_key_exists($key, $config)) continue;
+                $val = $config[$key];
+                if ($val === null || $val === '') continue;
+
+                $type = 'xsd:string';
+                if ($key === 'dhcp_server_enable') $type = 'xsd:boolean';
+                if ($key === 'lease_time') $type = 'xsd:unsignedInt';
+
+                $paramValues[] = [$oid, (string)$val, $type];
+            }
+
+            if (empty($paramValues)) {
+                return ['success' => false, 'message' => 'Tidak ada parameter yang diubah.'];
+            }
+
+            $url = "{$this->nbiUrl}/devices/{$deviceId}/tasks?connection_request&timeout=20000";
+            $response = Http::timeout(30)
+                ->asJson()
+                ->post($url, [
+                    'name'       => 'setParameterValues',
+                    'parameterValues' => $paramValues,
+                ]);
+
+            $ok = in_array($response->status(), [200, 202]);
+            return [
+                'success' => $ok,
+                'pending' => $response->status() === 202,
+                'message' => $ok ? 'Konfigurasi LAN/DHCP berhasil disimpan.' : 'Gagal: ' . $response->body(),
+            ];
+        } catch (Exception $e) {
+            Log::error("GenieACS setLanDhcpConfig error: " . $e->getMessage());
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Add a MAC address to WiFi blacklist on Huawei devices.
+     * For non-Huawei or Ethernet clients, this is a no-op (returns success so DB entry still persists).
+     */
+    public function blockClientMac(string $deviceId, string $mac, string $brand = 'unknown'): array
+    {
+        // Normalise MAC to colon-separated uppercase
+        $mac = strtoupper(preg_replace('/[^0-9A-Fa-f]/', '', $mac));
+        if (strlen($mac) === 12) {
+            $mac = implode(':', str_split($mac, 2));
+        }
+
+        // Only Huawei supports WiFi MAC blacklist via TR-069 in a known-good way
+        if ($brand !== 'huawei') {
+            return ['success' => true, 'device_blocked' => false, 'message' => 'MAC disimpan di daftar blokir. Pemblokiran di perangkat hanya didukung untuk Huawei.'];
+        }
+
+        try {
+            // Fetch current blacklist entries from both WiFi bands
+            $resp = Http::timeout($this->timeout)->get("{$this->nbiUrl}/devices", ['query' => json_encode(['_id' => $deviceId])]);
+            $devices = $resp->ok() ? $resp->json() : [];
+            $igd = $devices[0]['InternetGatewayDevice'] ?? $devices[0]['Device'] ?? [];
+            $lanDevice = $igd['LANDevice']['1'] ?? [];
+            $wlanConfigs = $lanDevice['WLANConfiguration'] ?? [];
+
+            $results = [];
+            foreach ($wlanConfigs as $idx => $wlan) {
+                if (!is_array($wlan) || !isset($wlan['SSID'])) continue;
+
+                $blacklistOid = "InternetGatewayDevice.LANDevice.1.WLANConfiguration.{$idx}.AccessControl.X_HW_BlockList";
+                $enableOid    = "InternetGatewayDevice.LANDevice.1.WLANConfiguration.{$idx}.AccessControl.Enable";
+
+                $currentList = $this->getValue($wlan['AccessControl'] ?? [], 'X_HW_BlockList') ?? '';
+                $macs = array_filter(array_map('trim', explode(',', $currentList)));
+                if (!in_array($mac, $macs)) {
+                    $macs[] = $mac;
+                }
+                $newList = implode(',', $macs);
+
+                $url = "{$this->nbiUrl}/devices/{$deviceId}/tasks?connection_request&timeout=15000";
+                $response = Http::timeout(30)->asJson()->post($url, [
+                    'name' => 'setParameterValues',
+                    'parameterValues' => [
+                        [$enableOid, 'true', 'xsd:boolean'],
+                        [$blacklistOid, $newList, 'xsd:string'],
+                    ],
+                ]);
+                $results[] = $response->status();
+            }
+
+            $ok = !empty($results);
+            return ['success' => true, 'device_blocked' => $ok, 'message' => 'MAC diblokir di perangkat.'];
+        } catch (Exception $e) {
+            Log::error("GenieACS blockClientMac error: " . $e->getMessage());
+            // Don't fail — the DB entry still gets saved
+            return ['success' => true, 'device_blocked' => false, 'message' => 'MAC disimpan, tapi gagal kirim ke perangkat: ' . $e->getMessage()];
+        }
+    }
+
+    /**
+     * Remove a MAC address from WiFi blacklist on Huawei devices.
+     */
+    public function unblockClientMac(string $deviceId, string $mac, string $brand = 'unknown'): array
+    {
+        $mac = strtoupper(preg_replace('/[^0-9A-Fa-f]/', '', $mac));
+        if (strlen($mac) === 12) {
+            $mac = implode(':', str_split($mac, 2));
+        }
+
+        if ($brand !== 'huawei') {
+            return ['success' => true, 'device_unblocked' => false, 'message' => 'MAC dihapus dari daftar blokir.'];
+        }
+
+        try {
+            $resp = Http::timeout($this->timeout)->get("{$this->nbiUrl}/devices", ['query' => json_encode(['_id' => $deviceId])]);
+            $devices = $resp->ok() ? $resp->json() : [];
+            $igd = $devices[0]['InternetGatewayDevice'] ?? $devices[0]['Device'] ?? [];
+            $lanDevice = $igd['LANDevice']['1'] ?? [];
+            $wlanConfigs = $lanDevice['WLANConfiguration'] ?? [];
+
+            foreach ($wlanConfigs as $idx => $wlan) {
+                if (!is_array($wlan) || !isset($wlan['SSID'])) continue;
+
+                $blacklistOid = "InternetGatewayDevice.LANDevice.1.WLANConfiguration.{$idx}.AccessControl.X_HW_BlockList";
+                $currentList = $this->getValue($wlan['AccessControl'] ?? [], 'X_HW_BlockList') ?? '';
+                $macs = array_filter(array_map('trim', explode(',', $currentList)));
+                $macs = array_values(array_filter($macs, fn($m) => strtoupper($m) !== $mac));
+                $newList = implode(',', $macs);
+
+                $url = "{$this->nbiUrl}/devices/{$deviceId}/tasks?connection_request&timeout=15000";
+                Http::timeout(30)->asJson()->post($url, [
+                    'name' => 'setParameterValues',
+                    'parameterValues' => [[$blacklistOid, $newList, 'xsd:string']],
+                ]);
+            }
+
+            return ['success' => true, 'device_unblocked' => true, 'message' => 'MAC berhasil di-unblok dari perangkat.'];
+        } catch (Exception $e) {
+            Log::error("GenieACS unblockClientMac error: " . $e->getMessage());
+            return ['success' => true, 'device_unblocked' => false, 'message' => 'MAC dihapus dari list, tapi gagal update perangkat: ' . $e->getMessage()];
+        }
+    }
+
+    /**
      * Delete a WAN connection instance (WANPPPConnection only — never call on IP/management WANs).
      */
     public function deleteWanConnection(string $deviceId, string $wanPath): array
@@ -1265,7 +1424,24 @@ class GenieAcsService
      *   3. Manufacturer string from DeviceInfo
      *   4. GenieACS device ID prefix
      */
-    protected function detectBrand(array $rawDevice): string
+    public function getBrandByDeviceId(string $deviceId): string
+    {
+        try {
+            $response = Http::timeout($this->timeout)
+                ->get("{$this->nbiUrl}/devices", ['query' => json_encode(['_id' => $deviceId])]);
+            if ($response->ok()) {
+                $devices = $response->json();
+                if (!empty($devices)) {
+                    return $this->detectBrand($devices[0]);
+                }
+            }
+        } catch (Exception $e) {
+            Log::error("GenieACS getBrandByDeviceId error: " . $e->getMessage());
+        }
+        return 'unknown';
+    }
+
+    public function detectBrand(array $rawDevice): string
     {
         $igd     = $rawDevice['InternetGatewayDevice'] ?? $rawDevice['Device'] ?? [];
         $devInfo = $igd['DeviceInfo'] ?? [];

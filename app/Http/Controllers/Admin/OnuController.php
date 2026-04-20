@@ -1207,6 +1207,156 @@ class OnuController extends Controller implements HasMiddleware
     }
 
     /**
+     * Save LAN / DHCP configuration via TR069.
+     */
+    public function setTr069Lan(Onu $onu, Request $request)
+    {
+        $request->validate([
+            'gateway_ip'         => 'nullable|ip',
+            'subnet_mask'        => 'nullable|ip',
+            'dhcp_server_enable' => 'nullable|boolean',
+            'min_address'        => 'nullable|ip',
+            'max_address'        => 'nullable|ip',
+            'lease_time'         => 'nullable|integer|min:60|max:604800',
+            'dns_servers'        => 'nullable|string|max:100',
+            'domain_name'        => 'nullable|string|max:64',
+        ]);
+
+        try {
+            $genieacs = new \App\Services\GenieAcsService();
+
+            if (!$genieacs->isAvailable()) {
+                return response()->json(['success' => false, 'message' => 'GenieACS tidak tersedia']);
+            }
+
+            $device = $genieacs->findDeviceBySerial($onu->serial_number);
+            if (!$device) {
+                return response()->json(['success' => false, 'message' => 'Device tidak ditemukan di GenieACS']);
+            }
+
+            $config = array_filter([
+                'gateway_ip'         => $request->input('gateway_ip'),
+                'subnet_mask'        => $request->input('subnet_mask'),
+                'dhcp_server_enable' => $request->has('dhcp_server_enable') ? ($request->boolean('dhcp_server_enable') ? 'true' : 'false') : null,
+                'min_address'        => $request->input('min_address'),
+                'max_address'        => $request->input('max_address'),
+                'lease_time'         => $request->input('lease_time'),
+                'dns_servers'        => $request->input('dns_servers'),
+                'domain_name'        => $request->input('domain_name'),
+            ], fn($v) => $v !== null);
+
+            $result = $genieacs->setLanDhcpConfig($device['device_id'], $config);
+            return response()->json($result);
+        } catch (Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Get list of blocked clients for this ONU (stored in DB).
+     */
+    public function getBlockedClients(Onu $onu)
+    {
+        return response()->json([
+            'success' => true,
+            'blocked' => $onu->blocked_clients ?? [],
+        ]);
+    }
+
+    /**
+     * Block a client by MAC address (saves to DB + optionally pushes to device).
+     */
+    public function blockTr069Client(Onu $onu, Request $request)
+    {
+        $request->validate([
+            'mac'      => 'required|regex:/^([0-9A-Fa-f]{2}[:\-]?){5}[0-9A-Fa-f]{2}$/',
+            'hostname' => 'nullable|string|max:64',
+            'ip'       => 'nullable|ip',
+            'reason'   => 'nullable|string|max:255',
+        ]);
+
+        try {
+            $mac = strtoupper(preg_replace('/[^0-9A-Fa-f]/', '', $request->mac));
+            $mac = implode(':', str_split($mac, 2));
+
+            $blocked = $onu->blocked_clients ?? [];
+
+            // Check if already blocked
+            foreach ($blocked as $entry) {
+                if (strtoupper($entry['mac'] ?? '') === $mac) {
+                    return response()->json(['success' => false, 'message' => 'MAC sudah ada di daftar blokir.']);
+                }
+            }
+
+            $blocked[] = [
+                'mac'        => $mac,
+                'hostname'   => $request->input('hostname', 'Unknown'),
+                'ip'         => $request->input('ip', ''),
+                'reason'     => $request->input('reason', ''),
+                'blocked_at' => now()->toIso8601String(),
+            ];
+
+            $onu->update(['blocked_clients' => $blocked]);
+
+            // Attempt to also push to device
+            $genieacs = new \App\Services\GenieAcsService();
+            $deviceResult = ['device_blocked' => false, 'message' => 'GenieACS tidak tersedia'];
+            if ($genieacs->isAvailable()) {
+                $device = $genieacs->findDeviceBySerial($onu->serial_number);
+                if ($device) {
+                    $brand = $genieacs->getBrandByDeviceId($device['device_id']);
+                    $deviceResult = $genieacs->blockClientMac($device['device_id'], $mac, $brand);
+                }
+            }
+
+            return response()->json([
+                'success'        => true,
+                'device_blocked' => $deviceResult['device_blocked'] ?? false,
+                'message'        => 'Client berhasil diblokir. ' . ($deviceResult['message'] ?? ''),
+            ]);
+        } catch (Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Unblock a client by MAC address.
+     */
+    public function unblockTr069Client(Onu $onu, Request $request)
+    {
+        $request->validate([
+            'mac' => 'required|string|max:20',
+        ]);
+
+        try {
+            $mac = strtoupper(preg_replace('/[^0-9A-Fa-f]/', '', $request->mac));
+            $mac = implode(':', str_split($mac, 2));
+
+            $blocked = $onu->blocked_clients ?? [];
+            $blocked = array_values(array_filter($blocked, fn($e) => strtoupper($e['mac'] ?? '') !== $mac));
+            $onu->update(['blocked_clients' => $blocked]);
+
+            // Remove from device
+            $genieacs = new \App\Services\GenieAcsService();
+            $deviceResult = ['device_unblocked' => false];
+            if ($genieacs->isAvailable()) {
+                $device = $genieacs->findDeviceBySerial($onu->serial_number);
+                if ($device) {
+                    $brand = $genieacs->getBrandByDeviceId($device['device_id']);
+                    $deviceResult = $genieacs->unblockClientMac($device['device_id'], $mac, $brand);
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Client berhasil di-unblok.',
+            ]);
+        } catch (Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * Configure WiFi via TR069.
      */
     public function configureTr069Wifi(Onu $onu, Request $request)

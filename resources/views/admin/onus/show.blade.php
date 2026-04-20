@@ -425,10 +425,71 @@
                                     <tbody></tbody>
                                 </table>
                             </div>
-                            <h6 class="mb-2"><i class="fas fa-server mr-1"></i>DHCP Server</h6>
-                            <div class="acs-card">
-                                <div class="card-body p-0">
-                                    <table class="table table-sm table-striped table-acs mb-0" id="tr069-dhcp-table"></table>
+                            <h6 class="mb-2"><i class="fas fa-server mr-1"></i>DHCP Server & IP Gateway</h6>
+                            <div class="card card-outline card-primary mb-3" id="dhcp-config-card">
+                                <div class="card-header p-2 d-flex justify-content-between align-items-center">
+                                    <span class="font-weight-bold small">Konfigurasi LAN / DHCP</span>
+                                    <button type="button" class="btn btn-xs btn-outline-secondary" id="btn-edit-lan-config">
+                                        <i class="fas fa-pen mr-1"></i>Edit
+                                    </button>
+                                </div>
+                                <div class="card-body p-2">
+                                    {{-- Read-only display --}}
+                                    <div id="lan-config-display">
+                                        <table class="table table-sm table-borderless mb-0" id="tr069-dhcp-table"></table>
+                                    </div>
+                                    {{-- Edit form (hidden by default) --}}
+                                    <div id="lan-config-form" style="display:none">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="form-group row mb-2">
+                                                    <label class="col-sm-5 col-form-label col-form-label-sm">IP Gateway</label>
+                                                    <div class="col-sm-7"><input type="text" class="form-control form-control-sm" id="lan-gateway-ip" placeholder="192.168.1.1"></div>
+                                                </div>
+                                                <div class="form-group row mb-2">
+                                                    <label class="col-sm-5 col-form-label col-form-label-sm">Subnet Mask</label>
+                                                    <div class="col-sm-7"><input type="text" class="form-control form-control-sm" id="lan-subnet-mask" placeholder="255.255.255.0"></div>
+                                                </div>
+                                                <div class="form-group row mb-2">
+                                                    <label class="col-sm-5 col-form-label col-form-label-sm">DHCP Server</label>
+                                                    <div class="col-sm-7">
+                                                        <select class="form-control form-control-sm" id="lan-dhcp-enable">
+                                                            <option value="true">Enabled</option>
+                                                            <option value="false">Disabled</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                                <div class="form-group row mb-2">
+                                                    <label class="col-sm-5 col-form-label col-form-label-sm">IP Mulai</label>
+                                                    <div class="col-sm-7"><input type="text" class="form-control form-control-sm" id="lan-min-address" placeholder="192.168.1.100"></div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="form-group row mb-2">
+                                                    <label class="col-sm-5 col-form-label col-form-label-sm">IP Akhir</label>
+                                                    <div class="col-sm-7"><input type="text" class="form-control form-control-sm" id="lan-max-address" placeholder="192.168.1.200"></div>
+                                                </div>
+                                                <div class="form-group row mb-2">
+                                                    <label class="col-sm-5 col-form-label col-form-label-sm">Lease Time (det)</label>
+                                                    <div class="col-sm-7"><input type="number" class="form-control form-control-sm" id="lan-lease-time" min="60" max="604800" placeholder="86400"></div>
+                                                </div>
+                                                <div class="form-group row mb-2">
+                                                    <label class="col-sm-5 col-form-label col-form-label-sm">DNS Servers</label>
+                                                    <div class="col-sm-7"><input type="text" class="form-control form-control-sm" id="lan-dns-servers" placeholder="8.8.8.8,8.8.4.4"></div>
+                                                </div>
+                                                <div class="form-group row mb-2">
+                                                    <label class="col-sm-5 col-form-label col-form-label-sm">Domain Name</label>
+                                                    <div class="col-sm-7"><input type="text" class="form-control form-control-sm" id="lan-domain-name" placeholder="local"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="d-flex justify-content-end mt-1">
+                                            <button type="button" class="btn btn-sm btn-secondary mr-2" id="btn-cancel-lan-config">Batal</button>
+                                            <button type="button" class="btn btn-sm btn-primary" id="btn-save-lan-config">
+                                                <i class="fas fa-save mr-1"></i>Simpan ke Perangkat
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -445,11 +506,12 @@
                                 <table class="table table-sm table-striped table-bordered" id="tr069-hosts-table">
                                     <thead class="thead-light">
                                         <tr>
-                                            <th>Hostname</th>
+                                            <th>Perangkat</th>
                                             <th>IP Address</th>
                                             <th>MAC Address</th>
                                             <th>Koneksi</th>
                                             <th>Status</th>
+                                            <th>Aksi</th>
                                         </tr>
                                     </thead>
                                     <tbody></tbody>
@@ -458,6 +520,30 @@
                             <div id="tr069-clients-empty" class="text-center py-4 text-muted" style="display:none">
                                 <i class="fas fa-laptop fa-2x mb-2 d-block text-secondary"></i>
                                 Tidak ada client yang terkoneksi
+                            </div>
+
+                            {{-- Blocked Clients List --}}
+                            <div class="card card-outline card-danger mt-3" id="blocked-clients-card">
+                                <div class="card-header p-2 d-flex justify-content-between align-items-center">
+                                    <span class="font-weight-bold small text-danger">
+                                        <i class="fas fa-ban mr-1"></i>Daftar Blokir
+                                        <span class="badge badge-danger ml-1" id="blocked-count">0</span>
+                                    </span>
+                                    <button type="button" class="btn btn-xs btn-outline-secondary" id="btn-refresh-blocked">
+                                        <i class="fas fa-sync"></i>
+                                    </button>
+                                </div>
+                                <div class="card-body p-0">
+                                    <div id="blocked-empty" class="text-center py-3 text-muted small" style="display:none">
+                                        Tidak ada client yang diblokir
+                                    </div>
+                                    <table class="table table-sm table-borderless mb-0" id="blocked-clients-table">
+                                        <thead class="thead-light" style="display:none">
+                                            <tr><th>Perangkat</th><th>MAC</th><th>IP Terakhir</th><th>Alasan</th><th>Waktu</th><th></th></tr>
+                                        </thead>
+                                        <tbody></tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
 
@@ -1550,14 +1636,15 @@ $(function() {
         }
         $('#tr069-lan-table tbody').html(portHtml);
 
-        // DHCP Server info
+        // DHCP Server info  — also pre-fill edit form
         var dhcp = data.lan_dhcp || {};
         var dhcpHtml = '';
         if (Object.keys(dhcp).length === 0) {
             dhcpHtml = '<tr><td colspan="2" class="text-muted text-center">Data DHCP belum tersedia</td></tr>';
         } else {
+            var dhcpEnable = dhcp.dhcp_server_enable === true || dhcp.dhcp_server_enable === 'true' || dhcp.dhcp_server_enable === '1';
             var dhcpRows = [
-                ['DHCP Server', dhcp.dhcp_server_enable === true || dhcp.dhcp_server_enable === 'true' || dhcp.dhcp_server_enable === '1' ? '<span class="badge badge-success">Enabled</span>' : '<span class="badge badge-secondary">Disabled</span>'],
+                ['DHCP Server', dhcpEnable ? '<span class="badge badge-success">Enabled</span>' : '<span class="badge badge-secondary">Disabled</span>'],
                 ['IP Gateway', dhcp.ip_interface_address || '-'],
                 ['Range IP', (dhcp.min_address||'-') + ' &mdash; ' + (dhcp.max_address||'-')],
                 ['Subnet Mask', dhcp.subnet_mask || '-'],
@@ -1566,10 +1653,19 @@ $(function() {
                 ['MAC Gateway', dhcp.gateway_mac ? '<code>' + dhcp.gateway_mac + '</code>' : '-'],
             ];
             dhcpRows.forEach(function(r) { dhcpHtml += '<tr><td width="40%">' + r[0] + '</td><td>' + r[1] + '</td></tr>'; });
+            // Pre-fill edit form
+            $('#lan-gateway-ip').val(dhcp.ip_interface_address || '');
+            $('#lan-subnet-mask').val(dhcp.subnet_mask || '');
+            $('#lan-dhcp-enable').val(dhcpEnable ? 'true' : 'false');
+            $('#lan-min-address').val(dhcp.min_address || '');
+            $('#lan-max-address').val(dhcp.max_address || '');
+            $('#lan-lease-time').val(dhcp.lease_time || '');
+            $('#lan-dns-servers').val(dhcp.dns_servers || '');
+            $('#lan-domain-name').val(dhcp.domain_name || '');
         }
         $('#tr069-dhcp-table').html(dhcpHtml);
 
-        // Clients (connected hosts)
+        // Clients (connected hosts) with device name detection + block action
         var hosts = data.lan_hosts || [];
         $('#tr069-host-count').text(hosts.length);
         var hostHtml = '';
@@ -1581,7 +1677,6 @@ $(function() {
             $('#tr069-clients-empty').hide();
             hosts.forEach(function(host) {
                 var active = host.active === true || host.active === '1' || host.active === 1;
-                // Determine connection type from InterfaceType
                 var ifType = (host.interface || host.layer2_interface || '').toLowerCase();
                 var connBadge;
                 if (ifType.indexOf('802.11') >= 0 || ifType.indexOf('wifi') >= 0 || ifType.indexOf('wlan') >= 0 || ifType.indexOf('wireless') >= 0) {
@@ -1591,12 +1686,27 @@ $(function() {
                 } else {
                     connBadge = '<span class="badge badge-secondary">' + (host.interface || '-') + '</span>';
                 }
+                var mac = host.mac || '';
+                var vendor = ouiLookup(mac);
+                var hostname = host.hostname || host.host_name || '';
+                var deviceLabel = hostname
+                    ? ('<strong>' + hostname + '</strong>' + (vendor ? ' <small class="text-muted">(' + vendor + ')</small>' : ''))
+                    : (vendor ? '<em class="text-muted">' + vendor + '</em>' : '<em class="text-muted">Unknown</em>');
+                var isBlocked = blockedMacs.indexOf(normalizeMac(mac)) >= 0;
+                var blockBtn = isBlocked
+                    ? '<span class="badge badge-danger"><i class="fas fa-ban mr-1"></i>Blocked</span>'
+                    : '<button type="button" class="btn btn-xs btn-outline-danger btn-block-client"'
+                        + ' data-mac="' + mac + '"'
+                        + ' data-hostname="' + (hostname || '') + '"'
+                        + ' data-ip="' + (host.ip || '') + '">'
+                        + '<i class="fas fa-ban mr-1"></i>Blokir</button>';
                 hostHtml += '<tr class="host-row">';
-                hostHtml += '<td>' + (host.hostname || host.host_name || '<em class="text-muted">Unknown</em>') + '</td>';
+                hostHtml += '<td>' + deviceLabel + '</td>';
                 hostHtml += '<td><code>' + (host.ip || '-') + '</code></td>';
-                hostHtml += '<td><code>' + (host.mac || '-') + '</code></td>';
+                hostHtml += '<td><code class="small">' + (mac || '-') + '</code></td>';
                 hostHtml += '<td>' + connBadge + '</td>';
                 hostHtml += '<td><span class="badge badge-' + (active ? 'success' : 'secondary') + '">' + (active ? 'Active' : 'Inactive') + '</span></td>';
+                hostHtml += '<td>' + blockBtn + '</td>';
                 hostHtml += '</tr>';
             });
         }
@@ -1619,6 +1729,252 @@ $(function() {
             $('#tr069-pending-tasks').hide();
         }
     }
+
+    // ── OUI vendor lookup (common consumer devices) ──
+    var OUI_MAP = {
+        // Apple
+        '000A27':'Apple','000A95':'Apple','000D93':'Apple','001124':'Apple','001451':'Apple',
+        '001B63':'Apple','001E52':'Apple','001EC2':'Apple','002312':'Apple','002500':'Apple',
+        '00261C':'Apple','003065':'Apple','006171':'Apple','040CCE':'Apple','04F7E4':'Apple',
+        '088667':'Apple','0C1539':'Apple','0C3E9F':'Apple','0C4DE9':'Apple','0C7722':'Apple',
+        '10411A':'Apple','109ADD':'Apple','18AF8F':'Apple','1C91ED':'Apple','20A2E4':'Apple',
+        '247290':'Apple','28CFE9':'Apple','2C1F23':'Apple','2CB43A':'Apple','34363B':'Apple',
+        '38C986':'Apple','3C07DA':'Apple','44D884':'Apple','48D705':'Apple','4C57CA':'Apple',
+        '5404A6':'Apple','6C40A9':'Apple','6CAB31':'Apple','70ECE4':'Apple','749EC5':'Apple',
+        '7824AF':'Apple','8089AC':'Apple','80ED2C':'Apple','84388F':'Apple','8CAB8E':'Apple',
+        '90B21F':'Apple','98B8E3':'Apple','A021B7':'Apple','A4C361':'Apple','A4D18C':'Apple',
+        'AC3C0B':'Apple','B0D0E7':'Apple','B8098A':'Apple','BC926B':'Apple','C82A14':'Apple',
+        'D023DB':'Apple','D89695':'Apple','DC2B2A':'Apple','E0AC9B':'Apple','E48B7F':'Apple',
+        'F0B479':'Apple','F0DCE2':'Apple','F82793':'Apple',
+        // Samsung
+        '001247':'Samsung','001599':'Samsung','0015B9':'Samsung','001A8A':'Samsung',
+        '001EB2':'Samsung','001FCC':'Samsung','002566':'Samsung','0026E2':'Samsung',
+        '00E3B2':'Samsung','0816EE':'Samsung','0C7172':'Samsung','10D542':'Samsung',
+        '149182':'Samsung','18AF8F':'Samsung','1C62B8':'Samsung','1C66AA':'Samsung',
+        '201CF1':'Samsung','24C69B':'Samsung','286C07':'Samsung','28987B':'Samsung',
+        '2C2202':'Samsung','2CB53F':'Samsung','30C7AE':'Samsung','340804':'Samsung',
+        '38E7D8':'Samsung','3C62BE':'Samsung','44F459':'Samsung','4844F7':'Samsung',
+        '4C3C16':'Samsung','5001BB':'Samsung','502B73':'Samsung','58C38B':'Samsung',
+        '5C0A5B':'Samsung','60D0A9':'Samsung','6416F0':'Samsung','68EBAE':'Samsung',
+        '6C2F2C':'Samsung','70F927':'Samsung','741BB4':'Samsung','78D6F0':'Samsung',
+        '7C1C4E':'Samsung','842519':'Samsung','84558C':'Samsung','8CC8CD':'Samsung',
+        '8CE748':'Samsung','903469':'Samsung','90E7C4':'Samsung','948011':'Samsung',
+        '9C3AAF':'Samsung','9C65F9':'Samsung','A00798':'Samsung','A4A6A9':'Samsung',
+        'A8F274':'Samsung','AC5F3E':'Samsung','B4EF39':'Samsung','B80C75':'Samsung',
+        'B857D8':'Samsung','BC4486':'Samsung','BCF5AC':'Samsung','C4AE12':'Samsung',
+        'C4933A':'Samsung','C82A69':'Samsung','CC07AB':'Samsung','D022BE':'Samsung',
+        'D4E8B2':'Samsung','D87495':'Samsung','DC0BFC':'Samsung','E498D1':'Samsung',
+        'E4B021':'Samsung','E8039A':'Samsung','EC1F72':'Samsung','EC9BF3':'Samsung',
+        'F025B7':'Samsung','F0E77E':'Samsung','F49F54':'Samsung','F4F5DB':'Samsung',
+        // Xiaomi / Redmi
+        '0C1DAF':'Xiaomi','1860B4':'Xiaomi','285FDB':'Xiaomi','34CE00':'Xiaomi',
+        '50EC50':'Xiaomi','58440E':'Xiaomi','64B473':'Xiaomi','7811DC':'Xiaomi',
+        '8C97EA':'Xiaomi','9AF1CC':'Xiaomi','AC2296':'Xiaomi','D4970B':'Xiaomi',
+        'F48B32':'Xiaomi','FC64BA':'Xiaomi',
+        // Oppo / Realme / OnePlus
+        '001E65':'Oppo','0024D4':'Oppo','2C43BE':'Oppo','3CF9A4':'Oppo',
+        '7C3C3D':'Oppo','84D7EB':'Oppo','BC3AEA':'Oppo','E0E0FC':'Oppo',
+        // Huawei phones/pads (not ONU)
+        '001E10':'Huawei','002568':'Huawei','040188':'Huawei','086371':'Huawei',
+        '109C70':'Huawei','200BC7':'Huawei','24DF6A':'Huawei','2C9DD7':'Huawei',
+        '3485AC':'Huawei','3C9A54':'Huawei','485754':'Huawei','5441F9':'Huawei',
+        '5C4CA9':'Huawei','60DE44':'Huawei','6CE875':'Huawei','784B87':'Huawei',
+        '7C1CF1':'Huawei','8C34FD':'Huawei','9437E1':'Huawei','9C741A':'Huawei',
+        'A4A65F':'Huawei','A89D21':'Huawei','ACA216':'Huawei','B4430D':'Huawei',
+        'B8CBC1':'Huawei','C4072F':'Huawei','C8D15E':'Huawei','CC96A0':'Huawei',
+        'D4F5EF':'Huawei','D8661A':'Huawei','DCA9F0':'Huawei','E8688A':'Huawei',
+        // Google / Pixel / Nest
+        '3C5AB4':'Google','48D6D5':'Google','54807E':'Google','58CB52':'Google',
+        '7887AB':'Google','94EBB0':'Google','A41773':'Google','AC37C7':'Google',
+        'F88FCA':'Google',
+        // Microsoft Surface / Xbox
+        '28244B':'Microsoft','404E36':'Microsoft','606BFF':'Microsoft','7C1E52':'Microsoft',
+        '98F1D9':'Microsoft','9C2A83':'Microsoft','C0334B':'Microsoft',
+        // Lenovo
+        '000732':'Lenovo','18A905':'Lenovo','2C4401':'Lenovo','5405DB':'Lenovo',
+        '606720':'Lenovo','84928E':'Lenovo','9C4EA7':'Lenovo','D05FB8':'Lenovo',
+        'E8339E':'Lenovo',
+        // Dell
+        '002219':'Dell','006498':'Dell','14FEB5':'Dell','18FB7B':'Dell','24B6FD':'Dell',
+        '2C768A':'Dell','384793':'Dell','44A842':'Dell','5C514F':'Dell','84945E':'Dell',
+        'A4C361':'Dell','B083FE':'Dell','BCEE7B':'Dell','E49764':'Dell',
+        // HP
+        '001A4B':'HP','001708':'HP','002264':'HP','00AABB':'HP','08EA40':'HP',
+        '10604B':'HP','1CC1DE':'HP','24BE05':'HP','2C768A':'HP','3499E3':'HP',
+        '3C4A92':'HP','3CB87A':'HP','40B89A':'HP','4865EE':'HP','4C65A8':'HP',
+        '50654B':'HP','5CD998':'HP','60EB69':'HP','70105C':'HP','7476B0':'HP',
+        'C8D3FF':'HP','D49A20':'HP','DC4A3E':'HP','E0D0E9':'HP','E8B117':'HP',
+        // Asus
+        '001D60':'Asus','0050FC':'Asus','08606E':'Asus','1062E5':'Asus','107B44':'Asus',
+        '14858C':'Asus','1C872C':'Asus','20CF30':'Asus','2C56DC':'Asus','30FD38':'Asus',
+        '3C970E':'Asus','48451E':'Asus','4CE676':'Asus','50465D':'Asus','54A050':'Asus',
+        '5C2E59':'Asus','6045CB':'Asus','64006A':'Asus','6C62B7':'Asus','74D02B':'Asus',
+        '7CB21B':'Asus','907282':'Asus','9C5C8E':'Asus','A85840':'Asus','AC9E17':'Asus',
+        'B06EBF':'Asus','BC9746':'Asus','C89435':'Asus','DC85DE':'Asus','E03F49':'Asus',
+        // Realtek (many generic devices)
+        '001B2F':'Realtek','002481':'Realtek',
+    };
+
+    function normalizeMac(mac) {
+        return (mac || '').replace(/[:\-]/g, '').toUpperCase();
+    }
+
+    function ouiLookup(mac) {
+        var norm = normalizeMac(mac);
+        if (norm.length < 6) return '';
+        return OUI_MAP[norm.substring(0, 6)] || '';
+    }
+
+    // Tracked blocked MACs for client table (normalised, no separators)
+    var blockedMacs = [];
+
+    function loadBlockedClients() {
+        $.get('/admin/onus/{{ $onu->id }}/tr069-blocked-clients', function(resp) {
+            if (!resp.success) return;
+            var list = resp.blocked || [];
+            blockedMacs = list.map(function(e) { return normalizeMac(e.mac); });
+            $('#blocked-count').text(list.length);
+            if (list.length === 0) {
+                $('#blocked-clients-table thead').hide();
+                $('#blocked-clients-table tbody').html('');
+                $('#blocked-empty').show();
+            } else {
+                $('#blocked-empty').hide();
+                $('#blocked-clients-table thead').show();
+                var html = '';
+                list.forEach(function(e) {
+                    var vendor = ouiLookup(e.mac);
+                    var deviceLabel = e.hostname && e.hostname !== 'Unknown'
+                        ? e.hostname + (vendor ? ' <small class="text-muted">(' + vendor + ')</small>' : '')
+                        : (vendor || '<em class="text-muted">Unknown</em>');
+                    var blockedAt = e.blocked_at ? (new Date(e.blocked_at)).toLocaleString('id-ID') : '-';
+                    html += '<tr>';
+                    html += '<td>' + deviceLabel + '</td>';
+                    html += '<td><code class="small">' + e.mac + '</code></td>';
+                    html += '<td><code class="small">' + (e.ip || '-') + '</code></td>';
+                    html += '<td class="small text-muted">' + (e.reason || '-') + '</td>';
+                    html += '<td class="small text-muted">' + blockedAt + '</td>';
+                    html += '<td><button type="button" class="btn btn-xs btn-outline-success btn-unblock-client" data-mac="' + e.mac + '">'
+                        + '<i class="fas fa-lock-open mr-1"></i>Unblok</button></td>';
+                    html += '</tr>';
+                });
+                $('#blocked-clients-table tbody').html(html);
+            }
+        });
+    }
+
+    // ── LAN config edit/save ──
+    $('#btn-edit-lan-config').on('click', function() {
+        $('#lan-config-display').hide();
+        $('#lan-config-form').show();
+        $(this).hide();
+    });
+    $('#btn-cancel-lan-config').on('click', function() {
+        $('#lan-config-form').hide();
+        $('#lan-config-display').show();
+        $('#btn-edit-lan-config').show();
+    });
+    $('#btn-save-lan-config').on('click', function() {
+        var $btn = $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Menyimpan...');
+        var payload = {
+            _token: '{{ csrf_token() }}',
+            gateway_ip: $('#lan-gateway-ip').val(),
+            subnet_mask: $('#lan-subnet-mask').val(),
+            dhcp_server_enable: $('#lan-dhcp-enable').val() === 'true' ? 1 : 0,
+            min_address: $('#lan-min-address').val(),
+            max_address: $('#lan-max-address').val(),
+            lease_time: $('#lan-lease-time').val(),
+            dns_servers: $('#lan-dns-servers').val(),
+            domain_name: $('#lan-domain-name').val(),
+        };
+        $.post('/admin/onus/{{ $onu->id }}/tr069-lan', payload, function(resp) {
+            if (resp.success) {
+                toastr.success(resp.message || 'Konfigurasi LAN berhasil disimpan.');
+                $('#btn-cancel-lan-config').trigger('click');
+            } else {
+                toastr.error(resp.message || 'Gagal menyimpan konfigurasi LAN.');
+            }
+        }).fail(function(xhr) {
+            toastr.error('Error: ' + (xhr.responseJSON?.message || xhr.statusText));
+        }).always(function() {
+            $btn.prop('disabled', false).html('<i class="fas fa-save mr-1"></i>Simpan ke Perangkat');
+        });
+    });
+
+    // ── Block client ──
+    $(document).on('click', '.btn-block-client', function() {
+        var mac      = $(this).data('mac');
+        var hostname = $(this).data('hostname') || '';
+        var ip       = $(this).data('ip') || '';
+        Swal.fire({
+            title: 'Blokir Client?',
+            html: '<b>' + (hostname || mac) + '</b><br><code class="small">' + mac + '</code>',
+            input: 'text',
+            inputPlaceholder: 'Alasan (opsional)',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            confirmButtonText: 'Blokir',
+            cancelButtonText: 'Batal',
+        }).then(function(result) {
+            if (!result.isConfirmed) return;
+            $.post('/admin/onus/{{ $onu->id }}/tr069-block-client', {
+                _token: '{{ csrf_token() }}',
+                mac: mac, hostname: hostname, ip: ip,
+                reason: result.value || '',
+            }, function(resp) {
+                if (resp.success) {
+                    toastr.warning(hostname ? hostname + ' diblokir.' : mac + ' diblokir.');
+                    loadBlockedClients();
+                    loadTr069Summary(); // refresh host table
+                } else {
+                    toastr.error(resp.message || 'Gagal memblokir client.');
+                }
+            }).fail(function(xhr) {
+                toastr.error('Error: ' + (xhr.responseJSON?.message || xhr.statusText));
+            });
+        });
+    });
+
+    // ── Unblock client ──
+    $(document).on('click', '.btn-unblock-client', function() {
+        var mac = $(this).data('mac');
+        Swal.fire({
+            title: 'Unblok Client?',
+            html: 'MAC: <code>' + mac + '</code>',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#28a745',
+            confirmButtonText: 'Unblok',
+            cancelButtonText: 'Batal',
+        }).then(function(result) {
+            if (!result.isConfirmed) return;
+            $.post('/admin/onus/{{ $onu->id }}/tr069-unblock-client', {
+                _token: '{{ csrf_token() }}',
+                mac: mac,
+            }, function(resp) {
+                if (resp.success) {
+                    toastr.success('Client berhasil di-unblok.');
+                    loadBlockedClients();
+                    loadTr069Summary();
+                } else {
+                    toastr.error(resp.message || 'Gagal unblok client.');
+                }
+            }).fail(function(xhr) {
+                toastr.error('Error: ' + (xhr.responseJSON?.message || xhr.statusText));
+            });
+        });
+    });
+
+    // ── Refresh blocked list button ──
+    $('#btn-refresh-blocked').on('click', function() {
+        loadBlockedClients();
+    });
+
+    // Load blocked clients on Clients tab click
+    $('a[href="#acs-clients"]').on('shown.bs.tab', function() {
+        loadBlockedClients();
+    });
 
     function formatUptime(seconds) {
         if (!seconds) return '-';
@@ -2208,6 +2564,7 @@ $(function() {
         var btn = $(this);
         btn.find('i').addClass('fa-spin');
         loadTr069Summary();
+        loadBlockedClients();
         setTimeout(function() { btn.find('i').removeClass('fa-spin'); }, 2000);
     });
 
