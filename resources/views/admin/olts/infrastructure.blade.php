@@ -14,9 +14,9 @@
 @push('css')
 <style>
     /* Shelf Slot Visual */
-    .shelf-container { background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%); border-radius: 12px; padding: 24px; box-shadow: inset 0 2px 10px rgba(0,0,0,0.3); }
+    .shelf-container { background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; }
     .shelf-slot {
-        border: 2px solid rgba(255,255,255,0.06);
+        border: 2px solid #e2e8f0;
         border-radius: 10px;
         text-align: center;
         padding: 10px 6px;
@@ -25,24 +25,23 @@
         transition: all 0.3s cubic-bezier(.4,0,.2,1);
         cursor: pointer;
         position: relative;
-        background: rgba(255,255,255,0.02);
-        backdrop-filter: blur(4px);
+        background: #fff;
     }
-    .shelf-slot:hover:not(.empty-slot) { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
-    .shelf-slot.active-gpon { border-color: #22c55e; background: linear-gradient(180deg, rgba(34,197,94,0.18) 0%, rgba(34,197,94,0.04) 100%); }
-    .shelf-slot.active-epon { border-color: #06b6d4; background: linear-gradient(180deg, rgba(6,182,212,0.18) 0%, rgba(6,182,212,0.04) 100%); }
+    .shelf-slot:hover:not(.empty-slot) { transform: translateY(-4px); box-shadow: 0 6px 20px rgba(0,0,0,0.1); }
+    .shelf-slot.active-gpon { border-color: #22c55e; background: linear-gradient(180deg, #f0fdf4 0%, #fff 100%); }
+    .shelf-slot.active-epon { border-color: #06b6d4; background: linear-gradient(180deg, #ecfeff 0%, #fff 100%); }
     .shelf-slot.active-mgmt,
-    .shelf-slot.active-management { border-color: #eab308; background: linear-gradient(180deg, rgba(234,179,8,0.18) 0%, rgba(234,179,8,0.04) 100%); }
-    .shelf-slot.active-power { border-color: #ef4444; background: linear-gradient(180deg, rgba(239,68,68,0.18) 0%, rgba(239,68,68,0.04) 100%); }
-    .shelf-slot.active-fan { border-color: #a855f7; background: linear-gradient(180deg, rgba(168,85,247,0.18) 0%, rgba(168,85,247,0.04) 100%); }
-    .shelf-slot.active-other { border-color: #64748b; background: linear-gradient(180deg, rgba(100,116,139,0.18) 0%, rgba(100,116,139,0.04) 100%); }
+    .shelf-slot.active-management { border-color: #f59e0b; background: linear-gradient(180deg, #fffbeb 0%, #fff 100%); }
+    .shelf-slot.active-power { border-color: #ef4444; background: linear-gradient(180deg, #fef2f2 0%, #fff 100%); }
+    .shelf-slot.active-fan { border-color: #a855f7; background: linear-gradient(180deg, #faf5ff 0%, #fff 100%); }
+    .shelf-slot.active-other { border-color: #94a3b8; background: linear-gradient(180deg, #f8fafc 0%, #fff 100%); }
     .shelf-slot.empty-slot { display: none; }
-    .shelf-slot.standby { border-style: dashed; opacity: 0.5; }
-    .shelf-slot .slot-label { font-size: 9px; color: rgba(255,255,255,0.3); letter-spacing: 1px; text-transform: uppercase; }
-    .shelf-slot .slot-type { font-size: 13px; font-weight: 700; color: #fff; margin: 4px 0 2px; }
-    .shelf-slot .slot-ports { font-size: 9px; color: rgba(255,255,255,0.4); }
+    .shelf-slot.standby { border-style: dashed; opacity: 0.6; }
+    .shelf-slot .slot-label { font-size: 9px; color: #94a3b8; letter-spacing: 1px; text-transform: uppercase; }
+    .shelf-slot .slot-type { font-size: 13px; font-weight: 700; color: #1e293b; margin: 4px 0 2px; }
+    .shelf-slot .slot-ports { font-size: 9px; color: #64748b; }
     .shelf-slot .slot-badge { font-size: 8px; padding: 2px 8px; border-radius: 4px; }
-    .shelf-slot.selected { box-shadow: 0 0 0 3px #3b82f6, 0 8px 24px rgba(59,130,246,0.4); transform: translateY(-4px); }
+    .shelf-slot.selected { box-shadow: 0 0 0 3px #3b82f6, 0 6px 20px rgba(59,130,246,0.2); transform: translateY(-4px); border-color: #3b82f6; }
 
     /* PON Port Cell */
     .pon-port-cell {
@@ -660,14 +659,14 @@
                     <!-- Shelf Visual -->
                     <div class="shelf-container mb-4">
                         <div class="d-flex align-items-center mb-3">
-                            <span class="text-white font-weight-bold" style="font-size: 12px; letter-spacing: 1px; text-transform: uppercase;">
-                                <i class="fas fa-th mr-2" style="opacity: 0.5;"></i>RACK {{ $olt->cards->first()->rack ?? 1 }} / SHELF {{ $olt->cards->first()->shelf ?? 1 }}
+                            <span class="font-weight-bold" style="font-size: 12px; letter-spacing: 1px; text-transform: uppercase; color: #475569;">
+                                <i class="fas fa-th mr-2" style="color: #94a3b8;"></i>RACK {{ $olt->cards->first()->rack ?? 1 }} / SHELF {{ $olt->cards->first()->shelf ?? 1 }}
                             </span>
                             <div class="ml-auto d-flex align-items-center" style="gap: 16px;">
-                                <small style="color: rgba(255,255,255,0.5); font-size: 11px;"><i class="fas fa-circle mr-1" style="color: #22c55e; font-size: 7px;"></i>GPON</small>
-                                <small style="color: rgba(255,255,255,0.5); font-size: 11px;"><i class="fas fa-circle mr-1" style="color: #eab308; font-size: 7px;"></i>MGMT</small>
-                                <small style="color: rgba(255,255,255,0.5); font-size: 11px;"><i class="fas fa-circle mr-1" style="color: #ef4444; font-size: 7px;"></i>Power</small>
-                                <span class="badge" style="background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.6); font-size: 11px; padding: 4px 10px; border-radius: 6px;">{{ $olt->cards->count() }}/20 slot terisi</span>
+                                <small style="color: #64748b; font-size: 11px;"><i class="fas fa-circle mr-1" style="color: #22c55e; font-size: 7px;"></i>GPON</small>
+                                <small style="color: #64748b; font-size: 11px;"><i class="fas fa-circle mr-1" style="color: #f59e0b; font-size: 7px;"></i>MGMT</small>
+                                <small style="color: #64748b; font-size: 11px;"><i class="fas fa-circle mr-1" style="color: #ef4444; font-size: 7px;"></i>Power</small>
+                                <span class="badge" style="background: #e2e8f0; color: #64748b; font-size: 11px; padding: 4px 10px; border-radius: 6px;">{{ $olt->cards->count() }}/20 slot terisi</span>
                             </div>
                         </div>
                         <div class="d-flex flex-wrap" style="gap: 8px;">
