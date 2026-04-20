@@ -616,6 +616,14 @@ class GenieAcsService
                 $lhcm = $ldValue['LANHostConfigManagement'] ?? [];
                 if (empty($lhcm)) continue;
 
+                // Detect if critical params have never been fetched (no _value/_timestamp)
+                // If so, trigger a targeted getParameterValues in the background.
+                $hasIpValue = isset($lhcm['IPRouters']['_value']) || isset($lhcm['IPRouters']['_timestamp']);
+                $hasDhcpValue = isset($lhcm['DHCPServerEnable']['_value']) || isset($lhcm['DHCPServerEnable']['_timestamp']);
+                if (!$hasIpValue || !$hasDhcpValue) {
+                    $this->triggerLanParamFetch($deviceId, (string) $ldKey);
+                }
+
                 // IP address: try LANHostConfigManagement.IPRouters first,
                 // then fall back to LANIPInterface.1.IPInterfaceIPAddress (Huawei / some vendors)
                 $ipAddress  = $this->getValue($lhcm, 'IPRouters');
@@ -639,6 +647,7 @@ class GenieAcsService
                     'dns_servers'          => $this->getValue($lhcm, 'DNSServers'),
                     'domain_name'          => $this->getValue($lhcm, 'DomainName'),
                     'gateway_mac'          => $this->getValue($lhcm, 'MACAddress'),
+                    'needs_fetch'          => (!$hasIpValue || !$hasDhcpValue),
                 ];
                 break;
             }
@@ -996,12 +1005,64 @@ class GenieAcsService
     }
 
     /**
+     * Fire-and-forget: request specific LANHostConfigManagement parameter values
+     * for devices where GenieACS has the param definition but no fetched value.
+     */
+    protected function triggerLanParamFetch(string $deviceId, string $lanIndex = '1'): void
+    {
+        $base = "InternetGatewayDevice.LANDevice.{$lanIndex}.LANHostConfigManagement";
+        $params = [
+            "{$base}.IPRouters",
+            "{$base}.SubnetMask",
+            "{$base}.DHCPServerEnable",
+            "{$base}.MinAddress",
+            "{$base}.MaxAddress",
+            "{$base}.DHCPLeaseTime",
+            "{$base}.DNSServers",
+            "{$base}.DomainName",
+            "{$base}.MACAddress",
+        ];
+        try {
+            Http::timeout(5)->asJson()->post(
+                "{$this->nbiUrl}/devices/{$deviceId}/tasks?connection_request",
+                ['name' => 'getParameterValues', 'parameterNames' => $params]
+            );
+        } catch (Exception $e) {
+            Log::warning("GenieACS triggerLanParamFetch: " . $e->getMessage());
+        }
+    }
+
+    /**
      * Smart refresh: clear existing getParameterValues tasks first, then create one.
+     * Also sends a targeted task for LAN/DHCP params that may never have been fetched.
      */
     public function smartRefresh(string $deviceId): array
     {
         // Clear existing pending getParameterValues tasks to avoid accumulation
         $this->clearDeviceTasks($deviceId, 'getParameterValues');
+
+        // Targeted task: force-fetch LANHostConfigManagement fields that
+        // GenieACS may only know as "writable" but never retrieved the values for.
+        $lanParams = [
+            'InternetGatewayDevice.LANDevice.1.LANHostConfigManagement.IPRouters',
+            'InternetGatewayDevice.LANDevice.1.LANHostConfigManagement.SubnetMask',
+            'InternetGatewayDevice.LANDevice.1.LANHostConfigManagement.DHCPServerEnable',
+            'InternetGatewayDevice.LANDevice.1.LANHostConfigManagement.MinAddress',
+            'InternetGatewayDevice.LANDevice.1.LANHostConfigManagement.MaxAddress',
+            'InternetGatewayDevice.LANDevice.1.LANHostConfigManagement.DHCPLeaseTime',
+            'InternetGatewayDevice.LANDevice.1.LANHostConfigManagement.DNSServers',
+            'InternetGatewayDevice.LANDevice.1.LANHostConfigManagement.DomainName',
+        ];
+        try {
+            Http::timeout($this->timeout)
+                ->asJson()
+                ->post("{$this->nbiUrl}/devices/{$deviceId}/tasks?connection_request", [
+                    'name'           => 'getParameterValues',
+                    'parameterNames' => $lanParams,
+                ]);
+        } catch (Exception $e) {
+            Log::warning("GenieACS smartRefresh LAN task error: " . $e->getMessage());
+        }
 
         return $this->refreshDevice($deviceId, 'InternetGatewayDevice.');
     }

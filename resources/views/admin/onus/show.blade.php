@@ -1670,11 +1670,22 @@ $(function() {
         // IP LAN & DHCP Server info — split display + pre-fill edit form
         var dhcp = data.lan_dhcp || {};
         var noData = Object.keys(dhcp).length === 0;
+        var needsFetch = dhcp.needs_fetch === true;
         var dhcpEnable = !noData && (dhcp.dhcp_server_enable === true || dhcp.dhcp_server_enable === 'true' || dhcp.dhcp_server_enable === '1');
+
+        // If data is "structurally present" but values haven't been fetched yet,
+        // auto-start polling so the UI refreshes when device checks in.
+        if (needsFetch && !pollTimer) {
+            var $refreshBtn = $('.btn-refresh-tr069, .btn-refresh-tr069-data').first();
+            $refreshBtn.find('i').addClass('fa-spin');
+            startPoll($refreshBtn, 'refresh');
+        }
 
         // IP config display table
         var ipHtml = noData
             ? '<tr><td class="text-muted text-center small">Belum tersedia</td></tr>'
+            : needsFetch
+                ? '<tr><td class="text-muted text-center small"><i class="fas fa-sync fa-spin mr-1"></i>Mengambil data dari device, tunggu sebentar…</td></tr>'
             : [
                 ['IP Address LAN', dhcp.ip_interface_address ? '<code>' + dhcp.ip_interface_address + '</code>' : '<span class="text-muted">-</span>'],
                 ['Subnet Mask', dhcp.subnet_mask || '-'],
@@ -1685,6 +1696,8 @@ $(function() {
         // DHCP display table
         var dhcpHtml = noData
             ? '<tr><td class="text-muted text-center small">Belum tersedia</td></tr>'
+            : needsFetch
+                ? '<tr><td class="text-muted text-center small"><i class="fas fa-sync fa-spin mr-1"></i>Mengambil data dari device, tunggu sebentar…</td></tr>'
             : [
                 ['DHCP Server', dhcpEnable ? '<span class="badge badge-success">Enabled</span>' : '<span class="badge badge-secondary">Disabled</span>'],
                 ['Range IP', (dhcp.min_address||'-') + ' &ndash; ' + (dhcp.max_address||'-')],
