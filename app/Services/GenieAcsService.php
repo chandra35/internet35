@@ -565,13 +565,16 @@ class GenieAcsService
                 foreach ($ethConfig as $eKey => $eValue) {
                     if (!is_array($eValue) || $eKey === '_object' || $eKey === '_writable' || $eKey === '_timestamp') continue;
                     $ports[] = [
-                        'path' => "InternetGatewayDevice.LANDevice.{$ldKey}.LANEthernetInterfaceConfig.{$eKey}",
-                        'name' => "eth_0/{$eKey}",
-                        'enabled' => $this->getValue($eValue, 'Enable'),
-                        'status' => $this->getValue($eValue, 'Status'),
-                        'mac_address' => $this->getValue($eValue, 'MACAddress'),
+                        'path'       => "InternetGatewayDevice.LANDevice.{$ldKey}.LANEthernetInterfaceConfig.{$eKey}",
+                        'index'      => (int) $eKey,
+                        'name'       => $this->getValue($eValue, 'Name') ?: "eth0:{$eKey}",
+                        'enabled'    => $this->getValue($eValue, 'Enable'),
+                        'status'     => $this->getValue($eValue, 'Status'),
+                        'mac_address'=> $this->getValue($eValue, 'MACAddress'),
                         'max_bit_rate' => $this->getValue($eValue, 'MaxBitRate'),
-                        'duplex_mode' => $this->getValue($eValue, 'DuplexMode'),
+                        'hw_speed'   => $this->getValue($eValue, 'X_HW_Speed'),
+                        'duplex_mode'=> $this->getValue($eValue, 'DuplexMode'),
+                        'hw_duplex'  => $this->getValue($eValue, 'X_HW_DuplexMode'),
                     ];
                 }
             }
@@ -579,6 +582,52 @@ class GenieAcsService
             return $ports;
         } catch (Exception $e) {
             Log::error("GenieACS getLanPortInfo error: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Get DHCP server info from LANHostConfigManagement.
+     */
+    public function getLanDhcpInfo(string $deviceId): array
+    {
+        try {
+            $response = Http::timeout($this->timeout)
+                ->get("{$this->nbiUrl}/devices", [
+                    'query' => json_encode(['_id' => $deviceId]),
+                ]);
+
+            if (!$response->ok()) return [];
+
+            $devices = $response->json();
+            if (empty($devices)) return [];
+
+            $device = $devices[0];
+            $igd = $device['InternetGatewayDevice'] ?? $device['Device'] ?? [];
+            $lanDevice = $igd['LANDevice'] ?? [];
+            $result = [];
+
+            foreach ($lanDevice as $ldKey => $ldValue) {
+                if (!is_array($ldValue) || $ldKey === '_object' || $ldKey === '_writable' || $ldKey === '_timestamp') continue;
+                $lhcm = $ldValue['LANHostConfigManagement'] ?? [];
+                if (empty($lhcm)) continue;
+                $result = [
+                    'dhcp_server_enable' => $this->getValue($lhcm, 'DHCPServerEnable'),
+                    'ip_interface_address' => $this->getValue($lhcm, 'IPRouters'),
+                    'min_address' => $this->getValue($lhcm, 'MinAddress'),
+                    'max_address' => $this->getValue($lhcm, 'MaxAddress'),
+                    'subnet_mask' => $this->getValue($lhcm, 'SubnetMask'),
+                    'lease_time' => $this->getValue($lhcm, 'DHCPLeaseTime'),
+                    'dns_servers' => $this->getValue($lhcm, 'DNSServers'),
+                    'domain_name' => $this->getValue($lhcm, 'DomainName'),
+                    'gateway_mac' => $this->getValue($lhcm, 'MACAddress'),
+                ];
+                break;
+            }
+
+            return $result;
+        } catch (Exception $e) {
+            Log::error("GenieACS getLanDhcpInfo error: " . $e->getMessage());
             return [];
         }
     }
@@ -715,6 +764,18 @@ class GenieAcsService
     }
 
     /**
+     * Change web UI user password via X_HW_UserInfo.
+     * For HG8245H: username is 'admin' (user level) or 'telecomadmin' (admin level).
+     */
+    public function setWebUserPassword(string $deviceId, string $username, string $password): array
+    {
+        return $this->setParameterValues($deviceId, [
+            'InternetGatewayDevice.X_HW_UserInfo.UserName' => [$username, 'xsd:string'],
+            'InternetGatewayDevice.X_HW_UserInfo.Password' => [$password, 'xsd:string'],
+        ], true);
+    }
+
+    /**
      * Get comprehensive device summary for TR069 management page.
      */
     public function getDeviceSummary(string $deviceId): ?array
@@ -728,6 +789,7 @@ class GenieAcsService
             'wifi' => $this->getWifiInfo($deviceId),
             'lan_ports' => $this->getLanPortInfo($deviceId),
             'lan_hosts' => $this->getLanHosts($deviceId),
+            'lan_dhcp' => $this->getLanDhcpInfo($deviceId),
             'tasks' => $this->getDeviceTasks($deviceId),
         ];
     }

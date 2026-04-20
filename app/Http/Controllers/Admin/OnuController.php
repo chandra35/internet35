@@ -1352,6 +1352,36 @@ class OnuController extends Controller implements HasMiddleware
         }
     }
 
+    /**
+     * Change web UI user password via TR-069 X_HW_UserInfo.
+     */
+    public function changeTr069UserPassword(Onu $onu, Request $request)
+    {
+        $request->validate([
+            'username' => 'required|in:admin,telecomadmin',
+            'password' => 'required|string|min:6|max:30',
+        ]);
+
+        try {
+            $genieacs = new \App\Services\GenieAcsService();
+            $device = $genieacs->findDeviceBySerial($onu->serial_number);
+
+            if (!$device) {
+                return response()->json(['success' => false, 'message' => 'Device tidak ditemukan di GenieACS']);
+            }
+
+            $result = $genieacs->setWebUserPassword($device['device_id'], $request->username, $request->password);
+
+            return response()->json(array_merge($result, [
+                'message' => $result['success']
+                    ? "Password user '{$request->username}' berhasil diubah."
+                    : ($result['message'] ?? 'Gagal mengubah password'),
+            ]));
+        } catch (Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
 
     /**
      * Add a new WiFi SSID instance via TR-069 AddObject.

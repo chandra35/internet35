@@ -349,7 +349,8 @@
                         <li class="nav-item"><a class="nav-link" data-toggle="pill" href="#acs-wan"><i class="fas fa-globe mr-1"></i>WAN <span class="badge badge-light" id="tr069-wan-count">0</span></a></li>
                         <li class="nav-item"><a class="nav-link" data-toggle="pill" href="#acs-wifi"><i class="fas fa-wifi mr-1"></i>WiFi <span class="badge badge-light" id="tr069-wifi-count">0</span></a></li>
                         <li class="nav-item"><a class="nav-link" data-toggle="pill" href="#acs-lan"><i class="fas fa-ethernet mr-1"></i>LAN</a></li>
-                        <li class="nav-item"><a class="nav-link" data-toggle="pill" href="#acs-users"><i class="fas fa-users mr-1"></i>Users <span class="badge badge-light" id="tr069-host-count">0</span></a></li>
+                        <li class="nav-item"><a class="nav-link" data-toggle="pill" href="#acs-clients"><i class="fas fa-laptop mr-1"></i>Clients <span class="badge badge-light" id="tr069-host-count">0</span></a></li>
+                        <li class="nav-item"><a class="nav-link" data-toggle="pill" href="#acs-users"><i class="fas fa-user-shield mr-1"></i>Users</a></li>
                         <li class="nav-item"><a class="nav-link" data-toggle="pill" href="#acs-security"><i class="fas fa-shield-alt mr-1"></i>Security</a></li>
                         <li class="nav-item"><a class="nav-link" data-toggle="pill" href="#acs-firmware"><i class="fas fa-microchip mr-1"></i>Firmware</a></li>
                     </ul>
@@ -417,21 +418,27 @@
                         {{-- LAN --}}
                         <div class="tab-pane fade" id="acs-lan">
                             <h6 class="mb-3"><i class="fas fa-ethernet mr-1"></i>LAN Ports</h6>
-                            <div class="table-responsive">
+                            <div class="table-responsive mb-3">
                                 <table class="table table-sm table-striped table-bordered" id="tr069-lan-table">
                                     <thead class="thead-light">
-                                        <tr><th>Port</th><th>Status</th><th>Speed</th><th>MAC Address</th></tr>
+                                        <tr><th>Port</th><th>Nama</th><th>Status</th><th>Speed</th><th>Duplex</th><th>MAC Address</th></tr>
                                     </thead>
                                     <tbody></tbody>
                                 </table>
                             </div>
+                            <h6 class="mb-2"><i class="fas fa-server mr-1"></i>DHCP Server</h6>
+                            <div class="acs-card">
+                                <div class="card-body p-0">
+                                    <table class="table table-sm table-striped table-acs mb-0" id="tr069-dhcp-table"></table>
+                                </div>
+                            </div>
                         </div>
 
-                        {{-- Users / Connected Hosts --}}
-                        <div class="tab-pane fade" id="acs-users">
+                        {{-- Clients / Connected Hosts --}}
+                        <div class="tab-pane fade" id="acs-clients">
                             <div class="d-flex justify-content-between align-items-center mb-3">
-                                <h6 class="mb-0"><i class="fas fa-users mr-1"></i>Connected Devices / Hosts</h6>
-                                <button class="btn btn-sm btn-outline-primary btn-refresh-users">
+                                <h6 class="mb-0"><i class="fas fa-laptop mr-1"></i>Client Terkoneksi</h6>
+                                <button class="btn btn-sm btn-outline-primary btn-refresh-clients">
                                     <i class="fas fa-sync mr-1"></i>Refresh
                                 </button>
                             </div>
@@ -442,16 +449,62 @@
                                             <th>Hostname</th>
                                             <th>IP Address</th>
                                             <th>MAC Address</th>
-                                            <th>Interface</th>
+                                            <th>Koneksi</th>
                                             <th>Status</th>
                                         </tr>
                                     </thead>
                                     <tbody></tbody>
                                 </table>
                             </div>
-                            <div id="tr069-users-empty" class="text-center py-4 text-muted" style="display:none">
-                                <i class="fas fa-users fa-2x mb-2 d-block text-secondary"></i>
-                                Tidak ada host/device yang terdeteksi
+                            <div id="tr069-clients-empty" class="text-center py-4 text-muted" style="display:none">
+                                <i class="fas fa-laptop fa-2x mb-2 d-block text-secondary"></i>
+                                Tidak ada client yang terkoneksi
+                            </div>
+                        </div>
+
+                        {{-- Users / Web UI Login Accounts --}}
+                        <div class="tab-pane fade" id="acs-users">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="mb-0"><i class="fas fa-user-shield mr-1"></i>Akun Login Web UI ONU</h6>
+                                <small class="text-muted">Username &amp; password untuk login ke halaman web ONU</small>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="acs-card">
+                                        <div class="acs-section-header"><i class="fas fa-user-cog mr-1 text-primary"></i>Admin <span class="badge badge-danger ml-1">telecomadmin</span></div>
+                                        <div class="card-body">
+                                            <p class="text-muted small mb-2">Level: <strong>Super Admin</strong> — akses penuh ke semua konfigurasi ONU</p>
+                                            <div class="input-group input-group-sm">
+                                                <input type="password" class="form-control" id="pw-telecomadmin" placeholder="Password baru (min 6 karakter)" autocomplete="new-password">
+                                                <div class="input-group-append">
+                                                    <button class="btn btn-primary btn-change-user-pw" data-user="telecomadmin" type="button">
+                                                        <i class="fas fa-key mr-1"></i>Ganti Password
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="acs-card">
+                                        <div class="acs-section-header"><i class="fas fa-user mr-1 text-success"></i>User <span class="badge badge-secondary ml-1">admin</span></div>
+                                        <div class="card-body">
+                                            <p class="text-muted small mb-2">Level: <strong>User</strong> — akses terbatas, hanya lihat status &amp; ubah password WiFi</p>
+                                            <div class="input-group input-group-sm">
+                                                <input type="password" class="form-control" id="pw-admin" placeholder="Password baru (min 6 karakter)" autocomplete="new-password">
+                                                <div class="input-group-append">
+                                                    <button class="btn btn-success btn-change-user-pw" data-user="admin" type="button">
+                                                        <i class="fas fa-key mr-1"></i>Ganti Password
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="alert alert-info alert-sm mt-2 mb-0">
+                                <i class="fas fa-info-circle mr-1"></i>
+                                Password diubah via TR-069 (tidak perlu login ke ONU). Perubahan akan langsung dikirim ke perangkat.
                             </div>
                         </div>
 
@@ -1362,37 +1415,74 @@ $(function() {
         var ports = data.lan_ports || [];
         var portHtml = '';
         if (ports.length === 0) {
-            portHtml = '<tr><td colspan="4" class="text-center text-muted">Tidak ada data LAN port</td></tr>';
+            portHtml = '<tr><td colspan="6" class="text-center text-muted">Tidak ada data LAN port — klik Refresh Data untuk memuat</td></tr>';
         } else {
             ports.forEach(function(port) {
                 var sb = port.status === 'Up' ? 'success' : 'secondary';
+                var speed = port.hw_speed || port.max_bit_rate || '-';
+                // Format speed: Auto_1000 → 1000 Mbps, Auto_10 → 10 Mbps
+                speed = speed.replace('Auto_', '').replace('Auto','Auto');
+                if (!isNaN(speed)) speed = speed + ' Mbps';
+                var duplex = port.hw_duplex || port.duplex_mode || '-';
+                duplex = duplex.replace('Auto_', '');
                 portHtml += '<tr>';
-                portHtml += '<td><strong>' + (port.name || '-') + '</strong></td>';
+                portHtml += '<td><strong>Port ' + (port.index || '-') + '</strong></td>';
+                portHtml += '<td><small class="text-muted">' + (port.name || '-') + '</small></td>';
                 portHtml += '<td><span class="badge badge-' + sb + '">' + (port.status || '-') + '</span></td>';
-                portHtml += '<td>' + (port.max_bit_rate || '-') + '</td>';
-                portHtml += '<td><code>' + (port.mac_address || '-') + '</code></td>';
+                portHtml += '<td>' + speed + '</td>';
+                portHtml += '<td>' + duplex + '</td>';
+                portHtml += '<td><code class="small">' + (port.mac_address || '-') + '</code></td>';
                 portHtml += '</tr>';
             });
         }
         $('#tr069-lan-table tbody').html(portHtml);
 
-        // Hosts
+        // DHCP Server info
+        var dhcp = data.lan_dhcp || {};
+        var dhcpHtml = '';
+        if (Object.keys(dhcp).length === 0) {
+            dhcpHtml = '<tr><td colspan="2" class="text-muted text-center">Data DHCP belum tersedia</td></tr>';
+        } else {
+            var dhcpRows = [
+                ['DHCP Server', dhcp.dhcp_server_enable === true || dhcp.dhcp_server_enable === 'true' || dhcp.dhcp_server_enable === '1' ? '<span class="badge badge-success">Enabled</span>' : '<span class="badge badge-secondary">Disabled</span>'],
+                ['IP Gateway', dhcp.ip_interface_address || '-'],
+                ['Range IP', (dhcp.min_address||'-') + ' &mdash; ' + (dhcp.max_address||'-')],
+                ['Subnet Mask', dhcp.subnet_mask || '-'],
+                ['Lease Time', dhcp.lease_time ? (dhcp.lease_time + ' detik (' + Math.round(dhcp.lease_time/3600) + ' jam)') : '-'],
+                ['DNS Servers', dhcp.dns_servers || '-'],
+                ['MAC Gateway', dhcp.gateway_mac ? '<code>' + dhcp.gateway_mac + '</code>' : '-'],
+            ];
+            dhcpRows.forEach(function(r) { dhcpHtml += '<tr><td width="40%">' + r[0] + '</td><td>' + r[1] + '</td></tr>'; });
+        }
+        $('#tr069-dhcp-table').html(dhcpHtml);
+
+        // Clients (connected hosts)
         var hosts = data.lan_hosts || [];
         $('#tr069-host-count').text(hosts.length);
         var hostHtml = '';
         if (hosts.length === 0) {
             $('#tr069-hosts-table').closest('.table-responsive').hide();
-            $('#tr069-users-empty').show();
+            $('#tr069-clients-empty').show();
         } else {
             $('#tr069-hosts-table').closest('.table-responsive').show();
-            $('#tr069-users-empty').hide();
+            $('#tr069-clients-empty').hide();
             hosts.forEach(function(host) {
                 var active = host.active === true || host.active === '1' || host.active === 1;
+                // Determine connection type from InterfaceType
+                var ifType = (host.interface || host.layer2_interface || '').toLowerCase();
+                var connBadge;
+                if (ifType.indexOf('802.11') >= 0 || ifType.indexOf('wifi') >= 0 || ifType.indexOf('wlan') >= 0 || ifType.indexOf('wireless') >= 0) {
+                    connBadge = '<span class="badge badge-info"><i class="fas fa-wifi mr-1"></i>WiFi</span>';
+                } else if (ifType.indexOf('ethernet') >= 0 || ifType.indexOf('eth') >= 0) {
+                    connBadge = '<span class="badge badge-warning"><i class="fas fa-ethernet mr-1"></i>LAN</span>';
+                } else {
+                    connBadge = '<span class="badge badge-secondary">' + (host.interface || '-') + '</span>';
+                }
                 hostHtml += '<tr class="host-row">';
                 hostHtml += '<td>' + (host.hostname || host.host_name || '<em class="text-muted">Unknown</em>') + '</td>';
                 hostHtml += '<td><code>' + (host.ip || '-') + '</code></td>';
                 hostHtml += '<td><code>' + (host.mac || '-') + '</code></td>';
-                hostHtml += '<td>' + (host.interface || host.layer2_interface || '-') + '</td>';
+                hostHtml += '<td>' + connBadge + '</td>';
                 hostHtml += '<td><span class="badge badge-' + (active ? 'success' : 'secondary') + '">' + (active ? 'Active' : 'Inactive') + '</span></td>';
                 hostHtml += '</tr>';
             });
@@ -1891,12 +1981,40 @@ $(function() {
             .always(function() { btn.prop('disabled', false).find('i').removeClass('fa-spin'); });
     });
 
-    // Users tab: refresh
-    $('.btn-refresh-users').click(function() {
+    // Clients tab: refresh
+    $('.btn-refresh-clients').click(function() {
         var btn = $(this);
         btn.find('i').addClass('fa-spin');
         loadTr069Summary();
         setTimeout(function() { btn.find('i').removeClass('fa-spin'); }, 2000);
+    });
+
+    // Users tab: change web UI password
+    $(document).on('click', '.btn-change-user-pw', function() {
+        var username = $(this).data('user');
+        var pwField = username === 'telecomadmin' ? '#pw-telecomadmin' : '#pw-admin';
+        var password = $(pwField).val().trim();
+        if (!password || password.length < 6) {
+            toastr.warning('Password minimal 6 karakter');
+            return;
+        }
+        var btn = $(this);
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Mengirim...');
+        $.post('/admin/onus/{{ $onu->id }}/tr069-user-password', {
+            _token: '{{ csrf_token() }}',
+            username: username,
+            password: password,
+        })
+        .done(function(res) {
+            if (res.success) {
+                Swal.fire({ title: 'Berhasil', text: res.message, icon: 'success', timer: 2500, showConfirmButton: false });
+                $(pwField).val('');
+            } else {
+                Swal.fire('Gagal', res.message || 'Gagal mengubah password', 'error');
+            }
+        })
+        .fail(function(xhr) { Swal.fire('Error', xhr.responseJSON?.message || 'Server error', 'error'); })
+        .always(function() { btn.prop('disabled', false).html('<i class="fas fa-key mr-1"></i>Ganti Password'); });
     });
 
     // Firmware upgrade
