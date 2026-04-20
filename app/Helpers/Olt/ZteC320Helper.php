@@ -2651,19 +2651,21 @@ class ZteC320Helper extends BaseOltHelper
                 "configure terminal",
                 "pon-onu-mng gpon-onu_1/{$slot}/{$port}:{$onuId}",
                 "restore factory",
-                "y",
+                "__WAIT__3",
                 "exit",
                 "exit",
             ];
 
             $output = $this->executeBatchCliCommands($commands);
 
-            // Check for errors in output
-            if (preg_match('/%(?:Error|Code)\s+\S+\s*:\s*(.+)/i', $output, $m)) {
+            // Check for ONU unavailable or other errors
+            if (preg_match('/ONU is unavailable/i', $output)) {
+                $result['message'] = "Factory reset gagal: ONU sedang offline.";
+            } elseif (preg_match('/%Error\s+\S+\s*:\s*(.+)/i', $output, $m)) {
                 $result['message'] = "Factory reset gagal: " . trim($m[1]);
             } else {
                 $result['success'] = true;
-                $result['message'] = "Factory reset berhasil dikirim ke ONU {$slot}/{$port}:{$onuId}. ONU akan restart.";
+                $result['message'] = "Factory reset berhasil. ONU {$slot}/{$port}:{$onuId} akan restart ke default setting.";
             }
 
         } catch (Exception $e) {
