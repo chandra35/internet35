@@ -861,14 +861,14 @@ class GenieAcsService
             // CLI user (first entry, usually root)
             $cliUser1 = [];
             foreach ($cliUsers as $k => $v) {
-                if (!is_array($v) || $k[0] === '_') continue;
+                if (!is_array($v) || str_starts_with((string) $k, '_')) continue;
                 $cliUser1 = $v;
                 break;
             }
 
-            // Web Users (index 1 = user, index 2 = admin)
-            $webUser  = $webUsers['1'] ?? [];
-            $webAdmin = $webUsers['2'] ?? [];
+            // Web Users — try both string and integer keys (GenieACS may return either)
+            $webUser  = $webUsers['1'] ?? $webUsers[1] ?? [];
+            $webAdmin = $webUsers['2'] ?? $webUsers[2] ?? [];
 
             // ManagementServer (ACS info)
             $ms = $igd['ManagementServer'] ?? [];
