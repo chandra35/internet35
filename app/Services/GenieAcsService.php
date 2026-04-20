@@ -897,35 +897,35 @@ class GenieAcsService
                 'default_gateway' => $defaultGw,
                 'dns_servers' => array_unique(array_filter($dns)),
                 'acs' => $acsInfo,
-                // ACL Services
+                // ACL Services — all values normalized to actual PHP bool
                 'acl' => [
-                    'ftp_lan'    => $this->getValue($acl, 'FTPLanEnable'),
-                    'ftp_wan'    => $this->getValue($acl, 'FTPWanEnable'),
-                    'http_lan'   => $this->getValue($acl, 'HTTPLanEnable'),
-                    'http_wan'   => $this->getValue($acl, 'HTTPWanEnable'),
-                    'ssh_lan'    => $this->getValue($acl, 'SSHLanEnable'),
-                    'ssh_wan'    => $this->getValue($acl, 'SSHWanEnable'),
-                    'samba_lan'  => $this->getValue($acl, 'SamBaLanEnable'),
-                    'samba_wan'  => $this->getValue($acl, 'SamBaWanEnable'),
-                    'telnet_lan' => $this->getValue($acl, 'TELNETLanEnable'),
-                    'telnet_wan' => $this->getValue($acl, 'TELNETWanEnable'),
-                    'icmp_echo'  => $this->getValue($dos, 'IcmpEchoReplyEn'),
+                    'ftp_lan'    => $this->asBool($this->getValue($acl, 'FTPLanEnable')),
+                    'ftp_wan'    => $this->asBool($this->getValue($acl, 'FTPWanEnable')),
+                    'http_lan'   => $this->asBool($this->getValue($acl, 'HTTPLanEnable')),
+                    'http_wan'   => $this->asBool($this->getValue($acl, 'HTTPWanEnable')),
+                    'ssh_lan'    => $this->asBool($this->getValue($acl, 'SSHLanEnable')),
+                    'ssh_wan'    => $this->asBool($this->getValue($acl, 'SSHWanEnable')),
+                    'samba_lan'  => $this->asBool($this->getValue($acl, 'SamBaLanEnable')),
+                    'samba_wan'  => $this->asBool($this->getValue($acl, 'SamBaWanEnable')),
+                    'telnet_lan' => $this->asBool($this->getValue($acl, 'TELNETLanEnable')),
+                    'telnet_wan' => $this->asBool($this->getValue($acl, 'TELNETWanEnable')),
+                    'icmp_echo'  => $this->asBool($this->getValue($dos, 'IcmpEchoReplyEn')),
                 ],
                 // CLI
                 'cli' => [
-                    'ssh_enable'     => $this->getValue($cliSsh, 'Enable'),
-                    'telnet_enable'  => $this->getValue($cliTelnet, 'Access'),
-                    'telnet_port'    => $this->getValue($cliTelnet, 'TelnetPort'),
-                    'telnet_wan'     => $this->getValue($cliTelnet, 'X_HW_WanSecurityEnable'),
-                    'username'       => $this->getValue($cliUser1, 'Username'),
+                    'ssh_enable'    => $this->asBool($this->getValue($cliSsh, 'Enable')),
+                    'telnet_enable' => $this->asBool($this->getValue($cliTelnet, 'Access')),
+                    'telnet_port'   => $this->getValue($cliTelnet, 'TelnetPort'),
+                    'telnet_wan'    => $this->asBool($this->getValue($cliTelnet, 'X_HW_WanSecurityEnable')),
+                    'username'      => $this->getValue($cliUser1, 'Username'),
                 ],
                 // Web UI accounts
                 'web_user' => [
-                    'enable'   => $this->getValue($webUser, 'Enable'),
+                    'enable'   => $this->asBool($this->getValue($webUser, 'Enable')),
                     'username' => $this->getValue($webUser, 'UserName'),
                 ],
                 'web_admin' => [
-                    'enable'   => $this->getValue($webAdmin, 'Enable'),
+                    'enable'   => $this->asBool($this->getValue($webAdmin, 'Enable')),
                     'username' => $this->getValue($webAdmin, 'UserName'),
                 ],
             ];
@@ -1125,6 +1125,16 @@ class GenieAcsService
         }
 
         return null;
+    }
+
+    /**
+     * Normalize a TR-069 boolean value ("True"/"False"/"1"/"0"/true/false) to PHP bool.
+     * Returns null if the value is null/unknown.
+     */
+    protected function asBool(mixed $value): ?bool
+    {
+        if ($value === null) return null;
+        return filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
     }
 
     protected function getNestedValue(array $data, string $path): mixed

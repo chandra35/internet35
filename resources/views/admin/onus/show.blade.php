@@ -2142,11 +2142,14 @@ $(function() {
         })
         .done(function(res) {
             if (res.success) {
-                if (res.status === 200) {
-                    toastr.success('Settings berhasil diterapkan ke perangkat.');
-                } else {
-                    toastr.info('Settings dikirim, akan diterapkan saat device check-in berikutnya.');
-                }
+                toastr.success(res.status === 200
+                    ? 'Settings berhasil diterapkan ke perangkat.'
+                    : 'Settings dikirim, akan diterapkan saat device check-in berikutnya.');
+                // Reload security data after 3s so cache reflects new values
+                setTimeout(function() {
+                    $('#tr069-security-content').hide();
+                    loadSecurityInfo();
+                }, 3000);
             } else {
                 toastr.error(res.message || 'Gagal mengirim settings');
             }
