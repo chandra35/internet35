@@ -2142,8 +2142,11 @@ $(function() {
         })
         .done(function(res) {
             if (res.success) {
-                toastr.success(res.message || 'Security settings berhasil dikirim');
-                startPoll(null, 'refresh');
+                if (res.status === 200) {
+                    toastr.success('Settings berhasil diterapkan ke perangkat.');
+                } else {
+                    toastr.info('Settings dikirim, akan diterapkan saat device check-in berikutnya.');
+                }
             } else {
                 toastr.error(res.message || 'Gagal mengirim settings');
             }

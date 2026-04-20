@@ -1313,11 +1313,14 @@ class OnuController extends Controller implements HasMiddleware
                 return response()->json(['success' => false, 'message' => 'Device tidak ditemukan di GenieACS']);
             }
 
+            // Clear stuck getParameterValues tasks before sending new settings
+            $genieacs->clearDeviceTasks($device['device_id'], 'getParameterValues');
+
             $result = $genieacs->setSecuritySettings($device['device_id'], $request->input('settings', []));
 
             return response()->json(array_merge($result, [
                 'message' => $result['success']
-                    ? 'Pengaturan security berhasil dikirim ke perangkat.'
+                    ? ($result['status'] === 200 ? 'Settings berhasil diterapkan ke perangkat.' : 'Settings dikirim, menunggu device check-in.')
                     : ($result['message'] ?? 'Gagal mengirim pengaturan'),
             ]));
         } catch (Exception $e) {
