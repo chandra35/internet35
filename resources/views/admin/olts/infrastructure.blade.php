@@ -1867,12 +1867,6 @@ $(function() {
         let total = {{ $olt->vlans->count() }};
         $('#vlan-count-label').text(q ? visible + ' / ' + total + ' VLAN' : total + ' VLAN');
     });
-            $(this).addClass('selected');
-            $('html, body').animate({ scrollTop: target.offset().top - 80 }, 400);
-            target.css('box-shadow', '0 0 0 3px #007bff, 0 4px 16px rgba(0,123,255,0.2)');
-            setTimeout(() => target.css('box-shadow', ''), 2500);
-        }
-    });
 
     // =========================================================================
     // Port Radio Active State
