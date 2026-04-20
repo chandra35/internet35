@@ -247,6 +247,188 @@
     .pm-legend-dot.lg-t { background: #3b82f6; }
     .pm-legend-dot.lg-u { background: #22c55e; }
     .pm-legend-dot.lg-n { background: #e2e8f0; border: 1px solid #cbd5e1; }
+
+    /* ═══════════════════════════════════════════════════════════
+       VLAN DATABASE — network-themed redesign
+    ═══════════════════════════════════════════════════════════ */
+    .vlan-db-card { transition: box-shadow 0.2s; }
+
+    /* Header stat chips */
+    .vlan-hdr-stat {
+        background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 10px; padding: 8px 14px; text-align: center; min-width: 58px;
+    }
+    .vhs-val { font-size: 18px; font-weight: 800; color: #f0f9ff; line-height: 1; }
+    .vhs-lbl { font-size: 9px; color: rgba(255,255,255,0.45); text-transform: uppercase; letter-spacing: 0.6px; margin-top: 2px; }
+    .vhs-blue  .vhs-val { color: #7dd3fc; }
+    .vhs-purple .vhs-val { color: #c4b5fd; }
+    .vhs-green .vhs-val { color: #86efac; }
+    .vhs-amber .vhs-val { color: #fde68a; }
+
+    /* Search box in header */
+    .vlan-search-wrap {
+        display: flex; align-items: center; gap: 7px;
+        background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.18);
+        border-radius: 9px; padding: 7px 12px;
+    }
+    .vlan-search-wrap i { color: rgba(255,255,255,0.4); font-size: 11px; }
+    .vlan-search-wrap input {
+        background: transparent; border: none; outline: none;
+        color: #fff; font-size: 12px; width: 170px;
+    }
+    .vlan-search-wrap input::placeholder { color: rgba(255,255,255,0.35); }
+
+    /* VLAN table */
+    .vlan-table { font-size: 13px; width: 100%; border-collapse: separate; border-spacing: 0; }
+    .vlan-table thead th {
+        background: #f8fafc; border-bottom: 2px solid #e2e8f0;
+        font-size: 10px; text-transform: uppercase; letter-spacing: 0.7px;
+        color: #64748b; font-weight: 700; padding: 10px 14px; white-space: nowrap;
+        position: sticky; top: 0; z-index: 1;
+    }
+    .vlan-table th.vt-id { width: 68px; }
+    .vlan-table th.vt-aksi { width: 70px; }
+    .vlan-table tbody td { padding: 10px 14px; vertical-align: middle; border-bottom: 1px solid #f1f5f9; }
+    .vlan-table tbody tr.vlan-row { transition: background 0.15s; }
+    .vlan-table tbody tr.vlan-row:hover { background: #f8fafc; }
+    .vlan-table tbody tr.vlan-row:hover .vlan-id-badge { transform: scale(1.06); }
+    .vlan-table tbody tr.vlan-row.vlan-hidden { display: none; }
+
+    /* VLAN ID badge */
+    .vlan-id-badge {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 46px; height: 28px; border-radius: 8px; font-weight: 800;
+        font-size: 13px; font-family: 'SFMono-Regular', monospace;
+        transition: transform 0.15s; border-width: 1.5px; border-style: solid;
+    }
+
+    /* Type pill */
+    .vlan-type-pill {
+        display: inline-flex; align-items: center; gap: 5px;
+        padding: 3px 9px; border-radius: 20px; font-size: 10px; font-weight: 700;
+        border: 1px solid transparent; white-space: nowrap;
+    }
+    .vtp-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+    /* Service port count */
+    .vlan-svc-num {
+        display: inline-flex; align-items: center; justify-content: center;
+        background: linear-gradient(135deg,#22c55e,#16a34a); color: #fff;
+        width: 28px; height: 22px; border-radius: 6px; font-size: 11px; font-weight: 800;
+        box-shadow: 0 2px 6px rgba(22,163,74,0.3);
+    }
+
+    /* Uplink trunk chips */
+    .vlan-uplink-chip {
+        display: inline-flex; align-items: center; gap: 3px;
+        background: #fef3c7; color: #92400e; border: 1px solid rgba(217,119,6,0.25);
+        border-radius: 5px; font-size: 10px; font-weight: 600; padding: 2px 7px;
+        white-space: nowrap;
+    }
+
+    /* Port membership inline */
+    .vlan-port-membership { line-height: 1; }
+    .vpm-group { display: flex; align-items: flex-start; gap: 5px; }
+    .vpm-label {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 18px; height: 18px; border-radius: 4px; font-size: 9px; font-weight: 800;
+        flex-shrink: 0; margin-top: 1px;
+    }
+    .vpm-t { background: #eff6ff; color: #2563eb; border: 1px solid rgba(37,99,235,0.2); }
+    .vpm-u { background: #f0fdf4; color: #16a34a; border: 1px solid rgba(22,163,74,0.2); }
+    .vpm-ports { display: flex; flex-wrap: wrap; gap: 2px; }
+    .vpm-chip {
+        display: inline-block; padding: 1px 6px; border-radius: 4px;
+        font-size: 10px; font-weight: 600; font-family: monospace; white-space: nowrap;
+    }
+    .vpm-chip-t { background: #eff6ff; color: #1d4ed8; border: 1px solid rgba(37,99,235,0.15); }
+    .vpm-chip-u { background: #f0fdf4; color: #15803d; border: 1px solid rgba(22,163,74,0.15); }
+
+    /* Action buttons */
+    .vlan-actions { display: flex; gap: 4px; justify-content: center; }
+    .vlan-act-btn {
+        width: 28px; height: 28px; border-radius: 7px; border: 1.5px solid;
+        display: inline-flex; align-items: center; justify-content: center;
+        font-size: 11px; cursor: pointer; transition: all 0.15s; background: #fff;
+    }
+    .vlan-act-edit { border-color: rgba(14,165,233,0.35); color: #0ea5e9; }
+    .vlan-act-edit:hover { background: #0ea5e9; color: #fff; border-color: #0ea5e9; }
+    .vlan-act-del  { border-color: rgba(239,68,68,0.3); color: #ef4444; }
+    .vlan-act-del:hover  { background: #ef4444; color: #fff; border-color: #ef4444; }
+
+    /* Footer bar */
+    .vlan-table-footer {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 10px 16px; background: #f8fafc; border-top: 1px solid #e2e8f0;
+        font-size: 11px; color: #64748b; border-radius: 0 0 16px 16px;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       UPLINK GRID — port-card style
+    ═══════════════════════════════════════════════════════════ */
+    .uplink-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 12px; padding: 16px;
+    }
+    .uplink-card {
+        border-radius: 12px; border: 1.5px solid; padding: 14px;
+        position: relative; transition: transform 0.15s, box-shadow 0.15s;
+        background: #fff;
+    }
+    .uplink-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.1); }
+    .uplink-up   { border-color: rgba(34,197,94,0.35); background: linear-gradient(145deg,#fff,#f0fdf4); }
+    .uplink-down { border-color: rgba(239,68,68,0.25); background: linear-gradient(145deg,#fff,#fef2f2); }
+
+    .uplink-icon-wrap { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .uplink-port-icon {
+        width: 36px; height: 36px; border-radius: 10px;
+        display: flex; align-items: center; justify-content: center;
+        border: 1.5px solid; flex-shrink: 0;
+    }
+    .upicon-up   { background: rgba(34,197,94,0.12); border-color: rgba(34,197,94,0.35); color: #16a34a; }
+    .upicon-down { background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.25); color: #dc2626; }
+    .uplink-blink {
+        width: 8px; height: 8px; border-radius: 50%;
+        background: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,0.6);
+        animation: blink-anim 1.4s ease-in-out infinite;
+    }
+    .blink-off { background: #ef4444; box-shadow: 0 0 4px rgba(239,68,68,0.4); animation: none; }
+    @keyframes blink-anim { 0%,100%{opacity:1}50%{opacity:0.3} }
+
+    .uplink-name { font-size: 13px; font-weight: 800; color: #1e293b; display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+    .uplink-speed-badge {
+        font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 4px;
+        background: #e0e7ff; color: #4338ca;
+    }
+
+    .uplink-status-row { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
+    .uplink-status-pill {
+        display: inline-flex; align-items: center; gap: 4px;
+        font-size: 9px; font-weight: 800; padding: 2px 8px; border-radius: 20px;
+        letter-spacing: 0.5px;
+    }
+    .pill-up   { background: rgba(34,197,94,0.12); color: #16a34a; border: 1px solid rgba(34,197,94,0.3); }
+    .pill-down { background: rgba(239,68,68,0.10); color: #dc2626; border: 1px solid rgba(239,68,68,0.25); }
+    .blink-dot { width: 5px; height: 5px; border-radius: 50%; background: #22c55e; animation: blink-anim 1.4s infinite; flex-shrink: 0; }
+    .uplink-mode-pill { font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 4px; background: #1e293b; color: #94a3b8; }
+
+    .uplink-vlans { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 6px; }
+    .uplink-vlan-num {
+        display: inline-block; background: #eff6ff; color: #2563eb;
+        border: 1px solid rgba(37,99,235,0.18); border-radius: 4px;
+        font-size: 9px; font-weight: 700; padding: 1px 5px; font-family: monospace;
+    }
+
+    .uplink-traffic { font-size: 10px; margin-top: 6px; }
+    .uplink-cfg-btn {
+        position: absolute; top: 10px; right: 10px;
+        width: 26px; height: 26px; border-radius: 7px; border: 1.5px solid rgba(22,163,74,0.3);
+        background: rgba(22,163,74,0.08); color: #16a34a; font-size: 11px;
+        display: flex; align-items: center; justify-content: center; cursor: pointer;
+        transition: all 0.15s;
+    }
+    .uplink-cfg-btn:hover { background: #16a34a; color: #fff; border-color: #16a34a; }
 </style>
 @endpush
 
@@ -1319,121 +1501,250 @@
 {{-- ================================================== --}}
 {{-- VLAN DATABASE + UPLINK SUMMARY --}}
 {{-- ================================================== --}}
+@php
+    $vlanStats = [
+        'total'    => $olt->vlans->count(),
+        'service'  => $olt->vlans->where('type', 'service')->count(),
+        'mgmt'     => $olt->vlans->whereIn('type', ['management','infra'])->count(),
+        'svcPorts' => $olt->vlans->sum('service_port_count'),
+        'withUplink'=> $olt->vlans->filter(fn($v) => !empty($v->uplink_ports))->count(),
+    ];
+@endphp
 <div class="row">
     <!-- VLAN Database -->
-    <div class="col-lg-7">
-        <div class="card" style="border: none; border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.06);">
-            <div class="card-header" style="background: #fff; border-bottom: 1px solid #f1f5f9; border-radius: 14px 14px 0 0; padding: 16px 20px;">
-                <h3 class="card-title" style="font-size: 15px; font-weight: 700; color: #1e293b;">
-                    <i class="fas fa-tags mr-2" style="color: #0891b2;"></i>VLAN Database
-                </h3>
-                <div class="card-tools">
-                    <button type="button" class="btn btn-sm mr-1" id="btn-open-create-vlan" style="background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; border: none; border-radius: 8px; font-size: 12px; font-weight: 600;">
+    <div class="col-12">
+    <div class="card vlan-db-card" style="border:none; border-radius:16px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.06),0 8px 32px rgba(0,0,0,0.08);">
+
+        {{-- ── Card Header ── --}}
+        <div class="vlan-db-header" style="background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 60%,#0c4a6e 100%); padding:20px 24px; position:relative; overflow:hidden;">
+            {{-- Network grid decoration --}}
+            <div style="position:absolute;inset:0;opacity:0.04;background-image:repeating-linear-gradient(0deg,transparent,transparent 24px,#fff 24px,#fff 25px),repeating-linear-gradient(90deg,transparent,transparent 24px,#fff 24px,#fff 25px);pointer-events:none;"></div>
+
+            <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:12px; position:relative;">
+                {{-- Title --}}
+                <div class="d-flex align-items-center" style="gap:14px;">
+                    <div style="width:44px;height:44px;background:rgba(14,165,233,0.18);border:1.5px solid rgba(14,165,233,0.4);border-radius:12px;display:flex;align-items:center;justify-content:center;">
+                        <i class="fas fa-tags" style="color:#38bdf8;font-size:18px;"></i>
+                    </div>
+                    <div>
+                        <div style="font-size:17px;font-weight:800;color:#f0f9ff;letter-spacing:-0.3px;">VLAN Database</div>
+                        <div style="font-size:11px;color:rgba(255,255,255,0.45);font-family:monospace;">{{ $olt->name }} · {{ $olt->ip_address }}</div>
+                    </div>
+                </div>
+
+                {{-- Stats row --}}
+                <div class="d-flex flex-wrap" style="gap:8px;">
+                    <div class="vlan-hdr-stat">
+                        <div class="vhs-val">{{ $vlanStats['total'] }}</div>
+                        <div class="vhs-lbl">Total VLAN</div>
+                    </div>
+                    <div class="vlan-hdr-stat vhs-blue">
+                        <div class="vhs-val">{{ $vlanStats['service'] }}</div>
+                        <div class="vhs-lbl">Service</div>
+                    </div>
+                    <div class="vlan-hdr-stat vhs-purple">
+                        <div class="vhs-val">{{ $vlanStats['mgmt'] }}</div>
+                        <div class="vhs-lbl">Mgmt/Infra</div>
+                    </div>
+                    <div class="vlan-hdr-stat vhs-green">
+                        <div class="vhs-val">{{ $vlanStats['svcPorts'] }}</div>
+                        <div class="vhs-lbl">Svc Ports</div>
+                    </div>
+                    <div class="vlan-hdr-stat vhs-amber">
+                        <div class="vhs-val">{{ $vlanStats['withUplink'] }}</div>
+                        <div class="vhs-lbl">Trunk</div>
+                    </div>
+                </div>
+
+                {{-- Actions --}}
+                <div class="d-flex align-items-center" style="gap:8px;">
+                    <div class="vlan-search-wrap">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="vlan-search-input" placeholder="Cari VLAN, nama, port..." autocomplete="off">
+                    </div>
+                    <button type="button" id="btn-open-create-vlan"
+                        style="background:linear-gradient(135deg,#0ea5e9,#2563eb);border:none;color:#fff;border-radius:9px;padding:8px 16px;font-size:12px;font-weight:700;letter-spacing:0.3px;white-space:nowrap;cursor:pointer;box-shadow:0 2px 8px rgba(14,165,233,0.35);">
                         <i class="fas fa-plus mr-1"></i>Buat VLAN
                     </button>
-                    <span class="badge" style="background: #eff6ff; color: #2563eb; padding: 5px 10px; border-radius: 6px; font-size: 11px;">{{ $olt->vlans->count() }}</span>
-                    @if($olt->vlans->sum('service_port_count') > 0)
-                        <span class="badge ml-1" style="background: #f0fdf4; color: #16a34a; padding: 5px 10px; border-radius: 6px; font-size: 11px;">{{ $olt->vlans->sum('service_port_count') }} svc</span>
-                    @endif
                 </div>
             </div>
-            <div class="card-body p-0">
-                @if($olt->vlans->isEmpty())
-                    <div class="text-center py-5">
-                        <div style="width: 56px; height: 56px; background: #f1f5f9; border-radius: 14px; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px;">
-                            <i class="fas fa-tags fa-lg" style="color: #94a3b8;"></i>
-                        </div>
-                        <p class="text-muted mb-0">Belum ada data VLAN.</p>
-                    </div>
-                @else
-                    <div class="table-responsive">
-                        <table class="table table-sm table-hover infra-table mb-0">
-                            <thead>
-                                <tr>
-                                    <th width="60">VLAN</th>
-                                    <th>Nama</th>
-                                    <th>Tipe</th>
-                                    <th width="45" class="text-center">Svc</th>
-                                    <th>Tagged</th>
-                                    <th>Untagged</th>
-                                    <th>Keterangan</th>
-                                    <th width="55" class="text-center">Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($olt->vlans as $vlan)
-                                <tr>
-                                    <td><strong>{{ $vlan->vlan_id }}</strong></td>
-                                    <td>{{ $vlan->name }}</td>
-                                    <td>{!! $vlan->type_badge !!}</td>
-                                    <td class="text-center">
-                                        @if($vlan->service_port_count > 0)
-                                            <span class="badge badge-success vlan-svc-badge">{{ $vlan->service_port_count }}</span>
-                                        @else
-                                            <span class="text-muted">0</span>
-                                        @endif
-                                    </td>
-                                    <td>
-                                        @if($vlan->tagged_ports && count($vlan->tagged_ports) > 0)
-                                            <div class="vlan-port-list">
-                                            @foreach($vlan->tagged_ports as $tp)
-                                                <span class="uplink-vlan-tag" title="{{ $tp }}">{{ \Illuminate\Support\Str::limit($tp, 18) }}</span>
-                                            @endforeach
-                                            </div>
-                                        @else <span class="text-muted">-</span>
-                                        @endif
-                                    </td>
-                                    <td>
-                                        @if($vlan->untagged_ports && count($vlan->untagged_ports) > 0)
-                                            <div class="vlan-port-list">
-                                            @foreach($vlan->untagged_ports as $up)
-                                                <span class="uplink-vlan-tag untagged" title="{{ $up }}">{{ \Illuminate\Support\Str::limit($up, 18) }}</span>
-                                            @endforeach
-                                            </div>
-                                        @else <span class="text-muted">-</span>
-                                        @endif
-                                    </td>
-                                    <td><small>{{ $vlan->description ?? '-' }}</small></td>
-                                    <td class="text-center text-nowrap">
-                                        <button class="btn btn-xs btn-outline-info btn-edit-vlan"
-                                                data-id="{{ $vlan->id }}"
-                                                data-vlan-id="{{ $vlan->vlan_id }}"
-                                                data-name="{{ $vlan->name }}"
-                                                data-type="{{ $vlan->type }}"
-                                                data-description="{{ $vlan->description }}"
-                                                data-tagged="{{ json_encode($vlan->tagged_ports ?? []) }}"
-                                                data-untagged="{{ json_encode($vlan->untagged_ports ?? []) }}"
-                                                data-uplink="{{ json_encode($vlan->uplink_ports ?? []) }}"
-                                                title="Edit VLAN">
-                                            <i class="fas fa-edit"></i>
-                                        </button>
-                                        <button class="btn btn-xs btn-outline-danger btn-delete-vlan"
-                                                data-id="{{ $vlan->id }}"
-                                                data-vlan-id="{{ $vlan->vlan_id }}"
-                                                data-svc="{{ $vlan->service_port_count }}"
-                                                title="Hapus VLAN">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
-                                    </td>
-                                </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                @endif
-            </div>
         </div>
+
+        {{-- ── VLAN Table ── --}}
+        <div class="card-body p-0" style="background:#fff;">
+            @if($olt->vlans->isEmpty())
+                <div class="text-center py-5">
+                    <div style="width:64px;height:64px;background:linear-gradient(135deg,#f1f5f9,#e2e8f0);border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;border:2px dashed #cbd5e1;">
+                        <i class="fas fa-network-wired fa-xl" style="color:#94a3b8;"></i>
+                    </div>
+                    <p class="font-weight-700 mb-1" style="color:#1e293b;">Belum ada data VLAN</p>
+                    <p class="text-muted small mb-0">Sync infrastruktur dari OLT atau buat VLAN baru</p>
+                </div>
+            @else
+            <div class="table-responsive">
+                <table class="table vlan-table mb-0" id="vlan-table-main">
+                    <thead>
+                        <tr>
+                            <th class="vt-id">ID</th>
+                            <th>Nama / Keterangan</th>
+                            <th class="text-center">Tipe</th>
+                            <th class="text-center">Svc</th>
+                            <th>Uplink Trunk</th>
+                            <th>Port Membership</th>
+                            <th class="text-center vt-aksi">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($olt->vlans as $vlan)
+                        @php
+                            $typeColor = match($vlan->type ?? 'other') {
+                                'service'    => ['bg'=>'#eff6ff','fg'=>'#2563eb','dot'=>'#3b82f6'],
+                                'management' => ['bg'=>'#faf5ff','fg'=>'#7c3aed','dot'=>'#8b5cf6'],
+                                'voip'       => ['bg'=>'#fff7ed','fg'=>'#c2410c','dot'=>'#f97316'],
+                                'iptv'       => ['bg'=>'#f0fdf4','fg'=>'#16a34a','dot'=>'#22c55e'],
+                                'infra'      => ['bg'=>'#f8fafc','fg'=>'#475569','dot'=>'#64748b'],
+                                default      => ['bg'=>'#fafafa','fg'=>'#6b7280','dot'=>'#9ca3af'],
+                            };
+                            $hasTrunk  = !empty($vlan->uplink_ports);
+                            $taggedCnt = count($vlan->tagged_ports ?? []);
+                            $untgdCnt  = count($vlan->untagged_ports ?? []);
+                        @endphp
+                        <tr class="vlan-row" data-search="{{ strtolower($vlan->vlan_id.' '.$vlan->name.' '.implode(' ',$vlan->tagged_ports??[]).' '.implode(' ',$vlan->untagged_ports??[]).' '.implode(' ',$vlan->uplink_ports??[])) }}">
+                            {{-- VLAN ID --}}
+                            <td class="vt-id">
+                                <div class="vlan-id-badge" style="background:{{ $typeColor['bg'] }};border:1.5px solid {{ $typeColor['dot'] }}30;color:{{ $typeColor['fg'] }};">
+                                    {{ $vlan->vlan_id }}
+                                </div>
+                            </td>
+
+                            {{-- Name + desc --}}
+                            <td>
+                                <div class="font-weight-700" style="font-size:13px;color:#1e293b;line-height:1.2;">
+                                    {{ $vlan->name ?: 'VLAN'.$vlan->vlan_id }}
+                                </div>
+                                @if($vlan->description)
+                                    <div style="font-size:11px;color:#94a3b8;margin-top:2px;">{{ $vlan->description }}</div>
+                                @endif
+                            </td>
+
+                            {{-- Type badge --}}
+                            <td class="text-center">
+                                <span class="vlan-type-pill" style="background:{{ $typeColor['bg'] }};color:{{ $typeColor['fg'] }};border-color:{{ $typeColor['dot'] }}30;">
+                                    <span class="vtp-dot" style="background:{{ $typeColor['dot'] }};"></span>
+                                    {{ ucfirst($vlan->type ?? 'other') }}
+                                </span>
+                            </td>
+
+                            {{-- Service ports --}}
+                            <td class="text-center">
+                                @if($vlan->service_port_count > 0)
+                                    <div class="vlan-svc-num">{{ $vlan->service_port_count }}</div>
+                                @else
+                                    <span style="color:#cbd5e1;font-size:12px;">—</span>
+                                @endif
+                            </td>
+
+                            {{-- Uplink (trunk) ports --}}
+                            <td>
+                                @if($hasTrunk)
+                                    <div class="d-flex flex-wrap" style="gap:3px;">
+                                        @foreach($vlan->uplink_ports as $up)
+                                            <span class="vlan-uplink-chip">
+                                                <i class="fas fa-arrow-up" style="font-size:7px;opacity:.6;"></i>
+                                                {{ Str::limit($up, 16) }}
+                                            </span>
+                                        @endforeach
+                                    </div>
+                                @else
+                                    <span style="color:#cbd5e1;font-size:12px;">—</span>
+                                @endif
+                            </td>
+
+                            {{-- Port Membership (tagged + untagged mini) --}}
+                            <td style="max-width:220px;">
+                                @if($taggedCnt > 0 || $untgdCnt > 0)
+                                    <div class="vlan-port-membership">
+                                        @if($taggedCnt > 0)
+                                            <div class="vpm-group">
+                                                <span class="vpm-label vpm-t">T</span>
+                                                <span class="vpm-ports">
+                                                    @foreach(array_slice($vlan->tagged_ports, 0, 3) as $tp)
+                                                        <span class="vpm-chip vpm-chip-t" title="{{ $tp }}">{{ Str::limit($tp, 14) }}</span>
+                                                    @endforeach
+                                                    @if($taggedCnt > 3)
+                                                        <span class="vpm-chip vpm-chip-t" style="opacity:.6;">+{{ $taggedCnt-3 }}</span>
+                                                    @endif
+                                                </span>
+                                            </div>
+                                        @endif
+                                        @if($untgdCnt > 0)
+                                            <div class="vpm-group mt-1">
+                                                <span class="vpm-label vpm-u">U</span>
+                                                <span class="vpm-ports">
+                                                    @foreach(array_slice($vlan->untagged_ports, 0, 3) as $up)
+                                                        <span class="vpm-chip vpm-chip-u" title="{{ $up }}">{{ Str::limit($up, 14) }}</span>
+                                                    @endforeach
+                                                    @if($untgdCnt > 3)
+                                                        <span class="vpm-chip vpm-chip-u" style="opacity:.6;">+{{ $untgdCnt-3 }}</span>
+                                                    @endif
+                                                </span>
+                                            </div>
+                                        @endif
+                                    </div>
+                                @else
+                                    <span style="color:#cbd5e1;font-size:12px;">—</span>
+                                @endif
+                            </td>
+
+                            {{-- Actions --}}
+                            <td class="text-center vt-aksi">
+                                <div class="vlan-actions">
+                                    <button class="vlan-act-btn vlan-act-edit btn-edit-vlan"
+                                            data-id="{{ $vlan->id }}"
+                                            data-vlan-id="{{ $vlan->vlan_id }}"
+                                            data-name="{{ $vlan->name }}"
+                                            data-type="{{ $vlan->type }}"
+                                            data-description="{{ $vlan->description }}"
+                                            data-tagged="{{ json_encode($vlan->tagged_ports ?? []) }}"
+                                            data-untagged="{{ json_encode($vlan->untagged_ports ?? []) }}"
+                                            data-uplink="{{ json_encode($vlan->uplink_ports ?? []) }}"
+                                            title="Edit VLAN">
+                                        <i class="fas fa-pen"></i>
+                                    </button>
+                                    <button class="vlan-act-btn vlan-act-del btn-delete-vlan"
+                                            data-id="{{ $vlan->id }}"
+                                            data-vlan-id="{{ $vlan->vlan_id }}"
+                                            data-svc="{{ $vlan->service_port_count }}"
+                                            title="Hapus VLAN">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+            {{-- Footer bar --}}
+            <div class="vlan-table-footer">
+                <span id="vlan-count-label">{{ $olt->vlans->count() }} VLAN</span>
+                <span>Total service-port: <strong>{{ $olt->vlans->sum('service_port_count') }}</strong></span>
+            </div>
+            @endif
+        </div>
+    </div>
     </div>
 
     <!-- Uplink Summary -->
-    <div class="col-lg-5">
+    <div class="col-12 mt-3">
         <div class="card" style="border: none; border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.06);">
-            <div class="card-header" style="background: #fff; border-bottom: 1px solid #f1f5f9; border-radius: 14px 14px 0 0; padding: 16px 20px;">
-                <h3 class="card-title" style="font-size: 15px; font-weight: 700; color: #1e293b;">
-                    <i class="fas fa-arrow-up mr-2" style="color: #16a34a;"></i>Uplink Ports
+            <div class="card-header" style="background: linear-gradient(135deg,#052e16,#14532d,#166534); border-radius:14px 14px 0 0; padding: 14px 20px; border:none;">
+                <h3 class="card-title mb-0" style="font-size: 14px; font-weight: 700; color:#dcfce7;">
+                    <i class="fas fa-arrow-up mr-2" style="color:#4ade80;"></i>Uplink Ports
+                    <span class="ml-2" style="font-size:11px;font-weight:500;color:rgba(255,255,255,0.5);">— Interface trunk ke upstream</span>
                 </h3>
                 <div class="card-tools">
-                    <span class="badge" style="background: #f0fdf4; color: #16a34a; padding: 5px 10px; border-radius: 6px; font-size: 11px;">{{ $olt->uplinks->where('status', 'up')->count() }}/{{ $olt->uplinks->count() }} Up</span>
+                    <span class="badge" style="background:rgba(74,222,128,0.15);color:#4ade80;border:1px solid rgba(74,222,128,0.3);padding:4px 10px;border-radius:6px;font-size:11px;">{{ $olt->uplinks->where('status', 'up')->count() }}<span style="opacity:.5;">/{{ $olt->uplinks->count() }}</span> Up</span>
                 </div>
             </div>
             <div class="card-body p-0">
@@ -1445,72 +1756,84 @@
                         <p class="text-muted mb-0">Belum ada data uplink.</p>
                     </div>
                 @else
-                    <div class="table-responsive">
-                        <table class="table table-sm table-hover infra-table mb-0">
-                            <thead>
-                                <tr>
-                                    <th>Interface</th>
-                                    <th width="50" class="text-center">Status</th>
-                                    <th>Mode</th>
-                                    <th>Tagged VLANs</th>
-                                    <th class="text-center" width="90">Traffic</th>
-                                    <th width="40" class="text-center">Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($olt->uplinks as $uplink)
-                                <tr>
-                                    <td>
-                                        <strong>{{ $uplink->interface_name }}</strong>
-                                        @if($uplink->interface_type === 'xgei')
-                                            <span class="badge badge-info" style="font-size: 8px;">10G</span>
-                                        @endif
-                                    </td>
-                                    <td class="text-center">{!! $uplink->status_badge !!}</td>
-                                    <td>
-                                        @if($uplink->switchport_mode === 'trunk')
-                                            <span class="badge badge-dark" style="font-size: 9px;">TRUNK</span>
-                                        @else
-                                            <small>{{ strtoupper($uplink->switchport_mode ?? '-') }}</small>
-                                        @endif
-                                        @if($uplink->native_vlan)
-                                            <small class="text-muted d-block">PVID:{{ $uplink->native_vlan }}</small>
-                                        @endif
-                                    </td>
-                                    <td>
-                                        @if($uplink->tagged_vlans)
-                                            <div class="vlan-port-list">
-                                                @foreach($uplink->tagged_vlans as $vid)
-                                                    <span class="uplink-vlan-tag">{{ $vid }}</span>
-                                                @endforeach
-                                            </div>
-                                        @else <span class="text-muted">-</span>
-                                        @endif
-                                    </td>
-                                    <td class="text-center">
-                                        @if($uplink->in_rate_bps || $uplink->out_rate_bps)
-                                            <small class="text-success"><i class="fas fa-arrow-down"></i> {{ $uplink->in_rate_formatted }}</small><br>
-                                            <small class="text-primary"><i class="fas fa-arrow-up"></i> {{ $uplink->out_rate_formatted }}</small>
-                                        @else <span class="text-muted">-</span>
-                                        @endif
-                                    </td>
-                                    <td class="text-center">
-                                        <button class="btn btn-xs btn-outline-success btn-configure-uplink"
-                                                data-id="{{ $uplink->id }}"
-                                                data-name="{{ $uplink->interface_name }}"
-                                                data-mode="{{ $uplink->switchport_mode ?? 'trunk' }}"
-                                                data-vlans="{{ $uplink->tagged_vlans ? implode(', ', $uplink->tagged_vlans) : '' }}"
-                                                data-admin="{{ $uplink->admin_status ?? 'enabled' }}"
-                                                data-pvid="{{ $uplink->native_vlan ?? '' }}"
-                                                title="Konfigurasi">
-                                            <i class="fas fa-cog"></i>
-                                        </button>
-                                    </td>
-                                </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
+                <div class="card-body p-0">
+                @if($olt->uplinks->isEmpty())
+                    <div class="text-center py-4">
+                        <i class="fas fa-plug" style="color:#94a3b8;font-size:28px;"></i>
+                        <p class="text-muted small mt-2 mb-0">Belum ada data uplink. Sync dari OLT terlebih dahulu.</p>
                     </div>
+                @else
+                <div class="uplink-grid">
+                    @foreach($olt->uplinks as $uplink)
+                    @php
+                        $isUp  = $uplink->status === 'up';
+                        $is10g = ($uplink->interface_type ?? '') === 'xgei';
+                        $vlanCount = count($uplink->tagged_vlans ?? []);
+                    @endphp
+                    <div class="uplink-card {{ $isUp ? 'uplink-up' : 'uplink-down' }}">
+                        {{-- Port visual icon --}}
+                        <div class="uplink-icon-wrap">
+                            <div class="uplink-port-icon {{ $isUp ? 'upicon-up' : 'upicon-down' }}">
+                                <i class="fas {{ $is10g ? 'fa-bolt' : 'fa-ethernet' }}" style="font-size:16px;"></i>
+                            </div>
+                            <div class="uplink-blink {{ $isUp ? '' : 'blink-off' }}"></div>
+                        </div>
+
+                        {{-- Interface name + speed --}}
+                        <div class="uplink-name">
+                            <strong>{{ $uplink->interface_name }}</strong>
+                            @if($is10g)<span class="uplink-speed-badge">10G</span>@else<span class="uplink-speed-badge" style="background:#e0f2fe;color:#0369a1;">1G</span>@endif
+                        </div>
+
+                        {{-- Status pill --}}
+                        <div class="uplink-status-row">
+                            @if($isUp)
+                                <span class="uplink-status-pill pill-up"><span class="blink-dot"></span>UP</span>
+                            @else
+                                <span class="uplink-status-pill pill-down">DOWN</span>
+                            @endif
+                            @if($uplink->switchport_mode === 'trunk')
+                                <span class="uplink-mode-pill">TRUNK</span>
+                            @endif
+                            @if($uplink->native_vlan)
+                                <span class="uplink-mode-pill" style="background:#fef3c7;color:#92400e;">PVID {{ $uplink->native_vlan }}</span>
+                            @endif
+                        </div>
+
+                        {{-- Tagged VLANs --}}
+                        @if($vlanCount > 0)
+                        <div class="uplink-vlans">
+                            @foreach(array_slice($uplink->tagged_vlans, 0, 8) as $vid)
+                                <span class="uplink-vlan-num">{{ $vid }}</span>
+                            @endforeach
+                            @if($vlanCount > 8)
+                                <span class="uplink-vlan-num" style="opacity:.5;">+{{ $vlanCount-8 }}</span>
+                            @endif
+                        </div>
+                        @endif
+
+                        {{-- Traffic --}}
+                        @if($uplink->in_rate_bps || $uplink->out_rate_bps)
+                        <div class="uplink-traffic">
+                            <span style="color:#22c55e;"><i class="fas fa-arrow-down" style="font-size:9px;"></i> {{ $uplink->in_rate_formatted ?? '-' }}</span>
+                            <span style="color:#60a5fa;margin-left:8px;"><i class="fas fa-arrow-up" style="font-size:9px;"></i> {{ $uplink->out_rate_formatted ?? '-' }}</span>
+                        </div>
+                        @endif
+
+                        {{-- Config button --}}
+                        <button class="uplink-cfg-btn btn-configure-uplink"
+                                data-id="{{ $uplink->id }}"
+                                data-name="{{ $uplink->interface_name }}"
+                                data-mode="{{ $uplink->switchport_mode ?? 'trunk' }}"
+                                data-vlans="{{ $uplink->tagged_vlans ? implode(', ', $uplink->tagged_vlans) : '' }}"
+                                data-admin="{{ $uplink->admin_status ?? 'enabled' }}"
+                                data-pvid="{{ $uplink->native_vlan ?? '' }}"
+                                title="Konfigurasi Uplink">
+                            <i class="fas fa-sliders-h"></i>
+                        </button>
+                    </div>
+                    @endforeach
+                </div>
                 @endif
             </div>
         </div>
@@ -1522,13 +1845,35 @@
 <script>
 $(function() {
     // =========================================================================
-    // Shelf Slot Click -' Scroll to Card
+    // Shelf Slot Click → Scroll to Card
     // =========================================================================
     $(document).on('click', '.shelf-slot[data-card-id]', function() {
         let cardId = $(this).data('card-id');
         let target = $('#card-panel-' + cardId);
         if (target.length) {
             $('.shelf-slot').removeClass('selected');
+            $(this).addClass('selected');
+            $('html, body').animate({ scrollTop: target.offset().top - 80 }, 400);
+            target.css('box-shadow', '0 0 0 3px #007bff, 0 4px 16px rgba(0,123,255,0.2)');
+            setTimeout(() => target.css('box-shadow', ''), 2500);
+        }
+    });
+
+    // =========================================================================
+    // VLAN Live Search
+    // =========================================================================
+    $('#vlan-search-input').on('input', function() {
+        let q = $(this).val().toLowerCase().trim();
+        let visible = 0;
+        $('.vlan-row').each(function() {
+            let hay = $(this).data('search') || '';
+            let show = !q || hay.includes(q);
+            $(this).toggleClass('vlan-hidden', !show);
+            if (show) visible++;
+        });
+        let total = {{ $olt->vlans->count() }};
+        $('#vlan-count-label').text(q ? visible + ' / ' + total + ' VLAN' : total + ' VLAN');
+    });
             $(this).addClass('selected');
             $('html, body').animate({ scrollTop: target.offset().top - 80 }, 400);
             target.css('box-shadow', '0 0 0 3px #007bff, 0 4px 16px rgba(0,123,255,0.2)');
