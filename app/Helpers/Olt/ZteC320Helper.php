@@ -81,10 +81,8 @@ class ZteC320Helper extends BaseOltHelper
         'zxAnGponOltPonOpticalVoltage' => '1.3.6.1.4.1.3902.1082.500.10.2.2.1.1.13',
         'zxAnGponOltPonOpticalBias' => '1.3.6.1.4.1.3902.1082.500.10.2.2.1.1.14',
 
-        // Unconfigured ONUs
-        'zxAnGponOltUncfgOnuTable'    => '1.3.6.1.4.1.3902.1082.500.10.2.3.5.1',
-        'zxAnGponOltUncfgOnuSerialNo' => '1.3.6.1.4.1.3902.1082.500.10.2.3.5.1.2',
-        'zxAnGponOltUncfgOnuModelNo'  => '1.3.6.1.4.1.3902.1082.500.10.2.3.5.1.3',  // Col 3: ONU model (e.g. "F670LV9.0")
+        // ONU Equipment ID — gives full model string (e.g. "F670LV9.0"), index: ponIfIndex.onuId
+        'zxAnGponOnuEquipmentId'       => '1.3.6.1.4.1.3902.1082.500.10.2.2.5.1.7',
 
         // Q-BRIDGE-MIB — Standard VLAN management (IEEE 802.1Q)
         'dot1qVlanStaticName' => '1.3.6.1.2.1.17.7.1.4.3.1.1',
@@ -1471,86 +1469,41 @@ class ZteC320Helper extends BaseOltHelper
                 $unregistered = $this->parseUnconfiguredOnuOutput($output);
             }
 
-            // SNMP: enrich with model number via zxAnGponOltUncfgOnuModelNo (col 3 of uncfg table)
-            // Do this regardless of CLI—SNMP gives the actual hardware model string.
+            // SNMP: enrich with model via zxAnGponOnuEquipmentId (OID indexed by ponIfIndex.onuId)
+            // The OLT learns the equipment ID via OMCI even for unconfigured ONUs.
             if (!empty($unregistered)) {
                 try {
-                    $snmpSerials = $this->snmpWalk($this->zteOids['zxAnGponOltUncfgOnuSerialNo']);
-                    $snmpModels  = $this->snmpWalk($this->zteOids['zxAnGponOltUncfgOnuModelNo']);
-
-                    // Build SN → model lookup
-                    $snModelMap = [];
-                    foreach ($snmpSerials as $oid => $rawSn) {
-                        $sn = strtoupper($this->parseZteSerialNumber($rawSn));
-                        if (!$sn) continue;
-                        $modelOid = str_replace(
-                            $this->zteOids['zxAnGponOltUncfgOnuSerialNo'],
-                            $this->zteOids['zxAnGponOltUncfgOnuModelNo'],
-                            $oid
-                        );
-                        $model = trim($snmpModels[$modelOid] ?? '');
-                        if ($model && $model !== '0') {
-                            $snModelMap[$sn] = $model;
-                        }
-                    }
+                    $equipmentIds = $this->snmpWalk($this->zteOids['zxAnGponOnuEquipmentId']);
 
                     foreach ($unregistered as &$entry) {
-                        $sn = strtoupper($entry['serial_number']);
-                        if (empty($entry['onu_type']) && isset($snModelMap[$sn])) {
-                            $entry['onu_type'] = $snModelMap[$sn];
+                        if (!empty($entry['onu_type'])) continue;
+                        if (empty($entry['onu_id'])) continue;
+
+                        $index = $this->buildOnuIndex($entry['slot'], $entry['port'], $entry['onu_id']);
+                        $lookupOid = $this->zteOids['zxAnGponOnuEquipmentId'] . '.' . $index;
+
+                        // Search for this index in walked results
+                        foreach ($equipmentIds as $oid => $model) {
+                            if (str_ends_with($oid, '.' . $index)) {
+                                $model = trim($model, " \t\n\r\0\x0B\"");
+                                if ($model && $model !== '0') {
+                                    $entry['onu_type'] = $model;
+                                }
+                                break;
+                            }
                         }
                     }
                     unset($entry);
                 } catch (Exception $e) {
-                    Log::warning("ZTE uncfg SNMP model lookup failed: " . $e->getMessage());
+                    Log::warning("ZTE uncfg SNMP equipment ID lookup failed: " . $e->getMessage());
                 }
             }
 
-            // Pure SNMP fallback if CLI not available
+            // Pure SNMP fallback if CLI not available — walk equipment IDs
             if (empty($unregistered) && !$this->supportsTelnet() && !$this->supportsSsh()) {
-                $uncfgOnus  = $this->snmpWalk($this->zteOids['zxAnGponOltUncfgOnuSerialNo']);
-                $snmpModels = $this->snmpWalk($this->zteOids['zxAnGponOltUncfgOnuModelNo']);
-
-                foreach ($uncfgOnus as $oid => $serial) {
-                    $cleanSerial = $this->parseZteSerialNumber($serial);
-
-                    // Skip garbage entries (gemport names misinterpreted as serials)
-                    if (empty($cleanSerial) || strlen($cleanSerial) < 8 || preg_match('/^GEMP/i', $cleanSerial)) {
-                        continue;
-                    }
-
-                    if (preg_match('/\.(\d+)\.(\d+)\.(\d+)$/', $oid, $matches)) {
-                        $slot = (int) $matches[2];
-                        $port = (int) $matches[3];
-                    } elseif (preg_match('/\.(\d+)$/', $oid, $matches)) {
-                        $ponIfIndex = (int) $matches[1];
-                        if ($ponIfIndex > 1000) {
-                            $decoded = $this->decodePonIfIndex($ponIfIndex);
-                            $slot = $decoded['slot'];
-                            $port = $decoded['port'];
-                        } else {
-                            continue;
-                        }
-                    } else {
-                        continue;
-                    }
-
-                    $modelOid = str_replace(
-                        $this->zteOids['zxAnGponOltUncfgOnuSerialNo'],
-                        $this->zteOids['zxAnGponOltUncfgOnuModelNo'],
-                        $oid
-                    );
-                    $model = trim($snmpModels[$modelOid] ?? '');
-
-                    $unregistered[] = [
-                        'slot'          => $slot,
-                        'port'          => $port,
-                        'pon_port'      => $slot . '/' . $port,
-                        'serial_number' => strtoupper($cleanSerial),
-                        'onu_type'      => ($model && $model !== '0') ? $model : null,
-                        'config_status' => 'unregistered',
-                    ];
-                }
+                // Without CLI, we can't reliably discover unconfigured ONUs via SNMP alone
+                // (the uncfg ONU table OIDs vary by firmware). Log a warning.
+                Log::warning("ZTE: CLI unavailable, unconfigured ONU discovery limited");
             }
 
         } catch (Exception $e) {
@@ -2442,13 +2395,14 @@ class ZteC320Helper extends BaseOltHelper
         foreach ($lines as $line) {
             $line = trim($line);
 
-            // Format 1: gpon-onu_1/1/1:1  ZTEGD6D8B342  F663N   (type may be "unknown")
+            // Format 1: gpon-onu_1/1/1:1  ZTEGD6D8B342  unknown
             if (preg_match('/gpon-onu_(\d+)\/(\d+)\/(\d+):(\d+)\s+(\w{4,16})\s+(\S+)?/i', $line, $matches)) {
                 $rawType = strtoupper(trim($matches[6] ?? ''));
                 $onus[] = [
                     'slot'          => (int) $matches[2],
                     'port'          => (int) $matches[3],
                     'pon_port'      => $matches[2] . '/' . $matches[3],
+                    'onu_id'        => (int) $matches[4],
                     'serial_number' => strtoupper($matches[5]),
                     'onu_type'      => ($rawType && $rawType !== 'UNKNOWN') ? $rawType : null,
                     'config_status' => 'unregistered',
@@ -2477,6 +2431,7 @@ class ZteC320Helper extends BaseOltHelper
                     'slot'          => (int) $matches[2],
                     'port'          => (int) $matches[3],
                     'pon_port'      => $matches[2] . '/' . $matches[3],
+                    'onu_id'        => (int) $matches[4],
                     'serial_number' => strtoupper($matches[5]),
                     'onu_type'      => ($rawType && $rawType !== 'UNKNOWN') ? $rawType : null,
                     'config_status' => 'unregistered',
