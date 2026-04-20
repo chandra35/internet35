@@ -281,6 +281,7 @@ class GenieAcsService
             }
 
             $response = Http::timeout($this->timeout)
+                ->asJson()
                 ->post($url, [
                     'name' => 'setParameterValues',
                     'parameterValues' => $params,
@@ -309,6 +310,7 @@ class GenieAcsService
             }
 
             $response = Http::timeout($this->timeout)
+                ->asJson()
                 ->post("{$this->nbiUrl}/devices/{$deviceId}/tasks?connection_request", $task);
 
             return [
@@ -328,6 +330,7 @@ class GenieAcsService
     {
         try {
             $response = Http::timeout($this->timeout)
+                ->asJson()
                 ->post("{$this->nbiUrl}/devices/{$deviceId}/tasks?connection_request", [
                     'name' => 'reboot',
                 ]);
@@ -646,6 +649,7 @@ class GenieAcsService
             $url = "{$this->nbiUrl}/devices/{$deviceId}/tasks?connection_request&timeout=15000";
 
             $response = Http::timeout(30)
+                ->asJson()
                 ->post($url, [
                     'name' => 'deleteObject',
                     'objectName' => rtrim($wanPath, '.'),
@@ -706,6 +710,7 @@ class GenieAcsService
             }
 
             $response = Http::timeout(30)
+                ->asJson()
                 ->post($url, [
                     'name' => 'addObject',
                     'objectName' => rtrim($objectPath, '.'),
@@ -732,6 +737,7 @@ class GenieAcsService
             $url = "{$this->nbiUrl}/devices/{$deviceId}/tasks?connection_request&timeout=15000";
 
             $response = Http::timeout(30)
+                ->asJson()
                 ->post($url, [
                     'name' => 'deleteObject',
                     'objectName' => rtrim($objectPath, '.'),
@@ -1010,6 +1016,7 @@ class GenieAcsService
     {
         try {
             $response = Http::timeout(30)
+                ->asJson()
                 ->post("{$this->nbiUrl}/devices/{$deviceId}/tasks?connection_request", [
                     'name' => 'download',
                     'file' => $fileUrl,
@@ -1034,6 +1041,7 @@ class GenieAcsService
     {
         try {
             $response = Http::timeout($this->timeout)
+                ->asJson()
                 ->post("{$this->nbiUrl}/devices/{$deviceId}/tasks?connection_request", [
                     'name' => 'setParameterValues',
                     'parameterValues' => [
