@@ -218,6 +218,35 @@
     #edit-untagged-select + .select2-container .select2-selection__choice { background: #f0fdf4; border-color: rgba(22,163,74,0.3); color: #16a34a; }
     #create-tagged-select + .select2-container .select2-selection__choice { background: #eff6ff; border-color: rgba(37,99,235,0.3); color: #2563eb; }
     #create-untagged-select + .select2-container .select2-selection__choice { background: #f0fdf4; border-color: rgba(22,163,74,0.3); color: #16a34a; }
+
+    /* ── Port Map Visualization ── */
+    .port-map-wrap { background: #f8fafc; border-radius: 10px; padding: 12px 14px; border: 1px solid #e2e8f0; }
+    .pm-section { margin-bottom: 8px; }
+    .pm-section-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px; color: #94a3b8; margin-bottom: 5px; }
+    .pm-ports { display: flex; flex-wrap: wrap; gap: 3px; }
+    .pm-port {
+        width: 40px; height: 36px; border-radius: 6px; display: flex; flex-direction: column;
+        align-items: center; justify-content: center; transition: transform 0.12s;
+        border: 1.5px solid #e2e8f0; background: #fff; cursor: default;
+    }
+    .pm-port:hover { transform: scale(1.14); z-index: 2; box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+    .pm-port-name { font-size: 9px; font-weight: 700; color: #94a3b8; line-height: 1; }
+    .pm-port-mode { font-size: 9px; font-weight: 800; line-height: 1; margin-top: 2px; }
+    .pm-port.pm-tagged { background: #eff6ff; border-color: #3b82f6; }
+    .pm-port.pm-tagged .pm-port-name { color: #1d4ed8; }
+    .pm-port.pm-tagged .pm-port-mode { color: #2563eb; }
+    .pm-port.pm-untagged { background: #f0fdf4; border-color: #22c55e; }
+    .pm-port.pm-untagged .pm-port-name { color: #15803d; }
+    .pm-port.pm-untagged .pm-port-mode { color: #16a34a; }
+    .pm-port.pm-none { opacity: 0.45; }
+    .pm-uplink-port { width: 78px; }
+    .pm-uplink-port .pm-port-name { font-size: 8px; word-break: break-all; text-align: center; }
+    .pm-legend { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; padding-top: 8px; border-top: 1px solid #e2e8f0; }
+    .pm-legend-item { display: flex; align-items: center; gap: 4px; font-size: 10px; color: #64748b; }
+    .pm-legend-dot { width: 9px; height: 9px; border-radius: 2px; }
+    .pm-legend-dot.lg-t { background: #3b82f6; }
+    .pm-legend-dot.lg-u { background: #22c55e; }
+    .pm-legend-dot.lg-n { background: #e2e8f0; border: 1px solid #cbd5e1; }
 </style>
 @endpush
 
@@ -231,6 +260,31 @@
     // Build port option list for Select2 dropdowns
     $uplinkSet = $olt->uplinks->pluck('interface_name')->toArray();
     $portOptions = [];
+
+    // Build port layout for visualization (grouped by GPON card)
+    $portLayout = [];
+    foreach ($olt->cards->where('role', 'gpon')->sortBy('slot') as $card) {
+        $cardPorts = [];
+        foreach ($card->ponPorts->sortBy('port') as $pp) {
+            $cardPorts[] = ['name' => "gpon_{$pp->slot}/{$pp->port}", 'label' => "P{$pp->port}"];
+        }
+        if (!empty($cardPorts)) {
+            $portLayout[] = [
+                'slot'  => $card->slot,
+                'type'  => $card->board_type ?? 'GPON',
+                'ports' => $cardPorts,
+            ];
+        }
+    }
+    foreach ($orphanPonPorts->groupBy('slot') as $slot => $pps) {
+        $orphanGroup = $pps->map(fn($pp) => ['name' => "gpon_{$pp->slot}/{$pp->port}", 'label' => "P{$pp->port}"])->values()->toArray();
+        $portLayout[] = ['slot' => $slot, 'type' => 'Orphan', 'ports' => $orphanGroup];
+    }
+    $uplinkLayout = $olt->uplinks->map(fn($u) => [
+        'name'  => $u->interface_name,
+        'label' => $u->interface_name,
+        'is10g' => (($u->interface_type ?? '') === 'xgei'),
+    ])->values()->toArray();
     // PON ports  (gpon-onu_slot/port style derived from ONU records)
     $olt->onus->each(function($onu) use (&$portOptions) {
         $p = "gpon-onu_{$onu->slot}/{$onu->port}/{$onu->onu_id}";
@@ -460,6 +514,24 @@
                     <i class="fas fa-info-circle mr-1"></i>
                     Push via <strong>{{ $olt->snmp_community_rw ? 'SNMP SET (Q-BRIDGE)' : 'Telnet CLI' }}</strong>.
                 </small>
+
+                {{-- Port Map Visualization --}}
+                <div class="port-map-wrap mt-3">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;">
+                            <i class="fas fa-sitemap mr-1"></i>Peta Port
+                        </span>
+                        <small class="text-muted" style="font-size:10px;">Update otomatis saat pilih port</small>
+                    </div>
+                    <div id="edit-port-map-body">
+                        <p class="text-muted small text-center mb-0" style="font-size:11px;">Buka Edit VLAN untuk melihat peta port</p>
+                    </div>
+                    <div class="pm-legend">
+                        <div class="pm-legend-item"><div class="pm-legend-dot lg-t"></div>Tagged</div>
+                        <div class="pm-legend-item"><div class="pm-legend-dot lg-u"></div>Untagged</div>
+                        <div class="pm-legend-item"><div class="pm-legend-dot lg-n"></div>None</div>
+                    </div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
@@ -653,6 +725,24 @@
                                 <option value="{{ $p }}">{{ $p }}</option>
                             @endforeach
                         </select>
+                    </div>
+                </div>
+
+                {{-- Port Map Visualization --}}
+                <div class="port-map-wrap mt-3">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;">
+                            <i class="fas fa-sitemap mr-1"></i>Peta Port
+                        </span>
+                        <small class="text-muted" style="font-size:10px;">Update otomatis saat pilih port</small>
+                    </div>
+                    <div id="create-port-map-body">
+                        <p class="text-muted small text-center mb-0" style="font-size:11px;">Pilih port di atas untuk melihat peta</p>
+                    </div>
+                    <div class="pm-legend">
+                        <div class="pm-legend-item"><div class="pm-legend-dot lg-t"></div>Tagged</div>
+                        <div class="pm-legend-item"><div class="pm-legend-dot lg-u"></div>Untagged</div>
+                        <div class="pm-legend-item"><div class="pm-legend-dot lg-n"></div>None</div>
                     </div>
                 </div>
             </div>
@@ -1313,6 +1403,7 @@
                                                 data-description="{{ $vlan->description }}"
                                                 data-tagged="{{ json_encode($vlan->tagged_ports ?? []) }}"
                                                 data-untagged="{{ json_encode($vlan->untagged_ports ?? []) }}"
+                                                data-uplink="{{ json_encode($vlan->uplink_ports ?? []) }}"
                                                 title="Edit VLAN">
                                             <i class="fas fa-edit"></i>
                                         </button>
@@ -1448,10 +1539,19 @@ $(function() {
     // =========================================================================
     // Port Radio Active State
     // =========================================================================
+    // Port Radio Change (also updates port map)
+    // =========================================================================
     $(document).on('change', '.port-radio', function() {
         let group = $(this).closest('.port-radio-group');
         group.find('label').removeClass('active-tagged active-untagged active-none');
         $(this).closest('label').addClass('active-' + $(this).val());
+        buildPortMap('edit');
+    });
+    $(document).on('change', '.create-port-radio', function() {
+        let group = $(this).closest('.port-radio-group');
+        group.find('label').removeClass('active-tagged active-untagged active-none');
+        $(this).closest('label').addClass('active-' + $(this).val());
+        buildPortMap('create');
     });
 
     // =========================================================================
@@ -1563,6 +1663,10 @@ $(function() {
         @endforeach
     ];
 
+    // Port layout data for visualization
+    let portLayout = @json($portLayout);
+    let uplinkData  = @json($uplinkLayout);
+
     // Select2 with tags:true so user can type custom port names not in list
     let s2cfg = { theme: 'bootstrap-5', width: '100%', tags: true, tokenSeparators: [',', ' '],
         placeholder: 'Pilih atau ketik nama port...', allowClear: true };
@@ -1584,6 +1688,62 @@ $(function() {
     function s2Get(selectId) { return $('#' + selectId).val() || []; }
 
     // =========================================================================
+    // Port Map Visualization
+    // =========================================================================
+    function buildPortMap(modalPrefix) {
+        let isEdit = (modalPrefix === 'edit');
+        let taggedSet   = new Set(s2Get(modalPrefix + '-tagged-select'));
+        let untaggedSet = new Set(s2Get(modalPrefix + '-untagged-select'));
+
+        let uplinkTagged = new Set(), uplinkUntagged = new Set();
+        let radioClass = isEdit ? '.port-radio' : '.create-port-radio';
+        $(radioClass + ':checked').each(function() {
+            let port = $(this).data('port'), val = $(this).val();
+            if (val === 'tagged') uplinkTagged.add(port);
+            else if (val === 'untagged') uplinkUntagged.add(port);
+        });
+
+        let html = '';
+
+        // Uplinks section
+        if (uplinkData.length) {
+            html += '<div class="pm-section"><div class="pm-section-label"><i class="fas fa-arrow-up mr-1"></i>Uplinks</div><div class="pm-ports">';
+            uplinkData.forEach(function(u) {
+                let isT = uplinkTagged.has(u.name), isU = uplinkUntagged.has(u.name);
+                let cls  = isT ? 'pm-tagged' : (isU ? 'pm-untagged' : 'pm-none');
+                let mode = isT ? '<span class="pm-port-mode" style="color:#2563eb">T</span>' :
+                           (isU ? '<span class="pm-port-mode" style="color:#16a34a">U</span>' : '');
+                let shortName = u.label.replace(/^x?gei_/, '');
+                let badge = u.is10g ? '<span style="font-size:7px;color:#0891b2;line-height:1;">10G</span>' : '';
+                html += '<div class="pm-port pm-uplink-port ' + cls + '" title="' + u.name + '">';
+                html += '<span class="pm-port-name">' + shortName + '</span>';
+                html += badge + mode;
+                html += '</div>';
+            });
+            html += '</div></div>';
+        }
+
+        // PON ports per GPON card
+        portLayout.forEach(function(card) {
+            html += '<div class="pm-section"><div class="pm-section-label"><i class="fas fa-microchip mr-1"></i>Slot ' + card.slot + ' <span style="font-weight:400;text-transform:none;letter-spacing:0;">' + card.type + '</span></div><div class="pm-ports">';
+            card.ports.forEach(function(p) {
+                let isT = taggedSet.has(p.name), isU = untaggedSet.has(p.name);
+                let cls  = isT ? 'pm-tagged' : (isU ? 'pm-untagged' : 'pm-none');
+                let mode = isT ? '<span class="pm-port-mode" style="color:#2563eb">T</span>' :
+                           (isU ? '<span class="pm-port-mode" style="color:#16a34a">U</span>' : '');
+                html += '<div class="pm-port ' + cls + '" title="' + p.name + '"><span class="pm-port-name">' + p.label + '</span>' + mode + '</div>';
+            });
+            html += '</div></div>';
+        });
+
+        $('#' + modalPrefix + '-port-map-body').html(html || '<p class="text-muted small mb-0" style="font-size:11px;">Tidak ada data port untuk divisualisasikan</p>');
+    }
+
+    // Auto-update port map when Select2 or radio changes
+    $('#edit-tagged-select, #edit-untagged-select').on('change', function() { buildPortMap('edit'); });
+    $('#create-tagged-select, #create-untagged-select').on('change', function() { buildPortMap('create'); });
+
+    // =========================================================================
     // Edit VLAN
     // =========================================================================
     $(document).on('click', '.btn-edit-vlan', function() {
@@ -1597,15 +1757,29 @@ $(function() {
 
         let tagged = btn.data('tagged') || [];
         let untagged = btn.data('untagged') || [];
+        let uplinkPorts = btn.data('uplink') || [];
         if (typeof tagged === 'string') tagged = JSON.parse(tagged);
         if (typeof untagged === 'string') untagged = JSON.parse(untagged);
+        if (typeof uplinkPorts === 'string') uplinkPorts = JSON.parse(uplinkPorts);
 
         // Reset uplink radios
         $('.port-radio[value="none"]').prop('checked', true);
         $('.port-radio-group label').removeClass('active-tagged active-untagged active-none');
         $('.port-radio[value="none"]').closest('label').addClass('active-none');
 
-        // Separate uplink ports vs extra ports
+        // Set radios from uplink_ports column (stored from sync; these are trunk=tagged)
+        uplinkPorts.forEach(function(port) {
+            if (uplinkNames.includes(port)) {
+                let radio = $('input.port-radio[data-port="' + port + '"][value="tagged"]');
+                if (radio.length) {
+                    radio.prop('checked', true);
+                    radio.closest('.port-radio-group').find('label').removeClass('active-tagged active-untagged active-none');
+                    radio.closest('label').addClass('active-tagged');
+                }
+            }
+        });
+
+        // Separate tagged_ports / untagged_ports into uplink (radio) vs extra (select2)
         let extraTagged = [], extraUntagged = [];
         tagged.forEach(function(port) {
             if (uplinkNames.includes(port)) {
@@ -1641,6 +1815,7 @@ $(function() {
 
         s2Set('edit-tagged-select', extraTagged);
         s2Set('edit-untagged-select', extraUntagged);
+        buildPortMap('edit');
         $('#modal-edit-vlan').modal('show');
     });
 
@@ -1738,6 +1913,7 @@ $(function() {
         });
         s2Set('create-tagged-select', []);
         s2Set('create-untagged-select', []);
+        buildPortMap('create');
         $('#modal-create-vlan').modal('show');
     });
 
