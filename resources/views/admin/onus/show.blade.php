@@ -36,7 +36,30 @@
     .wan-connection-card.connected { border-left-color: #28a745; }
     .wan-connection-card.disconnected { border-left-color: #dc3545; }
     .wan-connection-card.connecting { border-left-color: #ffc107; }
-    .wifi-card { background: #fafbfc; border-radius: 6px; padding: 12px; margin-bottom: 8px; }
+    .wifi-card {
+        background: #fff;
+        border: 1px solid #e9ecef;
+        border-radius: 10px;
+        padding: 16px;
+        margin-bottom: 12px;
+        transition: all 0.2s ease;
+        position: relative;
+        overflow: hidden;
+    }
+    .wifi-card:hover { box-shadow: 0 4px 15px rgba(0,0,0,.08); transform: translateY(-1px); }
+    .wifi-card.wifi-disabled { opacity: 0.6; background: #f8f9fa; }
+    .wifi-card .wifi-status-bar { position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+    .wifi-card .wifi-status-bar.active { background: linear-gradient(90deg, #28a745, #20c997); }
+    .wifi-card .wifi-status-bar.inactive { background: #dee2e6; }
+    .wifi-band-header { padding: 8px 14px; border-radius: 8px; margin-bottom: 12px; }
+    .wifi-band-header.band-24 { background: linear-gradient(135deg, #17a2b8 0%, #138496 100%); color: #fff; }
+    .wifi-band-header.band-5 { background: linear-gradient(135deg, #6f42c1 0%, #5a32a3 100%); color: #fff; }
+    .wifi-band-header.band-unknown { background: #6c757d; color: #fff; }
+    .wifi-signal-icon { font-size: 1.5rem; }
+    .wifi-ssid-name { font-size: 1.05rem; font-weight: 600; }
+    .wifi-meta-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; margin-top: 10px; }
+    .wifi-meta-item { font-size: 11.5px; color: #6c757d; display: flex; align-items: center; gap: 5px; }
+    .wifi-meta-item i { width: 14px; text-align: center; }
     .firmware-current { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; border-radius: 8px; padding: 15px; }
     #tr069-loading-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,.85); z-index: 10; display: flex; align-items: center; justify-content: center; }
 </style>
@@ -813,7 +836,7 @@
                                     <div class="acs-card mt-2">
                                         <div class="acs-section-header"><i class="fas fa-exclamation-triangle mr-1 text-danger"></i>Danger Zone</div>
                                         <div class="card-body">
-                                            <button type="button" class="btn btn-outline-danger btn-sm btn-block btn-factory-reset">
+                                            <button type="button" class="btn btn-outline-danger btn-sm btn-block btn-tr069-factory-reset">
                                                 <i class="fas fa-undo mr-1"></i>Factory Reset via TR-069
                                             </button>
                                             <small class="text-muted d-block mt-1">Mengembalikan ONU ke pengaturan pabrik. Semua konfigurasi akan hilang.</small>
@@ -1076,8 +1099,8 @@
 {{-- WiFi Edit Modal --}}
 <div class="modal fade" id="modal-wifi" tabindex="-1">
     <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-info">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header" style="background: linear-gradient(135deg, #17a2b8 0%, #138496 100%); border: none;">
                 <h5 class="modal-title text-white"><i class="fas fa-wifi mr-2"></i>Edit Wireless</h5>
                 <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
             </div>
@@ -1085,22 +1108,29 @@
                 <input type="hidden" name="wlan_path" id="wifi-path">
                 <div class="modal-body">
                     <div class="form-group">
-                        <label>SSID</label>
-                        <input type="text" name="ssid" id="wifi-ssid" class="form-control" maxlength="32">
+                        <label><i class="fas fa-broadcast-tower text-info mr-1"></i>SSID</label>
+                        <input type="text" name="ssid" id="wifi-ssid" class="form-control" maxlength="32" placeholder="Nama jaringan WiFi">
                     </div>
                     <div class="form-group">
-                        <label>Password</label>
-                        <input type="text" name="password" id="wifi-password" class="form-control" minlength="8" maxlength="63" placeholder="Min 8 karakter">
+                        <label><i class="fas fa-key text-warning mr-1"></i>Password</label>
+                        <div class="input-group">
+                            <input type="password" name="password" id="wifi-password" class="form-control" minlength="8" maxlength="63" placeholder="Kosongkan jika tidak diubah">
+                            <div class="input-group-append">
+                                <button type="button" class="btn btn-outline-secondary btn-toggle-pass" data-target="#wifi-password" tabindex="-1">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label>Status</label>
+                    <div class="form-group mb-0">
+                        <label><i class="fas fa-power-off text-success mr-1"></i>Status</label>
                         <select name="enabled" id="wifi-enabled" class="form-control">
                             <option value="1">Enabled</option>
                             <option value="0">Disabled</option>
                         </select>
                     </div>
                 </div>
-                <div class="modal-footer">
+                <div class="modal-footer border-0">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
                     <button type="submit" class="btn btn-info"><i class="fas fa-save mr-1"></i>Simpan</button>
                 </div>
@@ -1561,11 +1591,16 @@ $(function() {
                 wanHtml += '</div></div>';
                 wanHtml += '<div class="mt-2 small">';
                 if (wan.username) wanHtml += '<div><i class="fas fa-user text-muted mr-1"></i>Username: <strong>' + wan.username + '</strong></div>';
-                if (wan.external_ip) wanHtml += '<div><i class="fas fa-network-wired text-muted mr-1"></i>IP: <code>' + wan.external_ip + '</code></div>';
-                if (wan.gateway) wanHtml += '<div><i class="fas fa-route text-muted mr-1"></i>Gateway: <code>' + wan.gateway + '</code></div>';
-                if (wan.dns) wanHtml += '<div><i class="fas fa-server text-muted mr-1"></i>DNS: ' + wan.dns + '</div>';
+                var ip = wan.external_ip;
+                if (ip && ip !== '0.0.0.0') {
+                    wanHtml += '<div><i class="fas fa-network-wired text-muted mr-1"></i>IP: <code>' + ip + '</code></div>';
+                } else if (ip === '0.0.0.0') {
+                    wanHtml += '<div><i class="fas fa-network-wired text-warning mr-1"></i>IP: <span class="text-warning">Belum terhubung</span></div>';
+                }
+                if (wan.gateway && wan.gateway !== '0.0.0.0') wanHtml += '<div><i class="fas fa-route text-muted mr-1"></i>Gateway: <code>' + wan.gateway + '</code></div>';
+                if (wan.dns && wan.dns.trim()) wanHtml += '<div><i class="fas fa-server text-muted mr-1"></i>DNS: ' + wan.dns.trim() + '</div>';
                 if (wan.vlan_id) wanHtml += '<div><i class="fas fa-tag text-muted mr-1"></i>VLAN: ' + wan.vlan_id + '</div>';
-                if (wan.uptime) wanHtml += '<div><i class="fas fa-clock text-muted mr-1"></i>Uptime: ' + formatUptime(wan.uptime) + '</div>';
+                if (wan.uptime && parseInt(wan.uptime) > 0) wanHtml += '<div><i class="fas fa-clock text-muted mr-1"></i>Uptime: ' + formatUptime(wan.uptime) + '</div>';
                 wanHtml += '</div></div>';
             });
             $('#tr069-wan-list').html(wanHtml);
@@ -1574,7 +1609,6 @@ $(function() {
         // WiFi
         var wifis = data.wifi || [];
         $('#tr069-wifi-count').text(wifis.length);
-        // Show/hide Add SSID button based on count (max 4)
         if (wifis.length >= 4) {
             $('#btn-add-ssid').hide();
         } else {
@@ -1586,7 +1620,6 @@ $(function() {
         } else {
             $('#tr069-wifi-empty').hide();
 
-            // Group by band — only show groups that actually have entries
             var bands = {};
             wifis.forEach(function(wifi, i) {
                 var b = wifi.band || 'Unknown';
@@ -1595,63 +1628,77 @@ $(function() {
             });
 
             var bandOrder = ['2.4GHz', '5GHz', 'Unknown'];
-            var bandColors = { '2.4GHz': 'info', '5GHz': 'primary', 'Unknown': 'secondary' };
-            var bandIcons  = { '2.4GHz': 'fa-wifi', '5GHz': 'fa-broadcast-tower', 'Unknown': 'fa-wifi' };
+            var bandConfig = {
+                '2.4GHz': { cssClass: 'band-24', icon: 'fa-wifi', label: '2.4 GHz', gradient: '#17a2b8' },
+                '5GHz':   { cssClass: 'band-5',  icon: 'fa-broadcast-tower', label: '5 GHz', gradient: '#6f42c1' },
+                'Unknown': { cssClass: 'band-unknown', icon: 'fa-wifi', label: 'Unknown Band', gradient: '#6c757d' }
+            };
 
             var wifiHtml = '';
             bandOrder.forEach(function(band) {
-                if (!bands[band]) return; // skip band if device doesn't have it
+                if (!bands[band]) return;
                 var entries = bands[band];
-                var bc = bandColors[band];
-                var bi = bandIcons[band];
+                var cfg = bandConfig[band];
 
-                wifiHtml += '<div class="mb-3">';
-                wifiHtml += '<div class="d-flex align-items-center mb-2">';
-                wifiHtml += '<span class="badge badge-' + bc + ' mr-2"><i class="fas ' + bi + ' mr-1"></i>' + band + '</span>';
-                wifiHtml += '<small class="text-muted">' + entries.length + ' SSID</small>';
+                wifiHtml += '<div class="mb-4">';
+                wifiHtml += '<div class="wifi-band-header ' + cfg.cssClass + ' d-flex align-items-center justify-content-between">';
+                wifiHtml += '<div><i class="fas ' + cfg.icon + ' mr-2"></i><strong>' + cfg.label + '</strong></div>';
+                wifiHtml += '<span class="badge badge-light">' + entries.length + ' SSID</span>';
                 wifiHtml += '</div>';
 
                 entries.forEach(function(entry) {
                     var wifi = entry.wifi, i = entry.i;
-                    var enabledClass = wifi.enabled ? 'success' : 'secondary';
-                    // Extract index from path e.g. WLANConfiguration.2
+                    var isEnabled = wifi.enabled;
                     var wlanIndex = 1;
                     var idxMatch = (wifi.path || '').match(/WLANConfiguration\.(\d+)/);
                     if (idxMatch) wlanIndex = parseInt(idxMatch[1], 10);
                     var canDelete = wlanIndex > 1;
 
-                    wifiHtml += '<div class="wifi-card mb-2">';
-                    wifiHtml += '<div class="d-flex justify-content-between align-items-center">';
-                    wifiHtml += '<div>';
-                    wifiHtml += '<strong><i class="fas fa-wifi text-' + enabledClass + ' mr-1"></i>' + (wifi.ssid || 'SSID ' + (i + 1)) + '</strong>';
-                    wifiHtml += ' <span class="badge badge-' + enabledClass + '">' + (wifi.enabled ? 'Enabled' : 'Disabled') + '</span>';
-                    if (wifi.channel) wifiHtml += ' <small class="text-muted ml-1">Ch.' + wifi.channel + '</small>';
-                    if (wifi.total_associations !== null && wifi.total_associations !== undefined && wifi.total_associations !== '')
-                        wifiHtml += ' <span class="badge badge-light ml-1"><i class="fas fa-laptop mr-1"></i>' + wifi.total_associations + '</span>';
+                    wifiHtml += '<div class="wifi-card' + (!isEnabled ? ' wifi-disabled' : '') + '">';
+                    wifiHtml += '<div class="wifi-status-bar ' + (isEnabled ? 'active' : 'inactive') + '"></div>';
+                    wifiHtml += '<div class="d-flex justify-content-between align-items-start">';
+                    wifiHtml += '<div class="d-flex align-items-center">';
+                    wifiHtml += '<div class="wifi-signal-icon mr-3 text-' + (isEnabled ? 'success' : 'secondary') + '">';
+                    wifiHtml += '<i class="fas fa-wifi"></i>';
                     wifiHtml += '</div>';
+                    wifiHtml += '<div>';
+                    wifiHtml += '<div class="wifi-ssid-name">' + (wifi.ssid || 'SSID ' + (i + 1)) + '</div>';
+                    wifiHtml += '<div class="mt-1">';
+                    wifiHtml += '<span class="badge badge-' + (isEnabled ? 'success' : 'secondary') + ' badge-pill mr-1">';
+                    wifiHtml += '<i class="fas fa-' + (isEnabled ? 'check-circle' : 'times-circle') + ' mr-1"></i>';
+                    wifiHtml += (isEnabled ? 'Active' : 'Disabled') + '</span>';
+                    if (wifi.channel) wifiHtml += '<span class="badge badge-outline-secondary badge-pill mr-1">Ch ' + wifi.channel + '</span>';
+                    if (wifi.total_associations !== null && wifi.total_associations !== undefined && wifi.total_associations !== '') {
+                        var assocCount = parseInt(wifi.total_associations) || 0;
+                        wifiHtml += '<span class="badge badge-' + (assocCount > 0 ? 'info' : 'light') + ' badge-pill">';
+                        wifiHtml += '<i class="fas fa-laptop mr-1"></i>' + assocCount + ' device' + (assocCount !== 1 ? 's' : '') + '</span>';
+                    }
+                    wifiHtml += '</div></div></div>';
+
+                    // Action buttons
                     wifiHtml += '<div class="btn-group btn-group-sm">';
-                    wifiHtml += '<button type="button" class="btn btn-xs btn-outline-info btn-edit-wifi"'
+                    wifiHtml += '<button type="button" class="btn btn-sm btn-outline-info btn-edit-wifi"'
                         + ' data-path="' + (wifi.path || '') + '"'
                         + ' data-ssid="' + (wifi.ssid || '') + '"'
-                        + ' data-enabled="' + (wifi.enabled ? '1' : '0') + '">'
-                        + '<i class="fas fa-edit mr-1"></i>Edit</button>';
+                        + ' data-enabled="' + (wifi.enabled ? '1' : '0') + '"'
+                        + ' title="Edit WiFi"><i class="fas fa-cog"></i></button>';
                     if (canDelete) {
-                        wifiHtml += '<button type="button" class="btn btn-xs btn-outline-danger btn-delete-wifi"'
+                        wifiHtml += '<button type="button" class="btn btn-sm btn-outline-danger btn-delete-wifi"'
                             + ' data-path="' + (wifi.path || '') + '"'
-                            + ' data-ssid="' + (wifi.ssid || 'SSID ' + wlanIndex) + '">'
-                            + '<i class="fas fa-trash"></i></button>';
+                            + ' data-ssid="' + (wifi.ssid || 'SSID ' + wlanIndex) + '"'
+                            + ' title="Hapus SSID"><i class="fas fa-trash-alt"></i></button>';
                     }
-                    wifiHtml += '</div>';
-                    wifiHtml += '</div>';
-                    if (wifi.standard || wifi.security_mode || wifi.encryption) {
-                        wifiHtml += '<div class="mt-1 small text-muted">';
-                        if (wifi.standard) wifiHtml += '<span class="mr-2">Std: ' + wifi.standard + '</span>';
-                        if (wifi.security_mode) wifiHtml += '<span class="mr-2">Security: ' + wifi.security_mode + '</span>';
-                        if (wifi.encryption) wifiHtml += '<span>Enc: ' + wifi.encryption + '</span>';
+                    wifiHtml += '</div></div>';
+
+                    // Meta info grid
+                    var hasMeta = wifi.standard || wifi.security_mode || wifi.encryption || wifi.mac_address;
+                    if (hasMeta) {
+                        wifiHtml += '<div class="wifi-meta-grid">';
+                        if (wifi.security_mode) wifiHtml += '<div class="wifi-meta-item"><i class="fas fa-shield-alt text-success"></i>' + wifi.security_mode + '</div>';
+                        if (wifi.encryption) wifiHtml += '<div class="wifi-meta-item"><i class="fas fa-lock text-info"></i>' + wifi.encryption + '</div>';
+                        if (wifi.standard) wifiHtml += '<div class="wifi-meta-item"><i class="fas fa-tachometer-alt text-primary"></i>' + wifi.standard + '</div>';
+                        if (wifi.mac_address) wifiHtml += '<div class="wifi-meta-item"><i class="fas fa-fingerprint text-muted"></i><code class="small">' + wifi.mac_address + '</code></div>';
                         wifiHtml += '</div>';
-                    }
-                    if (wifi.mac_address) {
-                        wifiHtml += '<div class="mt-1 small text-muted"><i class="fas fa-fingerprint mr-1"></i>BSSID: <code>' + wifi.mac_address + '</code></div>';
                     }
                     wifiHtml += '</div>';
                 });
@@ -2251,17 +2298,20 @@ $(function() {
         });
     });
 
-    // Factory Reset
-    $('.btn-factory-reset').click(function() {
+    // Factory Reset via TR-069
+    $('.btn-tr069-factory-reset').click(function() {
+        var btn = $(this);
         Swal.fire({
             title: 'Factory Reset via TR-069?',
             html: '<div class="text-danger"><strong>PERINGATAN!</strong><br>Semua konfigurasi ONU akan dihapus dan dikembalikan ke pengaturan pabrik.</div>',
             icon: 'error', showCancelButton: true, confirmButtonColor: '#dc3545', confirmButtonText: 'Ya, Factory Reset!'
         }).then(function(result) {
             if (result.isConfirmed) {
+                btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Resetting...');
                 $.post('/admin/onus/{{ $onu->id }}/tr069-factory-reset', { _token: '{{ csrf_token() }}' })
-                    .done(function(res) { Swal.fire('Berhasil', res.message, res.success ? 'success' : 'error'); })
-                    .fail(function(xhr) { Swal.fire('Error', xhr.responseJSON?.message || 'Gagal', 'error'); });
+                    .done(function(res) { Swal.fire('Berhasil', res.message || 'Factory reset dikirim', res.success ? 'success' : 'error'); })
+                    .fail(function(xhr) { Swal.fire('Error', xhr.responseJSON?.message || 'Gagal mengirim factory reset', 'error'); })
+                    .always(function() { btn.prop('disabled', false).html('<i class="fas fa-undo mr-1"></i>Factory Reset via TR-069'); });
             }
         });
     });
@@ -2327,6 +2377,19 @@ $(function() {
         })
         .fail(function(xhr) { Swal.fire('Error', xhr.responseJSON?.message || 'Server error', 'error'); })
         .always(function() { btn.prop('disabled', false).html('<i class="fas fa-paper-plane mr-1"></i>Terapkan'); });
+    });
+
+    // Password toggle
+    $(document).on('click', '.btn-toggle-pass', function() {
+        var target = $($(this).data('target'));
+        var icon = $(this).find('i');
+        if (target.attr('type') === 'password') {
+            target.attr('type', 'text');
+            icon.removeClass('fa-eye').addClass('fa-eye-slash');
+        } else {
+            target.attr('type', 'password');
+            icon.removeClass('fa-eye-slash').addClass('fa-eye');
+        }
     });
 
     // WiFi Edit

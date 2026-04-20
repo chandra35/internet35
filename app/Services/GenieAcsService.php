@@ -188,6 +188,9 @@ class GenieAcsService
                             'username' => $this->getValue($pppValue, 'Username'),
                             'status' => $this->getValue($pppValue, 'ConnectionStatus'),
                             'external_ip' => $this->getValue($pppValue, 'ExternalIPAddress'),
+                            'gateway' => $this->getValue($pppValue, 'DefaultGateway') ?: $this->getValue($pppValue, 'RemoteIPAddress'),
+                            'dns' => trim(($this->getValue($pppValue, 'DNSServers') ?: '') . ' ' . ($this->getValue($pppValue, 'X_HW_DNS') ?: '')),
+                            'uptime' => $this->getValue($pppValue, 'Uptime'),
                             'vlan_id' => $this->getValue($pppValue, 'X_HW_VLAN'),
                         ];
                     }
@@ -203,6 +206,10 @@ class GenieAcsService
                             'addressing_type' => $this->getValue($ipValue, 'AddressingType'),
                             'status' => $this->getValue($ipValue, 'ConnectionStatus'),
                             'external_ip' => $this->getValue($ipValue, 'ExternalIPAddress'),
+                            'subnet_mask' => $this->getValue($ipValue, 'SubnetMask'),
+                            'gateway' => $this->getValue($ipValue, 'DefaultGateway'),
+                            'dns' => $this->getValue($ipValue, 'DNSServers'),
+                            'uptime' => $this->getValue($ipValue, 'Uptime'),
                             'vlan_id' => $this->getValue($ipValue, 'X_HW_VLAN'),
                         ];
                     }
@@ -1434,10 +1441,7 @@ class GenieAcsService
             $response = Http::timeout($this->timeout)
                 ->asJson()
                 ->post("{$this->nbiUrl}/devices/{$deviceId}/tasks?connection_request", [
-                    'name' => 'setParameterValues',
-                    'parameterValues' => [
-                        ['InternetGatewayDevice.DeviceInfo.X_HW_ResetFactory', true, 'xsd:boolean'],
-                    ],
+                    'name' => 'factoryReset',
                 ]);
 
             return [
