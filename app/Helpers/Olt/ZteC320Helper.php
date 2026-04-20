@@ -2658,11 +2658,16 @@ class ZteC320Helper extends BaseOltHelper
 
             $output = $this->executeBatchCliCommands($commands);
 
-            $result['success'] = true;
-            $result['message'] = "Factory reset command sent to ONU {$slot}/{$port}:{$onuId}";
+            // Check for errors in output
+            if (preg_match('/%(?:Error|Code)\s+\S+\s*:\s*(.+)/i', $output, $m)) {
+                $result['message'] = "Factory reset gagal: " . trim($m[1]);
+            } else {
+                $result['success'] = true;
+                $result['message'] = "Factory reset berhasil dikirim ke ONU {$slot}/{$port}:{$onuId}. ONU akan restart.";
+            }
 
         } catch (Exception $e) {
-            $result['message'] = $e->getMessage();
+            $result['message'] = 'Factory reset error: ' . $e->getMessage();
         }
 
         return $result;

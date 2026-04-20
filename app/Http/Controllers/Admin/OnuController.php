@@ -490,13 +490,15 @@ class OnuController extends Controller implements HasMiddleware
 
             $this->activityLog->log('onus', "Factory reset ONU: {$onu->serial_number}");
 
-            if ($result['success']) {
-                return back()->with('success', $result['message']);
-            } else {
-                return back()->with('warning', $result['message']);
-            }
+            return response()->json([
+                'success' => $result['success'],
+                'message' => $result['message'],
+            ]);
         } catch (Exception $e) {
-            return back()->with('error', 'Factory reset failed: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Factory reset failed: ' . $e->getMessage(),
+            ], 500);
         }
     }
 
