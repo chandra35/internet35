@@ -13,124 +13,161 @@
 
 @push('css')
 <style>
-    /* â”€â”€ Shelf Slot Visual â”€â”€ */
-    .shelf-container { background: linear-gradient(135deg, #1a1e2e 0%, #2d3250 100%); border-radius: 10px; padding: 20px; }
+    /* Shelf Slot Visual */
+    .shelf-container { background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%); border-radius: 12px; padding: 24px; box-shadow: inset 0 2px 10px rgba(0,0,0,0.3); }
     .shelf-slot {
-        border: 2px solid rgba(255,255,255,0.08);
-        border-radius: 8px;
+        border: 2px solid rgba(255,255,255,0.06);
+        border-radius: 10px;
         text-align: center;
-        padding: 8px 4px;
-        min-height: 94px;
-        min-width: 74px;
-        transition: all 0.3s ease;
+        padding: 10px 6px;
+        min-height: 100px;
+        min-width: 78px;
+        transition: all 0.3s cubic-bezier(.4,0,.2,1);
         cursor: pointer;
         position: relative;
-        background: rgba(255,255,255,0.03);
+        background: rgba(255,255,255,0.02);
+        backdrop-filter: blur(4px);
     }
-    .shelf-slot:hover:not(.empty-slot) { transform: translateY(-3px); box-shadow: 0 6px 16px rgba(0,0,0,0.4); }
-    .shelf-slot.active-gpon { border-color: #28a745; background: linear-gradient(180deg, rgba(40,167,69,0.15) 0%, rgba(40,167,69,0.05) 100%); }
-    .shelf-slot.active-epon { border-color: #17a2b8; background: linear-gradient(180deg, rgba(23,162,184,0.15) 0%, rgba(23,162,184,0.05) 100%); }
+    .shelf-slot:hover:not(.empty-slot) { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+    .shelf-slot.active-gpon { border-color: #22c55e; background: linear-gradient(180deg, rgba(34,197,94,0.18) 0%, rgba(34,197,94,0.04) 100%); }
+    .shelf-slot.active-epon { border-color: #06b6d4; background: linear-gradient(180deg, rgba(6,182,212,0.18) 0%, rgba(6,182,212,0.04) 100%); }
     .shelf-slot.active-mgmt,
-    .shelf-slot.active-management { border-color: #ffc107; background: linear-gradient(180deg, rgba(255,193,7,0.15) 0%, rgba(255,193,7,0.05) 100%); }
-    .shelf-slot.active-power { border-color: #dc3545; background: linear-gradient(180deg, rgba(220,53,69,0.15) 0%, rgba(220,53,69,0.05) 100%); }
-    .shelf-slot.active-fan { border-color: #6f42c1; background: linear-gradient(180deg, rgba(111,66,193,0.15) 0%, rgba(111,66,193,0.05) 100%); }
-    .shelf-slot.active-other { border-color: #6c757d; background: linear-gradient(180deg, rgba(108,117,125,0.15) 0%, rgba(108,117,125,0.05) 100%); }
-    .shelf-slot.empty-slot { opacity: 0.15; cursor: default; }
-    .shelf-slot.standby { border-style: dashed; opacity: 0.35; }
-    .shelf-slot .slot-label { font-size: 9px; color: rgba(255,255,255,0.35); letter-spacing: 0.5px; }
-    .shelf-slot .slot-type { font-size: 12px; font-weight: 700; color: #fff; margin: 2px 0; }
-    .shelf-slot .slot-ports { font-size: 9px; color: rgba(255,255,255,0.45); }
-    .shelf-slot .slot-badge { font-size: 8px; padding: 1px 6px; }
-    .shelf-slot.selected { box-shadow: 0 0 0 3px #007bff, 0 6px 20px rgba(0,123,255,0.4); transform: translateY(-3px); }
+    .shelf-slot.active-management { border-color: #eab308; background: linear-gradient(180deg, rgba(234,179,8,0.18) 0%, rgba(234,179,8,0.04) 100%); }
+    .shelf-slot.active-power { border-color: #ef4444; background: linear-gradient(180deg, rgba(239,68,68,0.18) 0%, rgba(239,68,68,0.04) 100%); }
+    .shelf-slot.active-fan { border-color: #a855f7; background: linear-gradient(180deg, rgba(168,85,247,0.18) 0%, rgba(168,85,247,0.04) 100%); }
+    .shelf-slot.active-other { border-color: #64748b; background: linear-gradient(180deg, rgba(100,116,139,0.18) 0%, rgba(100,116,139,0.04) 100%); }
+    .shelf-slot.empty-slot { opacity: 0.12; cursor: default; }
+    .shelf-slot.standby { border-style: dashed; opacity: 0.3; }
+    .shelf-slot .slot-label { font-size: 9px; color: rgba(255,255,255,0.3); letter-spacing: 1px; text-transform: uppercase; }
+    .shelf-slot .slot-type { font-size: 13px; font-weight: 700; color: #fff; margin: 4px 0 2px; }
+    .shelf-slot .slot-ports { font-size: 9px; color: rgba(255,255,255,0.4); }
+    .shelf-slot .slot-badge { font-size: 8px; padding: 2px 8px; border-radius: 4px; }
+    .shelf-slot.selected { box-shadow: 0 0 0 3px #3b82f6, 0 8px 24px rgba(59,130,246,0.4); transform: translateY(-4px); }
 
-    /* â”€â”€ PON Port Cell â”€â”€ */
+    /* PON Port Cell */
     .pon-port-cell {
         display: inline-flex; align-items: center; justify-content: center;
-        width: 50px; height: 50px; text-align: center; border-radius: 8px;
+        width: 52px; height: 52px; text-align: center; border-radius: 10px;
         margin: 3px; font-weight: 600; cursor: default; position: relative;
-        flex-direction: column; line-height: 1.2; transition: all 0.2s;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        flex-direction: column; line-height: 1.2; transition: all 0.25s cubic-bezier(.4,0,.2,1);
+        box-shadow: 0 2px 6px rgba(0,0,0,0.08);
     }
-    .pon-port-cell .port-num { font-size: 14px; font-weight: 700; }
+    .pon-port-cell:hover { transform: scale(1.08); }
+    .pon-port-cell .port-num { font-size: 15px; font-weight: 800; }
     .pon-port-cell .port-count { font-size: 8px; opacity: 0.9; }
-    .pon-port-cell.has-onu { background: linear-gradient(135deg, #28a745, #20c997); color: #fff; }
-    .pon-port-cell.empty-port { background: #f0f2f5; color: #adb5bd; }
-    .pon-port-cell.some-offline { background: linear-gradient(135deg, #ffc107, #fd7e14); color: #333; }
-    .pon-port-cell.all-offline { background: linear-gradient(135deg, #dc3545, #c82333); color: #fff; }
+    .pon-port-cell.has-onu { background: linear-gradient(135deg, #22c55e, #10b981); color: #fff; box-shadow: 0 3px 10px rgba(34,197,94,0.3); }
+    .pon-port-cell.empty-port { background: #f1f5f9; color: #94a3b8; border: 1px dashed #cbd5e1; box-shadow: none; }
+    .pon-port-cell.some-offline { background: linear-gradient(135deg, #f59e0b, #f97316); color: #fff; box-shadow: 0 3px 10px rgba(245,158,11,0.3); }
+    .pon-port-cell.all-offline { background: linear-gradient(135deg, #ef4444, #dc2626); color: #fff; box-shadow: 0 3px 10px rgba(239,68,68,0.3); }
 
-    /* â”€â”€ Card Detail Panel â”€â”€ */
+    /* Card Detail Panel */
     .card-detail-panel {
-        border-left: 4px solid #007bff;
+        border-left: 4px solid #3b82f6;
         background: #fff;
-        border-radius: 0 10px 10px 0;
-        padding: 20px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-        transition: box-shadow 0.3s;
+        border-radius: 0 12px 12px 0;
+        padding: 22px 24px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.06);
+        transition: all 0.3s cubic-bezier(.4,0,.2,1);
     }
-    .card-detail-panel:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.1); }
-    .card-detail-panel.role-gpon { border-left-color: #28a745; }
-    .card-detail-panel.role-epon { border-left-color: #17a2b8; }
-    .card-detail-panel.role-management { border-left-color: #ffc107; }
-    .card-detail-panel.role-power { border-left-color: #dc3545; }
-    .card-detail-panel.role-fan { border-left-color: #6f42c1; }
+    .card-detail-panel:hover { box-shadow: 0 2px 6px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.1); }
+    .card-detail-panel.role-gpon { border-left-color: #22c55e; }
+    .card-detail-panel.role-epon { border-left-color: #06b6d4; }
+    .card-detail-panel.role-management { border-left-color: #eab308; }
+    .card-detail-panel.role-power { border-left-color: #ef4444; }
+    .card-detail-panel.role-fan { border-left-color: #a855f7; }
 
-    .spec-grid { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+    .spec-grid { display: flex; flex-wrap: wrap; gap: 6px 20px; }
     .spec-item { font-size: 12px; }
-    .spec-item .spec-label { color: #6c757d; }
-    .spec-item .spec-value { font-weight: 600; color: #212529; }
+    .spec-item .spec-label { color: #94a3b8; font-size: 11px; }
+    .spec-item .spec-value { font-weight: 600; color: #1e293b; }
 
-    /* â”€â”€ VLAN / Uplink Tags â”€â”€ */
+    /* VLAN / Uplink Tags */
     .uplink-vlan-tag {
-        display: inline-block; padding: 2px 7px; margin: 1px; border-radius: 4px;
-        font-size: 10px; font-weight: 600; background: #e3f2fd; color: #1565c0;
+        display: inline-block; padding: 3px 8px; margin: 2px; border-radius: 6px;
+        font-size: 10px; font-weight: 600; background: #eff6ff; color: #2563eb;
+        border: 1px solid rgba(37,99,235,0.12);
     }
-    .uplink-vlan-tag.untagged { background: #e8f5e9; color: #2e7d32; }
+    .uplink-vlan-tag.untagged { background: #f0fdf4; color: #16a34a; border-color: rgba(22,163,74,0.12); }
     .vlan-svc-badge { min-width: 28px; display: inline-block; text-align: center; }
 
-    /* â”€â”€ Port Membership Radio â”€â”€ */
+    /* Port Membership Radio */
     .port-membership-row { transition: background 0.2s; }
-    .port-membership-row:hover { background: #f0f7ff !important; }
+    .port-membership-row:hover { background: #f8fafc !important; }
     .port-radio-group { display: flex; gap: 0; }
     .port-radio-group label {
         flex: 1; text-align: center; padding: 6px 14px; margin: 0;
-        font-size: 11px; font-weight: 600; cursor: pointer; border: 1px solid #dee2e6;
-        transition: all 0.15s; background: #fff; color: #6c757d;
+        font-size: 11px; font-weight: 600; cursor: pointer; border: 1px solid #e2e8f0;
+        transition: all 0.2s cubic-bezier(.4,0,.2,1); background: #fff; color: #94a3b8;
     }
-    .port-radio-group label:first-child { border-radius: 5px 0 0 5px; }
-    .port-radio-group label:last-child { border-radius: 0 5px 5px 0; }
+    .port-radio-group label:first-child { border-radius: 6px 0 0 6px; }
+    .port-radio-group label:last-child { border-radius: 0 6px 6px 0; }
     .port-radio-group label:not(:first-child) { border-left: 0; }
     .port-radio-group input[type="radio"] { display: none; }
-    .port-radio-group label.active-tagged { background: #007bff; color: #fff; border-color: #007bff; }
-    .port-radio-group label.active-untagged { background: #28a745; color: #fff; border-color: #28a745; }
-    .port-radio-group label.active-none { background: #6c757d; color: #fff; border-color: #6c757d; }
+    .port-radio-group label.active-tagged { background: #3b82f6; color: #fff; border-color: #3b82f6; box-shadow: 0 2px 8px rgba(59,130,246,0.3); }
+    .port-radio-group label.active-untagged { background: #22c55e; color: #fff; border-color: #22c55e; box-shadow: 0 2px 8px rgba(34,197,94,0.3); }
+    .port-radio-group label.active-none { background: #64748b; color: #fff; border-color: #64748b; }
 
-    /* â”€â”€ Stat Card Mini â”€â”€ */
+    /* Stat Card Mini */
     .stat-mini {
-        border-radius: 10px; padding: 10px 16px; text-align: center;
-        transition: transform 0.2s; min-width: 70px;
+        border-radius: 12px; padding: 12px 18px; text-align: center;
+        transition: all 0.25s cubic-bezier(.4,0,.2,1); min-width: 80px;
+        border: 1px solid transparent;
     }
-    .stat-mini:hover { transform: translateY(-2px); }
-    .stat-mini .stat-value { font-size: 20px; font-weight: 700; line-height: 1; }
-    .stat-mini .stat-value small { font-size: 12px; }
-    .stat-mini .stat-label { font-size: 10px; color: #6c757d; margin-top: 2px; }
-    .stat-mini.stat-success { background: rgba(40,167,69,0.08); }
-    .stat-mini.stat-success .stat-value { color: #28a745; }
-    .stat-mini.stat-primary { background: rgba(0,123,255,0.08); }
-    .stat-mini.stat-primary .stat-value { color: #007bff; }
-    .stat-mini.stat-info { background: rgba(23,162,184,0.08); }
-    .stat-mini.stat-info .stat-value { color: #17a2b8; }
-    .stat-mini.stat-warning { background: rgba(255,193,7,0.08); }
-    .stat-mini.stat-warning .stat-value { color: #e0a800; }
-    .stat-mini.stat-danger { background: rgba(220,53,69,0.08); }
-    .stat-mini.stat-danger .stat-value { color: #dc3545; }
+    .stat-mini:hover { transform: translateY(-3px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+    .stat-mini .stat-value { font-size: 22px; font-weight: 800; line-height: 1; letter-spacing: -0.5px; }
+    .stat-mini .stat-value small { font-size: 12px; font-weight: 600; }
+    .stat-mini .stat-label { font-size: 10px; color: #64748b; margin-top: 4px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-mini.stat-success { background: rgba(34,197,94,0.06); border-color: rgba(34,197,94,0.12); }
+    .stat-mini.stat-success .stat-value { color: #16a34a; }
+    .stat-mini.stat-primary { background: rgba(59,130,246,0.06); border-color: rgba(59,130,246,0.12); }
+    .stat-mini.stat-primary .stat-value { color: #2563eb; }
+    .stat-mini.stat-info { background: rgba(6,182,212,0.06); border-color: rgba(6,182,212,0.12); }
+    .stat-mini.stat-info .stat-value { color: #0891b2; }
+    .stat-mini.stat-warning { background: rgba(234,179,8,0.06); border-color: rgba(234,179,8,0.12); }
+    .stat-mini.stat-warning .stat-value { color: #ca8a04; }
+    .stat-mini.stat-danger { background: rgba(239,68,68,0.06); border-color: rgba(239,68,68,0.12); }
+    .stat-mini.stat-danger .stat-value { color: #dc2626; }
 
-    /* â”€â”€ Section Title â”€â”€ */
+    /* Section Title */
     .section-title {
-        font-size: 12px; font-weight: 700; text-transform: uppercase;
-        letter-spacing: 0.8px; color: #6c757d; margin-bottom: 10px;
-        padding-bottom: 6px; border-bottom: 2px solid #f0f0f0;
+        font-size: 11px; font-weight: 700; text-transform: uppercase;
+        letter-spacing: 1.2px; color: #94a3b8; margin-bottom: 12px;
+        padding-bottom: 8px; border-bottom: 2px solid #f1f5f9;
     }
-    .section-title i { margin-right: 6px; }
+    .section-title i { margin-right: 6px; color: #cbd5e1; }
+
+    /* Infrastructure Tables */
+    .infra-table { font-size: 13px; }
+    .infra-table thead th {
+        background: #f8fafc; border-bottom: 2px solid #e2e8f0;
+        font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
+        color: #64748b; font-weight: 700; padding: 10px 12px;
+    }
+    .infra-table tbody td { padding: 10px 12px; vertical-align: middle; border-color: #f1f5f9; }
+    .infra-table tbody tr:hover { background: #f8fafc; }
+
+    /* VLAN Port List */
+    .vlan-port-list {
+        max-width: 260px; max-height: 60px; overflow: auto;
+        font-size: 11px; line-height: 1.6; word-break: break-all;
+    }
+
+    /* Header Bar */
+    .infra-header {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%);
+        border-radius: 12px; padding: 20px 24px; color: #fff;
+        box-shadow: 0 4px 20px rgba(15,23,42,0.3);
+    }
+    .infra-header .olt-name { font-size: 20px; font-weight: 800; letter-spacing: -0.3px; }
+    .infra-header .olt-ip { font-size: 13px; color: rgba(255,255,255,0.5); font-family: 'SFMono-Regular', monospace; }
+
+    /* Card Section Headers */
+    .card-section-header {
+        background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+        border-radius: 10px; padding: 14px 18px; margin-bottom: 16px;
+        border: 1px solid #e2e8f0;
+    }
+    .card-section-header h6 { font-weight: 700; color: #1e293b; margin: 0; font-size: 14px; }
 </style>
 @endpush
 
@@ -142,15 +179,15 @@
     $totalPon = $olt->cards->where('role', 'gpon')->sum('port_count');
 @endphp
 
-{{-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• --}}
+{{-- ================================================== --}}
 {{-- MODALS --}}
-{{-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• --}}
+{{-- ================================================== --}}
 
 <!-- Progress Modal -->
 <div class="modal fade" id="modal-progress" tabindex="-1" role="dialog" data-backdrop="static" data-keyboard="false">
     <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
-        <div class="modal-content">
-            <div class="modal-header bg-dark">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 14px; overflow: hidden;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #0f172a, #1e293b); border: none;">
                 <h5 class="modal-title text-white">
                     <i class="fas fa-cog fa-spin mr-2" id="progress-spinner"></i>
                     <span id="progress-title">Sync Infrastruktur dari OLT...</span>
@@ -212,8 +249,8 @@
 <!-- Edit VLAN Modal -->
 <div class="modal fade" id="modal-edit-vlan" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-lg" role="document">
-        <div class="modal-content">
-            <div class="modal-header bg-info">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 14px; overflow: hidden;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #0891b2, #06b6d4); border: none;">
                 <h5 class="modal-title text-white"><i class="fas fa-edit mr-2"></i>Edit VLAN <span id="edit-vlan-title-id" class="font-weight-bold"></span></h5>
                 <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
             </div>
@@ -323,8 +360,8 @@
 <!-- Configure Uplink Modal -->
 <div class="modal fade" id="modal-configure-uplink" tabindex="-1" role="dialog">
     <div class="modal-dialog" role="document">
-        <div class="modal-content">
-            <div class="modal-header bg-success">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 14px; overflow: hidden;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #16a34a, #22c55e); border: none;">
                 <h5 class="modal-title text-white"><i class="fas fa-cog mr-2"></i>Konfigurasi Uplink</h5>
                 <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
             </div>
@@ -378,8 +415,8 @@
 <!-- Create VLAN Modal -->
 <div class="modal fade" id="modal-create-vlan" tabindex="-1" role="dialog">
     <div class="modal-dialog" role="document">
-        <div class="modal-content">
-            <div class="modal-header bg-primary">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 14px; overflow: hidden;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #2563eb, #3b82f6); border: none;">
                 <h5 class="modal-title text-white"><i class="fas fa-plus mr-2"></i>Buat VLAN Baru</h5>
                 <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
             </div>
@@ -433,8 +470,8 @@
 <!-- Delete VLAN Modal -->
 <div class="modal fade" id="modal-delete-vlan" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-sm" role="document">
-        <div class="modal-content">
-            <div class="modal-header bg-danger">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 14px; overflow: hidden;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #dc2626, #ef4444); border: none;">
                 <h5 class="modal-title text-white"><i class="fas fa-trash mr-2"></i>Hapus VLAN</h5>
                 <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
             </div>
@@ -456,8 +493,8 @@
 <!-- Reboot Card Modal -->
 <div class="modal fade" id="modal-reboot-card" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-sm" role="document">
-        <div class="modal-content">
-            <div class="modal-header bg-danger">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 14px; overflow: hidden;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #dc2626, #ef4444); border: none;">
                 <h5 class="modal-title text-white"><i class="fas fa-redo mr-2"></i>Reboot Card</h5>
                 <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
             </div>
@@ -479,8 +516,8 @@
 <!-- Reboot PON ONUs Modal -->
 <div class="modal fade" id="modal-reboot-pon-onus" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-sm" role="document">
-        <div class="modal-content">
-            <div class="modal-header bg-warning">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 14px; overflow: hidden;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #d97706, #f59e0b); border: none;">
                 <h5 class="modal-title"><i class="fas fa-redo mr-2"></i>Reboot ONUs</h5>
                 <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
             </div>
@@ -500,46 +537,51 @@
     </div>
 </div>
 
-{{-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• --}}
+{{-- ================================================== --}}
 {{-- HEADER BAR --}}
-{{-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• --}}
+{{-- ================================================== --}}
 <div class="row mb-3">
     <div class="col-12">
-        <div class="card bg-gradient-dark mb-0">
-            <div class="card-body py-3">
-                <div class="d-flex align-items-center justify-content-between flex-wrap">
-                    <div class="text-white">
-                        <h4 class="mb-1 font-weight-bold">
-                            <i class="fas fa-server mr-2"></i>{{ $olt->name }}
-                        </h4>
-                        <span class="text-white-50">
-                            {{ $olt->ip_address }} &middot; {{ $olt->brand }} {{ $olt->model }}
-                            @if($olt->cards->first()?->software_version)
-                                &middot; <span class="text-white-50">FW {{ $olt->cards->first()->software_version }}</span>
-                            @endif
-                        </span>
+        <div class="infra-header mb-0">
+            <div class="d-flex align-items-center justify-content-between flex-wrap">
+                <div>
+                    <div class="d-flex align-items-center mb-1">
+                        <div style="width: 40px; height: 40px; background: rgba(255,255,255,0.1); border-radius: 10px; display: flex; align-items: center; justify-content: center; margin-right: 14px;">
+                            <i class="fas fa-server" style="font-size: 18px; color: #60a5fa;"></i>
+                        </div>
+                        <div>
+                            <h4 class="mb-0 olt-name">{{ $olt->name }}</h4>
+                            <span class="olt-ip">
+                                {{ $olt->ip_address }} &middot; {{ $olt->brand }} {{ $olt->model }}
+                                @if($olt->cards->first()?->software_version)
+                                    &middot; FW {{ $olt->cards->first()->software_version }}
+                                @endif
+                            </span>
+                        </div>
                     </div>
-                    <div class="d-flex align-items-center flex-wrap mt-2 mt-md-0" style="gap: 8px;">
-                        <div class="stat-mini stat-success">
-                            <div class="stat-value">{{ $onlineOnu }}<small>/{{ $totalOnu }}</small></div>
-                            <div class="stat-label">ONU Online</div>
-                        </div>
-                        <div class="stat-mini stat-primary">
-                            <div class="stat-value">{{ $activePon }}<small>/{{ $totalPon }}</small></div>
-                            <div class="stat-label">PON Aktif</div>
-                        </div>
-                        <div class="stat-mini stat-info">
-                            <div class="stat-value">{{ $olt->vlans->count() }}</div>
-                            <div class="stat-label">VLANs</div>
-                        </div>
-                        <div class="stat-mini stat-warning">
-                            <div class="stat-value">{{ $olt->uplinks->where('status', 'up')->count() }}<small>/{{ $olt->uplinks->count() }}</small></div>
-                            <div class="stat-label">Uplink</div>
-                        </div>
-                        <a href="{{ route('admin.olts.show', $olt) }}" class="btn btn-outline-light btn-sm ml-2">
+                </div>
+                <div class="d-flex align-items-center flex-wrap mt-2 mt-md-0" style="gap: 10px;">
+                    <div class="stat-mini stat-success">
+                        <div class="stat-value">{{ $onlineOnu }}<small>/{{ $totalOnu }}</small></div>
+                        <div class="stat-label">ONU Online</div>
+                    </div>
+                    <div class="stat-mini stat-primary">
+                        <div class="stat-value">{{ $activePon }}<small>/{{ $totalPon }}</small></div>
+                        <div class="stat-label">PON Aktif</div>
+                    </div>
+                    <div class="stat-mini stat-info">
+                        <div class="stat-value">{{ $olt->vlans->count() }}</div>
+                        <div class="stat-label">VLANs</div>
+                    </div>
+                    <div class="stat-mini stat-warning">
+                        <div class="stat-value">{{ $olt->uplinks->where('status', 'up')->count() }}<small>/{{ $olt->uplinks->count() }}</small></div>
+                        <div class="stat-label">Uplink</div>
+                    </div>
+                    <div class="d-flex ml-2" style="gap: 8px;">
+                        <a href="{{ route('admin.olts.show', $olt) }}" class="btn btn-sm" style="background: rgba(255,255,255,0.08); color: #94a3b8; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;">
                             <i class="fas fa-arrow-left mr-1"></i>Detail
                         </a>
-                        <button type="button" class="btn btn-light btn-sm font-weight-bold" id="btn-sync-infra">
+                        <button type="button" class="btn btn-sm font-weight-bold" id="btn-sync-infra" style="background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; border: none; border-radius: 8px; box-shadow: 0 2px 10px rgba(59,130,246,0.4);">
                             <i class="fas fa-sync mr-1"></i>Sync dari OLT
                         </button>
                     </div>
@@ -549,48 +591,52 @@
     </div>
 </div>
 
-{{-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• --}}
+{{-- ================================================== --}}
 {{-- SHELF VISUAL + ALL CARD DETAILS --}}
-{{-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• --}}
+{{-- ================================================== --}}
 <div class="row">
     <div class="col-12">
-        <div class="card card-outline card-dark">
-            <div class="card-header">
-                <h3 class="card-title"><i class="fas fa-microchip mr-2"></i>Kartu & Slot</h3>
+        <div class="card" style="border: none; border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.06);">
+            <div class="card-header" style="background: #fff; border-bottom: 1px solid #f1f5f9; border-radius: 14px 14px 0 0; padding: 16px 20px;">
+                <h3 class="card-title" style="font-size: 15px; font-weight: 700; color: #1e293b;">
+                    <i class="fas fa-microchip mr-2" style="color: #64748b;"></i>Kartu & Slot
+                </h3>
                 <div class="card-tools">
                     @if($olt->cards->where('last_sync_at', '!=', null)->first())
                         <span class="text-muted text-sm">
-                            <i class="fas fa-clock mr-1"></i>{{ $olt->cards->first()->last_sync_at?->diffForHumans() }}
+                            <i class="far fa-clock mr-1"></i>{{ $olt->cards->first()->last_sync_at?->diffForHumans() }}
                         </span>
                     @endif
                 </div>
             </div>
-            <div class="card-body">
+            <div class="card-body" style="padding: 20px;">
                 @if($olt->cards->isEmpty())
                     <div class="text-center py-5">
-                        <i class="fas fa-server fa-3x text-muted mb-3"></i>
+                        <div style="width: 64px; height: 64px; background: #f1f5f9; border-radius: 16px; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
+                            <i class="fas fa-server fa-2x" style="color: #94a3b8;"></i>
+                        </div>
                         <p class="text-muted mb-0">Belum ada data kartu. Klik <strong>"Sync dari OLT"</strong> untuk mengambil data.</p>
                     </div>
                 @else
                     <!-- Shelf Visual -->
                     <div class="shelf-container mb-4">
                         <div class="d-flex align-items-center mb-3">
-                            <span class="text-white font-weight-bold">
-                                <i class="fas fa-th mr-2"></i>RACK {{ $olt->cards->first()->rack ?? 1 }} / SHELF {{ $olt->cards->first()->shelf ?? 1 }}
+                            <span class="text-white font-weight-bold" style="font-size: 12px; letter-spacing: 1px; text-transform: uppercase;">
+                                <i class="fas fa-th mr-2" style="opacity: 0.5;"></i>RACK {{ $olt->cards->first()->rack ?? 1 }} / SHELF {{ $olt->cards->first()->shelf ?? 1 }}
                             </span>
-                            <div class="ml-auto d-flex" style="gap: 12px;">
-                                <small class="text-white-50"><i class="fas fa-circle mr-1" style="color: #28a745; font-size: 8px;"></i>GPON</small>
-                                <small class="text-white-50"><i class="fas fa-circle mr-1" style="color: #ffc107; font-size: 8px;"></i>MGMT</small>
-                                <small class="text-white-50"><i class="fas fa-circle mr-1" style="color: #dc3545; font-size: 8px;"></i>Power</small>
-                                <span class="badge badge-light">{{ $olt->cards->count() }} slot terisi</span>
+                            <div class="ml-auto d-flex align-items-center" style="gap: 16px;">
+                                <small style="color: rgba(255,255,255,0.5); font-size: 11px;"><i class="fas fa-circle mr-1" style="color: #22c55e; font-size: 7px;"></i>GPON</small>
+                                <small style="color: rgba(255,255,255,0.5); font-size: 11px;"><i class="fas fa-circle mr-1" style="color: #eab308; font-size: 7px;"></i>MGMT</small>
+                                <small style="color: rgba(255,255,255,0.5); font-size: 11px;"><i class="fas fa-circle mr-1" style="color: #ef4444; font-size: 7px;"></i>Power</small>
+                                <span class="badge" style="background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.6); font-size: 11px; padding: 4px 10px; border-radius: 6px;">{{ $olt->cards->count() }} slot terisi</span>
                             </div>
                         </div>
-                        <div class="d-flex flex-wrap" style="gap: 6px;">
+                        <div class="d-flex flex-wrap" style="gap: 8px;">
                             @for($slot = 1; $slot <= 20; $slot++)
                                 @php $card = $olt->cards->firstWhere('slot', $slot); @endphp
                                 <div class="shelf-slot {{ $card ? ($card->status === 'standby' ? 'standby' : 'active-' . $card->role) : 'empty-slot' }}"
                                      data-slot="{{ $slot }}"
-                                     @if($card) data-card-id="{{ $card->id }}" title="Klik untuk detail &#10;{{ $card->real_type ?: $card->configured_type }} â€” {{ $card->port_count }} port â€” {{ ucfirst($card->status) }}" @endif>
+                                     @if($card) data-card-id="{{ $card->id }}" title="Klik untuk detail &#10;{{ $card->real_type ?: $card->configured_type }} - {{ $card->port_count }} port - {{ ucfirst($card->status) }}" @endif>
                                     <div class="slot-label">SLOT {{ $slot }}</div>
                                     @if($card)
                                         <div class="slot-type">{{ $card->real_type ?: $card->configured_type }}</div>
@@ -610,7 +656,7 @@
                                         @endif
                                     @else
                                         <div style="margin-top: 16px;">
-                                            <span style="font-size: 18px; color: rgba(255,255,255,0.1);">â€”</span>
+                                            <span style="font-size: 18px; color: rgba(255,255,255,0.1);">-</span>
                                         </div>
                                     @endif
                                 </div>
@@ -649,7 +695,7 @@
                                             <i class="fas fa-microchip text-secondary mr-1"></i>
                                         @endif
                                         Slot {{ $card->slot }}
-                                        <span class="text-muted mx-1">â€”</span>
+                                        <span class="text-muted mx-1">-</span>
                                         {{ $card->real_type ?: $card->configured_type }}
                                     </h5>
                                     {!! $card->status_badge !!}
@@ -714,7 +760,7 @@
                             @endif
                         </div>
 
-                        {{-- â”€â”€ GPON/EPON: PON Ports â”€â”€ --}}
+                        {{-- - GPON/EPON: PON Ports - --}}
                         @if($isGpon && $card->ponPorts->isNotEmpty())
                         <hr class="my-2">
                         <div class="section-title"><i class="fas fa-th-large"></i>PON Ports</div>
@@ -888,7 +934,7 @@
                         </div>
                         @endif
 
-                        {{-- â”€â”€ Management Card: Uplink Ports â”€â”€ --}}
+                        {{-- - Management Card: Uplink Ports - --}}
                         @if($isMgmt && $cardUplinks->isNotEmpty())
                         <hr class="my-2">
                         <div class="section-title"><i class="fas fa-arrow-up"></i>Uplink Ports ({{ $cardUplinks->count() }})</div>
@@ -965,11 +1011,11 @@
                         </div>
                         @endif
 
-                        {{-- â”€â”€ Other Card Types â”€â”€ --}}
+                        {{-- Other Card Types --}}
                         @if(!$isGpon && !$isMgmt)
                             @if($card->status === 'standby')
                             <div class="text-muted text-sm mt-1">
-                                <i class="fas fa-pause-circle mr-1 text-warning"></i>Mode standby â€” siap sebagai backup.
+                                <i class="fas fa-pause-circle mr-1 text-warning"></i>Mode standby - siap sebagai backup.
                             </div>
                             @endif
                         @endif
@@ -981,35 +1027,39 @@
     </div>
 </div>
 
-{{-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• --}}
+{{-- ================================================== --}}
 {{-- VLAN DATABASE + UPLINK SUMMARY --}}
-{{-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• --}}
+{{-- ================================================== --}}
 <div class="row">
     <!-- VLAN Database -->
     <div class="col-lg-7">
-        <div class="card card-outline card-info">
-            <div class="card-header">
-                <h3 class="card-title"><i class="fas fa-tags mr-2"></i>VLAN Database</h3>
+        <div class="card" style="border: none; border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.06);">
+            <div class="card-header" style="background: #fff; border-bottom: 1px solid #f1f5f9; border-radius: 14px 14px 0 0; padding: 16px 20px;">
+                <h3 class="card-title" style="font-size: 15px; font-weight: 700; color: #1e293b;">
+                    <i class="fas fa-tags mr-2" style="color: #0891b2;"></i>VLAN Database
+                </h3>
                 <div class="card-tools">
-                    <button type="button" class="btn btn-sm btn-primary mr-1" id="btn-open-create-vlan">
+                    <button type="button" class="btn btn-sm mr-1" id="btn-open-create-vlan" style="background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; border: none; border-radius: 8px; font-size: 12px; font-weight: 600;">
                         <i class="fas fa-plus mr-1"></i>Buat VLAN
                     </button>
-                    <span class="badge badge-info">{{ $olt->vlans->count() }}</span>
+                    <span class="badge" style="background: #eff6ff; color: #2563eb; padding: 5px 10px; border-radius: 6px; font-size: 11px;">{{ $olt->vlans->count() }}</span>
                     @if($olt->vlans->sum('service_port_count') > 0)
-                        <span class="badge badge-success ml-1">{{ $olt->vlans->sum('service_port_count') }} svc</span>
+                        <span class="badge ml-1" style="background: #f0fdf4; color: #16a34a; padding: 5px 10px; border-radius: 6px; font-size: 11px;">{{ $olt->vlans->sum('service_port_count') }} svc</span>
                     @endif
                 </div>
             </div>
             <div class="card-body p-0">
                 @if($olt->vlans->isEmpty())
-                    <div class="text-center py-4">
-                        <i class="fas fa-tags fa-2x text-muted mb-2"></i>
+                    <div class="text-center py-5">
+                        <div style="width: 56px; height: 56px; background: #f1f5f9; border-radius: 14px; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px;">
+                            <i class="fas fa-tags fa-lg" style="color: #94a3b8;"></i>
+                        </div>
                         <p class="text-muted mb-0">Belum ada data VLAN.</p>
                     </div>
                 @else
                     <div class="table-responsive">
-                        <table class="table table-sm table-striped table-hover mb-0" style="font-size: 12px;">
-                            <thead class="thead-dark">
+                        <table class="table table-sm table-hover infra-table mb-0">
+                            <thead>
                                 <tr>
                                     <th width="60">VLAN</th>
                                     <th>Nama</th>
@@ -1036,18 +1086,22 @@
                                     </td>
                                     <td>
                                         @if($vlan->tagged_ports && count($vlan->tagged_ports) > 0)
+                                            <div class="vlan-port-list">
                                             @foreach($vlan->tagged_ports as $tp)
-                                                <span class="uplink-vlan-tag">{{ $tp }}</span>
+                                                <span class="uplink-vlan-tag" title="{{ $tp }}">{{ \Illuminate\Support\Str::limit($tp, 18) }}</span>
                                             @endforeach
-                                        @else -
+                                            </div>
+                                        @else <span class="text-muted">-</span>
                                         @endif
                                     </td>
                                     <td>
                                         @if($vlan->untagged_ports && count($vlan->untagged_ports) > 0)
+                                            <div class="vlan-port-list">
                                             @foreach($vlan->untagged_ports as $up)
-                                                <span class="uplink-vlan-tag untagged">{{ $up }}</span>
+                                                <span class="uplink-vlan-tag untagged" title="{{ $up }}">{{ \Illuminate\Support\Str::limit($up, 18) }}</span>
                                             @endforeach
-                                        @else -
+                                            </div>
+                                        @else <span class="text-muted">-</span>
                                         @endif
                                     </td>
                                     <td><small>{{ $vlan->description ?? '-' }}</small></td>
@@ -1083,23 +1137,27 @@
 
     <!-- Uplink Summary -->
     <div class="col-lg-5">
-        <div class="card card-outline card-success">
-            <div class="card-header">
-                <h3 class="card-title"><i class="fas fa-arrow-up mr-2"></i>Uplink Ports</h3>
+        <div class="card" style="border: none; border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.06);">
+            <div class="card-header" style="background: #fff; border-bottom: 1px solid #f1f5f9; border-radius: 14px 14px 0 0; padding: 16px 20px;">
+                <h3 class="card-title" style="font-size: 15px; font-weight: 700; color: #1e293b;">
+                    <i class="fas fa-arrow-up mr-2" style="color: #16a34a;"></i>Uplink Ports
+                </h3>
                 <div class="card-tools">
-                    <span class="badge badge-success">{{ $olt->uplinks->where('status', 'up')->count() }}/{{ $olt->uplinks->count() }} Up</span>
+                    <span class="badge" style="background: #f0fdf4; color: #16a34a; padding: 5px 10px; border-radius: 6px; font-size: 11px;">{{ $olt->uplinks->where('status', 'up')->count() }}/{{ $olt->uplinks->count() }} Up</span>
                 </div>
             </div>
             <div class="card-body p-0">
                 @if($olt->uplinks->isEmpty())
-                    <div class="text-center py-4">
-                        <i class="fas fa-arrow-up fa-2x text-muted mb-2"></i>
+                    <div class="text-center py-5">
+                        <div style="width: 56px; height: 56px; background: #f1f5f9; border-radius: 14px; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px;">
+                            <i class="fas fa-arrow-up fa-lg" style="color: #94a3b8;"></i>
+                        </div>
                         <p class="text-muted mb-0">Belum ada data uplink.</p>
                     </div>
                 @else
                     <div class="table-responsive">
-                        <table class="table table-sm table-hover mb-0" style="font-size: 12px;">
-                            <thead class="thead-dark">
+                        <table class="table table-sm table-hover infra-table mb-0">
+                            <thead>
                                 <tr>
                                     <th>Interface</th>
                                     <th width="50" class="text-center">Status</th>
@@ -1131,17 +1189,19 @@
                                     </td>
                                     <td>
                                         @if($uplink->tagged_vlans)
-                                            @foreach($uplink->tagged_vlans as $vid)
-                                                <span class="uplink-vlan-tag">{{ $vid }}</span>
-                                            @endforeach
-                                        @else -
+                                            <div class="vlan-port-list">
+                                                @foreach($uplink->tagged_vlans as $vid)
+                                                    <span class="uplink-vlan-tag">{{ $vid }}</span>
+                                                @endforeach
+                                            </div>
+                                        @else <span class="text-muted">-</span>
                                         @endif
                                     </td>
                                     <td class="text-center">
                                         @if($uplink->in_rate_bps || $uplink->out_rate_bps)
                                             <small class="text-success"><i class="fas fa-arrow-down"></i> {{ $uplink->in_rate_formatted }}</small><br>
                                             <small class="text-primary"><i class="fas fa-arrow-up"></i> {{ $uplink->out_rate_formatted }}</small>
-                                        @else -
+                                        @else <span class="text-muted">-</span>
                                         @endif
                                     </td>
                                     <td class="text-center">
@@ -1172,7 +1232,7 @@
 <script>
 $(function() {
     // =========================================================================
-    // Shelf Slot Click â†’ Scroll to Card
+    // Shelf Slot Click -' Scroll to Card
     // =========================================================================
     $(document).on('click', '.shelf-slot[data-card-id]', function() {
         let cardId = $(this).data('card-id');
