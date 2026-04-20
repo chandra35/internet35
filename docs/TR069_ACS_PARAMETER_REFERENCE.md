@@ -269,9 +269,87 @@ curl -X POST "http://172.10.10.254:7557/devices/{deviceId}/tasks" \
 
 ---
 
+## 5. Vendor Extension Parameter (Parameter Khusus Vendor)
+
+### 5.1 Pengertian
+
+Dalam standar **TR-069 (CWMP)** dan **TR-106 (Data Model Template)**, vendor boleh menambahkan parameter di luar standar resmi. Parameter ini disebut:
+
+| Istilah | Konteks penggunaan |
+|---|---|
+| **Vendor Extension** | Istilah resmi di TR-069 / TR-106 (Broadband Forum) |
+| **Vendor-Specific Parameter** | Di dokumen standar BBF |
+| **Non-standard Object** | Di dokumentasi GenieACS |
+| **Proprietary OID** | Konteks SNMP (beda protokol, konsep sama) |
+| **Vendor Data Model Extension** | Konteks TR-181 (Device:2 data model) |
+
+### 5.2 Format nama
+
+```
+X_<VENDORID>_<NamaParameter>
+```
+
+- `X_` = penanda bahwa ini bukan parameter standar
+- `<VENDORID>` = OUI IEEE vendor, biasanya disingkat/alias
+- `<NamaParameter>` = nama bebas yang ditentukan vendor
+
+**Contoh:**
+
+| Vendor Extension Key | Vendor | OUI | Keterangan |
+|---|---|---|---|
+| `X_HW_Security` | Huawei | 00259E | Security ACL config |
+| `X_HW_WebUserInfo` | Huawei | 00259E | Web UI user accounts |
+| `X_HW_CLISSHControl` | Huawei | 00259E | SSH CLI access control |
+| `X_ZTE-COM_SecurityMgmt` | ZTE | 001E73 | Security management |
+| `X_TP-LINK_Nat` | TP-Link | 70625D | NAT config |
+| `X_FH_SecurityACL` | FiberHome | 000AEB | ACL config |
+| `X_NOKIA_COM_Security` | Nokia | 000FE2 | Security settings |
+| `X_ALCL_COM_*` | Nokia/Alcatel-Lucent | 000FE2 | Legacy alias Nokia |
+| `X_SERCOMM_COM_*` | Sercomm | 001325 | Vendor extensions |
+| `X_CALIX_COM_*` | Calix | 00158B | Vendor extensions |
+| `X_DASAN_COM_*` | DZS/Dasan | 000AB3 | Vendor extensions |
+
+### 5.3 Cara deteksi brand dari Vendor Extension
+
+Di `GenieAcsService::detectBrand()`, kita deteksi brand dengan melihat key level pertama di `InternetGatewayDevice.*`. Kalau ada prefix `X_HW_` → pasti Huawei, dst.
+
+```php
+// Contoh data GenieACS untuk Huawei:
+// InternetGatewayDevice.X_HW_Security.AclServices.HTTPLanEnable = true
+// ↑ ini adalah Vendor Extension Parameter
+
+// Contoh data GenieACS untuk ZTE:
+// InternetGatewayDevice.X_ZTE-COM_SecurityMgmt.FirewallLevel = "Low"
+```
+
+**Prioritas deteksi di kode:**
+1. **Vendor Extension keys** — paling akurat, zero false positive
+2. **OUI** dari `DeviceInfo.ManufacturerOUI`
+3. **Manufacturer string** dari `DeviceInfo.Manufacturer`
+4. **Prefix device ID** GenieACS (biasanya mengandung OUI)
+
+### 5.4 OUI Referensi per brand (yang terdaftar di aplikasi)
+
+| Brand | OUI yang dikenali |
+|---|---|
+| Huawei | 00259E, 00E0FC, 70B3D5, 0C96E6, 485754 |
+| ZTE | 001E73, 00197E, 0024B2, F44C7F, 2C957F |
+| TP-Link | 70625D, B0A7B9, EC086B |
+| FiberHome | 000AEB, 301893, 7C9A7B, B4A5AC |
+| Nokia/Alcatel | 000FE2, 001FE2, 001484, 049226 + 8 lagi |
+| Sercomm | 001325, 001A2A, 00904C |
+| Calix | 00158B, 002530, 109ADD |
+| DZS/Dasan | 000AB3, 001CD6, 5C49EB |
+
+> OUI lookup resmi: https://regauth.standards.ieee.org/standards-ra-web/pub/view.html#registries
+
+---
+
 ## Referensi
 
 - [TR-069 Amendment 6 (Broadband Forum)](https://www.broadband-forum.org/pdfs/tr-069.pdf)
+- [TR-106 Data Model Template](https://www.broadband-forum.org/pdfs/tr-106.pdf) — aturan format Vendor Extension
 - [TR-098 Data Model](https://cwmp-data-models.broadband-forum.org/tr-098-1-8-0.html) — InternetGatewayDevice (lama, kebanyakan ONT pakai ini)
 - [TR-181 Data Model](https://device-data-model.broadband-forum.org/BBF-TR-181-2-16-0-usp.html) — Device (baru, router modern)
 - GenieACS NBI API: `http://{server}:7557/` — lihat [GenieACS docs](https://docs.genieacs.com/)
+- IEEE OUI Registry: https://regauth.standards.ieee.org/standards-ra-web/pub/view.html#registries
