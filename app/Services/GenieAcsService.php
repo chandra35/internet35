@@ -978,6 +978,12 @@ class GenieAcsService
             }
         }
 
+        if (array_key_exists('web_user_username', $settings) && $settings['web_user_username'] !== '') {
+            $params["{$uiBase}.X_HW_WebUserInfo.1.UserName"] = [$settings['web_user_username'], 'xsd:string'];
+        }
+        if (array_key_exists('web_admin_username', $settings) && $settings['web_admin_username'] !== '') {
+            $params["{$uiBase}.X_HW_WebUserInfo.2.UserName"] = [$settings['web_admin_username'], 'xsd:string'];
+        }
         if (array_key_exists('web_user_password', $settings) && $settings['web_user_password'] !== '') {
             $params["{$uiBase}.X_HW_WebUserInfo.1.Password"] = [$settings['web_user_password'], 'xsd:string'];
         }

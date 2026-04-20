@@ -1299,9 +1299,11 @@ class OnuController extends Controller implements HasMiddleware
             'settings.cli_telnet_enable' => 'nullable|boolean',
             'settings.cli_telnet_wan' => 'nullable|boolean',
             'settings.cli_password'   => 'nullable|string|max:30',
-            'settings.web_user_enable'  => 'nullable|boolean',
-            'settings.web_user_password' => 'nullable|string|max:30',
-            'settings.web_admin_enable'  => 'nullable|boolean',
+            'settings.web_user_enable'    => 'nullable|boolean',
+            'settings.web_user_username'  => 'nullable|string|max:30',
+            'settings.web_user_password'  => 'nullable|string|max:30',
+            'settings.web_admin_enable'   => 'nullable|boolean',
+            'settings.web_admin_username' => 'nullable|string|max:30',
             'settings.web_admin_password' => 'nullable|string|max:30',
         ]);
 

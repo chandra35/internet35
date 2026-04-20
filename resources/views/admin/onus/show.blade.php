@@ -350,7 +350,6 @@
                         <li class="nav-item"><a class="nav-link" data-toggle="pill" href="#acs-wifi"><i class="fas fa-wifi mr-1"></i>WiFi <span class="badge badge-light" id="tr069-wifi-count">0</span></a></li>
                         <li class="nav-item"><a class="nav-link" data-toggle="pill" href="#acs-lan"><i class="fas fa-ethernet mr-1"></i>LAN</a></li>
                         <li class="nav-item"><a class="nav-link" data-toggle="pill" href="#acs-clients"><i class="fas fa-laptop mr-1"></i>Clients <span class="badge badge-light" id="tr069-host-count">0</span></a></li>
-                        <li class="nav-item"><a class="nav-link" data-toggle="pill" href="#acs-users"><i class="fas fa-user-shield mr-1"></i>Users</a></li>
                         <li class="nav-item"><a class="nav-link" data-toggle="pill" href="#acs-security"><i class="fas fa-shield-alt mr-1"></i>Security</a></li>
                         <li class="nav-item"><a class="nav-link" data-toggle="pill" href="#acs-firmware"><i class="fas fa-microchip mr-1"></i>Firmware</a></li>
                     </ul>
@@ -459,52 +458,6 @@
                             <div id="tr069-clients-empty" class="text-center py-4 text-muted" style="display:none">
                                 <i class="fas fa-laptop fa-2x mb-2 d-block text-secondary"></i>
                                 Tidak ada client yang terkoneksi
-                            </div>
-                        </div>
-
-                        {{-- Users / Web UI Login Accounts --}}
-                        <div class="tab-pane fade" id="acs-users">
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                                <h6 class="mb-0"><i class="fas fa-user-shield mr-1"></i>Akun Login Web UI ONU</h6>
-                                <small class="text-muted">Username &amp; password untuk login ke halaman web ONU</small>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="acs-card">
-                                        <div class="acs-section-header"><i class="fas fa-user-cog mr-1 text-primary"></i>Admin <span class="badge badge-danger ml-1">telecomadmin</span></div>
-                                        <div class="card-body">
-                                            <p class="text-muted small mb-2">Level: <strong>Super Admin</strong> — akses penuh ke semua konfigurasi ONU</p>
-                                            <div class="input-group input-group-sm">
-                                                <input type="password" class="form-control" id="pw-telecomadmin" placeholder="Password baru (min 6 karakter)" autocomplete="new-password">
-                                                <div class="input-group-append">
-                                                    <button class="btn btn-primary btn-change-user-pw" data-user="telecomadmin" type="button">
-                                                        <i class="fas fa-key mr-1"></i>Ganti Password
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="acs-card">
-                                        <div class="acs-section-header"><i class="fas fa-user mr-1 text-success"></i>User <span class="badge badge-secondary ml-1">admin</span></div>
-                                        <div class="card-body">
-                                            <p class="text-muted small mb-2">Level: <strong>User</strong> — akses terbatas, hanya lihat status &amp; ubah password WiFi</p>
-                                            <div class="input-group input-group-sm">
-                                                <input type="password" class="form-control" id="pw-admin" placeholder="Password baru (min 6 karakter)" autocomplete="new-password">
-                                                <div class="input-group-append">
-                                                    <button class="btn btn-success btn-change-user-pw" data-user="admin" type="button">
-                                                        <i class="fas fa-key mr-1"></i>Ganti Password
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="alert alert-info alert-sm mt-2 mb-0">
-                                <i class="fas fa-info-circle mr-1"></i>
-                                Password diubah via TR-069 (tidak perlu login ke ONU). Perubahan akan langsung dikirim ke perangkat.
                             </div>
                         </div>
 
@@ -627,7 +580,12 @@
                                                         </div>
                                                         <div class="form-group mb-2">
                                                             <label class="small">Username</label>
-                                                            <input type="text" class="form-control form-control-sm" id="web-admin-name" readonly>
+                                                            <div class="input-group input-group-sm">
+                                                                <input type="text" class="form-control" id="web-admin-name" placeholder="Username" autocomplete="off">
+                                                                <div class="input-group-append">
+                                                                    <button class="btn btn-outline-secondary btn-save-web-username" data-target="web_admin_username" type="button" title="Simpan Username"><i class="fas fa-user-edit"></i></button>
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                         <div class="form-group mb-0">
                                                             <label class="small">Password Baru</label>
@@ -647,7 +605,12 @@
                                                         </div>
                                                         <div class="form-group mb-2">
                                                             <label class="small">Username</label>
-                                                            <input type="text" class="form-control form-control-sm" id="web-user-name" readonly>
+                                                            <div class="input-group input-group-sm">
+                                                                <input type="text" class="form-control" id="web-user-name" placeholder="Username" autocomplete="off">
+                                                                <div class="input-group-append">
+                                                                    <button class="btn btn-outline-secondary btn-save-web-username" data-target="web_user_username" type="button" title="Simpan Username"><i class="fas fa-user-edit"></i></button>
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                         <div class="form-group mb-0">
                                                             <label class="small">Password Baru</label>
@@ -2235,32 +2198,26 @@ $(function() {
         setTimeout(function() { btn.find('i').removeClass('fa-spin'); }, 2000);
     });
 
-    // Users tab: change web UI password
-    $(document).on('click', '.btn-change-user-pw', function() {
-        var username = $(this).data('user');
-        var pwField = username === 'telecomadmin' ? '#pw-telecomadmin' : '#pw-admin';
-        var password = $(pwField).val().trim();
-        if (!password || password.length < 6) {
-            toastr.warning('Password minimal 6 karakter');
-            return;
-        }
-        var btn = $(this);
-        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Mengirim...');
-        $.post('/admin/onus/{{ $onu->id }}/tr069-user-password', {
+    // ── Save web UI username (admin or user) ─────────────────────────────────
+    $(document).on('click', '.btn-save-web-username', function() {
+        var key = $(this).data('target'); // 'web_admin_username' or 'web_user_username'
+        var field = key === 'web_admin_username' ? '#web-admin-name' : '#web-user-name';
+        var username = $(field).val().trim();
+        if (!username) { toastr.warning('Masukkan username baru'); return; }
+        var btn = $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+        $.post('/admin/onus/{{ $onu->id }}/tr069-security', {
             _token: '{{ csrf_token() }}',
-            username: username,
-            password: password,
+            settings: (function(){ var s={}; s[key]=username; return s; })(),
         })
         .done(function(res) {
             if (res.success) {
-                Swal.fire({ title: 'Berhasil', text: res.message, icon: 'success', timer: 2500, showConfirmButton: false });
-                $(pwField).val('');
+                toastr.success(res.message || 'Username berhasil diubah');
             } else {
-                Swal.fire('Gagal', res.message || 'Gagal mengubah password', 'error');
+                toastr.error(res.message || 'Gagal mengubah username');
             }
         })
-        .fail(function(xhr) { Swal.fire('Error', xhr.responseJSON?.message || 'Server error', 'error'); })
-        .always(function() { btn.prop('disabled', false).html('<i class="fas fa-key mr-1"></i>Ganti Password'); });
+        .fail(function() { toastr.error('Koneksi gagal'); })
+        .always(function() { btn.prop('disabled', false).html('<i class="fas fa-user-edit"></i>'); });
     });
 
     // Firmware upgrade
