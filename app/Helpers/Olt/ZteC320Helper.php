@@ -82,8 +82,9 @@ class ZteC320Helper extends BaseOltHelper
         'zxAnGponOltPonOpticalBias' => '1.3.6.1.4.1.3902.1082.500.10.2.2.1.1.14',
 
         // Unconfigured ONUs
-        'zxAnGponOltUncfgOnuTable' => '1.3.6.1.4.1.3902.1082.500.10.2.3.5.1',
+        'zxAnGponOltUncfgOnuTable'    => '1.3.6.1.4.1.3902.1082.500.10.2.3.5.1',
         'zxAnGponOltUncfgOnuSerialNo' => '1.3.6.1.4.1.3902.1082.500.10.2.3.5.1.2',
+        'zxAnGponOltUncfgOnuModelNo'  => '1.3.6.1.4.1.3902.1082.500.10.2.3.5.1.3',  // Col 3: ONU model (e.g. "F670LV9.0")
 
         // Q-BRIDGE-MIB — Standard VLAN management (IEEE 802.1Q)
         'dot1qVlanStaticName' => '1.3.6.1.2.1.17.7.1.4.3.1.1',
@@ -1470,9 +1471,45 @@ class ZteC320Helper extends BaseOltHelper
                 $unregistered = $this->parseUnconfiguredOnuOutput($output);
             }
 
-            // Fallback to SNMP only if CLI not available
+            // SNMP: enrich with model number via zxAnGponOltUncfgOnuModelNo (col 3 of uncfg table)
+            // Do this regardless of CLI—SNMP gives the actual hardware model string.
+            if (!empty($unregistered)) {
+                try {
+                    $snmpSerials = $this->snmpWalk($this->zteOids['zxAnGponOltUncfgOnuSerialNo']);
+                    $snmpModels  = $this->snmpWalk($this->zteOids['zxAnGponOltUncfgOnuModelNo']);
+
+                    // Build SN → model lookup
+                    $snModelMap = [];
+                    foreach ($snmpSerials as $oid => $rawSn) {
+                        $sn = strtoupper($this->parseZteSerialNumber($rawSn));
+                        if (!$sn) continue;
+                        $modelOid = str_replace(
+                            $this->zteOids['zxAnGponOltUncfgOnuSerialNo'],
+                            $this->zteOids['zxAnGponOltUncfgOnuModelNo'],
+                            $oid
+                        );
+                        $model = trim($snmpModels[$modelOid] ?? '');
+                        if ($model && $model !== '0') {
+                            $snModelMap[$sn] = $model;
+                        }
+                    }
+
+                    foreach ($unregistered as &$entry) {
+                        $sn = strtoupper($entry['serial_number']);
+                        if (empty($entry['onu_type']) && isset($snModelMap[$sn])) {
+                            $entry['onu_type'] = $snModelMap[$sn];
+                        }
+                    }
+                    unset($entry);
+                } catch (Exception $e) {
+                    Log::warning("ZTE uncfg SNMP model lookup failed: " . $e->getMessage());
+                }
+            }
+
+            // Pure SNMP fallback if CLI not available
             if (empty($unregistered) && !$this->supportsTelnet() && !$this->supportsSsh()) {
-                $uncfgOnus = $this->snmpWalk($this->zteOids['zxAnGponOltUncfgOnuSerialNo']);
+                $uncfgOnus  = $this->snmpWalk($this->zteOids['zxAnGponOltUncfgOnuSerialNo']);
+                $snmpModels = $this->snmpWalk($this->zteOids['zxAnGponOltUncfgOnuModelNo']);
 
                 foreach ($uncfgOnus as $oid => $serial) {
                     $cleanSerial = $this->parseZteSerialNumber($serial);
@@ -1498,10 +1535,19 @@ class ZteC320Helper extends BaseOltHelper
                         continue;
                     }
 
+                    $modelOid = str_replace(
+                        $this->zteOids['zxAnGponOltUncfgOnuSerialNo'],
+                        $this->zteOids['zxAnGponOltUncfgOnuModelNo'],
+                        $oid
+                    );
+                    $model = trim($snmpModels[$modelOid] ?? '');
+
                     $unregistered[] = [
-                        'slot' => $slot,
-                        'port' => $port,
-                        'serial_number' => $cleanSerial,
+                        'slot'          => $slot,
+                        'port'          => $port,
+                        'pon_port'      => $slot . '/' . $port,
+                        'serial_number' => strtoupper($cleanSerial),
+                        'onu_type'      => ($model && $model !== '0') ? $model : null,
                         'config_status' => 'unregistered',
                     ];
                 }
