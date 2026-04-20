@@ -804,6 +804,7 @@ class OltController extends Controller implements HasMiddleware
             'cards.ponPorts' => fn($q) => $q->orderBy('port'),
             'vlans' => fn($q) => $q->orderBy('vlan_id'),
             'uplinks' => fn($q) => $q->orderBy('interface_name'),
+            'onus' => fn($q) => $q->select('id', 'olt_id', 'slot', 'port', 'onu_id')->orderBy('slot')->orderBy('port')->orderBy('onu_id'),
         ]);
 
         // Also load unlinked PON ports (card_id null) for display

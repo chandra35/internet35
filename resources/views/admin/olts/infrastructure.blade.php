@@ -207,26 +207,17 @@
         .stat-mini { min-width: 70px; }
     }
 
-    /* ── Tag Input ── */
-    .tag-input-wrap {
-        border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 8px;
-        min-height: 44px; background: #fff; cursor: text;
-        display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
+    /* ── Select2 port multiselect ── */
+    .port-select2 + .select2-container .select2-selection--multiple {
+        border: 1px solid #e2e8f0; border-radius: 8px; min-height: 40px;
     }
-    .tag-input-wrap:focus-within { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
-    .tag-field {
-        border: none; outline: none; flex: 1; min-width: 100px;
-        font-size: 12px; padding: 2px 4px; background: transparent;
+    .port-select2 + .select2-container--focus .select2-selection--multiple {
+        border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
     }
-    .tag-chip {
-        display: inline-flex; align-items: center; gap: 4px;
-        padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 600;
-        white-space: nowrap;
-    }
-    .tag-chip.chip-tagged  { background: #eff6ff; color: #2563eb; border: 1px solid rgba(37,99,235,0.2); }
-    .tag-chip.chip-untagged { background: #f0fdf4; color: #16a34a; border: 1px solid rgba(22,163,74,0.2); }
-    .tag-chip .rm { cursor: pointer; opacity: 0.5; font-size: 9px; line-height: 1; }
-    .tag-chip .rm:hover { opacity: 1; }
+    #edit-tagged-select + .select2-container .select2-selection__choice { background: #eff6ff; border-color: rgba(37,99,235,0.3); color: #2563eb; }
+    #edit-untagged-select + .select2-container .select2-selection__choice { background: #f0fdf4; border-color: rgba(22,163,74,0.3); color: #16a34a; }
+    #create-tagged-select + .select2-container .select2-selection__choice { background: #eff6ff; border-color: rgba(37,99,235,0.3); color: #2563eb; }
+    #create-untagged-select + .select2-container .select2-selection__choice { background: #f0fdf4; border-color: rgba(22,163,74,0.3); color: #16a34a; }
 </style>
 @endpush
 
@@ -236,6 +227,32 @@
     $onlineOnu = $olt->cards->where('role', 'gpon')->sum(fn($c) => $c->ponPorts->sum('online_onu'));
     $activePon = $olt->cards->where('role', 'gpon')->sum(fn($c) => $c->ponPorts->where('registered_onu', '>', 0)->count());
     $totalPon = $olt->cards->where('role', 'gpon')->sum('port_count');
+
+    // Build port option list for Select2 dropdowns
+    $uplinkSet = $olt->uplinks->pluck('interface_name')->toArray();
+    $portOptions = [];
+    // PON ports  (gpon-onu_slot/port style derived from ONU records)
+    $olt->onus->each(function($onu) use (&$portOptions) {
+        $p = "gpon-onu_{$onu->slot}/{$onu->port}/{$onu->onu_id}";
+        if (!in_array($p, $portOptions)) $portOptions[] = $p;
+    });
+    // PON port-level names (gpon_slot/port)
+    foreach ($olt->cards as $card) {
+        foreach ($card->ponPorts as $pp) {
+            $p = "gpon_{$pp->slot}/{$pp->port}";
+            if (!in_array($p, $portOptions)) $portOptions[] = $p;
+        }
+    }
+    // Uplinks as options too (all)
+    foreach ($uplinkSet as $u) {
+        if (!in_array($u, $portOptions)) $portOptions[] = $u;
+    }
+    // Orphan PON ports
+    foreach ($orphanPonPorts as $pp) {
+        $p = "gpon_{$pp->slot}/{$pp->port}";
+        if (!in_array($p, $portOptions)) $portOptions[] = $p;
+    }
+    sort($portOptions);
 @endphp
 
 {{-- ================================================== --}}
@@ -409,7 +426,7 @@
                 </div>
                 @endif
 
-                {{-- Tag inputs for non-uplink / extra ports --}}
+                {{-- Port select2 dropdowns --}}
                 <div class="row">
                     <div class="col-md-6">
                         <label class="small font-weight-bold mb-1">
@@ -418,10 +435,11 @@
                                 <small class="text-muted font-weight-normal">(non-uplink)</small>
                             @endif
                         </label>
-                        <div class="tag-input-wrap" id="edit-tagged-wrap">
-                            <input type="text" class="tag-field" placeholder="Nama port lalu Enter...">
-                        </div>
-                        <small class="text-muted" style="font-size:10px;">Contoh: <code>gpon-onu_1/1/1:1</code> &bull; pisahkan dengan Enter</small>
+                        <select id="edit-tagged-select" class="form-control port-select2" multiple style="width:100%">
+                            @foreach($portOptions as $p)
+                                <option value="{{ $p }}">{{ $p }}</option>
+                            @endforeach
+                        </select>
                     </div>
                     <div class="col-md-6">
                         <label class="small font-weight-bold mb-1">
@@ -430,10 +448,11 @@
                                 <small class="text-muted font-weight-normal">(non-uplink)</small>
                             @endif
                         </label>
-                        <div class="tag-input-wrap" id="edit-untagged-wrap">
-                            <input type="text" class="tag-field" placeholder="Nama port lalu Enter...">
-                        </div>
-                        <small class="text-muted" style="font-size:10px;">Contoh: <code>gei_1/1/1</code> &bull; pisahkan dengan Enter</small>
+                        <select id="edit-untagged-select" class="form-control port-select2" multiple style="width:100%">
+                            @foreach($portOptions as $p)
+                                <option value="{{ $p }}">{{ $p }}</option>
+                            @endforeach
+                        </select>
                     </div>
                 </div>
 
@@ -616,10 +635,11 @@
                                 <small class="text-muted font-weight-normal">(non-uplink)</small>
                             @endif
                         </label>
-                        <div class="tag-input-wrap" id="create-tagged-wrap">
-                            <input type="text" class="tag-field" placeholder="Nama port lalu Enter...">
-                        </div>
-                        <small class="text-muted" style="font-size:10px;">Contoh: <code>gpon-onu_1/1/1:1</code></small>
+                        <select id="create-tagged-select" class="form-control port-select2" multiple style="width:100%">
+                            @foreach($portOptions as $p)
+                                <option value="{{ $p }}">{{ $p }}</option>
+                            @endforeach
+                        </select>
                     </div>
                     <div class="col-md-6">
                         <label class="small font-weight-bold mb-1">
@@ -628,10 +648,11 @@
                                 <small class="text-muted font-weight-normal">(non-uplink)</small>
                             @endif
                         </label>
-                        <div class="tag-input-wrap" id="create-untagged-wrap">
-                            <input type="text" class="tag-field" placeholder="Nama port lalu Enter...">
-                        </div>
-                        <small class="text-muted" style="font-size:10px;">Contoh: <code>gei_1/1/1</code></small>
+                        <select id="create-untagged-select" class="form-control port-select2" multiple style="width:100%">
+                            @foreach($portOptions as $p)
+                                <option value="{{ $p }}">{{ $p }}</option>
+                            @endforeach
+                        </select>
                     </div>
                 </div>
             </div>
@@ -1534,7 +1555,7 @@ $(function() {
     });
 
     // =========================================================================
-    // Tag Input Helpers
+    // Select2 Port Dropdowns
     // =========================================================================
     let uplinkNames = [
         @foreach($olt->uplinks as $u)
@@ -1542,46 +1563,25 @@ $(function() {
         @endforeach
     ];
 
-    function tagInit(wrapperId) {
-        let $w = $('#' + wrapperId);
-        $w.on('keydown', '.tag-field', function(e) {
-            if (e.key === 'Enter' || e.key === ',') {
-                e.preventDefault();
-                let v = $(this).val().trim().replace(/,+$/, '');
-                if (v) tagAdd(wrapperId, v, $w.data('chipclass') || 'chip-tagged');
-                $(this).val('');
-            } else if (e.key === 'Backspace' && $(this).val() === '') {
-                $w.find('.tag-chip').last().remove();
+    // Select2 with tags:true so user can type custom port names not in list
+    let s2cfg = { theme: 'bootstrap-5', width: '100%', tags: true, tokenSeparators: [',', ' '],
+        placeholder: 'Pilih atau ketik nama port...', allowClear: true };
+    $('#edit-tagged-select').select2($.extend({}, s2cfg, { dropdownParent: $('#modal-edit-vlan') }));
+    $('#edit-untagged-select').select2($.extend({}, s2cfg, { dropdownParent: $('#modal-edit-vlan') }));
+    $('#create-tagged-select').select2($.extend({}, s2cfg, { dropdownParent: $('#modal-create-vlan') }));
+    $('#create-untagged-select').select2($.extend({}, s2cfg, { dropdownParent: $('#modal-create-vlan') }));
+
+    function s2Set(selectId, values) {
+        let $s = $('#' + selectId);
+        // Add any value not already in options
+        (values || []).forEach(function(v) {
+            if (!$s.find('option[value="' + $.escapeSelector(v) + '"]').length) {
+                $s.append(new Option(v, v));
             }
         });
-        $w.on('click', '.rm', function() { $(this).closest('.tag-chip').remove(); });
-        $w.on('click', function(e) {
-            if (!$(e.target).closest('.tag-chip, .rm').length) $w.find('.tag-field').focus();
-        });
+        $s.val(values || []).trigger('change');
     }
-    function tagAdd(wrapperId, val, cls) {
-        let $w = $('#' + wrapperId);
-        if ($w.find('.tag-chip').filter(function() { return $(this).data('val') === val; }).length) return;
-        let $chip = $('<span class="tag-chip ' + (cls || 'chip-tagged') + '" data-val="' + val + '"><span class="chip-val">' + val + '</span><span class="rm ml-1"><i class="fas fa-times"></i></span></span>');
-        $w.find('.tag-field').before($chip);
-    }
-    function tagSet(wrapperId, values, cls) {
-        $('#' + wrapperId).find('.tag-chip').remove();
-        (values || []).forEach(v => tagAdd(wrapperId, v, cls));
-    }
-    function tagGet(wrapperId) {
-        return $('#' + wrapperId).find('.tag-chip').map(function() { return $(this).data('val'); }).get();
-    }
-
-    // Init tag inputs
-    $('#edit-tagged-wrap').data('chipclass', 'chip-tagged');
-    $('#edit-untagged-wrap').data('chipclass', 'chip-untagged');
-    $('#create-tagged-wrap').data('chipclass', 'chip-tagged');
-    $('#create-untagged-wrap').data('chipclass', 'chip-untagged');
-    tagInit('edit-tagged-wrap');
-    tagInit('edit-untagged-wrap');
-    tagInit('create-tagged-wrap');
-    tagInit('create-untagged-wrap');
+    function s2Get(selectId) { return $('#' + selectId).val() || []; }
 
     // =========================================================================
     // Edit VLAN
@@ -1639,8 +1639,8 @@ $(function() {
             extraUntagged = untagged;
         }
 
-        tagSet('edit-tagged-wrap', extraTagged, 'chip-tagged');
-        tagSet('edit-untagged-wrap', extraUntagged, 'chip-untagged');
+        s2Set('edit-tagged-select', extraTagged);
+        s2Set('edit-untagged-select', extraUntagged);
         $('#modal-edit-vlan').modal('show');
     });
 
@@ -1657,9 +1657,9 @@ $(function() {
             if (val === 'tagged') taggedPorts.push(port);
             else if (val === 'untagged') untaggedPorts.push(port);
         });
-        // Merge extra tag-input ports
-        tagGet('edit-tagged-wrap').forEach(p => { if (!taggedPorts.includes(p)) taggedPorts.push(p); });
-        tagGet('edit-untagged-wrap').forEach(p => { if (!untaggedPorts.includes(p)) untaggedPorts.push(p); });
+        // Merge select2 ports
+        s2Get('edit-tagged-select').forEach(p => { if (!taggedPorts.includes(p)) taggedPorts.push(p); });
+        s2Get('edit-untagged-select').forEach(p => { if (!untaggedPorts.includes(p)) untaggedPorts.push(p); });
 
         $.ajax({
             url: '{{ route("admin.olts.infrastructure.vlans.update-type", [$olt, "__VLAN__"]) }}'.replace('__VLAN__', vlanId),
@@ -1736,8 +1736,8 @@ $(function() {
                 $(this).closest('.port-radio-group').find('label:last-child').addClass('active-none');
             }
         });
-        tagSet('create-tagged-wrap', [], 'chip-tagged');
-        tagSet('create-untagged-wrap', [], 'chip-untagged');
+        s2Set('create-tagged-select', []);
+        s2Set('create-untagged-select', []);
         $('#modal-create-vlan').modal('show');
     });
 
@@ -1754,8 +1754,8 @@ $(function() {
             if (val === 'tagged') taggedPorts.push(port);
             else if (val === 'untagged') untaggedPorts.push(port);
         });
-        tagGet('create-tagged-wrap').forEach(p => { if (!taggedPorts.includes(p)) taggedPorts.push(p); });
-        tagGet('create-untagged-wrap').forEach(p => { if (!untaggedPorts.includes(p)) untaggedPorts.push(p); });
+        s2Get('create-tagged-select').forEach(p => { if (!taggedPorts.includes(p)) taggedPorts.push(p); });
+        s2Get('create-untagged-select').forEach(p => { if (!untaggedPorts.includes(p)) untaggedPorts.push(p); });
 
         $.ajax({
             url: '{{ route("admin.olts.infrastructure.vlans.create", $olt) }}',
