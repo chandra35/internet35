@@ -2651,7 +2651,9 @@ class ZteC320Helper extends BaseOltHelper
                 "configure terminal",
                 "pon-onu-mng gpon-onu_1/{$slot}/{$port}:{$onuId}",
                 "restore factory",
-                "__WAIT__3",
+                "__WAIT__2",
+                "reboot",
+                "__WAIT__2",
                 "exit",
                 "exit",
             ];
