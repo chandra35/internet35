@@ -297,6 +297,7 @@ class OnuController extends Controller implements HasMiddleware
                 'name' => $request->name ?? $request->serial_number,
                 'line_profile' => $lineProfile,
                 'service_profile' => $serviceProfile,
+                'onu_type' => $request->onu_type ?: null,
             ];
             
             // Pass management VLAN for TR069 DHCP

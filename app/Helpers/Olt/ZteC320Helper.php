@@ -1552,8 +1552,11 @@ class ZteC320Helper extends BaseOltHelper
             // Determine ONU ID (auto-assign if not provided)
             $onuId = $params['onu_id'] ?? $this->getNextAvailableOnuId($slot, $port);
 
-            // Determine ONU type from params or vendor prefix
-            $onuType = $params['onu_type'] ?? $this->guessOnuType($serialNumber);
+            // Determine ONU type: use equipment ID from scan, or fall back to vendor prefix
+            $rawOnuType = $params['onu_type'] ?? null;
+            $onuType = $rawOnuType
+                ? $this->mapEquipmentIdToOltType($rawOnuType)
+                : $this->guessOnuType($serialNumber);
 
             // Build CLI commands — ZTE C320 V2.1.0 syntax
             // Interface format: gpon-olt_ and gpon-onu_ (with hyphen before olt/onu)
@@ -2354,8 +2357,44 @@ class ZteC320Helper extends BaseOltHelper
     /**
      * Guess ONU type from serial number vendor prefix
      */
-    protected function guessOnuType(string $serialNumber): string
+    /**
+     * Map equipment ID (from SNMP) to OLT profile type name.
+     * E.g. 'F670LV9.0' -> 'F670L', 'HG8245H' -> 'HG8245H'
+     */
+    protected function mapEquipmentIdToOltType(string $equipmentId): string
     {
+        $id = trim($equipmentId);
+
+        // Known OLT profile types (order matters: longer/more specific first)
+        $knownProfiles = [
+            'EG8141H5', 'EG8145V5', 'EG8143H5',
+            'HG8245H', 'HG8245Q', 'HG8245W', 'HG8546M',
+            'F670L', 'F660', 'F609', 'F6600',
+        ];
+
+        $upper = strtoupper($id);
+        foreach ($knownProfiles as $profile) {
+            if (str_starts_with($upper, strtoupper($profile))) {
+                return $profile;
+            }
+        }
+
+        // Fallback: strip version suffix like V9.0, V5, etc.
+        $stripped = preg_replace('/V\d+(\.\d+)?$/i', '', $id);
+        if ($stripped && $stripped !== $id) {
+            return $stripped;
+        }
+
+        return $id;
+    }
+
+    protected function guessOnuType(string $serialNumber, ?string $equipmentId = null): string
+    {
+        // If equipment ID is available, map it to OLT profile type
+        if ($equipmentId) {
+            return $this->mapEquipmentIdToOltType($equipmentId);
+        }
+
         $vendor = strtoupper(substr($serialNumber, 0, 4));
 
         return match ($vendor) {
