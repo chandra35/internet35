@@ -2145,11 +2145,14 @@ $(function() {
                 toastr.success(res.status === 200
                     ? 'Settings berhasil diterapkan ke perangkat.'
                     : 'Settings dikirim, akan diterapkan saat device check-in berikutnya.');
-                // Reload security data after 3s so cache reflects new values
+                // Trigger a device refresh so GenieACS fetches updated values,
+                // then reload security tab after 10s
+                $.post('/admin/onus/{{ $onu->id }}/tr069-refresh', { _token: '{{ csrf_token() }}' });
                 setTimeout(function() {
                     $('#tr069-security-content').hide();
+                    $('#tr069-security-loading').show();
                     loadSecurityInfo();
-                }, 3000);
+                }, 10000);
             } else {
                 toastr.error(res.message || 'Gagal mengirim settings');
             }
