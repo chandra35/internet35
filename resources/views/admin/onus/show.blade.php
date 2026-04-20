@@ -425,10 +425,10 @@
                                     <tbody></tbody>
                                 </table>
                             </div>
-                            <h6 class="mb-2"><i class="fas fa-server mr-1"></i>DHCP Server & IP Gateway</h6>
+                            <h6 class="mb-2"><i class="fas fa-server mr-1"></i>Konfigurasi IP & DHCP</h6>
                             <div class="card card-outline card-primary mb-3" id="dhcp-config-card">
                                 <div class="card-header p-2 d-flex justify-content-between align-items-center">
-                                    <span class="font-weight-bold small">Konfigurasi LAN / DHCP</span>
+                                    <span class="font-weight-bold small">IP LAN &amp; DHCP Server</span>
                                     <button type="button" class="btn btn-xs btn-outline-secondary" id="btn-edit-lan-config">
                                         <i class="fas fa-pen mr-1"></i>Edit
                                     </button>
@@ -436,20 +436,43 @@
                                 <div class="card-body p-2">
                                     {{-- Read-only display --}}
                                     <div id="lan-config-display">
-                                        <table class="table table-sm table-borderless mb-0" id="tr069-dhcp-table"></table>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <p class="text-uppercase text-muted small font-weight-bold mb-1" style="font-size:0.7rem;letter-spacing:.05em"><i class="fas fa-network-wired mr-1"></i>Konfigurasi IP LAN</p>
+                                                <table class="table table-sm table-borderless mb-2" id="tr069-ip-table"></table>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <p class="text-uppercase text-muted small font-weight-bold mb-1" style="font-size:0.7rem;letter-spacing:.05em"><i class="fas fa-server mr-1"></i>DHCP Server</p>
+                                                <table class="table table-sm table-borderless mb-0" id="tr069-dhcp-table"></table>
+                                            </div>
+                                        </div>
                                     </div>
                                     {{-- Edit form (hidden by default) --}}
                                     <div id="lan-config-form" style="display:none">
-                                        <div class="row">
+                                        {{-- Section 1: IP Config --}}
+                                        <p class="text-uppercase text-muted small font-weight-bold mb-2" style="font-size:0.7rem;letter-spacing:.05em"><i class="fas fa-network-wired mr-1"></i>Konfigurasi IP LAN</p>
+                                        <div class="row mb-2">
                                             <div class="col-md-6">
                                                 <div class="form-group row mb-2">
-                                                    <label class="col-sm-5 col-form-label col-form-label-sm">IP Gateway</label>
-                                                    <div class="col-sm-7"><input type="text" class="form-control form-control-sm" id="lan-gateway-ip" placeholder="192.168.1.1"></div>
+                                                    <label class="col-sm-5 col-form-label col-form-label-sm">IP Address LAN</label>
+                                                    <div class="col-sm-7">
+                                                        <input type="text" class="form-control form-control-sm" id="lan-gateway-ip" placeholder="192.168.1.1">
+                                                        <small class="text-muted">IP perangkat &amp; default gateway client</small>
+                                                    </div>
                                                 </div>
+                                            </div>
+                                            <div class="col-md-6">
                                                 <div class="form-group row mb-2">
                                                     <label class="col-sm-5 col-form-label col-form-label-sm">Subnet Mask</label>
                                                     <div class="col-sm-7"><input type="text" class="form-control form-control-sm" id="lan-subnet-mask" placeholder="255.255.255.0"></div>
                                                 </div>
+                                            </div>
+                                        </div>
+                                        <hr class="my-2">
+                                        {{-- Section 2: DHCP --}}
+                                        <p class="text-uppercase text-muted small font-weight-bold mb-2" style="font-size:0.7rem;letter-spacing:.05em"><i class="fas fa-server mr-1"></i>DHCP Server</p>
+                                        <div class="row">
+                                            <div class="col-md-6">
                                                 <div class="form-group row mb-2">
                                                     <label class="col-sm-5 col-form-label col-form-label-sm">DHCP Server</label>
                                                     <div class="col-sm-7">
@@ -463,12 +486,20 @@
                                                     <label class="col-sm-5 col-form-label col-form-label-sm">IP Mulai</label>
                                                     <div class="col-sm-7"><input type="text" class="form-control form-control-sm" id="lan-min-address" placeholder="192.168.1.100"></div>
                                                 </div>
-                                            </div>
-                                            <div class="col-md-6">
                                                 <div class="form-group row mb-2">
                                                     <label class="col-sm-5 col-form-label col-form-label-sm">IP Akhir</label>
                                                     <div class="col-sm-7"><input type="text" class="form-control form-control-sm" id="lan-max-address" placeholder="192.168.1.200"></div>
                                                 </div>
+                                                <div class="form-group row mb-0">
+                                                    <div class="col-sm-12">
+                                                        <button type="button" class="btn btn-xs btn-outline-info" id="btn-auto-dhcp-range">
+                                                            <i class="fas fa-magic mr-1"></i>Auto Hitung Range dari IP
+                                                        </button>
+                                                        <span id="lan-range-hint" class="ml-2 small text-muted"></span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
                                                 <div class="form-group row mb-2">
                                                     <label class="col-sm-5 col-form-label col-form-label-sm">Lease Time (det)</label>
                                                     <div class="col-sm-7"><input type="number" class="form-control form-control-sm" id="lan-lease-time" min="60" max="604800" placeholder="86400"></div>
@@ -483,7 +514,7 @@
                                                 </div>
                                             </div>
                                         </div>
-                                        <div class="d-flex justify-content-end mt-1">
+                                        <div class="d-flex justify-content-end mt-2">
                                             <button type="button" class="btn btn-sm btn-secondary mr-2" id="btn-cancel-lan-config">Batal</button>
                                             <button type="button" class="btn btn-sm btn-primary" id="btn-save-lan-config">
                                                 <i class="fas fa-save mr-1"></i>Simpan ke Perangkat
@@ -1636,24 +1667,34 @@ $(function() {
         }
         $('#tr069-lan-table tbody').html(portHtml);
 
-        // DHCP Server info  — also pre-fill edit form
+        // IP LAN & DHCP Server info — split display + pre-fill edit form
         var dhcp = data.lan_dhcp || {};
-        var dhcpHtml = '';
-        if (Object.keys(dhcp).length === 0) {
-            dhcpHtml = '<tr><td colspan="2" class="text-muted text-center">Data DHCP belum tersedia</td></tr>';
-        } else {
-            var dhcpEnable = dhcp.dhcp_server_enable === true || dhcp.dhcp_server_enable === 'true' || dhcp.dhcp_server_enable === '1';
-            var dhcpRows = [
-                ['DHCP Server', dhcpEnable ? '<span class="badge badge-success">Enabled</span>' : '<span class="badge badge-secondary">Disabled</span>'],
-                ['IP Gateway', dhcp.ip_interface_address || '-'],
-                ['Range IP', (dhcp.min_address||'-') + ' &mdash; ' + (dhcp.max_address||'-')],
+        var noData = Object.keys(dhcp).length === 0;
+        var dhcpEnable = !noData && (dhcp.dhcp_server_enable === true || dhcp.dhcp_server_enable === 'true' || dhcp.dhcp_server_enable === '1');
+
+        // IP config display table
+        var ipHtml = noData
+            ? '<tr><td class="text-muted text-center small">Belum tersedia</td></tr>'
+            : [
+                ['IP Address LAN', dhcp.ip_interface_address ? '<code>' + dhcp.ip_interface_address + '</code>' : '<span class="text-muted">-</span>'],
                 ['Subnet Mask', dhcp.subnet_mask || '-'],
-                ['Lease Time', dhcp.lease_time ? (dhcp.lease_time + ' detik (' + Math.round(dhcp.lease_time/3600) + ' jam)') : '-'],
+                ['MAC LAN', dhcp.gateway_mac ? '<code class="small">' + dhcp.gateway_mac + '</code>' : '-'],
+              ].map(function(r) { return '<tr><td class="text-muted small" width="45%">' + r[0] + '</td><td class="small">' + r[1] + '</td></tr>'; }).join('');
+        $('#tr069-ip-table').html(ipHtml);
+
+        // DHCP display table
+        var dhcpHtml = noData
+            ? '<tr><td class="text-muted text-center small">Belum tersedia</td></tr>'
+            : [
+                ['DHCP Server', dhcpEnable ? '<span class="badge badge-success">Enabled</span>' : '<span class="badge badge-secondary">Disabled</span>'],
+                ['Range IP', (dhcp.min_address||'-') + ' &ndash; ' + (dhcp.max_address||'-')],
+                ['Lease Time', dhcp.lease_time ? dhcp.lease_time + 's (' + Math.round(dhcp.lease_time/3600) + 'j)' : '-'],
                 ['DNS Servers', dhcp.dns_servers || '-'],
-                ['MAC Gateway', dhcp.gateway_mac ? '<code>' + dhcp.gateway_mac + '</code>' : '-'],
-            ];
-            dhcpRows.forEach(function(r) { dhcpHtml += '<tr><td width="40%">' + r[0] + '</td><td>' + r[1] + '</td></tr>'; });
-            // Pre-fill edit form
+              ].map(function(r) { return '<tr><td class="text-muted small" width="45%">' + r[0] + '</td><td class="small">' + r[1] + '</td></tr>'; }).join('');
+        $('#tr069-dhcp-table').html(dhcpHtml);
+
+        // Pre-fill edit form
+        if (!noData) {
             $('#lan-gateway-ip').val(dhcp.ip_interface_address || '');
             $('#lan-subnet-mask').val(dhcp.subnet_mask || '');
             $('#lan-dhcp-enable').val(dhcpEnable ? 'true' : 'false');
@@ -1663,7 +1704,6 @@ $(function() {
             $('#lan-dns-servers').val(dhcp.dns_servers || '');
             $('#lan-domain-name').val(dhcp.domain_name || '');
         }
-        $('#tr069-dhcp-table').html(dhcpHtml);
 
         // Clients (connected hosts) with device name detection + block action
         var hosts = data.lan_hosts || [];
@@ -1863,6 +1903,49 @@ $(function() {
         });
     }
 
+    // ── LAN DHCP range auto-calc helpers ──
+    function ipToInt(ip) {
+        return ip.split('.').reduce(function(acc, oct) { return ((acc << 8) + parseInt(oct, 10)) >>> 0; }, 0);
+    }
+    function intToIp(n) {
+        return [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join('.');
+    }
+    function isValidIp(ip) {
+        return /^(\d{1,3}\.){3}\d{1,3}$/.test(ip) && ip.split('.').every(function(o) { return +o <= 255; });
+    }
+    function calcDhcpRange(ip, mask) {
+        var ipInt   = ipToInt(ip);
+        var maskInt = ipToInt(mask);
+        var network    = (ipInt & maskInt) >>> 0;
+        var broadcast  = (network | (~maskInt >>> 0)) >>> 0;
+        var hostCount  = broadcast - network - 1;
+        if (hostCount < 3) return null;
+        // Put pool in the upper 2/3 of the subnet, skip .1 (device IP)
+        var poolStart  = Math.max(network + Math.max(2, Math.floor(hostCount * 0.4)), ipInt + 1);
+        var poolEnd    = broadcast - 1;
+        if (poolStart >= poolEnd) return null;
+        return { min: intToIp(poolStart), max: intToIp(poolEnd) };
+    }
+    function autoFillDhcpRange(silent) {
+        var ip   = $('#lan-gateway-ip').val().trim();
+        var mask = $('#lan-subnet-mask').val().trim();
+        if (!isValidIp(ip) || !isValidIp(mask)) {
+            if (!silent) toastr.warning('Masukkan IP Address dan Subnet Mask yang valid terlebih dahulu.');
+            return;
+        }
+        var range = calcDhcpRange(ip, mask);
+        if (!range) {
+            if (!silent) toastr.warning('Subnet terlalu kecil untuk menghitung range DHCP.');
+            return;
+        }
+        $('#lan-min-address').val(range.min);
+        $('#lan-max-address').val(range.max);
+        var maskInt = ipToInt(mask);
+        var totalHosts = (~maskInt >>> 0) - 1;
+        $('#lan-range-hint').text('Subnet /' + (32 - Math.log2(totalHosts + 2) | 0) + ' → ' + range.min + ' – ' + range.max);
+        if (!silent) toastr.info('Range DHCP dihitung otomatis dari IP LAN.');
+    }
+
     // ── LAN config edit/save ──
     $('#btn-edit-lan-config').on('click', function() {
         $('#lan-config-display').hide();
@@ -1873,16 +1956,50 @@ $(function() {
         $('#lan-config-form').hide();
         $('#lan-config-display').show();
         $('#btn-edit-lan-config').show();
+        $('#lan-range-hint').text('');
+    });
+    // Auto-recalc on IP/mask blur when DHCP is enabled and range fields are empty or stale
+    $('#lan-gateway-ip, #lan-subnet-mask').on('blur', function() {
+        if ($('#lan-dhcp-enable').val() === 'true') {
+            autoFillDhcpRange(true);
+        }
+    });
+    // When enabling DHCP, auto-calc if range looks wrong relative to IP
+    $('#lan-dhcp-enable').on('change', function() {
+        if ($(this).val() === 'true') {
+            var ip = $('#lan-gateway-ip').val().trim();
+            var minAddr = $('#lan-min-address').val().trim();
+            // Only auto-fill if range is empty or subnet doesn't match
+            if (!minAddr || (isValidIp(ip) && isValidIp(minAddr) && (ipToInt(ip) & ipToInt($('#lan-subnet-mask').val())) !== (ipToInt(minAddr) & ipToInt($('#lan-subnet-mask').val())))) {
+                autoFillDhcpRange(true);
+            }
+        }
+    });
+    $('#btn-auto-dhcp-range').on('click', function() {
+        autoFillDhcpRange(false);
     });
     $('#btn-save-lan-config').on('click', function() {
+        // Validate: DHCP range must be within same subnet as LAN IP
+        var ip   = $('#lan-gateway-ip').val().trim();
+        var mask = $('#lan-subnet-mask').val().trim();
+        var minA = $('#lan-min-address').val().trim();
+        var maxA = $('#lan-max-address').val().trim();
+        if ($('#lan-dhcp-enable').val() === 'true' && ip && mask && minA && isValidIp(ip) && isValidIp(mask) && isValidIp(minA)) {
+            var network = (ipToInt(ip)   & ipToInt(mask)) >>> 0;
+            var minNet  = (ipToInt(minA) & ipToInt(mask)) >>> 0;
+            if (network !== minNet) {
+                toastr.error('Range DHCP harus berada dalam subnet yang sama dengan IP Address LAN. Klik "Auto Hitung Range" untuk memperbaiki.');
+                return;
+            }
+        }
         var $btn = $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Menyimpan...');
         var payload = {
             _token: '{{ csrf_token() }}',
-            gateway_ip: $('#lan-gateway-ip').val(),
-            subnet_mask: $('#lan-subnet-mask').val(),
+            gateway_ip: ip,
+            subnet_mask: mask,
             dhcp_server_enable: $('#lan-dhcp-enable').val() === 'true' ? 1 : 0,
-            min_address: $('#lan-min-address').val(),
-            max_address: $('#lan-max-address').val(),
+            min_address: minA,
+            max_address: maxA,
             lease_time: $('#lan-lease-time').val(),
             dns_servers: $('#lan-dns-servers').val(),
             domain_name: $('#lan-domain-name').val(),
