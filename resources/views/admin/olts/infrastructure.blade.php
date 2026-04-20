@@ -36,8 +36,8 @@
     .shelf-slot.active-power { border-color: #ef4444; background: linear-gradient(180deg, rgba(239,68,68,0.18) 0%, rgba(239,68,68,0.04) 100%); }
     .shelf-slot.active-fan { border-color: #a855f7; background: linear-gradient(180deg, rgba(168,85,247,0.18) 0%, rgba(168,85,247,0.04) 100%); }
     .shelf-slot.active-other { border-color: #64748b; background: linear-gradient(180deg, rgba(100,116,139,0.18) 0%, rgba(100,116,139,0.04) 100%); }
-    .shelf-slot.empty-slot { opacity: 0.12; cursor: default; }
-    .shelf-slot.standby { border-style: dashed; opacity: 0.3; }
+    .shelf-slot.empty-slot { display: none; }
+    .shelf-slot.standby { border-style: dashed; opacity: 0.5; }
     .shelf-slot .slot-label { font-size: 9px; color: rgba(255,255,255,0.3); letter-spacing: 1px; text-transform: uppercase; }
     .shelf-slot .slot-type { font-size: 13px; font-weight: 700; color: #fff; margin: 4px 0 2px; }
     .shelf-slot .slot-ports { font-size: 9px; color: rgba(255,255,255,0.4); }
@@ -667,7 +667,7 @@
                                 <small style="color: rgba(255,255,255,0.5); font-size: 11px;"><i class="fas fa-circle mr-1" style="color: #22c55e; font-size: 7px;"></i>GPON</small>
                                 <small style="color: rgba(255,255,255,0.5); font-size: 11px;"><i class="fas fa-circle mr-1" style="color: #eab308; font-size: 7px;"></i>MGMT</small>
                                 <small style="color: rgba(255,255,255,0.5); font-size: 11px;"><i class="fas fa-circle mr-1" style="color: #ef4444; font-size: 7px;"></i>Power</small>
-                                <span class="badge" style="background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.6); font-size: 11px; padding: 4px 10px; border-radius: 6px;">{{ $olt->cards->count() }} slot terisi</span>
+                                <span class="badge" style="background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.6); font-size: 11px; padding: 4px 10px; border-radius: 6px;">{{ $olt->cards->count() }}/20 slot terisi</span>
                             </div>
                         </div>
                         <div class="d-flex flex-wrap" style="gap: 8px;">
