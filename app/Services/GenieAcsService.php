@@ -839,66 +839,154 @@ class GenieAcsService
             $device = $devices[0];
             $igd = $device['InternetGatewayDevice'] ?? $device['Device'] ?? [];
 
-            // Layer3Forwarding
-            $l3fwd = $igd['Layer3Forwarding'] ?? [];
-            $defaultGw = $this->getValue($l3fwd, 'DefaultConnectionService');
+            // X_HW_Security — ACL services
+            $xhwSec = $igd['X_HW_Security'] ?? [];
+            $acl     = $xhwSec['AclServices'] ?? [];
+            $dos     = $xhwSec['Dosfilter'] ?? [];
+            $fwLevel = $this->getValue($xhwSec, 'X_HW_FirewallLevel') ?? $this->getValue($xhwSec, 'Level');
 
-            // Firewall
-            $fw = $igd['X_HW_Security'] ?? $igd['Firewall'] ?? [];
-            $firewallLevel = $this->getValue($fw, 'Level') ?? $this->getValue($fw, 'Config');
+            // UserInterface — CLI & Web User accounts
+            $ui         = $igd['UserInterface'] ?? [];
+            $cliSsh     = $ui['X_HW_CLISSHControl'] ?? [];
+            $cliTelnet  = $ui['X_HW_CLITelnetAccess'] ?? [];
+            $cliUsers   = $ui['X_HW_CLIUserInfo'] ?? [];
+            $webUsers   = $ui['X_HW_WebUserInfo'] ?? [];
 
-            // DNS
-            $dns = [];
+            // CLI user (first entry, usually root)
+            $cliUser1 = [];
+            foreach ($cliUsers as $k => $v) {
+                if (!is_array($v) || $k[0] === '_') continue;
+                $cliUser1 = $v;
+                break;
+            }
+
+            // Web Users (index 1 = user, index 2 = admin)
+            $webUser  = $webUsers['1'] ?? [];
+            $webAdmin = $webUsers['2'] ?? [];
+
+            // ManagementServer (ACS info)
+            $ms = $igd['ManagementServer'] ?? [];
+            $acsInfo = [
+                'url'                    => $this->getValue($ms, 'URL'),
+                'username'               => $this->getValue($ms, 'Username'),
+                'periodic_inform'        => $this->getValue($ms, 'PeriodicInformEnable'),
+                'periodic_interval'      => $this->getValue($ms, 'PeriodicInformInterval'),
+                'connection_request_url' => $this->getValue($ms, 'ConnectionRequestURL'),
+            ];
+
+            // DNS — collect from active WAN connections
+            $dns        = [];
+            $defaultGw  = $this->getValue($igd['Layer3Forwarding'] ?? [], 'DefaultConnectionService');
             $wanDevices = $igd['WANDevice'] ?? [];
             foreach ($wanDevices as $wdKey => $wdValue) {
                 if (!is_array($wdValue) || $wdKey[0] === '_') continue;
-                $wcd = $wdValue['WANConnectionDevice'] ?? [];
-                foreach ($wcd as $wcKey => $wcValue) {
+                foreach ($wdValue['WANConnectionDevice'] ?? [] as $wcKey => $wcValue) {
                     if (!is_array($wcValue) || $wcKey[0] === '_') continue;
-                    foreach (['WANPPPConnection', 'WANIPConnection'] as $connType) {
-                        $conns = $wcValue[$connType] ?? [];
-                        foreach ($conns as $cKey => $cValue) {
-                            if (!is_array($cValue) || $cKey[0] === '_') continue;
-                            $d1 = $this->getValue($cValue, 'DNSServers');
+                    foreach (['WANPPPConnection', 'WANIPConnection'] as $ct) {
+                        foreach ($wcValue[$ct] ?? [] as $ck => $cv) {
+                            if (!is_array($cv) || $ck[0] === '_') continue;
+                            $d1 = $this->getValue($cv, 'DNSServers');
                             if ($d1) $dns = array_merge($dns, explode(',', $d1));
                         }
                     }
                 }
             }
 
-            // UserInterface - remote management
-            $ui = $igd['UserInterface'] ?? [];
-            $remoteAccess = [];
-            if (!empty($ui)) {
-                $ra = $ui['RemoteAccess'] ?? [];
-                $remoteAccess = [
-                    'enabled' => $this->getValue($ra, 'Enable'),
-                    'port' => $this->getValue($ra, 'Port'),
-                    'protocol' => $this->getValue($ra, 'SupportedProtocols'),
-                ];
-            }
-
-            // ManagementServer (ACS info)
-            $ms = $igd['ManagementServer'] ?? [];
-            $acsInfo = [
-                'url' => $this->getValue($ms, 'URL'),
-                'username' => $this->getValue($ms, 'Username'),
-                'periodic_inform' => $this->getValue($ms, 'PeriodicInformEnable'),
-                'periodic_interval' => $this->getValue($ms, 'PeriodicInformInterval'),
-                'connection_request_url' => $this->getValue($ms, 'ConnectionRequestURL'),
-            ];
-
             return [
-                'firewall_level' => $firewallLevel,
+                'firewall_level' => $fwLevel,
                 'default_gateway' => $defaultGw,
                 'dns_servers' => array_unique(array_filter($dns)),
-                'remote_access' => $remoteAccess,
                 'acs' => $acsInfo,
+                // ACL Services
+                'acl' => [
+                    'ftp_lan'    => $this->getValue($acl, 'FTPLanEnable'),
+                    'ftp_wan'    => $this->getValue($acl, 'FTPWanEnable'),
+                    'http_lan'   => $this->getValue($acl, 'HTTPLanEnable'),
+                    'http_wan'   => $this->getValue($acl, 'HTTPWanEnable'),
+                    'ssh_lan'    => $this->getValue($acl, 'SSHLanEnable'),
+                    'ssh_wan'    => $this->getValue($acl, 'SSHWanEnable'),
+                    'samba_lan'  => $this->getValue($acl, 'SamBaLanEnable'),
+                    'samba_wan'  => $this->getValue($acl, 'SamBaWanEnable'),
+                    'telnet_lan' => $this->getValue($acl, 'TELNETLanEnable'),
+                    'telnet_wan' => $this->getValue($acl, 'TELNETWanEnable'),
+                    'icmp_echo'  => $this->getValue($dos, 'IcmpEchoReplyEn'),
+                ],
+                // CLI
+                'cli' => [
+                    'ssh_enable'     => $this->getValue($cliSsh, 'Enable'),
+                    'telnet_enable'  => $this->getValue($cliTelnet, 'Access'),
+                    'telnet_port'    => $this->getValue($cliTelnet, 'TelnetPort'),
+                    'telnet_wan'     => $this->getValue($cliTelnet, 'X_HW_WanSecurityEnable'),
+                    'username'       => $this->getValue($cliUser1, 'Username'),
+                ],
+                // Web UI accounts
+                'web_user' => [
+                    'enable'   => $this->getValue($webUser, 'Enable'),
+                    'username' => $this->getValue($webUser, 'UserName'),
+                ],
+                'web_admin' => [
+                    'enable'   => $this->getValue($webAdmin, 'Enable'),
+                    'username' => $this->getValue($webAdmin, 'UserName'),
+                ],
             ];
         } catch (Exception $e) {
             Log::error("GenieACS getSecurityInfo error: " . $e->getMessage());
             return [];
         }
+    }
+
+    /**
+     * Set security / remote access settings.
+     * $settings keys: acl_*, cli_*, web_user_*, web_admin_*
+     */
+    public function setSecuritySettings(string $deviceId, array $settings): array
+    {
+        $params = [];
+
+        $aclBase = 'InternetGatewayDevice.X_HW_Security.AclServices';
+        $dosBase = 'InternetGatewayDevice.X_HW_Security.Dosfilter';
+        $uiBase  = 'InternetGatewayDevice.UserInterface';
+
+        $boolMap = [
+            'acl_ftp_lan'     => "{$aclBase}.FTPLanEnable",
+            'acl_ftp_wan'     => "{$aclBase}.FTPWanEnable",
+            'acl_http_lan'    => "{$aclBase}.HTTPLanEnable",
+            'acl_http_wan'    => "{$aclBase}.HTTPWanEnable",
+            'acl_ssh_lan'     => "{$aclBase}.SSHLanEnable",
+            'acl_ssh_wan'     => "{$aclBase}.SSHWanEnable",
+            'acl_samba_lan'   => "{$aclBase}.SamBaLanEnable",
+            'acl_samba_wan'   => "{$aclBase}.SamBaWanEnable",
+            'acl_telnet_lan'  => "{$aclBase}.TELNETLanEnable",
+            'acl_telnet_wan'  => "{$aclBase}.TELNETWanEnable",
+            'acl_icmp_echo'   => "{$dosBase}.IcmpEchoReplyEn",
+            'cli_ssh_enable'  => "{$uiBase}.X_HW_CLISSHControl.Enable",
+            'cli_telnet_enable' => "{$uiBase}.X_HW_CLITelnetAccess.Access",
+            'cli_telnet_wan'  => "{$uiBase}.X_HW_CLITelnetAccess.X_HW_WanSecurityEnable",
+            'web_user_enable'  => "{$uiBase}.X_HW_WebUserInfo.1.Enable",
+            'web_admin_enable' => "{$uiBase}.X_HW_WebUserInfo.2.Enable",
+        ];
+
+        foreach ($boolMap as $key => $oid) {
+            if (array_key_exists($key, $settings)) {
+                $params[$oid] = [(bool) $settings[$key], 'xsd:boolean'];
+            }
+        }
+
+        if (array_key_exists('web_user_password', $settings) && $settings['web_user_password'] !== '') {
+            $params["{$uiBase}.X_HW_WebUserInfo.1.Password"] = [$settings['web_user_password'], 'xsd:string'];
+        }
+        if (array_key_exists('web_admin_password', $settings) && $settings['web_admin_password'] !== '') {
+            $params["{$uiBase}.X_HW_WebUserInfo.2.Password"] = [$settings['web_admin_password'], 'xsd:string'];
+        }
+        if (array_key_exists('cli_password', $settings) && $settings['cli_password'] !== '') {
+            $params["{$uiBase}.X_HW_CLIUserInfo.1.Userpassword"] = [$settings['cli_password'], 'xsd:string'];
+        }
+
+        if (empty($params)) {
+            return ['success' => false, 'message' => 'Tidak ada parameter yang diubah'];
+        }
+
+        return $this->setParameterValues($deviceId, $params, true);
     }
 
     /**

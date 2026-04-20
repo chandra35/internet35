@@ -510,14 +510,163 @@
 
                         {{-- Security --}}
                         <div class="tab-pane fade" id="acs-security">
-                            <h6 class="mb-3"><i class="fas fa-shield-alt mr-1"></i>Security &amp; ACS Configuration</h6>
                             <div id="tr069-security-loading" class="text-center py-3">
                                 <i class="fas fa-spinner fa-spin"></i> Memuat data security...
                             </div>
                             <div id="tr069-security-content" style="display:none">
+
+                                {{-- Row 1: ACL Services + ACS Server --}}
                                 <div class="row">
-                                    <div class="col-lg-6">
+                                    <div class="col-lg-7">
+                                        <div class="acs-card mb-3">
+                                            <div class="acs-section-header d-flex justify-content-between align-items-center">
+                                                <span><i class="fas fa-shield-alt mr-1 text-warning"></i>Remote Access Control</span>
+                                                <button class="btn btn-xs btn-primary" id="btn-save-security">
+                                                    <i class="fas fa-save mr-1"></i>Simpan Semua
+                                                </button>
+                                            </div>
+                                            <div class="card-body p-0">
+                                                <table class="table table-sm table-bordered mb-0" id="tr069-acl-table">
+                                                    <thead class="thead-light">
+                                                        <tr>
+                                                            <th style="width:45%">Fitur</th>
+                                                            <th class="text-center" style="width:27.5%">WAN (Remote)</th>
+                                                            <th class="text-center" style="width:27.5%">LAN (Local)</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        <tr>
+                                                            <td><i class="fas fa-folder-open fa-fw mr-1 text-muted"></i>FTP Access</td>
+                                                            <td class="text-center"><div class="custom-control custom-switch d-inline-block"><input type="checkbox" class="custom-control-input acl-toggle" id="acl_ftp_wan" data-key="acl_ftp_wan"><label class="custom-control-label" for="acl_ftp_wan"></label></div></td>
+                                                            <td class="text-center"><div class="custom-control custom-switch d-inline-block"><input type="checkbox" class="custom-control-input acl-toggle" id="acl_ftp_lan" data-key="acl_ftp_lan"><label class="custom-control-label" for="acl_ftp_lan"></label></div></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td><i class="fas fa-globe fa-fw mr-1 text-muted"></i>Web UI Access</td>
+                                                            <td class="text-center"><div class="custom-control custom-switch d-inline-block"><input type="checkbox" class="custom-control-input acl-toggle" id="acl_http_wan" data-key="acl_http_wan"><label class="custom-control-label" for="acl_http_wan"></label></div></td>
+                                                            <td class="text-center"><div class="custom-control custom-switch d-inline-block"><input type="checkbox" class="custom-control-input acl-toggle" id="acl_http_lan" data-key="acl_http_lan"><label class="custom-control-label" for="acl_http_lan"></label></div></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td><i class="fas fa-terminal fa-fw mr-1 text-muted"></i>SSH Access</td>
+                                                            <td class="text-center"><div class="custom-control custom-switch d-inline-block"><input type="checkbox" class="custom-control-input acl-toggle" id="acl_ssh_wan" data-key="acl_ssh_wan"><label class="custom-control-label" for="acl_ssh_wan"></label></div></td>
+                                                            <td class="text-center"><div class="custom-control custom-switch d-inline-block"><input type="checkbox" class="custom-control-input acl-toggle" id="acl_ssh_lan" data-key="acl_ssh_lan"><label class="custom-control-label" for="acl_ssh_lan"></label></div></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td><i class="fas fa-network-wired fa-fw mr-1 text-muted"></i>Samba Access</td>
+                                                            <td class="text-center"><div class="custom-control custom-switch d-inline-block"><input type="checkbox" class="custom-control-input acl-toggle" id="acl_samba_wan" data-key="acl_samba_wan"><label class="custom-control-label" for="acl_samba_wan"></label></div></td>
+                                                            <td class="text-center"><div class="custom-control custom-switch d-inline-block"><input type="checkbox" class="custom-control-input acl-toggle" id="acl_samba_lan" data-key="acl_samba_lan"><label class="custom-control-label" for="acl_samba_lan"></label></div></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td><i class="fas fa-keyboard fa-fw mr-1 text-muted"></i>Telnet Access</td>
+                                                            <td class="text-center"><div class="custom-control custom-switch d-inline-block"><input type="checkbox" class="custom-control-input acl-toggle" id="acl_telnet_wan" data-key="acl_telnet_wan"><label class="custom-control-label" for="acl_telnet_wan"></label></div></td>
+                                                            <td class="text-center"><div class="custom-control custom-switch d-inline-block"><input type="checkbox" class="custom-control-input acl-toggle" id="acl_telnet_lan" data-key="acl_telnet_lan"><label class="custom-control-label" for="acl_telnet_lan"></label></div></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td><i class="fas fa-exchange-alt fa-fw mr-1 text-muted"></i>WAN ICMP Echo Reply</td>
+                                                            <td class="text-center"><div class="custom-control custom-switch d-inline-block"><input type="checkbox" class="custom-control-input acl-toggle" id="acl_icmp_echo" data-key="acl_icmp_echo"><label class="custom-control-label" for="acl_icmp_echo"></label></div></td>
+                                                            <td class="text-center text-muted">-</td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                            <div class="card-body border-top py-2">
+                                                <div class="row g-2">
+                                                    <div class="col-6">
+                                                        <div class="d-flex align-items-center justify-content-between">
+                                                            <span class="small"><i class="fas fa-terminal fa-fw mr-1 text-muted"></i>SSH Service</span>
+                                                            <div class="custom-control custom-switch"><input type="checkbox" class="custom-control-input acl-toggle" id="acl_cli_ssh" data-key="cli_ssh_enable"><label class="custom-control-label" for="acl_cli_ssh"></label></div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-6">
+                                                        <div class="d-flex align-items-center justify-content-between">
+                                                            <span class="small"><i class="fas fa-keyboard fa-fw mr-1 text-muted"></i>Telnet Service</span>
+                                                            <div class="custom-control custom-switch"><input type="checkbox" class="custom-control-input acl-toggle" id="acl_cli_telnet" data-key="cli_telnet_enable"><label class="custom-control-label" for="acl_cli_telnet"></label></div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {{-- CLI Credentials --}}
+                                        <div class="acs-card mb-3">
+                                            <div class="acs-section-header"><i class="fas fa-terminal mr-1 text-info"></i>CLI Credentials <small class="text-muted">(SSH / Telnet)</small></div>
+                                            <div class="card-body">
+                                                <div class="row">
+                                                    <div class="col-sm-4">
+                                                        <div class="form-group mb-2">
+                                                            <label class="small font-weight-bold">Username</label>
+                                                            <input type="text" class="form-control form-control-sm" id="cli-username" readonly>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-sm-8">
+                                                        <div class="form-group mb-2">
+                                                            <label class="small font-weight-bold">Password Baru</label>
+                                                            <div class="input-group input-group-sm">
+                                                                <input type="password" class="form-control" id="cli-password" placeholder="Kosongkan jika tidak diubah" autocomplete="new-password">
+                                                                <div class="input-group-append">
+                                                                    <button class="btn btn-outline-info" type="button" id="btn-save-cli-pw">
+                                                                        <i class="fas fa-key mr-1"></i>Ganti
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {{-- Web UI Accounts --}}
                                         <div class="acs-card">
+                                            <div class="acs-section-header"><i class="fas fa-globe mr-1 text-success"></i>Web UI Accounts</div>
+                                            <div class="card-body">
+                                                <div class="row">
+                                                    <div class="col-md-6 border-right">
+                                                        <div class="small font-weight-bold mb-2 text-primary"><i class="fas fa-user-shield mr-1"></i>Web Admin</div>
+                                                        <div class="d-flex align-items-center justify-content-between mb-2">
+                                                            <span class="small">Status</span>
+                                                            <div class="custom-control custom-switch"><input type="checkbox" class="custom-control-input acl-toggle" id="web_admin_enable" data-key="web_admin_enable"><label class="custom-control-label" for="web_admin_enable"></label></div>
+                                                        </div>
+                                                        <div class="form-group mb-2">
+                                                            <label class="small">Username</label>
+                                                            <input type="text" class="form-control form-control-sm" id="web-admin-name" readonly>
+                                                        </div>
+                                                        <div class="form-group mb-0">
+                                                            <label class="small">Password Baru</label>
+                                                            <div class="input-group input-group-sm">
+                                                                <input type="password" class="form-control" id="web-admin-password" placeholder="Password baru" autocomplete="new-password">
+                                                                <div class="input-group-append">
+                                                                    <button class="btn btn-outline-primary btn-save-web-pw" data-target="web_admin_password" type="button"><i class="fas fa-key"></i></button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <div class="small font-weight-bold mb-2 text-success"><i class="fas fa-user mr-1"></i>Web User</div>
+                                                        <div class="d-flex align-items-center justify-content-between mb-2">
+                                                            <span class="small">Status</span>
+                                                            <div class="custom-control custom-switch"><input type="checkbox" class="custom-control-input acl-toggle" id="web_user_enable" data-key="web_user_enable"><label class="custom-control-label" for="web_user_enable"></label></div>
+                                                        </div>
+                                                        <div class="form-group mb-2">
+                                                            <label class="small">Username</label>
+                                                            <input type="text" class="form-control form-control-sm" id="web-user-name" readonly>
+                                                        </div>
+                                                        <div class="form-group mb-0">
+                                                            <label class="small">Password Baru</label>
+                                                            <div class="input-group input-group-sm">
+                                                                <input type="password" class="form-control" id="web-user-password" placeholder="Password baru" autocomplete="new-password">
+                                                                <div class="input-group-append">
+                                                                    <button class="btn btn-outline-success btn-save-web-pw" data-target="web_user_password" type="button"><i class="fas fa-key"></i></button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-lg-5">
+                                        {{-- ACS Server --}}
+                                        <div class="acs-card mb-3">
                                             <div class="acs-section-header"><i class="fas fa-server mr-1 text-primary"></i>ACS Server (TR-069)</div>
                                             <div class="card-body p-0">
                                                 <table class="table table-sm table-striped table-acs mb-0" id="tr069-acs-table"></table>
@@ -535,10 +684,10 @@
                                                 <div class="small text-muted mt-1" id="tr069-inform-hint"></div>
                                             </div>
                                         </div>
-                                    </div>
-                                    <div class="col-lg-6">
+
+                                        {{-- Firewall --}}
                                         <div class="acs-card">
-                                            <div class="acs-section-header"><i class="fas fa-lock mr-1 text-warning"></i>Network Security</div>
+                                            <div class="acs-section-header"><i class="fas fa-fire mr-1 text-danger"></i>Firewall &amp; Network Info</div>
                                             <div class="card-body p-0">
                                                 <table class="table table-sm table-striped table-acs mb-0" id="tr069-security-table"></table>
                                             </div>
@@ -1913,41 +2062,61 @@ $(function() {
             .done(function(res) {
                 if (res.success && res.data) {
                     var d = res.data;
-                    // ACS Info
+
+                    // ── ACL Toggles ──────────────────────────────────────────
+                    var aclMap = {
+                        acl_ftp_wan: d.acl && d.acl.ftp_wan,
+                        acl_ftp_lan: d.acl && d.acl.ftp_lan,
+                        acl_http_wan: d.acl && d.acl.http_wan,
+                        acl_http_lan: d.acl && d.acl.http_lan,
+                        acl_ssh_wan: d.acl && d.acl.ssh_wan,
+                        acl_ssh_lan: d.acl && d.acl.ssh_lan,
+                        acl_samba_wan: d.acl && d.acl.samba_wan,
+                        acl_samba_lan: d.acl && d.acl.samba_lan,
+                        acl_telnet_wan: d.acl && d.acl.telnet_wan,
+                        acl_telnet_lan: d.acl && d.acl.telnet_lan,
+                        acl_icmp_echo: d.acl && d.acl.icmp_echo,
+                        acl_cli_ssh: d.cli && d.cli.ssh_enable,
+                        acl_cli_telnet: d.cli && d.cli.telnet_enable,
+                        web_admin_enable: d.web_admin && d.web_admin.enable,
+                        web_user_enable: d.web_user && d.web_user.enable,
+                    };
+                    Object.keys(aclMap).forEach(function(id) {
+                        var v = aclMap[id];
+                        $('#' + id).prop('checked', v === true || v === 'true' || v === '1' || v === 1);
+                    });
+
+                    // ── CLI credentials ───────────────────────────────────────
+                    if (d.cli) {
+                        $('#cli-username').val(d.cli.username || 'root');
+                    }
+
+                    // ── Web accounts ──────────────────────────────────────────
+                    if (d.web_admin) $('#web-admin-name').val(d.web_admin.username || '-');
+                    if (d.web_user)  $('#web-user-name').val(d.web_user.username || '-');
+
+                    // ── ACS Info ──────────────────────────────────────────────
                     var acsRows = '';
                     if (d.acs) {
-                        acsRows += '<tr><td width="40%">ACS URL</td><td><code class="small">' + (d.acs.url || '-') + '</code></td></tr>';
+                        acsRows += '<tr><td width="40%">ACS URL</td><td><code class="small" style="word-break:break-all">' + (d.acs.url || '-') + '</code></td></tr>';
                         acsRows += '<tr><td>Username</td><td>' + (d.acs.username || '-') + '</td></tr>';
                         acsRows += '<tr><td>Periodic Inform</td><td><span class="badge badge-' + (d.acs.periodic_inform ? 'success' : 'secondary') + '">' + (d.acs.periodic_inform ? 'Enabled' : 'Disabled') + '</span></td></tr>';
-                        acsRows += '<tr><td>Inform Interval</td><td>' + (d.acs.periodic_interval ? d.acs.periodic_interval + 's' : '-') + '</td></tr>';
-                        acsRows += '<tr><td>Connection Req. URL</td><td><code class="small">' + (d.acs.connection_request_url || '-') + '</code></td></tr>';
-
-                        // Populate inform interval editor
+                        acsRows += '<tr><td>Inform Interval</td><td>' + (d.acs.periodic_interval ? d.acs.periodic_interval + ' s' : '-') + '</td></tr>';
+                        acsRows += '<tr><td>CWM URL</td><td><code class="small" style="word-break:break-all">' + (d.acs.connection_request_url || '-') + '</code></td></tr>';
                         var iv = d.acs.periodic_interval;
                         if (iv) {
                             $('#tr069-inform-input').val(iv);
-                            var mins = Math.round(iv / 60);
-                            $('#tr069-inform-hint').text('Saat ini: ' + iv + ' detik ≈ ' + mins + ' menit');
+                            $('#tr069-inform-hint').text('Saat ini: ' + iv + ' detik ≈ ' + Math.round(iv / 60) + ' menit');
                         }
                         $('#tr069-inform-form-wrap').show();
                     }
                     $('#tr069-acs-table').html(acsRows);
 
-                    // Security info
+                    // ── Firewall / Network ────────────────────────────────────
                     var secRows = '';
-                    secRows += '<tr><td width="40%">Firewall</td><td>' + (d.firewall_level || '<span class="text-muted">N/A</span>') + '</td></tr>';
-                    secRows += '<tr><td>Default Gateway</td><td><code>' + (d.default_gateway || '-') + '</code></td></tr>';
-                    secRows += '<tr><td>DNS Servers</td><td>';
+                    secRows += '<tr><td width="40%">Firewall Level</td><td><span class="badge badge-warning">' + (d.firewall_level || 'N/A') + '</span></td></tr>';
                     if (d.dns_servers && d.dns_servers.length > 0) {
-                        d.dns_servers.forEach(function(dns) { secRows += '<code>' + dns.trim() + '</code> '; });
-                    } else {
-                        secRows += '-';
-                    }
-                    secRows += '</td></tr>';
-                    if (d.remote_access) {
-                        secRows += '<tr><td>Remote Access</td><td><span class="badge badge-' + (d.remote_access.enabled ? 'danger' : 'success') + '">' + (d.remote_access.enabled ? 'Enabled' : 'Disabled') + '</span>';
-                        if (d.remote_access.port) secRows += ' Port: ' + d.remote_access.port;
-                        secRows += '</td></tr>';
+                        secRows += '<tr><td>DNS</td><td>' + d.dns_servers.map(function(x){return '<code>'+x.trim()+'</code>';}).join(' ') + '</td></tr>';
                     }
                     $('#tr069-security-table').html(secRows);
                 }
@@ -1958,6 +2127,74 @@ $(function() {
                 $('#tr069-security-loading').html('<span class="text-danger"><i class="fas fa-times mr-1"></i>Gagal memuat data security</span>');
             });
     }
+
+    // ── Save ALL ACL toggles ─────────────────────────────────────────────────
+    $(document).on('click', '#btn-save-security', function() {
+        var btn = $(this);
+        var settings = {};
+        $('.acl-toggle').each(function() {
+            settings[$(this).data('key')] = $(this).is(':checked') ? 1 : 0;
+        });
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Mengirim...');
+        $.post('/admin/onus/{{ $onu->id }}/tr069-security', {
+            _token: '{{ csrf_token() }}',
+            settings: settings,
+        })
+        .done(function(res) {
+            if (res.success) {
+                toastr.success(res.message || 'Security settings berhasil dikirim');
+                startPoll(null, 'refresh');
+            } else {
+                toastr.error(res.message || 'Gagal mengirim settings');
+            }
+        })
+        .fail(function() { toastr.error('Koneksi gagal'); })
+        .always(function() { btn.prop('disabled', false).html('<i class="fas fa-save mr-1"></i>Simpan Semua'); });
+    });
+
+    // ── Save CLI password ────────────────────────────────────────────────────
+    $(document).on('click', '#btn-save-cli-pw', function() {
+        var pw = $('#cli-password').val().trim();
+        if (!pw) { toastr.warning('Masukkan password baru'); return; }
+        var btn = $(this).prop('disabled', true);
+        $.post('/admin/onus/{{ $onu->id }}/tr069-security', {
+            _token: '{{ csrf_token() }}',
+            settings: { cli_password: pw },
+        })
+        .done(function(res) {
+            if (res.success) {
+                toastr.success('CLI password berhasil diubah');
+                $('#cli-password').val('');
+            } else {
+                toastr.error(res.message || 'Gagal');
+            }
+        })
+        .fail(function() { toastr.error('Koneksi gagal'); })
+        .always(function() { btn.prop('disabled', false); });
+    });
+
+    // ── Save web UI password (admin or user) ──────────────────────────────────
+    $(document).on('click', '.btn-save-web-pw', function() {
+        var key = $(this).data('target'); // 'web_admin_password' or 'web_user_password'
+        var field = key === 'web_admin_password' ? '#web-admin-password' : '#web-user-password';
+        var pw = $(field).val().trim();
+        if (!pw) { toastr.warning('Masukkan password baru'); return; }
+        var btn = $(this).prop('disabled', true);
+        $.post('/admin/onus/{{ $onu->id }}/tr069-security', {
+            _token: '{{ csrf_token() }}',
+            settings: (function(){ var s={}; s[key]=pw; return s; })(),
+        })
+        .done(function(res) {
+            if (res.success) {
+                toastr.success(res.message || 'Password berhasil diubah');
+                $(field).val('');
+            } else {
+                toastr.error(res.message || 'Gagal');
+            }
+        })
+        .fail(function() { toastr.error('Koneksi gagal'); })
+        .always(function() { btn.prop('disabled', false); });
+    });
 
     // Save PeriodicInformInterval
     $(document).on('click', '#btn-save-inform-interval', function() {

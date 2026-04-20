@@ -1278,6 +1278,54 @@ class OnuController extends Controller implements HasMiddleware
     }
 
     /**
+     * Set security/remote access settings via TR-069.
+     */
+    public function setTr069Security(Onu $onu, Request $request)
+    {
+        $request->validate([
+            'settings'                => 'required|array',
+            'settings.acl_ftp_lan'    => 'nullable|boolean',
+            'settings.acl_ftp_wan'    => 'nullable|boolean',
+            'settings.acl_http_lan'   => 'nullable|boolean',
+            'settings.acl_http_wan'   => 'nullable|boolean',
+            'settings.acl_ssh_lan'    => 'nullable|boolean',
+            'settings.acl_ssh_wan'    => 'nullable|boolean',
+            'settings.acl_samba_lan'  => 'nullable|boolean',
+            'settings.acl_samba_wan'  => 'nullable|boolean',
+            'settings.acl_telnet_lan' => 'nullable|boolean',
+            'settings.acl_telnet_wan' => 'nullable|boolean',
+            'settings.acl_icmp_echo'  => 'nullable|boolean',
+            'settings.cli_ssh_enable' => 'nullable|boolean',
+            'settings.cli_telnet_enable' => 'nullable|boolean',
+            'settings.cli_telnet_wan' => 'nullable|boolean',
+            'settings.cli_password'   => 'nullable|string|max:30',
+            'settings.web_user_enable'  => 'nullable|boolean',
+            'settings.web_user_password' => 'nullable|string|max:30',
+            'settings.web_admin_enable'  => 'nullable|boolean',
+            'settings.web_admin_password' => 'nullable|string|max:30',
+        ]);
+
+        try {
+            $genieacs = new \App\Services\GenieAcsService();
+            $device = $genieacs->findDeviceBySerial($onu->serial_number);
+
+            if (!$device) {
+                return response()->json(['success' => false, 'message' => 'Device tidak ditemukan di GenieACS']);
+            }
+
+            $result = $genieacs->setSecuritySettings($device['device_id'], $request->input('settings', []));
+
+            return response()->json(array_merge($result, [
+                'message' => $result['success']
+                    ? 'Pengaturan security berhasil dikirim ke perangkat.'
+                    : ($result['message'] ?? 'Gagal mengirim pengaturan'),
+            ]));
+        } catch (Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * Get connected users/hosts via TR069.
      */
     public function getTr069Users(Onu $onu)
