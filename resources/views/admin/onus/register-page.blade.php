@@ -222,8 +222,9 @@
                                                 <div class="input-group-prepend">
                                                     <span class="input-group-text"><i class="fas fa-network-wired"></i></span>
                                                 </div>
-                                                <input type="number" name="vlan_id" id="reg_vlan_id" class="form-control" min="1" max="4094" required placeholder="Pilih atau ketik VLAN" list="service-vlan-list">
-                                                <datalist id="service-vlan-list"></datalist>
+                                                <select name="vlan_id" id="reg_vlan_id" class="form-control" required>
+                                                    <option value="">-- Pilih VLAN --</option>
+                                                </select>
                                             </div>
                                             <small class="form-text text-muted">
                                                 VLAN internet pelanggan.
@@ -238,8 +239,9 @@
                                                 <div class="input-group-prepend">
                                                     <span class="input-group-text"><i class="fas fa-broadcast-tower"></i></span>
                                                 </div>
-                                                <input type="number" name="mgmt_vlan" id="reg_mgmt_vlan" class="form-control" min="1" max="4094" required placeholder="Pilih atau ketik VLAN" list="mgmt-vlan-list">
-                                                <datalist id="mgmt-vlan-list"></datalist>
+                                                <select name="mgmt_vlan" id="reg_mgmt_vlan" class="form-control" required>
+                                                    <option value="">-- Pilih VLAN --</option>
+                                                </select>
                                             </div>
                                             <small class="form-text text-muted">
                                                 VLAN manajemen DHCP/ACS.
@@ -463,20 +465,24 @@ $(function() {
                 var serviceVlans = oltVlans.filter(function(v) { return v.type === 'service'; });
                 var mgmtVlans = oltVlans.filter(function(v) { return v.type === 'management'; });
 
-                var svcOptions = serviceVlans.map(function(v) {
+                // Fallback: if no typed VLANs, show all VLANs in both lists
+                if (!serviceVlans.length) serviceVlans = oltVlans;
+                if (!mgmtVlans.length) mgmtVlans = oltVlans;
+
+                var svcOptions = '<option value="">-- Pilih VLAN --</option>' + serviceVlans.map(function(v) {
                     return '<option value="' + v.vlan_id + '">' + v.vlan_id + (v.name ? ' — ' + v.name : '') + '</option>';
                 }).join('');
-                var mgmtOptions = mgmtVlans.map(function(v) {
+                var mgmtOptions = '<option value="">-- Pilih VLAN --</option>' + mgmtVlans.map(function(v) {
                     return '<option value="' + v.vlan_id + '">' + v.vlan_id + (v.name ? ' — ' + v.name : '') + '</option>';
                 }).join('');
 
-                $('#service-vlan-list').html(svcOptions);
-                $('#mgmt-vlan-list').html(mgmtOptions);
+                $('#reg_vlan_id').html(svcOptions);
+                $('#reg_mgmt_vlan').html(mgmtOptions);
 
                 // Auto-fill VLAN fields from first available configured VLAN
                 if (serviceVlans.length) {
-                    $('#reg_vlan_id').val(serviceVlans[0].vlan_id);
                     if (serviceVlans.length === 1) {
+                        $('#reg_vlan_id').val(serviceVlans[0].vlan_id);
                         $('#hint-service-vlan').text('Auto: VLAN ' + serviceVlans[0].vlan_id).show();
                     } else {
                         $('#hint-service-vlan').text(serviceVlans.length + ' VLAN tersedia — cek dropdown').show();
@@ -487,8 +493,8 @@ $(function() {
                 }
 
                 if (mgmtVlans.length) {
-                    $('#reg_mgmt_vlan').val(mgmtVlans[0].vlan_id);
                     if (mgmtVlans.length === 1) {
+                        $('#reg_mgmt_vlan').val(mgmtVlans[0].vlan_id);
                         $('#hint-mgmt-vlan').text('Auto: VLAN ' + mgmtVlans[0].vlan_id).show();
                     } else {
                         $('#hint-mgmt-vlan').text(mgmtVlans.length + ' VLAN tersedia — cek dropdown').show();
