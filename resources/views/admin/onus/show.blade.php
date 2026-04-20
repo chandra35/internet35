@@ -2053,7 +2053,7 @@ $(function() {
                     // ── Brand detection & adaptive UI ─────────────────────────
                     var brand = d.brand || 'unknown';
                     var brandLabel = d.brand_label || (brand.charAt(0).toUpperCase() + brand.slice(1));
-                    var brandColor = ({huawei:'danger', zte:'info', 'tp-link':'success', unknown:'secondary'})[brand] || 'secondary';
+                    var brandColor = ({huawei:'danger', zte:'info', 'tp-link':'success', fiberhome:'warning', nokia:'primary', sercomm:'secondary', calix:'dark', dzs:'info', unknown:'secondary'})[brand] || 'secondary';
                     var brandHtml = '<span class="badge badge-' + brandColor + ' px-2 py-1"><i class="fas fa-microchip mr-1"></i>' + brandLabel + '</span>';
                     if (!d.acl_supported) {
                         brandHtml += ' <span class="badge badge-warning px-2 py-1 ml-1"><i class="fas fa-info-circle mr-1"></i>ACL tidak didukung untuk brand ini</span>';

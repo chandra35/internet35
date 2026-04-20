@@ -850,11 +850,26 @@ class GenieAcsService
             $result = match ($brand) {
                 'huawei'  => $this->getSecurityInfoHuawei($igd),
                 'zte'     => $this->getSecurityInfoZte($igd),
-                'tp-link' => $this->getSecurityInfoTpLink($igd),
-                default   => $this->getSecurityInfoGeneric($igd),
+                default   => $this->getSecurityInfoGeneric($igd), // nokia, fiberhome, tp-link, sercomm, calix, dzs, etc.
             };
 
-            return array_merge($result, ['brand' => $brand]);
+            // Centralize brand label here so routing method doesn't need to know the brand name
+            $brandLabels = [
+                'huawei'    => 'Huawei',
+                'zte'       => 'ZTE',
+                'tp-link'   => 'TP-Link',
+                'fiberhome' => 'FiberHome',
+                'nokia'     => 'Nokia',
+                'sercomm'   => 'Sercomm',
+                'calix'     => 'Calix',
+                'dzs'       => 'DZS',
+                'unknown'   => 'Unknown',
+            ];
+
+            return array_merge($result, [
+                'brand'       => $brand,
+                'brand_label' => $brandLabels[$brand] ?? ucfirst($brand),
+            ]);
         } catch (Exception $e) {
             Log::error("GenieACS getSecurityInfo error: " . $e->getMessage());
             return [];
@@ -1032,8 +1047,9 @@ class GenieAcsService
 
         return match ($brand) {
             'huawei'  => $this->setSecuritySettingsHuawei($deviceId, $settings),
-            'zte'     => $this->setSecuritySettingsZte($deviceId, $settings),
-            'tp-link' => $this->setSecuritySettingsZte($deviceId, $settings), // same standard OIDs
+            // All standard TR-098 brands use the same Users.User.{i} table
+            'zte', 'tp-link', 'fiberhome', 'nokia', 'sercomm', 'calix', 'dzs'
+                      => $this->setSecuritySettingsZte($deviceId, $settings),
             default   => ['success' => false, 'message' => 'Brand ONU tidak dikenali. Pengaturan tidak dapat dikirim secara otomatis.'],
         };
     }
@@ -1240,7 +1256,8 @@ class GenieAcsService
 
     /**
      * Detect ONU brand from raw GenieACS device data.
-     * Returns: 'huawei' | 'zte' | 'tp-link' | 'calix' | 'unknown'
+     * Detect ONU brand from raw GenieACS device data.
+     * Returns: 'huawei' | 'zte' | 'tp-link' | 'fiberhome' | 'nokia' | 'sercomm' | 'calix' | 'dzs' | 'unknown'
      *
      * Detection priority:
      *   1. Vendor-specific IGD keys (most reliable — if X_HW_Security exists, it's Huawei)
@@ -1257,30 +1274,63 @@ class GenieAcsService
         if (isset($igd['X_HW_Security']) || isset($igd['X_HW_UserInfo'])) return 'huawei';
         foreach (array_keys($igd) as $igdKey) {
             $igdKey = (string) $igdKey;
-            if (str_starts_with($igdKey, 'X_ZTE-COM_') || str_starts_with($igdKey, 'X_ZTE_COM_')) return 'zte';
-            if (str_starts_with($igdKey, 'X_TP-LINK_') || str_starts_with($igdKey, 'X_TPLINK_'))  return 'tp-link';
+            if (str_starts_with($igdKey, 'X_ZTE-COM_') || str_starts_with($igdKey, 'X_ZTE_COM_'))         return 'zte';
+            if (str_starts_with($igdKey, 'X_TP-LINK_') || str_starts_with($igdKey, 'X_TPLINK_'))          return 'tp-link';
+            if (str_starts_with($igdKey, 'X_FH_') || str_starts_with($igdKey, 'X_FiberHome_'))            return 'fiberhome';
+            if (str_starts_with($igdKey, 'X_NOKIA_COM_') || str_starts_with($igdKey, 'X_ALCL_COM_'))      return 'nokia';
+            if (str_starts_with($igdKey, 'X_SERCOMM_COM_') || str_starts_with($igdKey, 'X_SERCOMM_ORG_')) return 'sercomm';
+            if (str_starts_with($igdKey, 'X_CALIX_COM_'))                                                  return 'calix';
+            if (str_starts_with($igdKey, 'X_DASAN_COM_') || str_starts_with($igdKey, 'X_DZS_COM_'))       return 'dzs';
         }
 
-        // Priority 2: Manufacturer OUI (normalized to lowercase hex, no dashes/colons)
+        // Priority 2: Manufacturer OUI (IEEE assigned, normalized: lowercase hex, no dashes/colons)
         $oui = strtolower(preg_replace('/[^a-fA-F0-9]/', '', $this->getValue($devInfo, 'ManufacturerOUI') ?? ''));
         $ouiMap = [
+            // Huawei
             '00259e' => 'huawei', '00e0fc' => 'huawei', '70b3d5' => 'huawei',
-            '001e73' => 'zte',    '00197e' => 'zte',    '0024b2' => 'zte',
+            '0c96e6' => 'huawei', '48570c' => 'huawei', '485754' => 'huawei',
+            // ZTE
+            '001e73' => 'zte', '00197e' => 'zte', '0024b2' => 'zte',
+            'f44c7f' => 'zte', '0019b8' => 'zte', '2c957f' => 'zte',
+            // TP-Link
             '70625d' => 'tp-link', 'b0a7b9' => 'tp-link', 'ec086b' => 'tp-link',
+            '00001a' => 'tp-link', '001d0f' => 'tp-link',
+            // FiberHome Telecommunication Technologies
+            '000aeb' => 'fiberhome', '301893' => 'fiberhome', '001eaf' => 'fiberhome',
+            '7c9a7b' => 'fiberhome', 'b4a5ac' => 'fiberhome', '485754' => 'fiberhome',
+            // Nokia / Nokia Bell Labs / Alcatel-Lucent ONT
+            '000fe2' => 'nokia', '001fe2' => 'nokia', '002201' => 'nokia',
+            '002269' => 'nokia', '001b9e' => 'nokia', '00224b' => 'nokia',
+            '002422' => 'nokia', '0025e4' => 'nokia', '00012f' => 'nokia',
+            '001484' => 'nokia', '001aab' => 'nokia', '002070' => 'nokia',
+            '00244b' => 'nokia', '00260b' => 'nokia', '049226' => 'nokia',
+            // Sercomm
+            '001325' => 'sercomm', '001a2a' => 'sercomm', '0026b8' => 'sercomm',
+            '101f74' => 'sercomm', '00904c' => 'sercomm',
+            // Calix
+            '00158b' => 'calix', '002530' => 'calix', '109add' => 'calix',
+            // DZS / Dasan / Zhone
+            '000ab3' => 'dzs', '001cd6' => 'dzs', '00249f' => 'dzs',
+            '001988' => 'dzs', '5c49eb' => 'dzs',
         ];
         if ($oui && isset($ouiMap[$oui])) return $ouiMap[$oui];
 
-        // Priority 3: Manufacturer string
+        // Priority 3: Manufacturer string (case-insensitive substring match)
         $mfr = strtolower($this->getValue($devInfo, 'Manufacturer') ?? '');
-        if (str_contains($mfr, 'huawei')) return 'huawei';
-        if (str_contains($mfr, 'zte'))    return 'zte';
+        if (str_contains($mfr, 'huawei'))                            return 'huawei';
+        if (str_contains($mfr, 'zte'))                               return 'zte';
         if (str_contains($mfr, 'tp-link') || str_contains($mfr, 'tp link')) return 'tp-link';
-        if (str_contains($mfr, 'calix'))  return 'calix';
+        if (str_contains($mfr, 'fiberhome') || str_contains($mfr, 'fiber home')) return 'fiberhome';
+        if (str_contains($mfr, 'nokia') || str_contains($mfr, 'alcatel')) return 'nokia';
+        if (str_contains($mfr, 'sercomm'))                           return 'sercomm';
+        if (str_contains($mfr, 'calix'))                             return 'calix';
+        if (str_contains($mfr, 'dasan') || str_contains($mfr, 'zhone') || str_contains($mfr, 'dzs')) return 'dzs';
 
-        // Priority 4: GenieACS device ID prefix often contains OUI
+        // Priority 4: GenieACS device ID prefix often encodes OUI
         $devId = strtolower($rawDevice['_id'] ?? '');
-        if (str_contains($devId, '00259e') || str_contains($devId, 'huawei')) return 'huawei';
+        if (str_contains($devId, '00259e') || str_contains($devId, '485754') || str_contains($devId, 'huawei')) return 'huawei';
         if (str_contains($devId, '001e73') || str_contains($devId, 'zte'))    return 'zte';
+        if (str_contains($devId, '000aeb') || str_contains($devId, '301893')) return 'fiberhome';
 
         return 'unknown';
     }
