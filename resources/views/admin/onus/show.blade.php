@@ -227,6 +227,9 @@
                         <button type="button" class="btn btn-warning btn-sm quick-action-btn btn-reboot-onu mb-1" data-id="{{ $onu->id }}">
                             <i class="fas fa-sync mr-1"></i>Reboot ONU
                         </button>
+                        <button type="button" class="btn btn-dark btn-sm quick-action-btn btn-factory-reset mb-1" data-id="{{ $onu->id }}" data-sn="{{ $onu->serial_number }}">
+                            <i class="fas fa-undo mr-1"></i>Factory Reset
+                        </button>
                         @endcan
                         @can('onus.unregister')
                         <button type="button" class="btn btn-danger btn-sm quick-action-btn btn-unregister-onu mb-1"
@@ -1336,6 +1339,23 @@ $(function() {
                     .done(function(res) { Swal.fire('Berhasil', res.message || 'ONU sedang di-reboot', 'success'); })
                     .fail(function(xhr) { Swal.fire('Gagal', xhr.responseJSON?.message || 'Gagal me-reboot ONU', 'error'); })
                     .always(function() { btn.prop('disabled', false); });
+            }
+        });
+    });
+
+    $('.btn-factory-reset').click(function() {
+        var id = $(this).data('id'), sn = $(this).data('sn'), btn = $(this);
+        Swal.fire({
+            title: 'Factory Reset',
+            html: 'Reset ONU <strong>' + sn + '</strong> ke default setting?<br><br><small class="text-danger">Semua konfigurasi ONU akan dihapus!</small>',
+            icon: 'warning', showCancelButton: true, confirmButtonColor: '#343a40', confirmButtonText: 'Ya, Reset!'
+        }).then(function(result) {
+            if (result.isConfirmed) {
+                btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Resetting...');
+                $.post('/admin/onus/' + id + '/factory-reset', { _token: '{{ csrf_token() }}' })
+                    .done(function(res) { Swal.fire('Berhasil', res.message || 'ONU berhasil di-reset ke default', 'success').then(function() { location.reload(); }); })
+                    .fail(function(xhr) { Swal.fire('Gagal', xhr.responseJSON?.message || 'Gagal factory reset ONU', 'error'); })
+                    .always(function() { btn.prop('disabled', false).html('<i class="fas fa-undo mr-1"></i>Factory Reset'); });
             }
         });
     });

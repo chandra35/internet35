@@ -395,6 +395,7 @@ Route::prefix('admin')->middleware(['auth', 'role:superadmin|admin|admin-pop|tek
         Route::post('/bulk-sync', [\App\Http\Controllers\Admin\OnuController::class, 'bulkSync'])->name('bulk-sync');
         Route::post('/{onu}/unregister', [\App\Http\Controllers\Admin\OnuController::class, 'unregister'])->name('unregister');
         Route::post('/{onu}/reboot', [\App\Http\Controllers\Admin\OnuController::class, 'reboot'])->name('reboot');
+        Route::post('/{onu}/factory-reset', [\App\Http\Controllers\Admin\OnuController::class, 'factoryReset'])->name('factory-reset');
         Route::post('/{onu}/refresh', [\App\Http\Controllers\Admin\OnuController::class, 'refresh'])->name('refresh');
         Route::post('/{onu}/refresh-signal', [\App\Http\Controllers\Admin\OnuController::class, 'refreshSignal'])->name('refresh-signal');
         Route::post('/{onu}/assign-customer', [\App\Http\Controllers\Admin\OnuController::class, 'assignCustomer'])->name('assign-customer');

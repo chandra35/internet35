@@ -482,6 +482,24 @@ class OnuController extends Controller implements HasMiddleware
         }
     }
 
+    public function factoryReset(Onu $onu)
+    {
+        try {
+            $helper = OltFactory::make($onu->olt);
+            $result = $helper->resetOnuFactory($onu->slot, $onu->port, $onu->onu_id);
+
+            $this->activityLog->log('onus', "Factory reset ONU: {$onu->serial_number}");
+
+            if ($result['success']) {
+                return back()->with('success', $result['message']);
+            } else {
+                return back()->with('warning', $result['message']);
+            }
+        } catch (Exception $e) {
+            return back()->with('error', 'Factory reset failed: ' . $e->getMessage());
+        }
+    }
+
     /**
      * Assign customer to ONU
      */
