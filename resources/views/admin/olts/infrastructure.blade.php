@@ -394,7 +394,7 @@
         animation: blink-anim 1.4s ease-in-out infinite;
     }
     .blink-off { background: #ef4444; box-shadow: 0 0 4px rgba(239,68,68,0.4); animation: none; }
-    @keyframes blink-anim { 0%,100%{opacity:1}50%{opacity:0.3} }
+    @@keyframes blink-anim { 0%,100%{opacity:1}50%{opacity:0.3} }
 
     .uplink-name { font-size: 13px; font-weight: 800; color: #1e293b; display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
     .uplink-speed-badge {
