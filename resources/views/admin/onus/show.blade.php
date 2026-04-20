@@ -2108,7 +2108,7 @@ $(function() {
     // ── Auto-poll after Refresh Data / addObject ──
     var pollTimer = null;
     var pollAttempts = 0;
-    var MAX_POLL = 24; // max ~2 menit (24 × 5s)
+    var MAX_POLL = 12; // max ~36 detik (12 × 3s)
 
     function stopPoll() {
         if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
@@ -2144,8 +2144,8 @@ $(function() {
 
         pollTimer = setInterval(function() {
             pollAttempts++;
-            var elapsed = pollAttempts * 5;
-            $('#tr069-poll-msg').text('Menunggu device check-in... (' + elapsed + 's / ' + (MAX_POLL * 5) + 's maks)');
+            var elapsed = pollAttempts * 3;
+            $('#tr069-poll-msg').text('Menunggu device check-in... (' + elapsed + 's / ' + (MAX_POLL * 3) + 's maks)');
 
             $.get('/admin/onus/{{ $onu->id }}/tr069-summary')
                 .done(function(res) {
@@ -2180,9 +2180,9 @@ $(function() {
                 if (btn) btn.find('i').removeClass('fa-spin');
                 $('#tr069-poll-status').removeClass('alert-info').addClass('alert-warning')
                     .html('<i class="fas fa-exclamation-triangle mr-1"></i>Device belum check-in setelah 2 menit. Coba Refresh Data lagi saat device online.');
-                setTimeout(function() { $('#tr069-poll-status').remove(); }, 8000);
+                setTimeout(function() { $('#tr069-poll-status').remove(); }, 5000);
             }
-        }, 5000);
+        }, 3000);
     }
 
     // Refresh TR069
