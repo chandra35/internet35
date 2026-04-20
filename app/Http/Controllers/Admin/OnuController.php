@@ -246,6 +246,7 @@ class OnuController extends Controller implements HasMiddleware
         $request->validate([
             'olt_id' => 'required|exists:olts,id',
             'serial_number' => 'required|string|max:20',
+            'onu_type' => 'nullable|string|max:50',
             'slot' => 'nullable|integer|min:0',
             'port' => 'nullable|integer|min:1',
             'pon_port' => 'nullable|string|max:50',
@@ -352,7 +353,7 @@ class OnuController extends Controller implements HasMiddleware
                     'port' => $port,
                     'onu_id' => $result['onu_id'],
                     'name' => $request->name,
-                    'onu_type' => $this->detectOnuType($request->serial_number),
+                    'onu_type' => $request->onu_type ?: $this->detectOnuType($request->serial_number),
                     'customer_id' => $request->customer_id,
                     'zone_id' => $request->zone_id,
                     'odp_id' => $request->odp_id,

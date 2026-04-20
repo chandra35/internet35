@@ -460,6 +460,7 @@
                     <input type="hidden" name="port" id="reg_port">
                     <input type="hidden" name="pon_port" id="reg_pon_port">
                     <input type="hidden" name="serial_number" id="reg_serial_number">
+                    <input type="hidden" name="onu_type" id="reg_onu_type">
                     
                     <div class="alert alert-info">
                         <strong>PON Port:</strong> <span id="reg_pon_display"></span><br>
@@ -884,7 +885,8 @@ $(function() {
                                 <td>
                                     <button type="button" class="btn btn-success btn-sm btn-register-onu"
                                             data-slot="${onu.slot}" data-port="${onu.port}"
-                                            data-pon="${ponDisplay}" data-sn="${onu.serial_number}">
+                                            data-pon="${ponDisplay}" data-sn="${onu.serial_number}"
+                                            data-type="${onu.onu_type || ''}">
                                         <i class="fas fa-plus"></i> Register
                                     </button>
                                 </td>
@@ -909,6 +911,7 @@ $(function() {
         var sn = $(this).data('sn');
         var slot = $(this).data('slot');
         var port = $(this).data('port');
+        var type = $(this).data('type') || detectOnuType(sn);
 
         if ($('#form-register')[0]) {
             $('#form-register')[0].reset();
@@ -920,9 +923,10 @@ $(function() {
         $('#reg_port').val(port);
         $('#reg_pon_port').val(pon);
         $('#reg_serial_number').val(sn);
+        $('#reg_onu_type').val(type);
         $('#reg_pon_display').text(pon);
         $('#reg_sn_display').text(sn);
-        $('#reg_onu_type_display').text(detectOnuType(sn));
+        $('#reg_onu_type_display').text(type);
         
         $('#modal-unregistered').modal('hide');
         $('#modal-register').modal('show');

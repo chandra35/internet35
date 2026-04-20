@@ -113,6 +113,7 @@
                     <input type="hidden" name="port" id="reg_port">
                     <input type="hidden" name="pon_port" id="reg_pon_port">
                     <input type="hidden" name="serial_number" id="reg_serial_number">
+                    <input type="hidden" name="onu_type" id="reg_onu_type">
 
                     <!-- ONU Info Banner -->
                     <div class="row mb-3">
@@ -547,7 +548,7 @@ $(function() {
                         '<td><code class="text-dark font-weight-bold">' + sn + '</code></td>' +
                         '<td><span class="badge ' + typeBadge + '">' + type + '</span></td>' +
                         '<td class="text-center"><button type="button" class="btn btn-sm btn-success btn-register-onu" ' +
-                            'data-sn="' + sn + '" data-pon="' + pon + '" data-slot="' + slot + '" data-port="' + port + '">' +
+                            'data-sn="' + sn + '" data-pon="' + pon + '" data-slot="' + slot + '" data-port="' + port + '" data-type="' + type + '">' +
                             '<i class="fas fa-plus mr-1"></i>Daftarkan</button></td>' +
                         '</tr>';
                 });
@@ -572,6 +573,7 @@ $(function() {
         var pon = $(this).data('pon');
         var slot = $(this).data('slot');
         var port = $(this).data('port');
+        var type = $(this).data('type') || detectOnuType(sn);
         var oltName = $('#select-olt option:selected').data('name');
 
         // Fill hidden fields
@@ -580,12 +582,13 @@ $(function() {
         $('#reg_port').val(port);
         $('#reg_pon_port').val(pon);
         $('#reg_serial_number').val(sn);
+        $('#reg_onu_type').val(type);
 
         // Display info
         $('#reg_olt_display').text(oltName);
         $('#reg_pon_display').text(pon);
         $('#reg_sn_display').text(sn);
-        $('#reg_onu_type_display').text(detectOnuType(sn));
+        $('#reg_onu_type_display').text(type);
 
         // Populate zones dropdown
         var zoneHtml = '<option value="">-- Pilih Zone --</option>';
