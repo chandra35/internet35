@@ -467,11 +467,12 @@
                                 <i class="fas fa-spinner fa-spin"></i> Memuat data security...
                             </div>
                             <div id="tr069-security-content" style="display:none">
+                                <div id="security-brand-bar" class="mb-2"></div>
 
                                 {{-- Row 1: ACL Services + ACS Server --}}
                                 <div class="row">
                                     <div class="col-lg-7">
-                                        <div class="acs-card mb-3">
+                                        <div class="acs-card mb-3" id="security-acl-card">
                                             <div class="acs-section-header d-flex justify-content-between align-items-center">
                                                 <span><i class="fas fa-shield-alt mr-1 text-warning"></i>Remote Access Control</span>
                                                 <button class="btn btn-xs btn-primary" id="btn-save-security">
@@ -540,7 +541,7 @@
                                         </div>
 
                                         {{-- CLI Credentials --}}
-                                        <div class="acs-card mb-3">
+                                        <div class="acs-card mb-3" id="security-cli-card">
                                             <div class="acs-section-header"><i class="fas fa-terminal mr-1 text-info"></i>CLI Credentials <small class="text-muted">(SSH / Telnet)</small></div>
                                             <div class="card-body">
                                                 <div class="row">
@@ -2048,6 +2049,18 @@ $(function() {
                         var v = aclMap[id];
                         $('#' + id).prop('checked', v === true || v === 'true' || v === '1' || v === 1);
                     });
+
+                    // ── Brand detection & adaptive UI ─────────────────────────
+                    var brand = d.brand || 'unknown';
+                    var brandLabel = d.brand_label || (brand.charAt(0).toUpperCase() + brand.slice(1));
+                    var brandColor = ({huawei:'danger', zte:'info', 'tp-link':'success', unknown:'secondary'})[brand] || 'secondary';
+                    var brandHtml = '<span class="badge badge-' + brandColor + ' px-2 py-1"><i class="fas fa-microchip mr-1"></i>' + brandLabel + '</span>';
+                    if (!d.acl_supported) {
+                        brandHtml += ' <span class="badge badge-warning px-2 py-1 ml-1"><i class="fas fa-info-circle mr-1"></i>ACL tidak didukung untuk brand ini</span>';
+                    }
+                    $('#security-brand-bar').html(brandHtml);
+                    $('#security-acl-card').toggle(!!d.acl_supported);
+                    $('#security-cli-card').toggle(!!d.cli_supported);
 
                     // ── CLI credentials ───────────────────────────────────────
                     if (d.cli) {

@@ -829,6 +829,7 @@ class GenieAcsService
 
     /**
      * Get security/firewall info from device.
+     * Auto-detects brand and uses appropriate OID paths.
      */
     public function getSecurityInfo(string $deviceId): array
     {
@@ -842,134 +843,227 @@ class GenieAcsService
             $devices = $response->json();
             if (empty($devices)) return [];
 
-            $device = $devices[0];
-            $igd = $device['InternetGatewayDevice'] ?? $device['Device'] ?? [];
+            $rawDevice = $devices[0];
+            $brand     = $this->detectBrand($rawDevice);
+            $igd       = $rawDevice['InternetGatewayDevice'] ?? $rawDevice['Device'] ?? [];
 
-            // X_HW_Security — ACL services
-            $xhwSec = $igd['X_HW_Security'] ?? [];
-            $acl     = $xhwSec['AclServices'] ?? [];
-            $dos     = $xhwSec['Dosfilter'] ?? [];
-            $fwLevel = $this->getValue($xhwSec, 'X_HW_FirewallLevel') ?? $this->getValue($xhwSec, 'Level');
+            $result = match ($brand) {
+                'huawei'  => $this->getSecurityInfoHuawei($igd),
+                'zte'     => $this->getSecurityInfoZte($igd),
+                'tp-link' => $this->getSecurityInfoTpLink($igd),
+                default   => $this->getSecurityInfoGeneric($igd),
+            };
 
-            // UserInterface — CLI & Web User accounts
-            $ui         = $igd['UserInterface'] ?? [];
-            $cliSsh     = $ui['X_HW_CLISSHControl'] ?? [];
-            $cliTelnet  = $ui['X_HW_CLITelnetAccess'] ?? [];
-            $cliUsers   = $ui['X_HW_CLIUserInfo'] ?? [];
-            $webUsers   = $ui['X_HW_WebUserInfo'] ?? [];
-
-            // CLI user (first entry, usually root)
-            $cliUser1 = [];
-            foreach ($cliUsers as $k => $v) {
-                if (!is_array($v) || str_starts_with((string) $k, '_')) continue;
-                $cliUser1 = $v;
-                break;
-            }
-
-            // Web Users — try both string and integer keys (GenieACS may return either)
-            $webUser  = $webUsers['1'] ?? $webUsers[1] ?? [];
-            $webAdmin = $webUsers['2'] ?? $webUsers[2] ?? [];
-
-            // ManagementServer (ACS info)
-            $ms = $igd['ManagementServer'] ?? [];
-            $acsInfo = [
-                'url'                    => $this->getValue($ms, 'URL'),
-                'username'               => $this->getValue($ms, 'Username'),
-                'periodic_inform'        => $this->getValue($ms, 'PeriodicInformEnable'),
-                'periodic_interval'      => $this->getValue($ms, 'PeriodicInformInterval'),
-                'connection_request_url' => $this->getValue($ms, 'ConnectionRequestURL'),
-            ];
-
-            // DNS — collect from active WAN connections
-            $dns        = [];
-            $defaultGw  = $this->getValue($igd['Layer3Forwarding'] ?? [], 'DefaultConnectionService');
-            $wanDevices = $igd['WANDevice'] ?? [];
-            foreach ($wanDevices as $wdKey => $wdValue) {
-                if (!is_array($wdValue) || str_starts_with((string) $wdKey, '_')) continue;
-                foreach ($wdValue['WANConnectionDevice'] ?? [] as $wcKey => $wcValue) {
-                    if (!is_array($wcValue) || str_starts_with((string) $wcKey, '_')) continue;
-                    foreach (['WANPPPConnection', 'WANIPConnection'] as $ct) {
-                        foreach ($wcValue[$ct] ?? [] as $ck => $cv) {
-                            if (!is_array($cv) || str_starts_with((string) $ck, '_')) continue;
-                            $d1 = $this->getValue($cv, 'DNSServers');
-                            if ($d1) $dns = array_merge($dns, explode(',', $d1));
-                        }
-                    }
-                }
-            }
-
-            return [
-                'firewall_level' => $fwLevel,
-                'default_gateway' => $defaultGw,
-                'dns_servers' => array_unique(array_filter($dns)),
-                'acs' => $acsInfo,
-                // ACL Services — all values normalized to actual PHP bool
-                'acl' => [
-                    'ftp_lan'    => $this->asBool($this->getValue($acl, 'FTPLanEnable')),
-                    'ftp_wan'    => $this->asBool($this->getValue($acl, 'FTPWanEnable')),
-                    'http_lan'   => $this->asBool($this->getValue($acl, 'HTTPLanEnable')),
-                    'http_wan'   => $this->asBool($this->getValue($acl, 'HTTPWanEnable')),
-                    'ssh_lan'    => $this->asBool($this->getValue($acl, 'SSHLanEnable')),
-                    'ssh_wan'    => $this->asBool($this->getValue($acl, 'SSHWanEnable')),
-                    'samba_lan'  => $this->asBool($this->getValue($acl, 'SamBaLanEnable')),
-                    'samba_wan'  => $this->asBool($this->getValue($acl, 'SamBaWanEnable')),
-                    'telnet_lan' => $this->asBool($this->getValue($acl, 'TELNETLanEnable')),
-                    'telnet_wan' => $this->asBool($this->getValue($acl, 'TELNETWanEnable')),
-                    'icmp_echo'  => $this->asBool($this->getValue($dos, 'IcmpEchoReplyEn')),
-                ],
-                // CLI
-                'cli' => [
-                    'ssh_enable'    => $this->asBool($this->getValue($cliSsh, 'Enable')),
-                    'telnet_enable' => $this->asBool($this->getValue($cliTelnet, 'Access')),
-                    'telnet_port'   => $this->getValue($cliTelnet, 'TelnetPort'),
-                    'telnet_wan'    => $this->asBool($this->getValue($cliTelnet, 'X_HW_WanSecurityEnable')),
-                    'username'      => $this->getValue($cliUser1, 'Username'),
-                ],
-                // Web UI accounts
-                'web_user' => [
-                    'enable'   => $this->asBool($this->getValue($webUser, 'Enable')),
-                    'username' => $this->getValue($webUser, 'UserName'),
-                ],
-                'web_admin' => [
-                    'enable'   => $this->asBool($this->getValue($webAdmin, 'Enable')),
-                    'username' => $this->getValue($webAdmin, 'UserName'),
-                ],
-            ];
+            return array_merge($result, ['brand' => $brand]);
         } catch (Exception $e) {
             Log::error("GenieACS getSecurityInfo error: " . $e->getMessage());
             return [];
         }
     }
 
+    // ── Brand-specific security info getters ─────────────────────────────────
+
+    protected function getSecurityInfoHuawei(array $igd): array
+    {
+        $xhwSec  = $igd['X_HW_Security'] ?? [];
+        $acl     = $xhwSec['AclServices'] ?? [];
+        $dos     = $xhwSec['Dosfilter'] ?? [];
+        $fwLevel = $this->getValue($xhwSec, 'X_HW_FirewallLevel') ?? $this->getValue($xhwSec, 'Level');
+
+        $ui        = $igd['UserInterface'] ?? [];
+        $cliSsh    = $ui['X_HW_CLISSHControl'] ?? [];
+        $cliTelnet = $ui['X_HW_CLITelnetAccess'] ?? [];
+        $cliUsers  = $ui['X_HW_CLIUserInfo'] ?? [];
+        $webUsers  = $ui['X_HW_WebUserInfo'] ?? [];
+
+        $cliUser1 = [];
+        foreach ($cliUsers as $k => $v) {
+            if (!is_array($v) || str_starts_with((string) $k, '_')) continue;
+            $cliUser1 = $v;
+            break;
+        }
+
+        $webUser  = $webUsers['1'] ?? $webUsers[1] ?? [];
+        $webAdmin = $webUsers['2'] ?? $webUsers[2] ?? [];
+
+        return [
+            'brand_label'    => 'Huawei',
+            'acl_supported'  => true,
+            'cli_supported'  => true,
+            'firewall_level' => $fwLevel,
+            'default_gateway' => $this->getValue($igd['Layer3Forwarding'] ?? [], 'DefaultConnectionService'),
+            'dns_servers'    => $this->extractDnsFromWan($igd),
+            'acs'            => $this->extractAcsInfo($igd),
+            'acl' => [
+                'ftp_lan'    => $this->asBool($this->getValue($acl, 'FTPLanEnable')),
+                'ftp_wan'    => $this->asBool($this->getValue($acl, 'FTPWanEnable')),
+                'http_lan'   => $this->asBool($this->getValue($acl, 'HTTPLanEnable')),
+                'http_wan'   => $this->asBool($this->getValue($acl, 'HTTPWanEnable')),
+                'ssh_lan'    => $this->asBool($this->getValue($acl, 'SSHLanEnable')),
+                'ssh_wan'    => $this->asBool($this->getValue($acl, 'SSHWanEnable')),
+                'samba_lan'  => $this->asBool($this->getValue($acl, 'SamBaLanEnable')),
+                'samba_wan'  => $this->asBool($this->getValue($acl, 'SamBaWanEnable')),
+                'telnet_lan' => $this->asBool($this->getValue($acl, 'TELNETLanEnable')),
+                'telnet_wan' => $this->asBool($this->getValue($acl, 'TELNETWanEnable')),
+                'icmp_echo'  => $this->asBool($this->getValue($dos, 'IcmpEchoReplyEn')),
+            ],
+            'cli' => [
+                'ssh_enable'    => $this->asBool($this->getValue($cliSsh, 'Enable')),
+                'telnet_enable' => $this->asBool($this->getValue($cliTelnet, 'Access')),
+                'telnet_port'   => $this->getValue($cliTelnet, 'TelnetPort'),
+                'telnet_wan'    => $this->asBool($this->getValue($cliTelnet, 'X_HW_WanSecurityEnable')),
+                'username'      => $this->getValue($cliUser1, 'Username'),
+            ],
+            'web_user' => [
+                'enable'   => $this->asBool($this->getValue($webUser, 'Enable')),
+                'username' => $this->getValue($webUser, 'UserName'),
+            ],
+            'web_admin' => [
+                'enable'   => $this->asBool($this->getValue($webAdmin, 'Enable')),
+                'username' => $this->getValue($webAdmin, 'UserName'),
+            ],
+        ];
+    }
+
+    protected function getSecurityInfoZte(array $igd): array
+    {
+        // Standard TR-098 Users table (IGD.Users.User.{i}.*)
+        $users    = $igd['Users']['User'] ?? [];
+        $stdUser1 = $users['1'] ?? $users[1] ?? [];
+        $stdUser2 = $users['2'] ?? $users[2] ?? [];
+
+        // ZTE vendor security extensions (model-dependent, try common paths)
+        $zteSec  = $igd['X_ZTE-COM_SecurityMgmt'] ?? $igd['X_ZTE_COM_SecurityMgmt']
+                ?? $igd['X_ZTE-COM_Security'] ?? [];
+        $fwLevel = $this->getValue($zteSec, 'FirewallLevel') ?? $this->getValue($zteSec, 'Level');
+
+        return [
+            'brand_label'    => 'ZTE',
+            'acl_supported'  => false,
+            'cli_supported'  => false,
+            'firewall_level' => $fwLevel,
+            'default_gateway' => $this->getValue($igd['Layer3Forwarding'] ?? [], 'DefaultConnectionService'),
+            'dns_servers'    => $this->extractDnsFromWan($igd),
+            'acs'            => $this->extractAcsInfo($igd),
+            'acl'            => null,
+            'cli'            => null,
+            'web_user' => [
+                'enable'   => $this->asBool($this->getValue($stdUser1, 'Enable')),
+                'username' => $this->getValue($stdUser1, 'Username'),
+            ],
+            'web_admin' => [
+                'enable'   => $this->asBool($this->getValue($stdUser2, 'Enable')),
+                'username' => $this->getValue($stdUser2, 'Username'),
+            ],
+        ];
+    }
+
+    protected function getSecurityInfoTpLink(array $igd): array
+    {
+        // TP-Link typically uses standard TR-098 Users table
+        $users = $igd['Users']['User'] ?? [];
+        $user1 = $users['1'] ?? $users[1] ?? [];
+        $user2 = $users['2'] ?? $users[2] ?? [];
+
+        return [
+            'brand_label'    => 'TP-Link',
+            'acl_supported'  => false,
+            'cli_supported'  => false,
+            'firewall_level' => null,
+            'default_gateway' => $this->getValue($igd['Layer3Forwarding'] ?? [], 'DefaultConnectionService'),
+            'dns_servers'    => $this->extractDnsFromWan($igd),
+            'acs'            => $this->extractAcsInfo($igd),
+            'acl'            => null,
+            'cli'            => null,
+            'web_user' => [
+                'enable'   => $this->asBool($this->getValue($user1, 'Enable')),
+                'username' => $this->getValue($user1, 'Username'),
+            ],
+            'web_admin' => [
+                'enable'   => $this->asBool($this->getValue($user2, 'Enable')),
+                'username' => $this->getValue($user2, 'Username'),
+            ],
+        ];
+    }
+
+    protected function getSecurityInfoGeneric(array $igd): array
+    {
+        // Unknown brand: try standard TR-098 Users table, return minimal info
+        $users = $igd['Users']['User'] ?? [];
+        $user1 = $users['1'] ?? $users[1] ?? [];
+        $user2 = $users['2'] ?? $users[2] ?? [];
+
+        return [
+            'brand_label'    => 'Unknown',
+            'acl_supported'  => false,
+            'cli_supported'  => false,
+            'firewall_level' => null,
+            'default_gateway' => $this->getValue($igd['Layer3Forwarding'] ?? [], 'DefaultConnectionService'),
+            'dns_servers'    => $this->extractDnsFromWan($igd),
+            'acs'            => $this->extractAcsInfo($igd),
+            'acl'            => null,
+            'cli'            => null,
+            'web_user' => [
+                'enable'   => $this->asBool($this->getValue($user1, 'Enable')),
+                'username' => $this->getValue($user1, 'Username'),
+            ],
+            'web_admin' => [
+                'enable'   => $this->asBool($this->getValue($user2, 'Enable')),
+                'username' => $this->getValue($user2, 'Username'),
+            ],
+        ];
+    }
+
     /**
      * Set security / remote access settings.
-     * $settings keys: acl_*, cli_*, web_user_*, web_admin_*
+     * Auto-detects brand and uses appropriate OID paths.
      */
     public function setSecuritySettings(string $deviceId, array $settings): array
     {
-        $params = [];
+        try {
+            $resp  = Http::timeout($this->timeout)
+                ->get("{$this->nbiUrl}/devices", ['query' => json_encode(['_id' => $deviceId])]);
+            $brand = ($resp->ok() && !empty($resp->json()))
+                ? $this->detectBrand($resp->json()[0])
+                : 'unknown';
+        } catch (Exception $e) {
+            $brand = 'unknown';
+        }
 
+        return match ($brand) {
+            'huawei'  => $this->setSecuritySettingsHuawei($deviceId, $settings),
+            'zte'     => $this->setSecuritySettingsZte($deviceId, $settings),
+            'tp-link' => $this->setSecuritySettingsZte($deviceId, $settings), // same standard OIDs
+            default   => ['success' => false, 'message' => 'Brand ONU tidak dikenali. Pengaturan tidak dapat dikirim secara otomatis.'],
+        };
+    }
+
+    // ── Brand-specific security setters ──────────────────────────────────────
+
+    protected function setSecuritySettingsHuawei(string $deviceId, array $settings): array
+    {
+        $params  = [];
         $aclBase = 'InternetGatewayDevice.X_HW_Security.AclServices';
         $dosBase = 'InternetGatewayDevice.X_HW_Security.Dosfilter';
         $uiBase  = 'InternetGatewayDevice.UserInterface';
 
         $boolMap = [
-            'acl_ftp_lan'     => "{$aclBase}.FTPLanEnable",
-            'acl_ftp_wan'     => "{$aclBase}.FTPWanEnable",
-            'acl_http_lan'    => "{$aclBase}.HTTPLanEnable",
-            'acl_http_wan'    => "{$aclBase}.HTTPWanEnable",
-            'acl_ssh_lan'     => "{$aclBase}.SSHLanEnable",
-            'acl_ssh_wan'     => "{$aclBase}.SSHWanEnable",
-            'acl_samba_lan'   => "{$aclBase}.SamBaLanEnable",
-            'acl_samba_wan'   => "{$aclBase}.SamBaWanEnable",
-            'acl_telnet_lan'  => "{$aclBase}.TELNETLanEnable",
-            'acl_telnet_wan'  => "{$aclBase}.TELNETWanEnable",
-            'acl_icmp_echo'   => "{$dosBase}.IcmpEchoReplyEn",
-            'cli_ssh_enable'  => "{$uiBase}.X_HW_CLISSHControl.Enable",
+            'acl_ftp_lan'       => "{$aclBase}.FTPLanEnable",
+            'acl_ftp_wan'       => "{$aclBase}.FTPWanEnable",
+            'acl_http_lan'      => "{$aclBase}.HTTPLanEnable",
+            'acl_http_wan'      => "{$aclBase}.HTTPWanEnable",
+            'acl_ssh_lan'       => "{$aclBase}.SSHLanEnable",
+            'acl_ssh_wan'       => "{$aclBase}.SSHWanEnable",
+            'acl_samba_lan'     => "{$aclBase}.SamBaLanEnable",
+            'acl_samba_wan'     => "{$aclBase}.SamBaWanEnable",
+            'acl_telnet_lan'    => "{$aclBase}.TELNETLanEnable",
+            'acl_telnet_wan'    => "{$aclBase}.TELNETWanEnable",
+            'acl_icmp_echo'     => "{$dosBase}.IcmpEchoReplyEn",
+            'cli_ssh_enable'    => "{$uiBase}.X_HW_CLISSHControl.Enable",
             'cli_telnet_enable' => "{$uiBase}.X_HW_CLITelnetAccess.Access",
-            'cli_telnet_wan'  => "{$uiBase}.X_HW_CLITelnetAccess.X_HW_WanSecurityEnable",
-            'web_user_enable'  => "{$uiBase}.X_HW_WebUserInfo.1.Enable",
-            'web_admin_enable' => "{$uiBase}.X_HW_WebUserInfo.2.Enable",
+            'cli_telnet_wan'    => "{$uiBase}.X_HW_CLITelnetAccess.X_HW_WanSecurityEnable",
+            'web_user_enable'   => "{$uiBase}.X_HW_WebUserInfo.1.Enable",
+            'web_admin_enable'  => "{$uiBase}.X_HW_WebUserInfo.2.Enable",
         ];
 
         foreach ($boolMap as $key => $oid) {
@@ -992,6 +1086,41 @@ class GenieAcsService
         }
         if (array_key_exists('cli_password', $settings) && $settings['cli_password'] !== '') {
             $params["{$uiBase}.X_HW_CLIUserInfo.1.Userpassword"] = [$settings['cli_password'], 'xsd:string'];
+        }
+
+        if (empty($params)) {
+            return ['success' => false, 'message' => 'Tidak ada parameter yang diubah'];
+        }
+
+        return $this->setParameterValues($deviceId, $params, true);
+    }
+
+    protected function setSecuritySettingsZte(string $deviceId, array $settings): array
+    {
+        $params   = [];
+        $userBase = 'InternetGatewayDevice.Users.User';
+
+        // Standard TR-098 Users table (supported by ZTE and TP-Link)
+        $map = [
+            'web_user_enable'   => ["{$userBase}.1.Enable",    'xsd:boolean'],
+            'web_admin_enable'  => ["{$userBase}.2.Enable",    'xsd:boolean'],
+        ];
+        foreach ($map as $key => [$oid, $type]) {
+            if (array_key_exists($key, $settings)) {
+                $params[$oid] = [$type === 'xsd:boolean' ? (bool) $settings[$key] : $settings[$key], $type];
+            }
+        }
+        if (array_key_exists('web_user_username', $settings) && $settings['web_user_username'] !== '') {
+            $params["{$userBase}.1.Username"] = [$settings['web_user_username'], 'xsd:string'];
+        }
+        if (array_key_exists('web_user_password', $settings) && $settings['web_user_password'] !== '') {
+            $params["{$userBase}.1.Password"] = [$settings['web_user_password'], 'xsd:string'];
+        }
+        if (array_key_exists('web_admin_username', $settings) && $settings['web_admin_username'] !== '') {
+            $params["{$userBase}.2.Username"] = [$settings['web_admin_username'], 'xsd:string'];
+        }
+        if (array_key_exists('web_admin_password', $settings) && $settings['web_admin_password'] !== '') {
+            $params["{$userBase}.2.Password"] = [$settings['web_admin_password'], 'xsd:string'];
         }
 
         if (empty($params)) {
@@ -1108,6 +1237,90 @@ class GenieAcsService
     }
 
     // ===== Helper Methods =====
+
+    /**
+     * Detect ONU brand from raw GenieACS device data.
+     * Returns: 'huawei' | 'zte' | 'tp-link' | 'calix' | 'unknown'
+     *
+     * Detection priority:
+     *   1. Vendor-specific IGD keys (most reliable — if X_HW_Security exists, it's Huawei)
+     *   2. Manufacturer OUI (IEEE assigned, very reliable)
+     *   3. Manufacturer string from DeviceInfo
+     *   4. GenieACS device ID prefix
+     */
+    protected function detectBrand(array $rawDevice): string
+    {
+        $igd     = $rawDevice['InternetGatewayDevice'] ?? $rawDevice['Device'] ?? [];
+        $devInfo = $igd['DeviceInfo'] ?? [];
+
+        // Priority 1: vendor-specific top-level IGD keys (zero false positives)
+        if (isset($igd['X_HW_Security']) || isset($igd['X_HW_UserInfo'])) return 'huawei';
+        foreach (array_keys($igd) as $igdKey) {
+            $igdKey = (string) $igdKey;
+            if (str_starts_with($igdKey, 'X_ZTE-COM_') || str_starts_with($igdKey, 'X_ZTE_COM_')) return 'zte';
+            if (str_starts_with($igdKey, 'X_TP-LINK_') || str_starts_with($igdKey, 'X_TPLINK_'))  return 'tp-link';
+        }
+
+        // Priority 2: Manufacturer OUI (normalized to lowercase hex, no dashes/colons)
+        $oui = strtolower(preg_replace('/[^a-fA-F0-9]/', '', $this->getValue($devInfo, 'ManufacturerOUI') ?? ''));
+        $ouiMap = [
+            '00259e' => 'huawei', '00e0fc' => 'huawei', '70b3d5' => 'huawei',
+            '001e73' => 'zte',    '00197e' => 'zte',    '0024b2' => 'zte',
+            '70625d' => 'tp-link', 'b0a7b9' => 'tp-link', 'ec086b' => 'tp-link',
+        ];
+        if ($oui && isset($ouiMap[$oui])) return $ouiMap[$oui];
+
+        // Priority 3: Manufacturer string
+        $mfr = strtolower($this->getValue($devInfo, 'Manufacturer') ?? '');
+        if (str_contains($mfr, 'huawei')) return 'huawei';
+        if (str_contains($mfr, 'zte'))    return 'zte';
+        if (str_contains($mfr, 'tp-link') || str_contains($mfr, 'tp link')) return 'tp-link';
+        if (str_contains($mfr, 'calix'))  return 'calix';
+
+        // Priority 4: GenieACS device ID prefix often contains OUI
+        $devId = strtolower($rawDevice['_id'] ?? '');
+        if (str_contains($devId, '00259e') || str_contains($devId, 'huawei')) return 'huawei';
+        if (str_contains($devId, '001e73') || str_contains($devId, 'zte'))    return 'zte';
+
+        return 'unknown';
+    }
+
+    /**
+     * Extract standard ACS/ManagementServer info (same for all brands).
+     */
+    protected function extractAcsInfo(array $igd): array
+    {
+        $ms = $igd['ManagementServer'] ?? [];
+        return [
+            'url'                    => $this->getValue($ms, 'URL'),
+            'username'               => $this->getValue($ms, 'Username'),
+            'periodic_inform'        => $this->getValue($ms, 'PeriodicInformEnable'),
+            'periodic_interval'      => $this->getValue($ms, 'PeriodicInformInterval'),
+            'connection_request_url' => $this->getValue($ms, 'ConnectionRequestURL'),
+        ];
+    }
+
+    /**
+     * Extract DNS servers from active WAN connections (works for TR-098 IGD structure).
+     */
+    protected function extractDnsFromWan(array $igd): array
+    {
+        $dns = [];
+        foreach ($igd['WANDevice'] ?? [] as $wdKey => $wdValue) {
+            if (!is_array($wdValue) || str_starts_with((string) $wdKey, '_')) continue;
+            foreach ($wdValue['WANConnectionDevice'] ?? [] as $wcKey => $wcValue) {
+                if (!is_array($wcValue) || str_starts_with((string) $wcKey, '_')) continue;
+                foreach (['WANPPPConnection', 'WANIPConnection'] as $ct) {
+                    foreach ($wcValue[$ct] ?? [] as $ck => $cv) {
+                        if (!is_array($cv) || str_starts_with((string) $ck, '_')) continue;
+                        $d = $this->getValue($cv, 'DNSServers');
+                        if ($d) $dns = array_merge($dns, explode(',', $d));
+                    }
+                }
+            }
+        }
+        return array_unique(array_filter($dns));
+    }
 
     protected function parseDevice(array $raw): array
     {
