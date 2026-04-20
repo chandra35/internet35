@@ -612,18 +612,33 @@ class GenieAcsService
 
             foreach ($lanDevice as $ldKey => $ldValue) {
                 if (!is_array($ldValue) || $ldKey === '_object' || $ldKey === '_writable' || $ldKey === '_timestamp') continue;
+
                 $lhcm = $ldValue['LANHostConfigManagement'] ?? [];
                 if (empty($lhcm)) continue;
+
+                // IP address: try LANHostConfigManagement.IPRouters first,
+                // then fall back to LANIPInterface.1.IPInterfaceIPAddress (Huawei / some vendors)
+                $ipAddress  = $this->getValue($lhcm, 'IPRouters');
+                $subnetMask = $this->getValue($lhcm, 'SubnetMask');
+
+                $lanIpIface = $ldValue['LANIPInterface'] ?? [];
+                foreach ($lanIpIface as $ifKey => $ifValue) {
+                    if (!is_array($ifValue) || str_starts_with((string) $ifKey, '_')) continue;
+                    if (!$ipAddress)  $ipAddress  = $this->getValue($ifValue, 'IPInterfaceIPAddress');
+                    if (!$subnetMask) $subnetMask = $this->getValue($ifValue, 'SubnetMask');
+                    break;
+                }
+
                 $result = [
-                    'dhcp_server_enable' => $this->getValue($lhcm, 'DHCPServerEnable'),
-                    'ip_interface_address' => $this->getValue($lhcm, 'IPRouters'),
-                    'min_address' => $this->getValue($lhcm, 'MinAddress'),
-                    'max_address' => $this->getValue($lhcm, 'MaxAddress'),
-                    'subnet_mask' => $this->getValue($lhcm, 'SubnetMask'),
-                    'lease_time' => $this->getValue($lhcm, 'DHCPLeaseTime'),
-                    'dns_servers' => $this->getValue($lhcm, 'DNSServers'),
-                    'domain_name' => $this->getValue($lhcm, 'DomainName'),
-                    'gateway_mac' => $this->getValue($lhcm, 'MACAddress'),
+                    'dhcp_server_enable'   => $this->getValue($lhcm, 'DHCPServerEnable'),
+                    'ip_interface_address' => $ipAddress,
+                    'subnet_mask'          => $subnetMask,
+                    'min_address'          => $this->getValue($lhcm, 'MinAddress'),
+                    'max_address'          => $this->getValue($lhcm, 'MaxAddress'),
+                    'lease_time'           => $this->getValue($lhcm, 'DHCPLeaseTime'),
+                    'dns_servers'          => $this->getValue($lhcm, 'DNSServers'),
+                    'domain_name'          => $this->getValue($lhcm, 'DomainName'),
+                    'gateway_mac'          => $this->getValue($lhcm, 'MACAddress'),
                 ];
                 break;
             }
@@ -637,34 +652,39 @@ class GenieAcsService
 
     /**
      * Set LAN / DHCP server configuration.
-     * Writes to LANDevice.1.LANHostConfigManagement (standard TR-098, works on all brands).
+     * Writes to LANDevice.1.LANHostConfigManagement and LANIPInterface.1 (standard TR-098).
+     * Also writes LANIPInterface for vendors (Huawei) that store the LAN IP there.
      */
     public function setLanDhcpConfig(string $deviceId, array $config): array
     {
         try {
-            $base = 'InternetGatewayDevice.LANDevice.1.LANHostConfigManagement';
-            $paramMap = [
-                'gateway_ip'         => "{$base}.IPRouters",
-                'subnet_mask'        => "{$base}.SubnetMask",
-                'dhcp_server_enable' => "{$base}.DHCPServerEnable",
-                'min_address'        => "{$base}.MinAddress",
-                'max_address'        => "{$base}.MaxAddress",
-                'lease_time'         => "{$base}.DHCPLeaseTime",
-                'dns_servers'        => "{$base}.DNSServers",
-                'domain_name'        => "{$base}.DomainName",
-            ];
+            $base  = 'InternetGatewayDevice.LANDevice.1.LANHostConfigManagement';
+            $iface = 'InternetGatewayDevice.LANDevice.1.LANIPInterface.1';
 
             $paramValues = [];
-            foreach ($paramMap as $key => $oid) {
-                if (!array_key_exists($key, $config)) continue;
-                $val = $config[$key];
-                if ($val === null || $val === '') continue;
 
-                $type = 'xsd:string';
-                if ($key === 'dhcp_server_enable') $type = 'xsd:boolean';
-                if ($key === 'lease_time') $type = 'xsd:unsignedInt';
+            // IP address: write to both IPRouters (DHCP option) and LANIPInterface (actual LAN IP)
+            if (!empty($config['gateway_ip'])) {
+                $paramValues[] = ["{$base}.IPRouters",          $config['gateway_ip'], 'xsd:string'];
+                $paramValues[] = ["{$iface}.IPInterfaceIPAddress", $config['gateway_ip'], 'xsd:string'];
+            }
+            // Subnet mask: write to both LHCM and LANIPInterface
+            if (!empty($config['subnet_mask'])) {
+                $paramValues[] = ["{$base}.SubnetMask",     $config['subnet_mask'], 'xsd:string'];
+                $paramValues[] = ["{$iface}.SubnetMask",    $config['subnet_mask'], 'xsd:string'];
+            }
 
-                $paramValues[] = [$oid, (string)$val, $type];
+            $simpleMap = [
+                'dhcp_server_enable' => ["{$base}.DHCPServerEnable", 'xsd:boolean'],
+                'min_address'        => ["{$base}.MinAddress",        'xsd:string'],
+                'max_address'        => ["{$base}.MaxAddress",        'xsd:string'],
+                'lease_time'         => ["{$base}.DHCPLeaseTime",     'xsd:unsignedInt'],
+                'dns_servers'        => ["{$base}.DNSServers",        'xsd:string'],
+                'domain_name'        => ["{$base}.DomainName",        'xsd:string'],
+            ];
+            foreach ($simpleMap as $key => [$oid, $type]) {
+                if (!array_key_exists($key, $config) || $config[$key] === null || $config[$key] === '') continue;
+                $paramValues[] = [$oid, (string) $config[$key], $type];
             }
 
             if (empty($paramValues)) {
@@ -675,7 +695,7 @@ class GenieAcsService
             $response = Http::timeout(30)
                 ->asJson()
                 ->post($url, [
-                    'name'       => 'setParameterValues',
+                    'name'            => 'setParameterValues',
                     'parameterValues' => $paramValues,
                 ]);
 
