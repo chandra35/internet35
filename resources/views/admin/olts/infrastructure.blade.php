@@ -168,6 +168,45 @@
         border: 1px solid #e2e8f0;
     }
     .card-section-header h6 { font-weight: 700; color: #1e293b; margin: 0; font-size: 14px; }
+
+    /* ── Stat-mini on DARK header background ── */
+    .infra-header .stat-mini { border-color: rgba(255,255,255,0.14) !important; }
+    .infra-header .stat-mini .stat-label { color: rgba(255,255,255,0.55) !important; }
+    .infra-header .stat-mini.stat-success  { background: rgba(34,197,94,0.18)  !important; }
+    .infra-header .stat-mini.stat-success  .stat-value { color: #4ade80 !important; }
+    .infra-header .stat-mini.stat-primary  { background: rgba(59,130,246,0.18) !important; }
+    .infra-header .stat-mini.stat-primary  .stat-value { color: #93c5fd !important; }
+    .infra-header .stat-mini.stat-info     { background: rgba(6,182,212,0.18)  !important; }
+    .infra-header .stat-mini.stat-info     .stat-value { color: #67e8f9 !important; }
+    .infra-header .stat-mini.stat-warning  { background: rgba(234,179,8,0.18)  !important; }
+    .infra-header .stat-mini.stat-warning  .stat-value { color: #fde047 !important; }
+    .infra-header .stat-mini.stat-danger   { background: rgba(239,68,68,0.18)  !important; }
+    .infra-header .stat-mini.stat-danger   .stat-value { color: #fca5a5 !important; }
+
+    /* ── Mobile responsive tweaks ── */
+    @media (max-width: 767.98px) {
+        .infra-header { padding: 14px 16px; }
+        .infra-header .olt-name { font-size: 16px; }
+        .infra-header .olt-ip  { font-size: 12px; }
+        .stat-mini { min-width: 60px; padding: 8px 10px; }
+        .stat-mini .stat-value { font-size: 18px; }
+        .shelf-container { padding: 14px 10px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .shelf-slot { min-width: 68px; min-height: 88px; padding: 8px 4px; }
+        .card-detail-panel { padding: 14px 14px; }
+        .spec-grid { gap: 4px 10px; }
+        .pon-port-cell { width: 44px; height: 44px; margin: 2px; }
+        .pon-port-cell .port-num { font-size: 13px; }
+        .vlan-port-list { max-width: 130px; max-height: 52px; }
+        .infra-table { font-size: 12px; }
+        .infra-table thead th,
+        .infra-table tbody td { padding: 8px 8px; }
+        .uplink-vlan-tag { font-size: 9px; padding: 2px 6px; }
+        .port-radio-group label { padding: 5px 8px; font-size: 10px; }
+    }
+    @media (max-width: 991.98px) {
+        .infra-header .d-flex.align-items-center.flex-wrap { gap: 8px !important; }
+        .stat-mini { min-width: 70px; }
+    }
 </style>
 @endpush
 
