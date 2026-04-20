@@ -1884,7 +1884,7 @@ class ZteC320Helper extends BaseOltHelper
                 "configure terminal",
                 "pon-onu-mng gpon-onu_1/{$slot}/{$port}:{$onuId}",
                 "reboot",
-                "y",
+                "yes",
                 "exit",
                 "exit",
             ];
@@ -2651,9 +2651,8 @@ class ZteC320Helper extends BaseOltHelper
                 "configure terminal",
                 "pon-onu-mng gpon-onu_1/{$slot}/{$port}:{$onuId}",
                 "restore factory",
-                "__WAIT__2",
                 "reboot",
-                "__WAIT__2",
+                "yes",
                 "exit",
                 "exit",
             ];
