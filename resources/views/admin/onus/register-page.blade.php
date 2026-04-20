@@ -415,7 +415,7 @@ $(function() {
         var prefix = sn.substring(0, 4).toUpperCase();
         var map = {
             'HWTC': 'HG8245H', 'HWTG': 'HG8245H5', 'HWTE': 'EG8145V5',
-            'ZTEG': 'F663N', 'ZICG': 'F663NV9', 'PRTS': 'Proscend',
+            'ZTEG': 'ZTE ONT', 'ZICG': 'F663NV9', 'PRTS': 'Proscend',
             'ALCL': 'Nokia', 'FHTT': 'FiberHome', 'TPLG': 'TP-Link',
             'DSNW': 'DASAN', 'MSTC': 'ZyXEL', 'SMBS': 'SmartRG'
         };
@@ -531,14 +531,15 @@ $(function() {
 
                 var tbody = '';
                 res.data.forEach(function(onu) {
-                    var type = detectOnuType(onu.serial_number || onu.sn);
+                    // Prefer onu_type from server (actual CLI output), fall back to prefix guess
+                    var type = onu.onu_type || detectOnuType(onu.serial_number || onu.sn);
                     var sn = onu.serial_number || onu.sn;
                     var pon = onu.pon_port || (onu.slot + '/' + onu.port);
                     var slot = onu.slot || '';
                     var port = onu.port || '';
                     var typeBadge = 'badge-secondary';
                     if (type.match(/HG8|EG8/)) typeBadge = 'badge-primary';
-                    else if (type.match(/F663|ZTE/)) typeBadge = 'badge-info';
+                    else if (type.match(/F663|F660|F680|F6600|ZTE/i)) typeBadge = 'badge-info';
                     else if (type.match(/Nokia/)) typeBadge = 'badge-warning';
 
                     tbody += '<tr>' +

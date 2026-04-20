@@ -934,7 +934,7 @@ $(function() {
         var prefix = sn.substring(0, 4).toUpperCase();
         var map = {
             'HWTC': 'Huawei HG8245H', 'HWTG': 'Huawei HG8245H5', 'HWTE': 'Huawei EG8145V5',
-            'ZTEG': 'ZTE F663N', 'ZICG': 'ZTE F663NV9', 'PRTS': 'Proscend',
+            'ZTEG': 'ZTE ONT', 'ZICG': 'ZTE F663NV9', 'PRTS': 'Proscend',
             'ALCL': 'Nokia/Alcatel', 'FHTT': 'FiberHome', 'TPLG': 'TP-Link',
             'DSNW': 'DASAN', 'MSTC': 'ZyXEL', 'SMBS': 'SmartRG',
         };

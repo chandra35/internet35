@@ -842,7 +842,7 @@ class OnuController extends Controller implements HasMiddleware
             'HWTC' => 'HG8245H',
             'HWTG' => 'HG8245H5',
             'HWTE' => 'EG8145V5',
-            'ZTEG' => 'F663N',
+            'ZTEG' => 'ZTE ONT',   // Generic — actual model comes from CLI output
             'ZICG' => 'F663NV9',
             'PRTS' => 'Proscend',
             'ALCL' => 'Nokia',

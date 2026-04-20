@@ -2396,37 +2396,43 @@ class ZteC320Helper extends BaseOltHelper
         foreach ($lines as $line) {
             $line = trim($line);
 
-            // Format 1: gpon-onu_1/1/1:1  HWTC6ED42F9A  unknown
-            if (preg_match('/gpon-onu_(\d+)\/(\d+)\/(\d+):(\d+)\s+(\w{4,16})\s+/i', $line, $matches)) {
+            // Format 1: gpon-onu_1/1/1:1  ZTEGD6D8B342  F663N   (type may be "unknown")
+            if (preg_match('/gpon-onu_(\d+)\/(\d+)\/(\d+):(\d+)\s+(\w{4,16})\s+(\S+)?/i', $line, $matches)) {
+                $rawType = strtoupper(trim($matches[6] ?? ''));
                 $onus[] = [
-                    'slot' => (int) $matches[2],
-                    'port' => (int) $matches[3],
-                    'pon_port' => $matches[2] . '/' . $matches[3],
+                    'slot'          => (int) $matches[2],
+                    'port'          => (int) $matches[3],
+                    'pon_port'      => $matches[2] . '/' . $matches[3],
                     'serial_number' => strtoupper($matches[5]),
+                    'onu_type'      => ($rawType && $rawType !== 'UNKNOWN') ? $rawType : null,
                     'config_status' => 'unregistered',
                 ];
                 continue;
             }
 
-            // Format 2: gpon-olt_1/1  1  ZTEG12345678 (also matches legacy gpon_olt-)
-            if (preg_match('/gpon[-_]olt[-_](\d+)\/(\d+)\s+\d+\s+(\w+)/', $line, $matches)) {
+            // Format 2: gpon-olt_1/1  1  ZTEG12345678  F663N   (type optional)
+            if (preg_match('/gpon[-_]olt[-_](\d+)\/(\d+)\s+\d+\s+(\w+)(?:\s+(\S+))?/', $line, $matches)) {
+                $rawType = strtoupper(trim($matches[4] ?? ''));
                 $onus[] = [
-                    'slot' => (int) $matches[1],
-                    'port' => (int) $matches[2],
-                    'pon_port' => $matches[1] . '/' . $matches[2],
+                    'slot'          => (int) $matches[1],
+                    'port'          => (int) $matches[2],
+                    'pon_port'      => $matches[1] . '/' . $matches[2],
                     'serial_number' => strtoupper($matches[3]),
+                    'onu_type'      => ($rawType && $rawType !== 'UNKNOWN') ? $rawType : null,
                     'config_status' => 'unregistered',
                 ];
                 continue;
             }
 
-            // Format 3: Just SN column with OnuIndex like 1/1/1:1
-            if (preg_match('/(\d+)\/(\d+)\/(\d+):(\d+)\s+(\w{4,16})\s+/i', $line, $matches)) {
+            // Format 3: 1/1/1:1  ZTEG12345678  F663N
+            if (preg_match('/(\d+)\/(\d+)\/(\d+):(\d+)\s+(\w{4,16})\s+(\S+)?/i', $line, $matches)) {
+                $rawType = strtoupper(trim($matches[6] ?? ''));
                 $onus[] = [
-                    'slot' => (int) $matches[2],
-                    'port' => (int) $matches[3],
-                    'pon_port' => $matches[2] . '/' . $matches[3],
+                    'slot'          => (int) $matches[2],
+                    'port'          => (int) $matches[3],
+                    'pon_port'      => $matches[2] . '/' . $matches[3],
                     'serial_number' => strtoupper($matches[5]),
+                    'onu_type'      => ($rawType && $rawType !== 'UNKNOWN') ? $rawType : null,
                     'config_status' => 'unregistered',
                 ];
             }
