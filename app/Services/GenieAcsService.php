@@ -885,12 +885,12 @@ class GenieAcsService
             $defaultGw  = $this->getValue($igd['Layer3Forwarding'] ?? [], 'DefaultConnectionService');
             $wanDevices = $igd['WANDevice'] ?? [];
             foreach ($wanDevices as $wdKey => $wdValue) {
-                if (!is_array($wdValue) || $wdKey[0] === '_') continue;
+                if (!is_array($wdValue) || str_starts_with((string) $wdKey, '_')) continue;
                 foreach ($wdValue['WANConnectionDevice'] ?? [] as $wcKey => $wcValue) {
-                    if (!is_array($wcValue) || $wcKey[0] === '_') continue;
+                    if (!is_array($wcValue) || str_starts_with((string) $wcKey, '_')) continue;
                     foreach (['WANPPPConnection', 'WANIPConnection'] as $ct) {
                         foreach ($wcValue[$ct] ?? [] as $ck => $cv) {
-                            if (!is_array($cv) || $ck[0] === '_') continue;
+                            if (!is_array($cv) || str_starts_with((string) $ck, '_')) continue;
                             $d1 = $this->getValue($cv, 'DNSServers');
                             if ($d1) $dns = array_merge($dns, explode(',', $d1));
                         }
