@@ -461,6 +461,13 @@ abstract class BaseOltHelper implements OltInterface
                         ->forceDelete();
                 }
 
+                // Don't overwrite a known status with 'unknown' (SNMP walk miss)
+                $knownStatuses = ['online', 'offline', 'los', 'dying_gasp', 'power_off'];
+                if (($onuData['status'] ?? 'unknown') === 'unknown'
+                    && in_array($existingBySerial->status, $knownStatuses)) {
+                    unset($onuData['status']);
+                }
+
                 $existingBySerial->update($onuData);
                 return $existingBySerial;
             }
@@ -487,6 +494,13 @@ abstract class BaseOltHelper implements OltInterface
                         ->where('serial_number', $onuData['serial_number'])
                         ->where('id', '!=', $existingByPosition->id)
                         ->forceDelete();
+                }
+
+                // Don't overwrite a known status with 'unknown' (SNMP walk miss)
+                $knownStatuses = ['online', 'offline', 'los', 'dying_gasp', 'power_off'];
+                if (($onuData['status'] ?? 'unknown') === 'unknown'
+                    && in_array($existingByPosition->status, $knownStatuses)) {
+                    unset($onuData['status']);
                 }
 
                 $existingByPosition->update($onuData);

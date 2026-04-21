@@ -1135,7 +1135,12 @@ class ZteC320Helper extends BaseOltHelper
                     : $this->parseZteSerialNumber($value);
 
                 $statusOid = $this->zteOids['zxAnGponOnuRunStatus'] . ".{$index}";
-                $status = $runStatuses[$statusOid] ?? 0;
+                $status = $runStatuses[$statusOid] ?? null;
+                // Fallback: single SNMP GET if walk missed this ONU
+                if ($status === null) {
+                    $status = $this->snmpGet($statusOid);
+                }
+                $status = (int) ($status ?? 0);
 
                 $rawName = $names[$this->zteOids['zxAnGponOnuName'] . ".{$index}"] ?? null;
                 $rawType = $types[$this->zteOids['zxAnGponOnuType'] . ".{$index}"] ?? null;
