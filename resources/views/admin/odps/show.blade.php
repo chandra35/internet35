@@ -216,6 +216,71 @@
                 </table>
             </div>
         </div>
+
+        <!-- Connected ONUs -->
+        <div class="card" id="onus-card">
+            <div class="card-header">
+                <h3 class="card-title"><i class="fas fa-network-wired mr-2"></i>ONU Terhubung (<span id="onus-count">{{ $odp->onus->count() }}</span>)</h3>
+                <div class="card-tools">
+                    <button type="button" class="btn btn-success btn-sm" data-toggle="modal" data-target="#modal-assign-onu">
+                        <i class="fas fa-plus mr-1"></i> Assign ONU
+                    </button>
+                </div>
+            </div>
+            <div class="card-body table-responsive p-0">
+                <table class="table table-hover table-striped" id="onus-table">
+                    <thead>
+                        <tr>
+                            <th>PON</th>
+                            <th>Serial</th>
+                            <th>Nama</th>
+                            <th>Status</th>
+                            <th>Rx Signal</th>
+                            <th>Port ODP</th>
+                            <th>Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="onus-tbody">
+                        @forelse($odp->onus as $onu)
+                        <tr id="onu-row-{{ $onu->id }}">
+                            <td><code>{{ $onu->slot }}/{{ $onu->port }}:{{ $onu->onu_id }}</code></td>
+                            <td><code>{{ $onu->serial_number }}</code></td>
+                            <td>{{ $onu->name ?: '-' }}</td>
+                            <td>
+                                @php
+                                    $badge = match($onu->status) {
+                                        'online'      => 'success',
+                                        'offline'     => 'secondary',
+                                        'los'         => 'warning',
+                                        'dying_gasp'  => 'warning',
+                                        'power_off'   => 'danger',
+                                        default       => 'light',
+                                    };
+                                @endphp
+                                <span class="badge badge-{{ $badge }}">{{ strtoupper($onu->status) }}</span>
+                            </td>
+                            <td>{{ $onu->rx_power ? $onu->rx_power . ' dBm' : '-' }}</td>
+                            <td>{{ $onu->odp_port ? 'Port ' . $onu->odp_port : '-' }}</td>
+                            <td>
+                                <button type="button" class="btn btn-xs btn-danger btn-unassign"
+                                    data-onu-id="{{ $onu->id }}"
+                                    data-onu-name="{{ $onu->name ?: $onu->serial_number }}"
+                                    title="Unassign dari ODP">
+                                    <i class="fas fa-unlink"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        @empty
+                        <tr id="onus-empty-row">
+                            <td colspan="7" class="text-center py-4 text-muted">
+                                Belum ada ONU yang terhubung ke ODP ini
+                            </td>
+                        </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
     <div class="col-md-4">
@@ -407,6 +472,40 @@
         </div>
     </div>
 </div>
+
+<!-- Modal: Assign ONU to ODP -->
+<div class="modal fade" id="modal-assign-onu" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-success">
+                <h5 class="modal-title text-white"><i class="fas fa-plus mr-2"></i>Assign ONU ke {{ $odp->code }}</h5>
+                <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Cari ONU <small class="text-muted">(serial / nama)</small></label>
+                    <input type="text" id="onu-search" class="form-control" placeholder="Ketik untuk mencari...">
+                </div>
+                <div class="form-group">
+                    <label>Pilih ONU</label>
+                    <select id="select-onu" class="form-control" size="5">
+                        <option value="">-- Pilih ONU --</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Port ODP <small class="text-muted">(opsional)</small></label>
+                    <input type="number" id="assign-odp-port" class="form-control" min="1" max="{{ $odp->total_ports }}" placeholder="Nomor port (1-{{ $odp->total_ports }})">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-success" id="btn-assign-onu">
+                    <i class="fas fa-link mr-1"></i> Assign
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
 @push('js')
@@ -553,4 +652,94 @@ $(function() {
 </script>
 @endif
 <script src="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.4/js/lightbox.min.js"></script>
+<script>
+$(function() {
+    const odpId   = '{{ $odp->id }}';
+    const csrfToken = '{{ csrf_token() }}';
+    const assignUrl   = '{{ route("admin.odps.assign-onu",   $odp) }}';
+    const unassignBase = '{{ url("admin/odps/" . $odp->id . "/unassign-onu") }}';
+    const searchUrl   = '{{ route("admin.odps.available-onus", $odp) }}';
+
+    // ── Search available ONUs in assign modal ──────────────────────────────
+    let searchTimeout;
+    $('#onu-search').on('input', function() {
+        clearTimeout(searchTimeout);
+        const q = $(this).val();
+        searchTimeout = setTimeout(function() {
+            $.get(searchUrl, { search: q }, function(data) {
+                let html = '<option value="">-- Pilih ONU --</option>';
+                data.forEach(function(onu) {
+                    const label = (onu.name ? onu.name + ' | ' : '') + onu.serial_number
+                        + ' [' + onu.slot + '/' + onu.port + ':' + onu.onu_id + ']';
+                    html += '<option value="' + onu.id + '">' + label + '</option>';
+                });
+                $('#select-onu').html(html);
+            });
+        }, 300);
+    });
+
+    // Trigger initial load when modal opens
+    $('#modal-assign-onu').on('show.bs.modal', function() {
+        $('#onu-search').val('').trigger('input');
+        $('#assign-odp-port').val('');
+    });
+
+    // ── Assign ONU ────────────────────────────────────────────────────────
+    $('#btn-assign-onu').on('click', function() {
+        const onuId   = $('#select-onu').val();
+        const odp_port = $('#assign-odp-port').val();
+        if (!onuId) {
+            toastr.warning('Pilih ONU terlebih dahulu.');
+            return;
+        }
+        $.ajax({
+            url: assignUrl,
+            method: 'POST',
+            data: { _token: csrfToken, onu_id: onuId, odp_port: odp_port || null },
+            success: function(res) {
+                if (res.success) {
+                    toastr.success(res.message);
+                    $('#modal-assign-onu').modal('hide');
+                    location.reload();
+                } else {
+                    toastr.error(res.message || 'Gagal assign ONU.');
+                }
+            },
+            error: function(xhr) {
+                const msg = xhr.responseJSON?.message || 'Terjadi kesalahan.';
+                toastr.error(msg);
+            }
+        });
+    });
+
+    // ── Unassign ONU ──────────────────────────────────────────────────────
+    $(document).on('click', '.btn-unassign', function() {
+        const onuId   = $(this).data('onu-id');
+        const onuName = $(this).data('onu-name');
+        if (!confirm('Unassign ONU "' + onuName + '" dari ODP ini?')) return;
+        $.ajax({
+            url: unassignBase + '/' + onuId,
+            method: 'POST',
+            data: { _token: csrfToken },
+            success: function(res) {
+                if (res.success) {
+                    toastr.success(res.message);
+                    $('#onu-row-' + onuId).fadeOut(300, function() { $(this).remove(); });
+                    const cnt = parseInt($('#onus-count').text()) - 1;
+                    $('#onus-count').text(cnt);
+                    if (cnt === 0) {
+                        $('#onus-tbody').html('<tr id="onus-empty-row"><td colspan="7" class="text-center py-4 text-muted">Belum ada ONU yang terhubung ke ODP ini</td></tr>');
+                    }
+                } else {
+                    toastr.error(res.message || 'Gagal unassign ONU.');
+                }
+            },
+            error: function(xhr) {
+                const msg = xhr.responseJSON?.message || 'Terjadi kesalahan.';
+                toastr.error(msg);
+            }
+        });
+    });
+});
+</script>
 @endpush

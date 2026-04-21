@@ -337,6 +337,9 @@ Route::prefix('admin')->middleware(['auth', 'role:superadmin|admin|admin-pop|tek
         Route::get('/{odp}/edit', [OdpController::class, 'edit'])->name('edit');
         Route::put('/{odp}', [OdpController::class, 'update'])->name('update');
         Route::delete('/{odp}', [OdpController::class, 'destroy'])->name('destroy');
+        Route::get('/{odp}/available-onus', [OdpController::class, 'getAvailableOnus'])->name('available-onus');
+        Route::post('/{odp}/assign-onu', [OdpController::class, 'assignOnu'])->name('assign-onu');
+        Route::post('/{odp}/unassign-onu/{onu}', [OdpController::class, 'unassignOnu'])->name('unassign-onu');
     });
 
     // OLT (Optical Line Terminal) Management

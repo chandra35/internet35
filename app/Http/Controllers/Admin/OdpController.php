@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Odc;
 use App\Models\Odp;
 use App\Models\Olt;
+use App\Models\Onu;
 use App\Models\OltPonPort;
 use App\Models\User;
 use App\Models\SplitterRatio;
@@ -401,9 +402,85 @@ class OdpController extends Controller implements HasMiddleware
      */
     public function show(Odp $odp)
     {
-        $odp->load(['pop', 'odc.olt', 'olt', 'parentOdp', 'childOdps', 'customers', 'creator']);
-        
+        $odp->load(['pop', 'odc.olt', 'olt', 'parentOdp', 'childOdps', 'customers', 'creator', 'onus.olt']);
+
         return view('admin.odps.show', compact('odp'));
+    }
+
+    /**
+     * Get available (unassigned) ONUs for assignment to this ODP via AJAX
+     */
+    public function getAvailableOnus(Request $request, Odp $odp)
+    {
+        $odp->loadMissing(['odc.olt', 'olt', 'parentOdp.olt']);
+
+        $oltId = $odp->olt_id
+            ?? optional($odp->odc)->olt_id
+            ?? optional(optional($odp->parentOdp)->olt)->id
+            ?? null;
+
+        $query = Onu::whereNull('odp_id');
+
+        if ($oltId) {
+            $query->where('olt_id', $oltId);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('serial_number', 'like', "%{$search}%")
+                  ->orWhere('name', 'like', "%{$search}%");
+            });
+        }
+
+        $onus = $query->orderBy('name')
+            ->limit(50)
+            ->get(['id', 'serial_number', 'name', 'slot', 'port', 'onu_id', 'status']);
+
+        return response()->json($onus);
+    }
+
+    /**
+     * Assign an ONU to this ODP
+     */
+    public function assignOnu(Request $request, Odp $odp)
+    {
+        $request->validate([
+            'onu_id'   => 'required|exists:onus,id',
+            'odp_port' => 'nullable|integer|min:1',
+        ]);
+
+        $onu = Onu::findOrFail($request->input('onu_id'));
+
+        $onu->update([
+            'odp_id'   => $odp->id,
+            'odp_port' => $request->input('odp_port'),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'ONU ' . ($onu->name ?: $onu->serial_number) . ' berhasil di-assign ke ' . $odp->code,
+        ]);
+    }
+
+    /**
+     * Unassign an ONU from this ODP
+     */
+    public function unassignOnu(Odp $odp, Onu $onu)
+    {
+        if ($onu->odp_id !== $odp->id) {
+            return response()->json(['success' => false, 'message' => 'ONU tidak terdaftar di ODP ini.'], 422);
+        }
+
+        $onu->update([
+            'odp_id'   => null,
+            'odp_port' => null,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'ONU ' . ($onu->name ?: $onu->serial_number) . ' berhasil di-unassign dari ' . $odp->code,
+        ]);
     }
 
     /**

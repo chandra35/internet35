@@ -359,6 +359,11 @@ class Odp extends Model
         return $this->hasMany(Customer::class);
     }
 
+    public function onus()
+    {
+        return $this->hasMany(Onu::class);
+    }
+
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
