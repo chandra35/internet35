@@ -46,6 +46,10 @@
                         <td>{{ $odp->name }}</td>
                     </tr>
                     <tr>
+                        <td><strong>Jenis ODP</strong></td>
+                        <td><span class="badge badge-{{ $odp->odp_type_badge }} badge-lg">{{ $odp->odp_type_label }}</span></td>
+                    </tr>
+                    <tr>
                         <td><strong>Tipe Koneksi</strong></td>
                         <td>
                             @if($odp->odc)
@@ -313,6 +317,10 @@
             </div>
             <div class="card-body">
                 <table class="table table-sm table-borderless">
+                    <tr>
+                        <td><strong>Jenis ODP</strong></td>
+                        <td><span class="badge badge-{{ $odp->odp_type_badge }}">{{ $odp->odp_type_label }}</span></td>
+                    </tr>
                     <tr>
                         <td><strong>Tipe Box</strong></td>
                         <td>{{ $odp->box_type ?: '-' }}</td>

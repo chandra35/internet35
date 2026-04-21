@@ -85,6 +85,7 @@ class OdpController extends Controller implements HasMiddleware
                 }
             })
             ->when($request->status, fn($q, $s) => $q->where('status', $s))
+            ->when($request->odp_type, fn($q, $t) => $q->where('odp_type', $t))
             ->when($request->search, function($q, $s) {
                 $q->where(function($sq) use ($s) {
                     $sq->where('name', 'like', "%{$s}%")
@@ -210,6 +211,7 @@ class OdpController extends Controller implements HasMiddleware
             'address' => 'nullable|string|max:500',
             'total_ports' => 'required|integer|min:1|max:100',
             'status' => 'required|in:active,maintenance,inactive',
+            'odp_type' => 'required|in:gpon,epon,xgpon,xgspon',
             'box_type' => 'nullable|string|max:100',
             'splitter_type' => 'nullable|string|max:100',
             'pole_number' => 'nullable|string|max:50',
@@ -568,6 +570,7 @@ class OdpController extends Controller implements HasMiddleware
             'address' => 'nullable|string|max:500',
             'total_ports' => 'required|integer|min:1|max:100',
             'status' => 'required|in:active,maintenance,inactive',
+            'odp_type' => 'required|in:gpon,epon,xgpon,xgspon',
             'box_type' => 'nullable|string|max:100',
             'splitter_type' => 'nullable|string|max:100',
             'pole_number' => 'nullable|string|max:50',

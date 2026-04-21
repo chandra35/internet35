@@ -166,6 +166,18 @@
                         </div>
                         <div class="col-md-2">
                             <div class="form-group">
+                                <label>Jenis ODP</label>
+                                <select name="odp_type" class="form-control">
+                                    <option value="">Semua Jenis</option>
+                                    <option value="gpon" {{ request('odp_type') == 'gpon' ? 'selected' : '' }}>GPON</option>
+                                    <option value="epon" {{ request('odp_type') == 'epon' ? 'selected' : '' }}>EPON</option>
+                                    <option value="xgpon" {{ request('odp_type') == 'xgpon' ? 'selected' : '' }}>XG-PON</option>
+                                    <option value="xgspon" {{ request('odp_type') == 'xgspon' ? 'selected' : '' }}>XGS-PON</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="form-group">
                                 <label>Cari</label>
                                 <input type="text" name="search" class="form-control" placeholder="Nama, Kode..." value="{{ request('search') }}">
                             </div>
@@ -199,6 +211,7 @@
                         <tr>
                             <th>Kode</th>
                             <th>Nama</th>
+                            <th>Jenis</th>
                             <th>Sumber Koneksi</th>
                             <th>Port</th>
                             <th>Lokasi</th>
@@ -217,6 +230,9 @@
                                 @if($odp->splitter_level && $odp->splitter_level > 1)
                                 <br><small class="text-muted">Level {{ $odp->splitter_level }}</small>
                                 @endif
+                            </td>
+                            <td>
+                                <span class="badge badge-{{ $odp->odp_type_badge }}">{{ $odp->odp_type_label }}</span>
                             </td>
                             <td>
                                 @if($odp->odc)

@@ -29,6 +29,7 @@ class Odp extends Model
         'used_ports',
         'odc_port',
         'status',
+        'odp_type',
         'box_type',
         'splitter_type',
         'splitter_level',
@@ -310,6 +311,38 @@ class Odp extends Model
             'maintenance' => 'Maintenance',
             'inactive' => 'Tidak Aktif',
             default => 'Unknown',
+        };
+    }
+
+    /**
+     * ODP type constants
+     */
+    const ODP_TYPES = [
+        'gpon'   => 'GPON',
+        'epon'   => 'EPON',
+        'xgpon'  => 'XG-PON',
+        'xgspon' => 'XGS-PON',
+    ];
+
+    /**
+     * Get ODP type label
+     */
+    public function getOdpTypeLabelAttribute(): string
+    {
+        return self::ODP_TYPES[$this->odp_type] ?? strtoupper($this->odp_type ?? 'GPON');
+    }
+
+    /**
+     * Get ODP type badge class
+     */
+    public function getOdpTypeBadgeAttribute(): string
+    {
+        return match($this->odp_type) {
+            'gpon'   => 'success',
+            'epon'   => 'primary',
+            'xgpon'  => 'warning',
+            'xgspon' => 'info',
+            default  => 'secondary',
         };
     }
 

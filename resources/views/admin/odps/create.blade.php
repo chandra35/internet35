@@ -478,6 +478,20 @@ function setConnectionType(type) {
                 </div>
                 <div class="card-body">
                     <div class="form-group">
+                        <label for="odp_type">Jenis ODP <span class="text-danger">*</span></label>
+                        <select class="form-control @error('odp_type') is-invalid @enderror" id="odp_type" name="odp_type" required>
+                            <option value="gpon" {{ old('odp_type', 'gpon') === 'gpon' ? 'selected' : '' }}>GPON</option>
+                            <option value="epon" {{ old('odp_type') === 'epon' ? 'selected' : '' }}>EPON</option>
+                            <option value="xgpon" {{ old('odp_type') === 'xgpon' ? 'selected' : '' }}>XG-PON</option>
+                            <option value="xgspon" {{ old('odp_type') === 'xgspon' ? 'selected' : '' }}>XGS-PON</option>
+                        </select>
+                        @error('odp_type')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                        <small class="text-muted">Satu lokasi tiang bisa memiliki ODP GPON dan ODP EPON sekaligus.</small>
+                    </div>
+
+                    <div class="form-group">
                         <label for="box_type">Tipe Box</label>
                         <input type="text" class="form-control @error('box_type') is-invalid @enderror" 
                                id="box_type" name="box_type" value="{{ old('box_type') }}" 
