@@ -444,12 +444,15 @@ class OnuController extends Controller implements HasMiddleware
             $result = $helper->unregisterOnu($onu->slot, $onu->port, $onu->onu_id);
             
             if ($result['success']) {
-                $serial = $onu->serial_number;
+                $serial  = $onu->serial_number;
+                $oltId   = $onu->olt_id;
+                $port    = $onu->port;
                 $onu->delete();
                 
                 $this->activityLog->log('onus', "Unregistered ONU: {$serial}");
                 
-                return redirect()->route('admin.olts.show', $onu->olt_id)
+                return redirect()
+                    ->route('admin.olts.onus', ['olt' => $oltId, 'port' => $port])
                     ->with('success', $result['message']);
             } else {
                 return back()->with('error', $result['message']);
