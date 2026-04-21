@@ -1699,8 +1699,8 @@ class ZteC320Helper extends BaseOltHelper
             $waitSec   = (int) ($params['wait_seconds'] ?? 5);
 
             $commands = ["__WAIT__{$waitSec}"];
+            $commands[] = "configure terminal";
             $commands[] = "pon-onu-mng gpon-onu_1/{$slot}/{$port}:{$onuId}";
-            $commands[] = "voip protocol sip";
 
             if ($mgmtVlan) {
                 $commands[] = "flow 2 switch switch_0/1";
@@ -1755,7 +1755,8 @@ class ZteC320Helper extends BaseOltHelper
             }
             $commands[] = "security-mgmt 998 state enable mode forward ingress-type lan protocol web https";
             $commands[] = "security-mgmt 999 state enable ingress-type lan protocol ftp telnet ssh snmp tr069";
-            $commands[] = "exit";
+            $commands[] = "exit"; // exit pon-onu-mng context
+            $commands[] = "exit"; // exit configure terminal
             $commands[] = "write";
 
             \Log::info('ZTE applyPonOnuMng commands', ['commands' => $commands]);
