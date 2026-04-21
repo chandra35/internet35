@@ -2,6 +2,7 @@
 
 namespace App\Helpers\Olt;
 
+use App\Models\Customer;
 use App\Models\Olt;
 use App\Models\Onu;
 use App\Models\OltPonPort;
@@ -469,6 +470,13 @@ abstract class BaseOltHelper implements OltInterface
                 }
 
                 $existingBySerial->update($onuData);
+
+                // Sync customer's odp_id if ONU has a linked customer and odp_id was set
+                if ($existingBySerial->customer_id && array_key_exists('odp_id', $onuData)) {
+                    Customer::where('id', $existingBySerial->customer_id)
+                        ->update(['odp_id' => $onuData['odp_id']]);
+                }
+
                 return $existingBySerial;
             }
         }
@@ -504,6 +512,13 @@ abstract class BaseOltHelper implements OltInterface
                 }
 
                 $existingByPosition->update($onuData);
+
+                // Sync customer's odp_id if ONU has a linked customer and odp_id was set
+                if ($existingByPosition->customer_id && array_key_exists('odp_id', $onuData)) {
+                    Customer::where('id', $existingByPosition->customer_id)
+                        ->update(['odp_id' => $onuData['odp_id']]);
+                }
+
                 return $existingByPosition;
             }
         }

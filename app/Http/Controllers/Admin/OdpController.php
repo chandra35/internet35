@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Odc;
 use App\Models\Odp;
 use App\Models\Olt;
+use App\Models\Customer;
 use App\Models\Onu;
 use App\Models\OltPonPort;
 use App\Models\User;
@@ -457,6 +458,14 @@ class OdpController extends Controller implements HasMiddleware
             'odp_port' => $request->input('odp_port'),
         ]);
 
+        // Sync customer's odp_id if the ONU has a linked customer
+        if ($onu->customer_id) {
+            Customer::where('id', $onu->customer_id)->update([
+                'odp_id'   => $odp->id,
+                'odp_port' => $request->input('odp_port'),
+            ]);
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'ONU ' . ($onu->name ?: $onu->serial_number) . ' berhasil di-assign ke ' . $odp->code,
@@ -476,6 +485,13 @@ class OdpController extends Controller implements HasMiddleware
             'odp_id'   => null,
             'odp_port' => null,
         ]);
+
+        // Clear customer's odp_id if still pointing to this ODP
+        if ($onu->customer_id) {
+            Customer::where('id', $onu->customer_id)
+                ->where('odp_id', $odp->id)
+                ->update(['odp_id' => null, 'odp_port' => null]);
+        }
 
         return response()->json([
             'success' => true,
