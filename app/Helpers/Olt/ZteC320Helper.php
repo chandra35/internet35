@@ -1711,17 +1711,49 @@ class ZteC320Helper extends BaseOltHelper
             \Log::info('ZTE registerOnu telnet output', ['output' => $output]);
 
             // Check if ONU registration itself failed (not just pon-onu-mng config errors)
-            $registrationFailed = !str_contains($output, 'Successful') 
-                && (str_contains($output, 'Not support this ONU') 
+            $notSupportError = str_contains($output, 'Not support this ONU');
+            $registrationFailed = !str_contains($output, 'Successful')
+                && ($notSupportError
                     || str_contains($output, 'already exist')
                     || str_contains($output, 'No sn match'));
 
-            if ($registrationFailed) {
+            // Auto-retry with ALL profile if ONU type not supported
+            if ($registrationFailed && $notSupportError && $onuType !== 'ALL') {
+                \Log::warning('ZTE registerOnu: ONU type not supported, retrying with ALL', [
+                    'original_type' => $onuType,
+                    'slot' => $slot, 'port' => $port, 'onu_id' => $onuId,
+                ]);
+                // Replace onu registration command with ALL type
+                $retryCommands = [
+                    "configure terminal",
+                    "interface gpon-olt_1/{$slot}/{$port}",
+                    "onu {$onuId} type ALL sn {$serialNumber}",
+                    "exit", "exit", "write",
+                ];
+                $retryOutput = $this->executeBatchCliCommands($retryCommands);
+                \Log::info('ZTE registerOnu retry with ALL output', ['output' => $retryOutput]);
+
+                if (!str_contains($retryOutput, 'Not support') && !str_contains($retryOutput, 'already exist')) {
+                    $output = $retryOutput;
+                    $onuType = 'ALL';
+                    $registrationFailed = false;
+                    $result['auto_fallback'] = true;
+                    $result['original_type'] = $params['onu_type'] ?? 'unknown';
+                } else {
+                    $result['message'] = "Registration failed (tried {$onuType} and ALL): {$retryOutput}";
+                }
+            } elseif ($registrationFailed) {
                 $result['message'] = "Registration failed: {$output}";
-            } else {
+            }
+
+            if (!$registrationFailed) {
                 $result['success'] = true;
                 $result['onu_id'] = $onuId;
-                $result['message'] = "ONU registered successfully at 1/{$slot}/{$port}:{$onuId}";
+                $successMsg = "ONU registered successfully at 1/{$slot}/{$port}:{$onuId}";
+                if (!empty($result['auto_fallback'])) {
+                    $successMsg .= " (tipe '{$result['original_type']}' tidak dikenal, otomatis menggunakan profile ALL)";
+                }
+                $result['message'] = $successMsg;
                 $verification = $this->verifyRegisteredOnuConfig($slot, $port, $onuId, [
                     'name' => $name,
                     'line_profile' => $lineProfile,
@@ -2402,7 +2434,9 @@ class ZteC320Helper extends BaseOltHelper
             return $stripped;
         }
 
-        return $id;
+        // Unknown type — use ALL (universal/catch-all ZTE profile)
+        \Log::info('ZteC320: Unknown ONU equipment ID, falling back to ALL', ['id' => $id]);
+        return 'ALL';
     }
 
     protected function guessOnuType(string $serialNumber, ?string $equipmentId = null): string

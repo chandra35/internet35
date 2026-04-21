@@ -443,6 +443,29 @@ $(function() {
     var currentOltId = null;
     var currentOltBrand = null;
     var oltZones = [];
+
+    // Known ZTE OLT profile types (must exist on OLT, verified safe)
+    var knownZteProfiles = [
+        'ALL', 'OPEN_ZTE', 'OPEN_FIBERHOME', 'OPEN_NOKIA',
+        'HG8245H', 'HG8245Q', 'HG8245W', 'HG8245H5', 'HG8546M',
+        'EG8145V5', 'EG8143H5', 'EG8141H5',
+        'F660', 'F670L', 'F609', 'F6600', 'F663N',
+    ];
+
+    function resolveZteOnuType(rawType) {
+        if (!rawType || rawType === '-') return { type: 'ALL', fallback: true, original: rawType };
+        var upper = rawType.toUpperCase();
+        // Direct match
+        for (var i = 0; i < knownZteProfiles.length; i++) {
+            if (upper === knownZteProfiles[i].toUpperCase()) return { type: knownZteProfiles[i], fallback: false };
+        }
+        // Prefix match (e.g. "HG8245H5" starts with "HG8245H")
+        for (var j = 0; j < knownZteProfiles.length; j++) {
+            if (upper.indexOf(knownZteProfiles[j].toUpperCase()) === 0) return { type: knownZteProfiles[j], fallback: false };
+        }
+        // Unknown — fall back to ALL
+        return { type: 'ALL', fallback: true, original: rawType };
+    }
     var oltProfiles = [];
     var zteProfileConfigs = {};
 
@@ -613,8 +636,12 @@ $(function() {
         var pon = $(this).data('pon');
         var slot = $(this).data('slot');
         var port = $(this).data('port');
-        var type = $(this).data('type') || detectOnuType(sn);
+        var rawType = $(this).data('type') || detectOnuType(sn);
         var oltName = $('#select-olt option:selected').data('name');
+
+        // Smart ONU type resolution for ZTE
+        var resolved = (currentOltBrand === 'zte') ? resolveZteOnuType(rawType) : { type: rawType, fallback: false };
+        var type = resolved.type;
 
         // Fill hidden fields
         $('#reg_olt_id').val(currentOltId);
@@ -629,7 +656,32 @@ $(function() {
         $('#reg_olt_display').text(oltName);
         $('#reg_pon_display').text(pon);
         $('#reg_sn_display').text(sn);
-        $('#reg_onu_type_display').text(type);
+
+        // Smart type badge display
+        if (resolved.fallback) {
+            $('#reg_onu_type_display').html(
+                'ALL <span class="badge badge-warning badge-sm ml-1" title="Tipe \'' + resolved.original + '\' tidak ada di profil OLT, otomatis menggunakan ALL (universal)">' +
+                '<i class="fas fa-magic mr-1"></i>auto-fallback</span>'
+            );
+            // Expand advanced section so user can see/override
+            if ($('#zte-advanced-card').hasClass('collapsed-card')) {
+                $('#zte-advanced-card [data-card-widget="collapse"]').trigger('click');
+            }
+            // Show inline tip under the type input
+            if (!$('#onu-type-fallback-alert').length) {
+                $('#reg_onu_type_input').closest('.form-group').append(
+                    '<div id="onu-type-fallback-alert" class="alert alert-warning alert-sm py-1 px-2 mt-1 mb-0" style="font-size:12px;">' +
+                    '<i class="fas fa-magic mr-1"></i>Tipe <strong>' + resolved.original + '</strong> tidak dikenali di profil OLT — otomatis menggunakan <strong>ALL</strong> (universal). ' +
+                    'Backend akan coba sekali lagi dengan ALL jika gagal.' +
+                    '</div>'
+                );
+            } else {
+                $('#onu-type-fallback-alert').find('strong:first').text(resolved.original).closest('div').show();
+            }
+        } else {
+            $('#reg_onu_type_display').text(type);
+            $('#onu-type-fallback-alert').remove();
+        }
 
         // Populate zones dropdown
         var zoneHtml = '<option value="">-- Pilih Zone --</option>';
@@ -807,6 +859,10 @@ $(function() {
     // Submit register
     $('#form-register').submit(function(e) {
         e.preventDefault();
+        // Sync onu_type hidden field from editable input
+        var typeinput = $('#reg_onu_type_input').val();
+        if (typeinput) $('#reg_onu_type').val(typeinput);
+
         var btn = $(this).find('button[type="submit"]');
         btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Mendaftarkan ONU...');
 
@@ -816,10 +872,15 @@ $(function() {
             data: $(this).serialize() + '&_token={{ csrf_token() }}',
             success: function(res) {
                 if (res.success) {
+                    var successText = res.message || 'ONU berhasil didaftarkan';
+                    var icon = 'success';
+                    if (res.auto_fallback) {
+                        successText = 'ONU berhasil didaftarkan menggunakan profile <strong>ALL</strong> (tipe "' + res.original_type + '" tidak ada di OLT).';
+                    }
                     Swal.fire({
                         title: 'Berhasil!',
-                        text: res.message || 'ONU berhasil didaftarkan',
-                        icon: 'success',
+                        html: successText,
+                        icon: icon,
                         showCancelButton: true,
                         confirmButtonText: 'Lihat ONU',
                         cancelButtonText: 'Register Lagi'

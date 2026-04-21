@@ -423,7 +423,11 @@ class OnuController extends Controller implements HasMiddleware
                     $request,
                     true,
                     $result['message'] . $acsMessage,
-                    ['redirect_url' => route('admin.onus.show', $onu)]
+                    [
+                        'redirect_url'  => route('admin.onus.show', $onu),
+                        'auto_fallback' => $result['auto_fallback'] ?? false,
+                        'original_type' => $result['original_type'] ?? null,
+                    ]
                 );
             } else {
                 return $this->registerResponse($request, false, $result['message']);
