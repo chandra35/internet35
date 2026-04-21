@@ -2375,6 +2375,8 @@ class ZteC320Helper extends BaseOltHelper
             'EG8141H5', 'EG8145V5', 'EG8143H5',
             'HG8245H', 'HG8245Q', 'HG8245W', 'HG8546M',
             'F670L', 'F660', 'F609', 'F6600',
+            'OPEN_ZTE', 'OPEN_FIBERHOME', 'OPEN_NOKIA',
+            'ALL',
         ];
 
         $upper = strtoupper($id);
@@ -2382,6 +2384,16 @@ class ZteC320Helper extends BaseOltHelper
             if (str_starts_with($upper, strtoupper($profile))) {
                 return $profile;
             }
+        }
+
+        // Fiberhome HG6xxx series (e.g. HG6145F, HG6145E) → use generic Fiberhome profile
+        if (preg_match('/^HG6/i', $id)) {
+            return 'OPEN_FIBERHOME';
+        }
+
+        // Fiberhome AN5506 series (e.g. AN5506-04-F)
+        if (preg_match('/^AN5506/i', $id)) {
+            return 'OPEN_FIBERHOME';
         }
 
         // Fallback: strip version suffix like V9.0, V5, etc.

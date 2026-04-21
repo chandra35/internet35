@@ -113,7 +113,7 @@
                     <input type="hidden" name="port" id="reg_port">
                     <input type="hidden" name="pon_port" id="reg_pon_port">
                     <input type="hidden" name="serial_number" id="reg_serial_number">
-                    <input type="hidden" name="onu_type" id="reg_onu_type">
+                    <input type="hidden" id="reg_onu_type">
 
                     <!-- ONU Info Banner -->
                     <div class="row mb-3">
@@ -310,6 +310,40 @@
                                                         <option value="translate">Translate</option>
                                                         <option value="transparent">Transparent</option>
                                                     </select>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row mt-2">
+                                            <div class="col-12">
+                                                <div class="form-group mb-1">
+                                                    <label class="small mb-1">OLT Profile Type <span class="text-muted">(onu type di OLT)</span></label>
+                                                    <div class="input-group input-group-sm">
+                                                        <input type="text" name="onu_type" id="reg_onu_type_input" class="form-control form-control-sm" placeholder="Auto-detect dari scan">
+                                                        <div class="input-group-append">
+                                                            <button type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle" data-toggle="dropdown" title="Pilih profile umum">
+                                                                <i class="fas fa-list"></i>
+                                                            </button>
+                                                            <div class="dropdown-menu dropdown-menu-right">
+                                                                <h6 class="dropdown-header">Fiberhome</h6>
+                                                                <a class="dropdown-item onu-type-option small" href="#" data-type="OPEN_FIBERHOME">OPEN_FIBERHOME</a>
+                                                                <div class="dropdown-divider"></div>
+                                                                <h6 class="dropdown-header">Huawei</h6>
+                                                                <a class="dropdown-item onu-type-option small" href="#" data-type="HG8245H">HG8245H</a>
+                                                                <a class="dropdown-item onu-type-option small" href="#" data-type="HG8546M">HG8546M</a>
+                                                                <a class="dropdown-item onu-type-option small" href="#" data-type="EG8145V5">EG8145V5</a>
+                                                                <div class="dropdown-divider"></div>
+                                                                <h6 class="dropdown-header">ZTE</h6>
+                                                                <a class="dropdown-item onu-type-option small" href="#" data-type="F660">F660</a>
+                                                                <a class="dropdown-item onu-type-option small" href="#" data-type="F670L">F670L</a>
+                                                                <a class="dropdown-item onu-type-option small" href="#" data-type="OPEN_ZTE">OPEN_ZTE</a>
+                                                                <div class="dropdown-divider"></div>
+                                                                <h6 class="dropdown-header">Generic</h6>
+                                                                <a class="dropdown-item onu-type-option small" href="#" data-type="ALL">ALL (universal)</a>
+                                                                <a class="dropdown-item onu-type-option small" href="#" data-type="OPEN_NOKIA">OPEN_NOKIA</a>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <small class="form-text text-muted">Ubah jika registrasi gagal <em>"Not support this ONU"</em>. Cek profil yang tersedia di OLT dengan <code>show gpon onu-profile</code>.</small>
                                                 </div>
                                             </div>
                                         </div>
@@ -589,6 +623,7 @@ $(function() {
         $('#reg_pon_port').val(pon);
         $('#reg_serial_number').val(sn);
         $('#reg_onu_type').val(type);
+        $('#reg_onu_type_input').val(type);
 
         // Display info
         $('#reg_olt_display').text(oltName);
@@ -747,6 +782,13 @@ $(function() {
             $('#reg_pppoe_password').prop('required', true);
             $('#wan-mode-hint').text('PPPoE akan dikonfigurasi ke ONU via GenieACS (TR-069) setelah ONU online.');
         }
+    });
+
+    // ONU Profile Type quick-select dropdown
+    $(document).on('click', '.onu-type-option', function(e) {
+        e.preventDefault();
+        var type = $(this).data('type');
+        $('#reg_onu_type_input').val(type);
     });
 
     // Toggle password visibility
