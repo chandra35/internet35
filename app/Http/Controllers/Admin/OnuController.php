@@ -451,15 +451,19 @@ class OnuController extends Controller implements HasMiddleware
                 
                 $this->activityLog->log('onus', "Unregistered ONU: {$serial}");
                 
-                return redirect()
-                    ->route('admin.olts.onus', ['olt' => $oltId, 'port' => $port])
-                    ->with('success', $result['message']);
+                $redirectUrl = route('admin.olts.onus', ['olt' => $oltId, 'port' => $port]);
+
+                return response()->json([
+                    'success'      => true,
+                    'message'      => $result['message'],
+                    'redirect_url' => $redirectUrl,
+                ]);
             } else {
-                return back()->with('error', $result['message']);
+                return response()->json(['success' => false, 'message' => $result['message']], 422);
             }
             
         } catch (Exception $e) {
-            return back()->with('error', 'Unregister failed: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Unregister failed: ' . $e->getMessage()], 500);
         }
     }
 

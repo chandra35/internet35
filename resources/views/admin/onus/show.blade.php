@@ -1399,7 +1399,7 @@ $(function() {
         }).then(function(result) {
             if (result.isConfirmed) {
                 $.post('/admin/onus/' + id + '/unregister', { _token: '{{ csrf_token() }}' })
-                    .done(function(res) { Swal.fire('Berhasil', res.message, 'success').then(function() { window.location.href = '{{ route("admin.onus.index") }}'; }); })
+                    .done(function(res) { Swal.fire('Berhasil', res.message, 'success').then(function() { window.location.href = res.redirect_url || '{{ route("admin.onus.index") }}'; }); })
                     .fail(function(xhr) { Swal.fire('Gagal', xhr.responseJSON?.message || 'Gagal menghapus ONU', 'error'); });
             }
         });
