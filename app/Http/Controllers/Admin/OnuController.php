@@ -381,6 +381,17 @@ class OnuController extends Controller implements HasMiddleware
                     ->where('serial_number', strtoupper($request->serial_number))
                     ->first();
 
+                // Also check by position — handles case where same slot/port/onu_id
+                // was previously registered with a different serial number
+                if (!$onu) {
+                    $onu = Onu::withTrashed()
+                        ->where('olt_id', $olt->id)
+                        ->where('slot', $slot)
+                        ->where('port', $port)
+                        ->where('onu_id', $result['onu_id'])
+                        ->first();
+                }
+
                 if ($onu) {
                     if ($onu->trashed()) {
                         $onu->restore();
@@ -425,6 +436,8 @@ class OnuController extends Controller implements HasMiddleware
                     $result['message'] . $acsMessage,
                     [
                         'redirect_url'  => route('admin.onus.show', $onu),
+                        'onu_db_id'     => $onu->id,
+                        'onu_id'        => $onu->onu_id,
                         'auto_fallback' => $result['auto_fallback'] ?? false,
                         'original_type' => $result['original_type'] ?? null,
                     ]
@@ -435,6 +448,38 @@ class OnuController extends Controller implements HasMiddleware
             
         } catch (Exception $e) {
             return $this->registerResponse($request, false, 'Registration failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Phase 2: Apply pon-onu-mng service config to a registered ONU (called from frontend after phase 1).
+     */
+    public function configureService(Onu $onu, Request $request)
+    {
+        try {
+            $helper = OltFactory::make($onu->olt);
+
+            if (!method_exists($helper, 'applyPonOnuMng')) {
+                return response()->json(['success' => true, 'message' => 'OLT ini tidak memerlukan konfigurasi layanan tambahan.']);
+            }
+
+            $params = [
+                'vlan'           => $request->vlan,
+                'mgmt_vlan'      => $request->mgmt_vlan,
+                'pppoe_username' => $request->pppoe_username,
+                'pppoe_password' => $request->pppoe_password,
+                'wait_seconds'   => 5,
+            ];
+
+            $result = $helper->applyPonOnuMng($onu->slot, $onu->port, $onu->onu_id, $params);
+
+            return response()->json([
+                'success' => $result['success'],
+                'message' => $result['message'],
+            ], $result['success'] ? 200 : 422);
+        } catch (\Exception $e) {
+            \Log::error('configureService error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Konfigurasi layanan gagal: ' . $e->getMessage()], 500);
         }
     }
 

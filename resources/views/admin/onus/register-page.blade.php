@@ -856,46 +856,136 @@ $(function() {
         }
     });
 
-    // Submit register
+    // ========== Progress UI helpers ==========
+    function showProgress(steps, activeIndex, statusText) {
+        var html = '<div class="mb-3 text-left">';
+        steps.forEach(function(step, i) {
+            var icon, cls;
+            if (i < activeIndex)        { icon = 'fa-check-circle'; cls = 'text-success'; }
+            else if (i === activeIndex) { icon = 'fa-spinner fa-spin'; cls = 'text-primary'; }
+            else                        { icon = 'fa-circle'; cls = 'text-muted'; }
+            html += '<div class="d-flex align-items-center mb-2">' +
+                '<i class="fas ' + icon + ' ' + cls + ' mr-2" style="width:18px;font-size:14px;"></i>' +
+                '<span class="' + (i === activeIndex ? 'font-weight-bold' : 'text-muted') + '" style="font-size:13px;">' + step + '</span>' +
+                '</div>';
+        });
+        html += '</div>';
+        if (statusText) html += '<p class="text-muted small mb-0"><i class="fas fa-info-circle mr-1"></i>' + statusText + '</p>';
+        Swal.update({ html: html });
+    }
+
+    // ========== 2-Phase Register Submit ==========
     $('#form-register').submit(function(e) {
         e.preventDefault();
+        var $form = $(this);
+
         // Sync onu_type hidden field from editable input
         var typeinput = $('#reg_onu_type_input').val();
         if (typeinput) $('#reg_onu_type').val(typeinput);
 
-        var btn = $(this).find('button[type="submit"]');
-        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Mendaftarkan ONU...');
+        var btn = $form.find('button[type="submit"]');
+        btn.prop('disabled', true);
 
+        var steps = [
+            'Menghubungkan ke OLT',
+            'Mendaftarkan ONU ke OLT',
+            'Menyimpan ke database',
+            'Mengkonfigurasi layanan ONU'
+        ];
+
+        // Show progress modal immediately
+        Swal.fire({
+            title: '<i class="fas fa-cog fa-spin text-primary mr-2"></i>Mendaftarkan ONU',
+            html: '',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            showConfirmButton: false,
+            didOpen: function() {
+                showProgress(steps, 0, 'Membuka koneksi Telnet ke OLT...');
+            }
+        });
+
+        // --- PHASE 1: Register ONU on OLT + save to DB ---
+        setTimeout(function() { showProgress(steps, 1, 'Mengirim perintah CLI ke OLT (~5-10 detik)...'); }, 300);
+
+        var formData = $form.serialize() + '&_token={{ csrf_token() }}';
         $.ajax({
             url: '{{ route("admin.onus.register") }}',
             method: 'POST',
-            data: $(this).serialize() + '&_token={{ csrf_token() }}',
+            data: formData,
+            timeout: 60000,
             success: function(res) {
-                if (res.success) {
-                    var successText = res.message || 'ONU berhasil didaftarkan';
-                    var icon = 'success';
-                    if (res.auto_fallback) {
-                        successText = 'ONU berhasil didaftarkan menggunakan profile <strong>ALL</strong> (tipe "' + res.original_type + '" tidak ada di OLT).';
-                    }
-                    Swal.fire({
-                        title: 'Berhasil!',
-                        html: successText,
-                        icon: icon,
-                        showCancelButton: true,
-                        confirmButtonText: 'Lihat ONU',
-                        cancelButtonText: 'Register Lagi'
-                    }).then(function(result) {
-                        if (result.isConfirmed && res.redirect_url) {
-                            window.location.href = res.redirect_url;
-                        } else {
-                            // Re-scan to update the list
-                            $('#register-section').hide();
-                            $('#btn-scan').click();
+                if (!res.success) {
+                    Swal.fire('Gagal', res.message || 'Gagal mendaftarkan ONU', 'error');
+                    return;
+                }
+
+                showProgress(steps, 2, 'ONU terdaftar di OLT. Menyimpan ke database...');
+
+                setTimeout(function() {
+                    showProgress(steps, 3, 'Mengkonfigurasi layanan VLAN & TR069... (~10 detik)');
+
+                    var onuDbId   = res.onu_db_id;
+                    var redirectUrl   = res.redirect_url;
+                    var autoFallback  = res.auto_fallback;
+                    var originalType  = res.original_type;
+
+                    // --- PHASE 2: Apply pon-onu-mng config ---
+                    $.ajax({
+                        url: '/admin/onus/' + onuDbId + '/configure-service',
+                        method: 'POST',
+                        timeout: 60000,
+                        data: {
+                            _token: '{{ csrf_token() }}',
+                            vlan:           $('#reg_vlan_id').val(),
+                            mgmt_vlan:      $('#reg_mgmt_vlan').val(),
+                            pppoe_username: $('#reg_pppoe_username').val(),
+                            pppoe_password: $('#reg_pppoe_password').val(),
+                        },
+                        success: function(res2) {
+                            var successHtml = '<div class="text-left">';
+                            if (autoFallback) {
+                                successHtml += '<div class="alert alert-warning py-1 px-2 mb-2 small"><i class="fas fa-magic mr-1"></i>Profile <strong>' + originalType + '</strong> tidak dikenal, otomatis pakai <strong>ALL</strong>.</div>';
+                            }
+                            if (res2.success) {
+                                successHtml += '<div class="alert alert-success py-1 px-2 mb-2 small"><i class="fas fa-check mr-1"></i>Layanan ONU (VLAN/TR069) berhasil dikonfigurasi.</div>';
+                            } else {
+                                successHtml += '<div class="alert alert-warning py-1 px-2 mb-2 small"><i class="fas fa-exclamation-triangle mr-1"></i>ONU terdaftar, tapi konfigurasi layanan belum selesai — bisa dilakukan dari halaman ONU.</div>';
+                            }
+                            successHtml += '</div>';
+
+                            Swal.fire({
+                                title: '<i class="fas fa-check-circle text-success mr-2"></i>ONU Berhasil Didaftarkan!',
+                                html: successHtml,
+                                icon: 'success',
+                                showCancelButton: true,
+                                confirmButtonText: '<i class="fas fa-eye mr-1"></i>Lihat ONU',
+                                cancelButtonText: 'Register Lagi',
+                            }).then(function(result) {
+                                if (result.isConfirmed && redirectUrl) {
+                                    window.location.href = redirectUrl;
+                                } else {
+                                    $('#register-section').hide();
+                                    $('#btn-scan').click();
+                                }
+                            });
+                        },
+                        error: function() {
+                            Swal.fire({
+                                title: 'ONU Terdaftar',
+                                html: '<div class="alert alert-warning py-1 px-2 small text-left"><i class="fas fa-exclamation-triangle mr-1"></i>ONU berhasil didaftarkan ke OLT dan database, tapi konfigurasi layanan (VLAN/TR069) belum selesai. Bisa dikonfigurasi dari halaman ONU.</div>',
+                                icon: 'warning',
+                                showCancelButton: true,
+                                confirmButtonText: '<i class="fas fa-eye mr-1"></i>Lihat ONU',
+                                cancelButtonText: 'Tutup',
+                            }).then(function(result) {
+                                if (result.isConfirmed && redirectUrl) {
+                                    window.location.href = redirectUrl;
+                                }
+                            });
                         }
                     });
-                } else {
-                    Swal.fire('Gagal', res.message || 'Gagal mendaftarkan ONU', 'error');
-                }
+                }, 400);
             },
             error: function(xhr) {
                 var msg = xhr.responseJSON?.message || 'Gagal mendaftarkan ONU';

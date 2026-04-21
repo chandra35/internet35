@@ -1599,105 +1599,6 @@ class ZteC320Helper extends BaseOltHelper
             }
 
             $commands[] = "exit";
-
-            // Wait for ONU to synchronize before configuring pon-onu-mng
-            $commands[] = "__WAIT__8";
-
-            // pon-onu-mng context: service, vlan, WAN, ACS config
-            $pppoeUser = $params['pppoe_username'] ?? null;
-            $pppoePwd = $params['pppoe_password'] ?? '';
-            $acsUrl = $params['acs_url'] ?? config('services.genieacs.cwmp_url', 'http://172.10.10.254:7547');
-            $acsUser = config('services.genieacs.cwmp_username', '');
-            $acsPwd = config('services.genieacs.cwmp_password', '');
-
-            if ($vlan || $mgmtVlan) {
-                $commands[] = "pon-onu-mng gpon-onu_1/{$slot}/{$port}:{$onuId}";
-
-                // VoIP protocol (required by SmartOLT pattern)
-                $commands[] = "voip protocol sip";
-
-                // SmartOLT-style flow-based VLAN configuration
-                if ($mgmtVlan) {
-                    $commands[] = "flow 2 switch switch_0/1";
-                }
-
-                // Flow modes — tag-filter for all active flows
-                $commands[] = "flow mode 1 tag-filter vlan-filter untag-filter discard";
-                if ($mgmtVlan) {
-                    $commands[] = "flow mode 2 tag-filter vlan-filter untag-filter discard";
-                }
-
-                // Flow VLAN assignments
-                if ($vlan) {
-                    $commands[] = "flow 1 pri 0 vlan {$vlan}";
-                }
-                if ($mgmtVlan) {
-                    $commands[] = "flow 2 pri 2 vlan {$mgmtVlan}";
-                }
-
-                // Bind gemports to flows
-                $commands[] = "gemport 1 flow 1";
-                if ($mgmtVlan) {
-                    $commands[] = "gemport 2 flow 2";
-                }
-
-                // Switchport bindings
-                $commands[] = "switchport-bind switch_0/1 iphost 1";
-                if ($mgmtVlan) {
-                    $commands[] = "switchport-bind switch_0/1 iphost 2";
-                    $commands[] = "switchport-bind switch_0/1 veip 1";
-                }
-
-                // Management IP host — DHCP for TR069
-                if ($mgmtVlan) {
-                    $commands[] = "ip-host 2 dhcp-enable enable ping-response enable traceroute-response enable";
-                }
-
-                // PPPoE internet (optional)
-                if ($pppoeUser && $vlan) {
-                    $commands[] = "pppoe 1 nat enable user {$pppoeUser} password {$pppoePwd}";
-                }
-
-                // VLAN filter modes
-                $commands[] = "vlan-filter-mode iphost 1 tag-filter vlan-filter untag-filter discard";
-                if ($mgmtVlan) {
-                    $commands[] = "vlan-filter-mode iphost 2 tag-filter vlan-filter untag-filter discard";
-                }
-
-                // VLAN filters
-                if ($vlan) {
-                    $commands[] = "vlan-filter iphost 1 pri 0 vlan {$vlan}";
-                }
-                if ($mgmtVlan) {
-                    $commands[] = "vlan-filter iphost 2 pri 2 vlan {$mgmtVlan}";
-                }
-
-                // DHCP on all ETH UNI ports
-                $commands[] = "dhcp-ip ethuni eth_0/1 from-onu";
-                $commands[] = "dhcp-ip ethuni eth_0/2 from-onu";
-                $commands[] = "dhcp-ip ethuni eth_0/3 from-onu";
-                $commands[] = "dhcp-ip ethuni eth_0/4 from-onu";
-
-                // TR069/ACS via VEIP
-                if ($mgmtVlan) {
-                    $commands[] = "veip 1 port udp 1232 host 2";
-                    $commands[] = "tr069-mgmt 1 state unlock";
-                    // ACS URL with optional basic auth credentials
-                    $acsCmd = "tr069-mgmt 1 acs {$acsUrl}";
-                    if ($acsUser && $acsPwd) {
-                        $acsCmd .= " validate basic username {$acsUser} password {$acsPwd}";
-                    }
-                    $commands[] = $acsCmd;
-                    $commands[] = "tr069-mgmt 1 tag pri 2 vlan {$mgmtVlan}";
-                }
-
-                // Security — allow web + management access
-                $commands[] = "security-mgmt 998 state enable mode forward ingress-type lan protocol web https";
-                $commands[] = "security-mgmt 999 state enable ingress-type lan protocol ftp telnet ssh snmp tr069";
-
-                $commands[] = "exit";
-            }
-
             $commands[] = "exit";
             $commands[] = "write";
 
@@ -1754,36 +1655,121 @@ class ZteC320Helper extends BaseOltHelper
                     $successMsg .= " (tipe '{$result['original_type']}' tidak dikenal, otomatis menggunakan profile ALL)";
                 }
                 $result['message'] = $successMsg;
-                $verification = $this->verifyRegisteredOnuConfig($slot, $port, $onuId, [
-                    'name' => $name,
-                    'line_profile' => $lineProfile,
-                    'service_profile' => $serviceProfile,
-                    'tcont_id' => $tcontId,
-                    'gem_port' => $gemPort,
-                    'service_id' => $serviceId,
-                    'service_port_mode' => $serviceMode,
-                    'vlan' => $params['vlan'] ?? null,
-                ]);
-
-                if (!empty($verification['warnings'])) {
-                    $result['warnings'] = $verification['warnings'];
-                    $result['message'] .= ' Warning: ' . implode(' ', $verification['warnings']);
-                }
-
                 $result['meta'] = [
-                    'line_profile' => $lineProfile,
-                    'service_profile' => $serviceProfile,
-                    'tcont_id' => $tcontId,
-                    'gem_port' => $gemPort,
-                    'service_id' => $serviceId,
-                    'service_port_mode' => $serviceMode,
-                    'verification' => $verification,
+                    'line_profile'       => $lineProfile,
+                    'service_profile'    => $serviceProfile,
+                    'tcont_id'           => $tcontId,
+                    'gem_port'           => $gemPort,
+                    'service_id'         => $serviceId,
+                    'service_port_mode'  => $serviceMode,
+                    'vlan'               => $vlan,
+                    'mgmt_vlan'          => $mgmtVlan,
                 ];
             }
 
         } catch (Exception $e) {
             $result['message'] = $e->getMessage();
             Log::error("ZTE registerOnu error: " . $e->getMessage());
+        }
+
+        return $result;
+    }
+
+    /**
+     * Phase 2: Apply pon-onu-mng service configuration to an already-registered ONU.
+     * Called separately after ONU has had time to come online.
+     */
+    public function applyPonOnuMng(int $slot, int $port, int $onuId, array $params): array
+    {
+        $result = ['success' => false, 'message' => ''];
+
+        try {
+            $vlan     = $params['vlan'] ?? null;
+            $mgmtVlan = $params['mgmt_vlan'] ?? null;
+
+            if (!$vlan && !$mgmtVlan) {
+                return ['success' => true, 'message' => 'Tidak ada VLAN untuk dikonfigurasi di pon-onu-mng.'];
+            }
+
+            $pppoeUser = $params['pppoe_username'] ?? null;
+            $pppoePwd  = $params['pppoe_password'] ?? '';
+            $acsUrl    = $params['acs_url'] ?? config('services.genieacs.cwmp_url', 'http://172.10.10.254:7547');
+            $acsUser   = config('services.genieacs.cwmp_username', '');
+            $acsPwd    = config('services.genieacs.cwmp_password', '');
+            $waitSec   = (int) ($params['wait_seconds'] ?? 5);
+
+            $commands = ["__WAIT__{$waitSec}"];
+            $commands[] = "pon-onu-mng gpon-onu_1/{$slot}/{$port}:{$onuId}";
+            $commands[] = "voip protocol sip";
+
+            if ($mgmtVlan) {
+                $commands[] = "flow 2 switch switch_0/1";
+            }
+            $commands[] = "flow mode 1 tag-filter vlan-filter untag-filter discard";
+            if ($mgmtVlan) {
+                $commands[] = "flow mode 2 tag-filter vlan-filter untag-filter discard";
+            }
+            if ($vlan) {
+                $commands[] = "flow 1 pri 0 vlan {$vlan}";
+            }
+            if ($mgmtVlan) {
+                $commands[] = "flow 2 pri 2 vlan {$mgmtVlan}";
+            }
+            $commands[] = "gemport 1 flow 1";
+            if ($mgmtVlan) {
+                $commands[] = "gemport 2 flow 2";
+            }
+            $commands[] = "switchport-bind switch_0/1 iphost 1";
+            if ($mgmtVlan) {
+                $commands[] = "switchport-bind switch_0/1 iphost 2";
+                $commands[] = "switchport-bind switch_0/1 veip 1";
+                $commands[] = "ip-host 2 dhcp-enable enable ping-response enable traceroute-response enable";
+            }
+            if ($pppoeUser && $vlan) {
+                $commands[] = "pppoe 1 nat enable user {$pppoeUser} password {$pppoePwd}";
+            }
+            $commands[] = "vlan-filter-mode iphost 1 tag-filter vlan-filter untag-filter discard";
+            if ($mgmtVlan) {
+                $commands[] = "vlan-filter-mode iphost 2 tag-filter vlan-filter untag-filter discard";
+            }
+            if ($vlan) {
+                $commands[] = "vlan-filter iphost 1 pri 0 vlan {$vlan}";
+            }
+            if ($mgmtVlan) {
+                $commands[] = "vlan-filter iphost 2 pri 2 vlan {$mgmtVlan}";
+            }
+            $commands[] = "dhcp-ip ethuni eth_0/1 from-onu";
+            $commands[] = "dhcp-ip ethuni eth_0/2 from-onu";
+            $commands[] = "dhcp-ip ethuni eth_0/3 from-onu";
+            $commands[] = "dhcp-ip ethuni eth_0/4 from-onu";
+
+            if ($mgmtVlan) {
+                $commands[] = "veip 1 port udp 1232 host 2";
+                $commands[] = "tr069-mgmt 1 state unlock";
+                $acsCmd = "tr069-mgmt 1 acs {$acsUrl}";
+                if ($acsUser && $acsPwd) {
+                    $acsCmd .= " validate basic username {$acsUser} password {$acsPwd}";
+                }
+                $commands[] = $acsCmd;
+                $commands[] = "tr069-mgmt 1 tag pri 2 vlan {$mgmtVlan}";
+            }
+            $commands[] = "security-mgmt 998 state enable mode forward ingress-type lan protocol web https";
+            $commands[] = "security-mgmt 999 state enable ingress-type lan protocol ftp telnet ssh snmp tr069";
+            $commands[] = "exit";
+            $commands[] = "write";
+
+            \Log::info('ZTE applyPonOnuMng commands', ['commands' => $commands]);
+            $output = $this->executeBatchCliCommands($commands);
+            \Log::info('ZTE applyPonOnuMng output', ['output' => $output]);
+
+            $result['success'] = true;
+            $result['message'] = "Konfigurasi layanan ONU berhasil diterapkan.";
+            if ($this->hasCliError($output)) {
+                $result['message'] .= " (beberapa perintah mungkin tidak didukung ONU ini — cek log).";
+            }
+        } catch (Exception $e) {
+            $result['message'] = 'applyPonOnuMng gagal: ' . $e->getMessage();
+            \Log::error('ZTE applyPonOnuMng error: ' . $e->getMessage());
         }
 
         return $result;
