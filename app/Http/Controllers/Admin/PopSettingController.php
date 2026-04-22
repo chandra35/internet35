@@ -25,8 +25,8 @@ class PopSettingController extends Controller implements HasMiddleware
     public static function middleware(): array
     {
         return [
-            new Middleware('permission:pop-settings.view', only: ['index', 'ispInfo', 'invoiceSettings', 'previewInvoice', 'livePreviewInvoice', 'integration', 'getCities', 'getDistricts', 'getVillages']),
-            new Middleware('permission:pop-settings.edit', only: ['updateIspInfo', 'updateInvoiceSettings', 'removeLogo', 'updateIntegration', 'testRadiusConnection', 'syncIsolirProfile']),
+            new Middleware('permission:pop-settings.view', only: ['index', 'ispInfo', 'invoiceSettings', 'previewInvoice', 'livePreviewInvoice', 'integration', 'getCities', 'getDistricts', 'getVillages', 'unregNotif']),
+            new Middleware('permission:pop-settings.edit', only: ['updateIspInfo', 'updateInvoiceSettings', 'removeLogo', 'updateIntegration', 'testRadiusConnection', 'syncIsolirProfile', 'updateUnregNotif']),
             new Middleware('role:superadmin', only: ['monitoring', 'viewPopDetail', 'copySettingsForm', 'preview', 'copySettings']),
         ];
     }
@@ -1015,6 +1015,70 @@ class PopSettingController extends Controller implements HasMiddleware
             'invoice' => $dummyInvoice,
             'popSetting' => $popSetting,
             'isPreview' => true,
+        ]);
+    }
+
+    /**
+     * Show "Notifikasi ONU Baru" (in-app bell) settings page.
+     */
+    public function unregNotif(Request $request)
+    {
+        if ($this->requireUserIdForSuperAdmin($request)) {
+            return redirect()->route('admin.pop-settings.monitoring')
+                ->with('info', 'Silakan pilih Admin POP yang ingin Anda kelola.');
+        }
+
+        $userId = $request->query('user_id');
+        $popSetting = $this->getPopSetting($userId);
+
+        $popUsers = null;
+        if (auth()->user()->hasRole('superadmin')) {
+            $popUsers = User::role('admin-pop')->orderBy('name')->get();
+        }
+
+        // OLT list belonging to the target POP (for the "olts" multi-select)
+        $targetUserId = $userId ?: auth()->id();
+        $olts = \App\Models\Olt::where('pop_id', $targetUserId)
+            ->orderBy('name')
+            ->get(['id', 'name', 'brand']);
+
+        return view('admin.pop-settings.unreg-notif', compact('popSetting', 'popUsers', 'userId', 'olts'));
+    }
+
+    /**
+     * Update "Notifikasi ONU Baru" settings.
+     */
+    public function updateUnregNotif(Request $request)
+    {
+        $request->validate([
+            'user_id'        => 'nullable|uuid|exists:users,id',
+            'enabled'        => 'nullable|boolean',
+            'scan_interval'  => 'required|integer|min:30|max:3600',
+            'poll_interval'  => 'required|integer|min:10|max:600',
+            'toast'          => 'nullable|boolean',
+            'sound'          => 'nullable|boolean',
+            'olts'           => 'nullable|array',
+            'olts.*'         => 'uuid|exists:olts,id',
+        ]);
+
+        $popSetting = $this->getPopSetting($request->user_id);
+        $oldData = $popSetting->toArray();
+
+        $popSetting->unreg_notif_settings = [
+            'enabled'       => $request->boolean('enabled'),
+            'scan_interval' => (int) $request->scan_interval,
+            'poll_interval' => (int) $request->poll_interval,
+            'toast'         => $request->boolean('toast'),
+            'sound'         => $request->boolean('sound'),
+            'olts'          => array_values((array) $request->input('olts', [])),
+        ];
+        $popSetting->save();
+
+        $this->activityLog->logUpdate('pop_settings', 'Updated unregistered-ONU notification settings', $oldData, $popSetting->toArray());
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Pengaturan Notifikasi ONU Baru berhasil disimpan!',
         ]);
     }
 }

@@ -180,7 +180,34 @@
                     <i class="fas fa-expand-arrows-alt"></i>
                 </a>
             </li>
-            
+
+            <!-- Notification Bell -->
+            <li class="nav-item dropdown" id="notifBell">
+                <a class="nav-link" data-toggle="dropdown" href="#" aria-label="Notifikasi">
+                    <i class="far fa-bell"></i>
+                    <span class="badge badge-danger navbar-badge d-none" id="notifBadge">0</span>
+                </a>
+                <div class="dropdown-menu dropdown-menu-lg dropdown-menu-right" style="width: 360px;">
+                    <span class="dropdown-item dropdown-header d-flex justify-content-between align-items-center">
+                        <span><i class="fas fa-bell mr-1"></i> Notifikasi</span>
+                        <a href="#" id="notifMarkAllRead" class="text-muted small" style="text-decoration:none;">
+                            <i class="fas fa-check-double"></i> Tandai semua dibaca
+                        </a>
+                    </span>
+                    <div class="dropdown-divider"></div>
+                    <div id="notifList" style="max-height: 360px; overflow-y: auto;">
+                        <div class="dropdown-item text-center text-muted py-3" id="notifEmpty">
+                            <i class="far fa-bell-slash fa-2x mb-2 d-block"></i>
+                            <small>Belum ada notifikasi</small>
+                        </div>
+                    </div>
+                    <div class="dropdown-divider"></div>
+                    <a href="{{ route('admin.notifications.index') }}" class="dropdown-item dropdown-footer">
+                        Lihat semua notifikasi
+                    </a>
+                </div>
+            </li>
+
             <!-- User Dropdown Menu -->
             <li class="nav-item dropdown">
                 <a class="nav-link" data-toggle="dropdown" href="#">
@@ -424,6 +451,14 @@
                                 <a href="{{ route('admin.notification-settings.index') }}" class="nav-link {{ request()->routeIs('admin.notification-settings.*') ? 'active' : '' }}">
                                     <i class="far fa-circle nav-icon"></i>
                                     <p>Notifikasi</p>
+                                </a>
+                            </li>
+                            @endcan
+                            @can('pop-settings.view')
+                            <li class="nav-item">
+                                <a href="{{ route('admin.pop-settings.unreg-notif') }}" class="nav-link {{ request()->routeIs('admin.pop-settings.unreg-notif') ? 'active' : '' }}">
+                                    <i class="far fa-circle nav-icon"></i>
+                                    <p>Notifikasi ONU Baru</p>
                                 </a>
                             </li>
                             @endcan
@@ -888,6 +923,138 @@
             }
         });
     }
+</script>
+
+{{-- ====== In-app notification bell poller ====== --}}
+@php
+    $bellPollSeconds = 30;
+    $bellToast = true;
+    $bellSound = false;
+    if (auth()->check() && auth()->user()->popSetting) {
+        $_ps = auth()->user()->popSetting;
+        $bellPollSeconds = (int) $_ps->unregNotifSetting('poll_interval', 30);
+        $bellToast = (bool) $_ps->unregNotifSetting('toast', true);
+        $bellSound = (bool) $_ps->unregNotifSetting('sound', false);
+    }
+@endphp
+<script>
+(function () {
+    const POLL_MS    = {{ max(10, $bellPollSeconds) * 1000 }};
+    const SHOW_TOAST = {{ $bellToast ? 'true' : 'false' }};
+    const PLAY_SOUND = {{ $bellSound ? 'true' : 'false' }};
+    const URL_POLL   = "{{ route('admin.notifications.poll') }}";
+    const URL_READ   = "{{ url('admin/notifications') }}"; // + /{id}/read
+    const URL_ALL    = "{{ route('admin.notifications.mark-all-read') }}";
+
+    const $badge = $('#notifBadge');
+    const $list  = $('#notifList');
+    const $empty = $('#notifEmpty');
+    let lastSeenIds = new Set();
+    let firstLoad = true;
+
+    function escapeHtml(s) {
+        return $('<div>').text(s == null ? '' : String(s)).html();
+    }
+
+    function buildItem(n) {
+        const d = n.data || {};
+        const olt    = escapeHtml(d.olt_name || 'OLT');
+        const sn     = escapeHtml(d.serial_number || '-');
+        const slot   = d.slot != null ? d.slot : '-';
+        const port   = d.port != null ? d.port : '-';
+        const vendor = d.vendor ? ` <span class="badge badge-secondary">${escapeHtml(d.vendor)}</span>` : '';
+        const unread = !n.read_at;
+        const oltUrl = "{{ url('admin/olts') }}/" + encodeURIComponent(d.olt_id || '') + "#unregistered";
+        const itemBg = unread ? 'background-color:#f4f8ff;' : '';
+
+        return `
+        <a href="${oltUrl}"
+           class="dropdown-item notif-item"
+           data-id="${n.id}"
+           style="white-space:normal; padding:0.6rem 1rem; border-bottom:1px solid #eee; ${itemBg}">
+            <div class="d-flex justify-content-between">
+                <strong class="text-primary">
+                    <i class="fas fa-satellite-dish mr-1"></i> ONU baru di ${olt}
+                </strong>
+                ${unread ? '<span class="badge badge-danger">Baru</span>' : ''}
+            </div>
+            <div class="small text-muted mt-1">
+                SN: <code>${sn}</code>${vendor}
+            </div>
+            <div class="small text-muted">
+                Slot ${slot} / Port ${port} &middot; ${escapeHtml(n.age || '')}
+            </div>
+        </a>`;
+    }
+
+    function refresh() {
+        $.getJSON(URL_POLL).done(function (res) {
+            const unread = res.unread_count || 0;
+            if (unread > 0) {
+                $badge.removeClass('d-none').text(unread > 99 ? '99+' : unread);
+            } else {
+                $badge.addClass('d-none').text('0');
+            }
+
+            const items = res.latest || [];
+            if (items.length === 0) {
+                $list.html('').append($empty);
+            } else {
+                $empty.detach();
+                $list.html(items.map(buildItem).join(''));
+            }
+
+            // Detect newly arrived (skip on first poll to avoid spamming on page load)
+            if (!firstLoad && SHOW_TOAST) {
+                items.forEach(function (n) {
+                    if (!lastSeenIds.has(n.id) && !n.read_at) {
+                        const d = n.data || {};
+                        toastr.info(
+                            'SN: ' + (d.serial_number || '-') + '<br>' +
+                            'OLT: ' + (d.olt_name || '-') +
+                            ' (Slot ' + (d.slot ?? '-') + '/Port ' + (d.port ?? '-') + ')',
+                            'ONU Baru Terdeteksi',
+                            { timeOut: 8000, escapeHtml: false }
+                        );
+                        if (PLAY_SOUND) {
+                            try {
+                                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                                const o = ctx.createOscillator(); const g = ctx.createGain();
+                                o.connect(g); g.connect(ctx.destination);
+                                o.type = 'sine'; o.frequency.value = 880;
+                                g.gain.value = 0.05; o.start();
+                                setTimeout(() => { o.stop(); ctx.close(); }, 180);
+                            } catch (e) {}
+                        }
+                    }
+                });
+            }
+            lastSeenIds = new Set(items.map(n => n.id));
+            firstLoad = false;
+        });
+    }
+
+    // Click on notification item => mark as read (then default link nav happens)
+    $(document).on('click', '.notif-item', function () {
+        const id = $(this).data('id');
+        if (!id) return;
+        $.post(URL_READ + '/' + encodeURIComponent(id) + '/read');
+    });
+
+    // Mark all as read
+    $('#notifMarkAllRead').on('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        $.post(URL_ALL).done(function () {
+            refresh();
+        });
+    });
+
+    @auth
+    refresh();
+    setInterval(refresh, POLL_MS);
+    @endauth
+})();
 </script>
 
 @stack('js')

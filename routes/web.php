@@ -20,6 +20,7 @@ use App\Http\Controllers\Admin\PackageController;
 use App\Http\Controllers\Admin\PppProfileController;
 use App\Http\Controllers\Admin\IpPoolController;
 use App\Http\Controllers\Admin\PopSettingController;
+use App\Http\Controllers\Admin\UserNotificationController;
 use App\Http\Controllers\Admin\PaymentGatewayController;
 use App\Http\Controllers\Admin\NotificationSettingController;
 use App\Http\Controllers\Admin\NotificationLogController;
@@ -183,11 +184,24 @@ Route::prefix('admin')->middleware(['auth', 'role:superadmin|admin|admin-pop|tek
         Route::post('/integration', [PopSettingController::class, 'updateIntegration'])->name('update-integration');
         Route::post('/test-radius', [PopSettingController::class, 'testRadiusConnection'])->name('test-radius');
         Route::post('/sync-isolir-profile', [PopSettingController::class, 'syncIsolirProfile'])->name('sync-isolir-profile');
-        
+
+        // In-app "Notifikasi ONU Baru" (bell)
+        Route::get('/unreg-notif', [PopSettingController::class, 'unregNotif'])->name('unreg-notif');
+        Route::post('/unreg-notif', [PopSettingController::class, 'updateUnregNotif'])->name('update-unreg-notif');
+
         // Region cascade
         Route::get('/cities/{province}', [PopSettingController::class, 'getCities']);
         Route::get('/districts/{city}', [PopSettingController::class, 'getDistricts']);
         Route::get('/villages/{district}', [PopSettingController::class, 'getVillages']);
+    });
+
+    // In-app notification bell (per-user, all roles)
+    Route::prefix('notifications')->name('notifications.')->group(function () {
+        Route::get('/', [UserNotificationController::class, 'index'])->name('index');
+        Route::get('/poll', [UserNotificationController::class, 'poll'])->name('poll');
+        Route::post('/{id}/read', [UserNotificationController::class, 'markRead'])->name('mark-read');
+        Route::post('/mark-all-read', [UserNotificationController::class, 'markAllRead'])->name('mark-all-read');
+        Route::delete('/{id}', [UserNotificationController::class, 'destroy'])->name('destroy');
     });
 
     // Message Templates (Email & WhatsApp)

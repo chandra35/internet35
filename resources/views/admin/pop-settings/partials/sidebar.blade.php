@@ -37,6 +37,13 @@
                 </a>
             </li>
             <li class="nav-item">
+                <a href="{{ route('admin.pop-settings.unreg-notif', request()->only('user_id')) }}"
+                   class="nav-link {{ request()->routeIs('admin.pop-settings.unreg-notif') ? 'active' : '' }}">
+                    <i class="fas fa-satellite-dish mr-2"></i> Notifikasi ONU Baru
+                    <small class="badge badge-success float-right">Baru</small>
+                </a>
+            </li>
+            <li class="nav-item">
                 <a href="{{ route('admin.message-templates.index', request()->only('user_id')) }}" 
                    class="nav-link {{ request()->routeIs('admin.message-templates.*') ? 'active' : '' }}">
                     <i class="fas fa-envelope-open-text mr-2"></i> Template Pesan

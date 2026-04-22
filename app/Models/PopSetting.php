@@ -111,6 +111,9 @@ class PopSetting extends Model
         'sms_api_url',
         'sms_api_key',
         'sms_sender_id',
+        // In-app notification: New unregistered ONU detected (bell + toast)
+        'unreg_notif_settings',
+        'last_unreg_notif_scan_at',
     ];
 
     protected $casts = [
@@ -132,6 +135,8 @@ class PopSetting extends Model
         'wa_enabled' => 'boolean',
         'sms_enabled' => 'boolean',
         'reminder_enabled' => 'boolean',
+        'unreg_notif_settings' => 'array',
+        'last_unreg_notif_scan_at' => 'datetime',
     ];
 
     /**
@@ -417,6 +422,34 @@ class PopSetting extends Model
                 'ppn_percentage' => 11.00,
             ]
         );
+    }
+
+    /**
+     * Default config for in-app "New unregistered ONU detected" notifications.
+     * One source of truth — used by both UI form (pre-fill) and the scanner cron.
+     *
+     * @return array<string, mixed>
+     */
+    public static function defaultUnregNotifSettings(): array
+    {
+        return [
+            'enabled'       => true,
+            'scan_interval' => 60,   // seconds — how often cron may scan this POP
+            'poll_interval' => 30,   // seconds — how often the browser polls /poll endpoint
+            'toast'         => true, // show toast pop-up on new notif
+            'sound'         => false,// play short beep on new notif
+            'olts'          => [],   // empty = monitor ALL OLTs of this POP; otherwise filter by olt_id list
+        ];
+    }
+
+    /**
+     * Resolved unreg-notification setting (saved value merged with defaults).
+     */
+    public function unregNotifSetting(?string $key = null, mixed $default = null): mixed
+    {
+        $merged = array_merge(self::defaultUnregNotifSettings(), (array) ($this->unreg_notif_settings ?? []));
+        if ($key === null) return $merged;
+        return $merged[$key] ?? $default;
     }
 
     /**
