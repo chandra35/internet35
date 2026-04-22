@@ -1182,6 +1182,13 @@ class VsolHelper extends BaseOltHelper
     {
         $unregistered = [];
 
+        // VSOL OID for unregistered ONU serials is not yet known/mapped for V1600D.
+        // Returning empty silently to avoid log spam every minute from the scanner.
+        // TODO: discover correct OID via snmpwalk on a VSOL device with pending ONUs.
+        if (!isset($this->vsolOids['uncfgOnuSerial'])) {
+            return [];
+        }
+
         try {
             $uncfgSerials = $this->snmpWalk($this->vsolOids['uncfgOnuSerial']);
 
