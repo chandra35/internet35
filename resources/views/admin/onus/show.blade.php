@@ -1096,9 +1096,41 @@
     </div>
 </div>
 
-{{-- WiFi Edit Modal --}}
-<div class="modal fade" id="modal-wifi" tabindex="-1">
+{{-- ProvisioningCode Edit Modal --}}
+<div class="modal fade" id="modal-provcode" tabindex="-1">
     <div class="modal-dialog">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header" style="background: linear-gradient(135deg, #6f42c1 0%, #5a32a3 100%); border: none;">
+                <h5 class="modal-title text-white"><i class="fas fa-tag mr-2"></i>Edit ProvisioningCode</h5>
+                <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
+            </div>
+            <form id="form-provcode">
+                <div class="modal-body">
+                    <p class="text-muted small mb-2">
+                        Tag bebas (TR-069 <code>InternetGatewayDevice.DeviceInfo.ProvisioningCode</code>) yang tersimpan di firmware ONU.
+                        Biasanya dipakai untuk menandai siapa yang melakukan provisioning.
+                    </p>
+                    <div class="form-group mb-2">
+                        <label><i class="fas fa-pen text-primary mr-1"></i>Provisioning Code</label>
+                        <input type="text" name="code" id="provcode-input" class="form-control" maxlength="64" placeholder="contoh: internet35-init" autocomplete="off" required>
+                        <small class="form-text text-muted">Maksimal 64 karakter.</small>
+                    </div>
+                    <div class="form-group mb-0">
+                        <label class="text-muted small mb-1">Nilai saat ini</label>
+                        <div><code id="provcode-current">-</code></div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary" id="btn-save-provcode"><i class="fas fa-save mr-1"></i>Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{{-- WiFi Edit Modal --}}
+<div class="modal fade" id="modal-wifi" tabindex="-1">    <div class="modal-dialog">
         <div class="modal-content border-0 shadow">
             <div class="modal-header" style="background: linear-gradient(135deg, #17a2b8 0%, #138496 100%); border: none;">
                 <h5 class="modal-title text-white"><i class="fas fa-wifi mr-2"></i>Edit Wireless</h5>
@@ -2775,23 +2807,36 @@ $(function() {
     // Edit ProvisioningCode (DeviceInfo.ProvisioningCode)
     $(document).on('click', '#btn-edit-provcode', function() {
         var current = $('#tr069-provcode-text').text().trim();
-        var code = window.prompt('Set ProvisioningCode (tag bebas, max 64 char):', current);
-        if (code === null) return;
-        code = code.trim();
+        $('#provcode-current').text(current || '-');
+        $('#provcode-input').val(current);
+        $('#modal-provcode').modal('show');
+        setTimeout(function(){ $('#provcode-input').trigger('focus').trigger('select'); }, 300);
+    });
+
+    $(document).on('submit', '#form-provcode', function(e) {
+        e.preventDefault();
+        var code = ($('#provcode-input').val() || '').trim();
+        var current = $('#tr069-provcode-text').text().trim();
         if (!code) { toastr.warning('ProvisioningCode tidak boleh kosong'); return; }
         if (code.length > 64) { toastr.warning('Maksimal 64 karakter'); return; }
-        if (code === current) return;
+        if (code === current) { $('#modal-provcode').modal('hide'); return; }
+
+        var btn = $('#btn-save-provcode').prop('disabled', true);
+        var origHtml = btn.html();
+        btn.html('<i class="fas fa-spinner fa-spin mr-1"></i>Mengirim...');
 
         $.post('/admin/onus/{{ $onu->id }}/tr069-provisioning-code', { _token: '{{ csrf_token() }}', code: code })
             .done(function(res) {
                 if (res.success) {
                     $('#tr069-provcode-text').text(code);
                     toastr.success(res.message || 'ProvisioningCode tersimpan');
+                    $('#modal-provcode').modal('hide');
                 } else {
                     toastr.error(res.message || 'Gagal menyimpan');
                 }
             })
-            .fail(function() { toastr.error('Koneksi gagal'); });
+            .fail(function() { toastr.error('Koneksi gagal'); })
+            .always(function() { btn.prop('disabled', false).html(origHtml); });
     });
 
     // Clients tab: refresh
