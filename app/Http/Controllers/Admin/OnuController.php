@@ -1635,6 +1635,38 @@ class OnuController extends Controller implements HasMiddleware
     }
 
     /**
+     * Set TR-069 ProvisioningCode on device (free-text tag stored in firmware).
+     */
+    public function setTr069ProvisioningCode(Onu $onu, Request $request)
+    {
+        $request->validate([
+            'code' => 'required|string|max:64',
+        ]);
+
+        try {
+            $genieacs = new \App\Services\GenieAcsService();
+            $device = $genieacs->findDeviceBySerial($onu->serial_number);
+
+            if (!$device) {
+                return response()->json(['success' => false, 'message' => 'Device tidak ditemukan di GenieACS']);
+            }
+
+            $code = trim($request->code);
+            $result = $genieacs->setParameterValues($device['device_id'], [
+                'InternetGatewayDevice.DeviceInfo.ProvisioningCode' => [$code, 'xsd:string'],
+            ], true);
+
+            return response()->json(array_merge($result, [
+                'message' => $result['success']
+                    ? "ProvisioningCode berhasil diset ke '{$code}'"
+                    : ($result['message'] ?? 'Gagal mengubah ProvisioningCode'),
+            ]));
+        } catch (Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * Change web UI user password via TR-069 X_HW_UserInfo.
      */
     public function changeTr069UserPassword(Onu $onu, Request $request)

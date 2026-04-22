@@ -423,6 +423,7 @@ Route::prefix('admin')->middleware(['auth', 'role:superadmin|admin|admin-pop|tek
         Route::post('/{onu}/tr069-clear-tasks', [\App\Http\Controllers\Admin\OnuController::class, 'clearTr069Tasks'])->name('tr069-clear-tasks');
         Route::post('/{onu}/tr069-firmware', [\App\Http\Controllers\Admin\OnuController::class, 'downloadFirmwareTr069'])->name('tr069-firmware');
         Route::post('/{onu}/tr069-inform-interval', [\App\Http\Controllers\Admin\OnuController::class, 'setTr069InformInterval'])->name('tr069-inform-interval');
+        Route::post('/{onu}/tr069-provisioning-code', [\App\Http\Controllers\Admin\OnuController::class, 'setTr069ProvisioningCode'])->name('tr069-provisioning-code');
         Route::post('/{onu}/tr069-user-password', [\App\Http\Controllers\Admin\OnuController::class, 'changeTr069UserPassword'])->name('tr069-user-password');
         Route::post('/{onu}/tr069-security', [\App\Http\Controllers\Admin\OnuController::class, 'setTr069Security'])->name('tr069-security');
         Route::post('/{onu}/tr069-lan', [\App\Http\Controllers\Admin\OnuController::class, 'setTr069Lan'])->name('tr069-lan');

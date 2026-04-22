@@ -1537,7 +1537,7 @@ $(function() {
         if (dev.serial_number) rows += '<tr><td>Serial Number</td><td><code>' + dev.serial_number + '</code></td></tr>';
         if (dev.software_version) rows += '<tr><td>Firmware</td><td><span class="badge badge-primary">' + dev.software_version + '</span></td></tr>';
         if (dev.hardware_version) rows += '<tr><td>Hardware Ver.</td><td>' + dev.hardware_version + '</td></tr>';
-        if (dev.provisioning_code) rows += '<tr><td>Provisioning</td><td>' + dev.provisioning_code + '</td></tr>';
+        if (dev.provisioning_code) rows += '<tr><td>Provisioning</td><td><span id="tr069-provcode-text">' + dev.provisioning_code + '</span> <button type="button" class="btn btn-xs btn-link p-0 ml-1" id="btn-edit-provcode" title="Ubah ProvisioningCode"><i class="fas fa-pen text-muted"></i></button></td></tr>';
         if (dev.device_id) rows += '<tr><td>Device ID</td><td><code class="small">' + dev.device_id + '</code></td></tr>';
         $('#tr069-general-table').html(rows);
 
@@ -2770,6 +2770,28 @@ $(function() {
             })
             .fail(function() { toastr.error('Koneksi gagal'); })
             .always(function() { btn.prop('disabled', false).find('i').removeClass('fa-spin'); });
+    });
+
+    // Edit ProvisioningCode (DeviceInfo.ProvisioningCode)
+    $(document).on('click', '#btn-edit-provcode', function() {
+        var current = $('#tr069-provcode-text').text().trim();
+        var code = window.prompt('Set ProvisioningCode (tag bebas, max 64 char):', current);
+        if (code === null) return;
+        code = code.trim();
+        if (!code) { toastr.warning('ProvisioningCode tidak boleh kosong'); return; }
+        if (code.length > 64) { toastr.warning('Maksimal 64 karakter'); return; }
+        if (code === current) return;
+
+        $.post('/admin/onus/{{ $onu->id }}/tr069-provisioning-code', { _token: '{{ csrf_token() }}', code: code })
+            .done(function(res) {
+                if (res.success) {
+                    $('#tr069-provcode-text').text(code);
+                    toastr.success(res.message || 'ProvisioningCode tersimpan');
+                } else {
+                    toastr.error(res.message || 'Gagal menyimpan');
+                }
+            })
+            .fail(function() { toastr.error('Koneksi gagal'); });
     });
 
     // Clients tab: refresh
