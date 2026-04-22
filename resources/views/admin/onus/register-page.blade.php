@@ -444,6 +444,82 @@ $(function() {
     var currentOltBrand = null;
     var oltZones = [];
 
+    // ========== Phase 2 result handler (configure-service / pon-onu-mng) ==========
+    function handlePhase2Result(res2, autoFallback, originalType, redirectUrl, onuDbId) {
+        var html = '<div class="text-left">';
+        if (autoFallback) {
+            html += '<div class="alert alert-warning py-1 px-2 mb-2 small"><i class="fas fa-magic mr-1"></i>Profile <strong>' + originalType + '</strong> tidak dikenal, otomatis pakai <strong>ALL</strong>.</div>';
+        }
+
+        if (res2.success) {
+            html += '<div class="alert alert-success py-1 px-2 mb-2 small"><i class="fas fa-check mr-1"></i>Layanan ONU (VLAN/TR069 ACS) berhasil dikonfigurasi & terverifikasi.</div>';
+            html += '</div>';
+            Swal.fire({
+                title: '<i class="fas fa-check-circle text-success mr-2"></i>ONU Berhasil Didaftarkan!',
+                html: html, icon: 'success',
+                showCancelButton: true,
+                confirmButtonText: '<i class="fas fa-eye mr-1"></i>Lihat ONU',
+                cancelButtonText: 'Register Lagi',
+            }).then(function(r) {
+                if (r.isConfirmed && redirectUrl) window.location.href = redirectUrl;
+                else { $('#register-section').hide(); $('#btn-scan').click(); }
+            });
+            return;
+        }
+
+        // Phase 2 gagal — tampilkan detail konkret + tombol retry
+        var ver = res2.verification || {};
+        html += '<div class="alert alert-warning py-2 px-2 mb-2 small">';
+        html += '<i class="fas fa-exclamation-triangle mr-1"></i><strong>ONU sudah terdaftar, tapi konfigurasi layanan belum aktif.</strong>';
+        html += '<div class="mt-1 text-muted">' + (res2.message || 'Konfigurasi layanan gagal.') + '</div>';
+        if (ver.config_state) {
+            var stateClass = ver.config_state === 'success' ? 'badge-success' : 'badge-danger';
+            html += '<div class="mt-1">Config state OLT: <span class="badge ' + stateClass + '">' + ver.config_state + '</span></div>';
+        }
+        html += '<div class="mt-2 small">Penyebab umum: ONU baru online butuh waktu sync OMCI. Klik <strong>Coba Lagi</strong> setelah ~15 detik.</div>';
+        html += '</div></div>';
+
+        Swal.fire({
+            title: '<i class="fas fa-exclamation-triangle text-warning mr-2"></i>ACS Belum Aktif',
+            html: html, icon: 'warning',
+            showCancelButton: true,
+            showDenyButton: true,
+            confirmButtonText: '<i class="fas fa-redo mr-1"></i>Coba Lagi',
+            denyButtonText: '<i class="fas fa-eye mr-1"></i>Lihat ONU',
+            cancelButtonText: 'Tutup',
+        }).then(function(r) {
+            if (r.isConfirmed) {
+                retryConfigureService(onuDbId, autoFallback, originalType, redirectUrl);
+            } else if (r.isDenied && redirectUrl) {
+                window.location.href = redirectUrl;
+            }
+        });
+    }
+
+    function retryConfigureService(onuDbId, autoFallback, originalType, redirectUrl) {
+        Swal.fire({
+            title: 'Mengkonfigurasi ulang...',
+            html: '<i class="fas fa-cog fa-spin"></i> Mengirim perintah pon-onu-mng + tr069 ke OLT...',
+            allowOutsideClick: false, showConfirmButton: false,
+        });
+        $.ajax({
+            url: '/admin/onus/' + onuDbId + '/configure-service',
+            method: 'POST', timeout: 60000,
+            data: {
+                _token: '{{ csrf_token() }}',
+                vlan:           $('#reg_vlan_id').val(),
+                mgmt_vlan:      $('#reg_mgmt_vlan').val(),
+                pppoe_username: $('#reg_pppoe_username').val(),
+                pppoe_password: $('#reg_pppoe_password').val(),
+            },
+            success: function(res2) { handlePhase2Result(res2, autoFallback, originalType, redirectUrl, onuDbId); },
+            error: function(xhr) {
+                var res2 = xhr.responseJSON || { success: false, message: 'Network error' };
+                handlePhase2Result(res2, autoFallback, originalType, redirectUrl, onuDbId);
+            }
+        });
+    }
+
     // Known ZTE OLT profile types (must exist on OLT, verified safe)
     var knownZteProfiles = [
         'ALL', 'OPEN_ZTE', 'OPEN_FIBERHOME', 'OPEN_NOKIA',
@@ -943,46 +1019,11 @@ $(function() {
                             pppoe_password: $('#reg_pppoe_password').val(),
                         },
                         success: function(res2) {
-                            var successHtml = '<div class="text-left">';
-                            if (autoFallback) {
-                                successHtml += '<div class="alert alert-warning py-1 px-2 mb-2 small"><i class="fas fa-magic mr-1"></i>Profile <strong>' + originalType + '</strong> tidak dikenal, otomatis pakai <strong>ALL</strong>.</div>';
-                            }
-                            if (res2.success) {
-                                successHtml += '<div class="alert alert-success py-1 px-2 mb-2 small"><i class="fas fa-check mr-1"></i>Layanan ONU (VLAN/TR069) berhasil dikonfigurasi.</div>';
-                            } else {
-                                successHtml += '<div class="alert alert-warning py-1 px-2 mb-2 small"><i class="fas fa-exclamation-triangle mr-1"></i>ONU terdaftar, tapi konfigurasi layanan belum selesai — bisa dilakukan dari halaman ONU.</div>';
-                            }
-                            successHtml += '</div>';
-
-                            Swal.fire({
-                                title: '<i class="fas fa-check-circle text-success mr-2"></i>ONU Berhasil Didaftarkan!',
-                                html: successHtml,
-                                icon: 'success',
-                                showCancelButton: true,
-                                confirmButtonText: '<i class="fas fa-eye mr-1"></i>Lihat ONU',
-                                cancelButtonText: 'Register Lagi',
-                            }).then(function(result) {
-                                if (result.isConfirmed && redirectUrl) {
-                                    window.location.href = redirectUrl;
-                                } else {
-                                    $('#register-section').hide();
-                                    $('#btn-scan').click();
-                                }
-                            });
+                            handlePhase2Result(res2, autoFallback, originalType, redirectUrl, onuDbId);
                         },
-                        error: function() {
-                            Swal.fire({
-                                title: 'ONU Terdaftar',
-                                html: '<div class="alert alert-warning py-1 px-2 small text-left"><i class="fas fa-exclamation-triangle mr-1"></i>ONU berhasil didaftarkan ke OLT dan database, tapi konfigurasi layanan (VLAN/TR069) belum selesai. Bisa dikonfigurasi dari halaman ONU.</div>',
-                                icon: 'warning',
-                                showCancelButton: true,
-                                confirmButtonText: '<i class="fas fa-eye mr-1"></i>Lihat ONU',
-                                cancelButtonText: 'Tutup',
-                            }).then(function(result) {
-                                if (result.isConfirmed && redirectUrl) {
-                                    window.location.href = redirectUrl;
-                                }
-                            });
+                        error: function(xhr) {
+                            var res2 = xhr.responseJSON || { success: false, message: 'Konfigurasi layanan gagal (network error)' };
+                            handlePhase2Result(res2, autoFallback, originalType, redirectUrl, onuDbId);
                         }
                     });
                 }, 400);

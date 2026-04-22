@@ -490,8 +490,9 @@ class OnuController extends Controller implements HasMiddleware
             $result = $helper->applyPonOnuMng($onu->slot, $onu->port, $onu->onu_id, $params);
 
             return response()->json([
-                'success' => $result['success'],
-                'message' => $result['message'],
+                'success'      => $result['success'],
+                'message'      => $result['message'],
+                'verification' => $result['verification'] ?? null,
             ], $result['success'] ? 200 : 422);
         } catch (\Exception $e) {
             \Log::error('configureService error: ' . $e->getMessage());

@@ -1763,14 +1763,133 @@ class ZteC320Helper extends BaseOltHelper
             $output = $this->executeBatchCliCommands($commands);
             \Log::info('ZTE applyPonOnuMng output', ['output' => $output]);
 
-            $result['success'] = true;
-            $result['message'] = "Konfigurasi layanan ONU berhasil diterapkan.";
-            if ($this->hasCliError($output)) {
-                $result['message'] .= " (beberapa perintah mungkin tidak didukung ONU ini — cek log).";
+            // Detect transient failure: ONU belum sync OMCI → "Invalid command" pada
+            // perintah `pon-onu-mng gpon-onu_*` membuat seluruh blok ditolak. Retry sekali
+            // setelah jeda lebih panjang.
+            $transient = $this->isPonOnuMngTransientError($output);
+            if ($transient) {
+                \Log::warning('ZTE applyPonOnuMng: pon-onu-mng ditolak (transient), retry setelah 12s', [
+                    'slot' => $slot, 'port' => $port, 'onu_id' => $onuId,
+                ]);
+                sleep(12);
+                $output = $this->executeBatchCliCommands($commands);
+                \Log::info('ZTE applyPonOnuMng retry output', ['output' => $output]);
+            }
+
+            // Verifikasi pasca-config: cek apakah `tr069-mgmt 1 acs` dan flow benar-benar
+            // tertulis di OLT, dan `Config state: success`.
+            $verify = $this->verifyPonOnuMngApplied($slot, $port, $onuId, [
+                'vlan'      => $vlan,
+                'mgmt_vlan' => $mgmtVlan,
+                'acs_url'   => $acsUrl,
+            ]);
+            $result['verification'] = $verify;
+
+            $fatalErrors = $this->extractFatalCliErrors($output);
+
+            if (!$verify['ok']) {
+                $result['success'] = false;
+                $result['message'] = 'Konfigurasi layanan belum aktif: ' . implode('; ', $verify['issues']);
+                if ($fatalErrors) {
+                    $result['message'] .= ' [OLT: ' . implode(' | ', array_slice($fatalErrors, 0, 3)) . ']';
+                }
+                \Log::warning('ZTE applyPonOnuMng verification failed', [
+                    'issues' => $verify['issues'],
+                    'fatal_errors' => $fatalErrors,
+                ]);
+            } else {
+                $result['success'] = true;
+                $result['message'] = 'Konfigurasi layanan ONU berhasil diterapkan & terverifikasi.';
+                if ($fatalErrors) {
+                    // Verifikasi lulus tapi ada perintah error (misal security-mgmt sudah ada).
+                    // Bukan blocker, hanya info.
+                    $result['message'] .= ' (catatan: ' . count($fatalErrors) . ' perintah info — cek log).';
+                }
             }
         } catch (Exception $e) {
             $result['message'] = 'applyPonOnuMng gagal: ' . $e->getMessage();
             \Log::error('ZTE applyPonOnuMng error: ' . $e->getMessage());
+        }
+
+        return $result;
+    }
+
+    /**
+     * Deteksi error transient: pon-onu-mng context tidak bisa di-enter karena ONU
+     * belum selesai sync OMCI setelah register. ZTE mengembalikan "Invalid command"
+     * untuk konteks ini, sehingga seluruh perintah turunan ikut ditolak.
+     */
+    protected function isPonOnuMngTransientError(string $output): bool
+    {
+        // Hitung berapa banyak baris "Invalid command" / "Invalid input"
+        $invalidCount = preg_match_all('/%Error\s+\d+:\s*Invalid (?:command|input|parameter)/i', $output);
+        // Heuristik: kalau >= 3 perintah ditolak invalid, kemungkinan besar konteks pon-onu-mng gagal di-enter
+        return $invalidCount >= 3;
+    }
+
+    /**
+     * Ekstrak baris %Error nyata dari output OLT (bukan kata "fail" yang muncul di
+     * "Config state: fail" output show command).
+     *
+     * @return array<string>
+     */
+    protected function extractFatalCliErrors(string $output): array
+    {
+        $errors = [];
+        if (preg_match_all('/^.*%Error\s+\d+\s*:\s*(.+?)\s*$/mi', $output, $m)) {
+            foreach ($m[1] as $msg) {
+                $msg = trim($msg);
+                if ($msg !== '' && !in_array($msg, $errors, true)) {
+                    $errors[] = $msg;
+                }
+            }
+        }
+        return $errors;
+    }
+
+    /**
+     * Verifikasi `pon-onu-mng` benar-benar terkonfigurasi di OLT setelah
+     * applyPonOnuMng dijalankan.
+     *
+     * @return array{ok:bool, issues:array<string>, config_state:?string, has_acs:bool, has_flow:bool}
+     */
+    protected function verifyPonOnuMngApplied(int $slot, int $port, int $onuId, array $expected): array
+    {
+        $result = [
+            'ok' => false,
+            'issues' => [],
+            'config_state' => null,
+            'has_acs' => false,
+            'has_flow' => false,
+        ];
+
+        try {
+            // ZTE C320 tidak support `show running-config-pon-onu-mng`. Andalkan
+            // `show gpon onu detail-info` — `Config state: success` = OMCI diterima
+            // (artinya pon-onu-mng commands termasuk tr069-mgmt acs URL diterima ONU).
+            $output = $this->executeBatchCliCommands([
+                "show gpon onu detail-info gpon-onu_1/{$slot}/{$port}:{$onuId}",
+            ]);
+
+            if (preg_match('/Config state:\s*(\S+)/i', $output, $m)) {
+                $result['config_state'] = strtolower($m[1]);
+            }
+
+            $state = $result['config_state'];
+            if ($state === 'success') {
+                $result['has_acs'] = true; // OMCI accepted → tr069-mgmt URL diterima ONU
+                $result['has_flow'] = true;
+                $result['ok'] = true;
+            } elseif ($state === 'fail') {
+                $result['issues'][] = 'Config state OLT = fail (ONU menolak konfigurasi OMCI; cek profile/VLAN/PON sync)';
+            } elseif ($state === null) {
+                $result['issues'][] = 'Tidak dapat membaca Config state dari OLT (output kosong/parse gagal)';
+            } else {
+                // initial / pending / lainnya
+                $result['issues'][] = "Config state OLT = {$state} (belum success, ONU mungkin masih sync)";
+            }
+        } catch (Exception $e) {
+            $result['issues'][] = 'Verifikasi gagal: ' . $e->getMessage();
         }
 
         return $result;
