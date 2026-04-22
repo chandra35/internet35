@@ -397,62 +397,26 @@ class GenieAcsService
 
     /**
      * Configure WAN PPPoE on device via TR069.
+     *
+     * Path discovery (penting untuk Huawei pasca factory reset):
+     *  - Default firmware Huawei kadang punya WANConnectionDevice.1 = WANIPConnection
+     *    (TR069 mgmt) saja, BELUM ada WANPPPConnection di mana pun.
+     *  - Hard-code path `WCD.1.WANPPPConnection.1` akan menyebabkan fault 9005
+     *    "Invalid parameter name" karena slot itu reserved untuk IPConnection.
+     *  - Helper findOrCreatePppoeWanPath() mendeteksi PPP eksisting, atau
+     *    addObject WANConnectionDevice baru bila perlu.
      */
     public function configureWanPppoe(string $deviceId, array $config): array
     {
         $vlan = $config['vlan'] ?? 100;
         $username = $config['username'] ?? '';
         $password = $config['password'] ?? '';
-        $basePath = 'InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection';
 
-        // Check if WANPPPConnection instance already exists
-        $wanInfo = $this->getWanInfo($deviceId);
-        $existingPpp = null;
-        if ($wanInfo) {
-            foreach ($wanInfo as $wan) {
-                if ($wan['type'] === 'PPPoE' && !empty($wan['path'])) {
-                    $existingPpp = $wan['path'];
-                    break;
-                }
-            }
+        $pathResult = $this->findOrCreatePppoeWanPath($deviceId);
+        if (!$pathResult['success']) {
+            return $pathResult; // {success:false, pending?:bool, message:string}
         }
-
-        if ($existingPpp) {
-            // Use existing PPP connection
-            $wanPath = $existingPpp;
-        } else {
-            // Check if there's already a pending addObject task for WANPPPConnection (avoid duplicates)
-            $pendingTasks = $this->getDeviceTasks($deviceId);
-            foreach ($pendingTasks as $task) {
-                if (($task['name'] ?? '') === 'addObject' &&
-                    str_contains($task['objectName'] ?? '', 'WANPPPConnection')) {
-                    return [
-                        'success' => false,
-                        'pending' => true,
-                        'message' => 'Task AddObject WANPPPConnection masih dalam antrian. Tunggu ONU terhubung ke ACS (1-3 menit), lalu klik "Setup PPPoE WAN" lagi untuk mengatur username/password.',
-                    ];
-                }
-            }
-
-            // Create new WANPPPConnection instance via AddObject
-            $addResult = $this->addObject($deviceId, "{$basePath}.", true);
-            if (!$addResult['success']) {
-                return ['success' => false, 'message' => 'Gagal membuat WANPPPConnection: ' . ($addResult['message'] ?? 'unknown error')];
-            }
-
-            // If addObject not yet completed (202), task is queued — ONU will process on next inform
-            if (!($addResult['completed'] ?? false)) {
-                return [
-                    'success' => false,
-                    'pending' => true,
-                    'message' => 'Perintah AddObject telah dikirim ke antrian GenieACS. Tunggu ONU terhubung ke ACS (1-3 menit), lalu klik "Setup PPPoE WAN" lagi untuk mengatur username/password.',
-                ];
-            }
-
-            // AddObject completed synchronously — use returned instance number
-            $instance = $addResult['instance'] ?? 1;
-            $wanPath = "{$basePath}.{$instance}";
-        }
+        $wanPath = $pathResult['path'];
 
         $params = $this->buildWanPppoeParams($wanPath, [
             'username' => $username,
@@ -463,6 +427,97 @@ class GenieAcsService
         ], $this->getBrandByDeviceId($deviceId));
 
         return $this->setParameterValues($deviceId, $params, true);
+    }
+
+    /**
+     * Find existing PPPoE WAN path or create one (idempotent, multi-step aware).
+     *
+     * Returns one of:
+     *   {success:true,  path:'InternetGatewayDevice.WANDevice.1.WANConnectionDevice.N.WANPPPConnection.M'}
+     *   {success:false, pending:true,  message:'...tunggu inform berikutnya...'}
+     *   {success:false, message:'...error...'}
+     */
+    protected function findOrCreatePppoeWanPath(string $deviceId): array
+    {
+        // 1. Reuse existing PPP if any
+        $wanInfo = $this->getWanInfo($deviceId) ?: [];
+        foreach ($wanInfo as $wan) {
+            if (($wan['type'] ?? null) === 'PPPoE' && !empty($wan['path'])) {
+                return ['success' => true, 'path' => $wan['path']];
+            }
+        }
+
+        // 2. Avoid duplicate addObject in queue
+        foreach ($this->getDeviceTasks($deviceId) as $task) {
+            if (($task['name'] ?? '') === 'addObject' &&
+                str_contains($task['objectName'] ?? '', 'WANConnectionDevice')) {
+                return [
+                    'success' => false,
+                    'pending' => true,
+                    'message' => 'Task AddObject WANConnectionDevice/WANPPPConnection masih dalam antrian. Tunggu ONU inform berikutnya (1-3 menit), lalu klik "Setup PPPoE WAN" lagi.',
+                ];
+            }
+        }
+
+        // 3. Cari WCD existing yang punya container WANPPPConnection (boleh kosong)
+        //    dan tidak dipakai oleh WANIPConnection (untuk hindari konflik TR069 mgmt).
+        $wcdParent = 'InternetGatewayDevice.WANDevice.1.WANConnectionDevice';
+        $resp = Http::timeout($this->timeout)->get("{$this->nbiUrl}/devices", [
+            'query'      => json_encode(['_id' => $deviceId]),
+            'projection' => $wcdParent,
+        ]);
+        $tree = $resp->json()[0]['InternetGatewayDevice']['WANDevice']['1']['WANConnectionDevice'] ?? [];
+
+        $candidateWcd = null;
+        foreach ($tree as $idx => $val) {
+            if (!is_array($val) || str_starts_with((string) $idx, '_')) continue;
+            $hasIp  = !empty(array_filter(($val['WANIPConnection']  ?? []), 'is_array'));
+            $hasPpp = !empty(array_filter(($val['WANPPPConnection'] ?? []), 'is_array'));
+            // PPP container ada (mungkin kosong) tapi instance belum ada → bisa addObject di sini
+            if (!$hasPpp && !$hasIp && array_key_exists('WANPPPConnection', $val)) {
+                $candidateWcd = $idx;
+                break;
+            }
+        }
+
+        // 4. Kalau tidak ada WCD kosong, buat WCD baru
+        if ($candidateWcd === null) {
+            $addWcd = $this->addObject($deviceId, "{$wcdParent}.", true);
+            if (!$addWcd['success']) {
+                return ['success' => false, 'message' => 'Gagal membuat WANConnectionDevice baru: ' . ($addWcd['message'] ?? 'unknown')];
+            }
+            if (!($addWcd['completed'] ?? false)) {
+                return [
+                    'success' => false,
+                    'pending' => true,
+                    'message' => 'AddObject WANConnectionDevice di-queue. Tunggu ONU inform (1-3 menit), lalu klik "Setup PPPoE WAN" lagi.',
+                ];
+            }
+            $candidateWcd = $addWcd['instance'] ?? null;
+            if (!$candidateWcd) {
+                return ['success' => false, 'message' => 'AddObject WCD sukses tapi instance tidak diketahui.'];
+            }
+        }
+
+        // 5. AddObject WANPPPConnection di WCD terpilih
+        $pppParent = "{$wcdParent}.{$candidateWcd}.WANPPPConnection";
+        $addPpp = $this->addObject($deviceId, "{$pppParent}.", true);
+        if (!$addPpp['success']) {
+            return ['success' => false, 'message' => 'Gagal membuat WANPPPConnection di WCD.' . $candidateWcd . ': ' . ($addPpp['message'] ?? 'unknown')];
+        }
+        if (!($addPpp['completed'] ?? false)) {
+            return [
+                'success' => false,
+                'pending' => true,
+                'message' => 'AddObject WANPPPConnection di-queue. Tunggu ONU inform (1-3 menit), lalu klik "Setup PPPoE WAN" lagi.',
+            ];
+        }
+        $pppInstance = $addPpp['instance'] ?? 1;
+
+        return [
+            'success' => true,
+            'path'    => "{$pppParent}.{$pppInstance}",
+        ];
     }
 
     /**

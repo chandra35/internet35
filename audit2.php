@@ -3,31 +3,66 @@ chdir('/www/wwwroot/internet35');
 require 'vendor/autoload.php';
 $app = require 'bootstrap/app.php';
 $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
-$olt = App\Models\Olt::where('ip_address','136.1.1.100')->first();
-$user = $olt->telnet_username;
-$pass = $olt->telnet_password;
-function waitFor($fp,$patterns,$timeout=10){$buf='';$start=time();while(time()-$start<$timeout){$data=@fread($fp,4096);if($data)$buf.=$data;foreach($patterns as $p){if(strpos($buf,$p)!==false)return $buf;}if(stream_get_meta_data($fp)['timed_out'])usleep(100000);}return $buf;}
-function readPrompt($fp,$timeout=15){$buf='';$deadline=time()+$timeout;while(time()<$deadline){$data=@fread($fp,4096);if($data)$buf.=$data;if(preg_match('/[\w)][#>]\s*$/',$buf))break;if(stream_get_meta_data($fp)['timed_out'])usleep(100000);}return $buf;}
-$fp=fsockopen('136.1.1.100',23,$e,$es,10);stream_set_timeout($fp,2);
-waitFor($fp,['Username:','login:','>']);fwrite($fp,$user."\r\n");
-waitFor($fp,['Password:','password:']);fwrite($fp,$pass."\r\n");
-sleep(1);readPrompt($fp);fwrite($fp,"terminal length 0\r\n");usleep(500000);readPrompt($fp);
 
-function cmd($fp,$c){fwrite($fp,$c."\r\n");usleep(300000);$o=readPrompt($fp,8);echo"\n=== ".$c." ===\n".preg_replace('/[\x00-\x08\x0e-\x1f\x7f]/','',$o);}
+use Illuminate\Support\Facades\Http;
 
-// VLAN 111 details
-cmd($fp,'show vlan 111');
-// DHCP server pools
-cmd($fp,'show ip dhcp pool');
-// DHCP snooping
-cmd($fp,'show ip dhcp snooping');
-// ONU 16 ip-host binding  
-cmd($fp,'show gpon remote-unit ip-host gpon-onu_1/1/1:16 1');
-cmd($fp,'show gpon remote-unit ip-host gpon-onu_1/1/1:16 2');
-// ONU 16 pon-onu-mng running config (current state)
-fwrite($fp,"configure terminal\r\n");usleep(300000);readPrompt($fp);
-fwrite($fp,"pon-onu-mng gpon-onu_1/1/1:16\r\n");usleep(300000);readPrompt($fp);
-cmd($fp,'show config');
-fwrite($fp,"exit\r\n");usleep(200000);readPrompt($fp);
-fwrite($fp,"exit\r\n");usleep(200000);readPrompt($fp);
-fclose($fp);
+$serial = 'HWTCD38C26AA';
+$nbi = 'http://172.10.10.254:7557';
+$svc = new App\Services\GenieAcsService();
+$dev = $svc->findDeviceBySerial($serial);
+if (!$dev) { echo "NOT FOUND\n"; exit; }
+$id = $dev['device_id'];
+echo "Device: $id\n";
+echo "Last inform: ".($dev['last_inform']??'?')."\n\n";
+
+echo "=== PENDING TASKS ===\n";
+foreach ($svc->getDeviceTasks($id) as $t) {
+    echo "- ".($t['name']??'?')." | id=".($t['_id']??'?')."\n";
+    if (isset($t['parameterValues'])) foreach ($t['parameterValues'] as $pv) echo "    ".$pv[0]." = ".json_encode($pv[1])."\n";
+    if (isset($t['parameterNames'])) echo "    names=".json_encode($t['parameterNames'])."\n";
+    if (isset($t['objectName'])) echo "    object=".$t['objectName']."\n";
+    if (isset($t['fault'])) echo "    FAULT=".json_encode($t['fault'])."\n";
+}
+
+echo "\n=== FAULTS ===\n";
+$fr = Http::timeout(10)->get("$nbi/faults", ['query' => json_encode(['device' => $id])]);
+foreach (($fr->json() ?: []) as $f) {
+    echo "- ".($f['_id']??'?')." code=".($f['code']??'?')."\n";
+    echo "    msg=".($f['message']??'?')."\n";
+    echo "    ts=".($f['timestamp']??'?')."\n";
+    if (isset($f['detail'])) echo "    detail=".json_encode($f['detail'])."\n";
+}
+
+echo "\n=== ACS Mgmt ===\n";
+$r = Http::timeout(10)->get("$nbi/devices", [
+    'query' => json_encode(['_id'=>$id]),
+    'projection' => 'InternetGatewayDevice.ManagementServer',
+]);
+$ms = $r->json()[0]['InternetGatewayDevice']['ManagementServer'] ?? [];
+foreach (['ConnectionRequestURL','PeriodicInformEnable','PeriodicInformInterval','URL','Username'] as $k) {
+    echo "  $k = ".json_encode($ms[$k]['_value']??null)."\n";
+}
+
+echo "\n=== WANConnectionDevice instances ===\n";
+$r = Http::timeout(10)->get("$nbi/devices", [
+    'query' => json_encode(['_id'=>$id]),
+    'projection' => 'InternetGatewayDevice.WANDevice.1.WANConnectionDevice',
+]);
+$wcd = $r->json()[0]['InternetGatewayDevice']['WANDevice']['1']['WANConnectionDevice'] ?? [];
+foreach ($wcd as $idx => $val) {
+    if (!is_array($val) || str_starts_with($idx,'_')) continue;
+    echo "WCD.$idx:\n";
+    foreach (['WANPPPConnection','WANIPConnection'] as $type) {
+        $sub = $val[$type] ?? [];
+        foreach ($sub as $j => $v) {
+            if (!is_array($v) || str_starts_with($j,'_')) continue;
+            $name = $v['Name']['_value']??'-';
+            $en = $v['Enable']['_value']??'-';
+            $ip = $v['ExternalIPAddress']['_value']??'-';
+            $sl = $v['X_HW_SERVICELIST']['_value']??'-';
+            $vl = $v['X_HW_VLAN']['_value']??'-';
+            $u  = $v['Username']['_value']??'-';
+            echo "  $type.$j  name=$name en=$en ip=$ip vlan=$vl SL=$sl user=$u\n";
+        }
+    }
+}
