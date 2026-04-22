@@ -509,6 +509,14 @@ class GenieAcsService
                 }
                 if (array_key_exists('enable', $config)) {
                     $params["{$wanPath}.Name"] = [$baseName, 'xsd:string'];
+                    // PPPoE WAN HARUS dikunci ke service "INTERNET" saja.
+                    // Default firmware Huawei sering "TR069_INTERNET" → ONU pakai
+                    // IP PPPoE publik (10.x) sebagai ConnectionRequestURL, sehingga
+                    // GenieACS (di network internal 172.10.10.x) tidak bisa kirim
+                    // Connection Request balik → semua task setParameterValues
+                    // menumpuk di antrian.
+                    // Lihat docs/TR069_HUAWEI_SERVICELIST.md
+                    $params["{$wanPath}.X_HW_SERVICELIST"] = ['INTERNET', 'xsd:string'];
                 }
                 break;
 
