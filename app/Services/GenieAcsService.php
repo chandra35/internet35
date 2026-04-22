@@ -454,17 +454,86 @@ class GenieAcsService
             $wanPath = "{$basePath}.{$instance}";
         }
 
-        $params = [
-            "{$wanPath}.Enable" => [true, 'xsd:boolean'],
-            "{$wanPath}.ConnectionType" => ['IP_Routed', 'xsd:string'],
-            "{$wanPath}.Username" => [$username, 'xsd:string'],
-            "{$wanPath}.Password" => [$password, 'xsd:string'],
-            "{$wanPath}.NATEnabled" => [true, 'xsd:boolean'],
-            "{$wanPath}.X_HW_VLAN" => [(int) $vlan, 'xsd:int'],
-            "{$wanPath}.Name" => ['PPPoE_WAN', 'xsd:string'],
-        ];
+        $params = $this->buildWanPppoeParams($wanPath, [
+            'username' => $username,
+            'password' => $password,
+            'vlan'     => $vlan,
+            'enable'   => true,
+            'name'     => 'PPPoE_WAN',
+        ], $this->getBrandByDeviceId($deviceId));
 
         return $this->setParameterValues($deviceId, $params, true);
+    }
+
+    /**
+     * Build WAN PPPoE SetParameterValues payload tailored per vendor.
+     *
+     * Different ONU vendors expose VLAN tagging through different TR-069
+     * parameters. This helper centralizes the per-brand differences so
+     * configureWanPppoe()/updateWanPppoe() stay generic.
+     *
+     * Supported brands: huawei (X_HW_VLAN), fiberhome (VLAN encoded in .Name).
+     * Other brands fall back to standard parameters with no VLAN tagging
+     * (caller should configure VLAN at OLT/OMCI side instead).
+     *
+     * $config keys (all optional):
+     *   - username, password (string)
+     *   - vlan     (int)
+     *   - enable   (bool, default true when key present)
+     *   - name     (string, used as base for vendor-specific Name encoding)
+     */
+    protected function buildWanPppoeParams(string $wanPath, array $config, string $brand = 'unknown'): array
+    {
+        $params = [];
+
+        if (array_key_exists('enable', $config)) {
+            $params["{$wanPath}.Enable"] = [(bool) $config['enable'], 'xsd:boolean'];
+            $params["{$wanPath}.ConnectionType"] = ['IP_Routed', 'xsd:string'];
+            $params["{$wanPath}.NATEnabled"] = [true, 'xsd:boolean'];
+        }
+
+        if (isset($config['username'])) {
+            $params["{$wanPath}.Username"] = [(string) $config['username'], 'xsd:string'];
+        }
+        if (isset($config['password']) && $config['password'] !== '') {
+            $params["{$wanPath}.Password"] = [(string) $config['password'], 'xsd:string'];
+        }
+
+        $vlan = isset($config['vlan']) ? (int) $config['vlan'] : null;
+        $baseName = $config['name'] ?? 'PPPoE_WAN';
+
+        switch ($brand) {
+            case 'huawei':
+                if ($vlan !== null) {
+                    $params["{$wanPath}.X_HW_VLAN"] = [$vlan, 'xsd:int'];
+                }
+                if (array_key_exists('enable', $config)) {
+                    $params["{$wanPath}.Name"] = [$baseName, 'xsd:string'];
+                }
+                break;
+
+            case 'fiberhome':
+                // Fiberhome encodes VLAN inside the Name field using
+                // convention "{idx}_{MODE}_{R|B}_VID_{vlan}". Picking idx=2
+                // because idx=1 is typically reserved for TR069 mgmt WAN.
+                // Setting only Name (no separate VLAN parameter exists).
+                if ($vlan !== null) {
+                    $params["{$wanPath}.Name"] = ["2_INTERNET_R_VID_{$vlan}", 'xsd:string'];
+                } elseif (array_key_exists('enable', $config)) {
+                    $params["{$wanPath}.Name"] = [$baseName, 'xsd:string'];
+                }
+                break;
+
+            default:
+                // Unknown / generic vendors: only set Name when caller asked
+                // for a fresh setup. VLAN must be provisioned at the OLT.
+                if (array_key_exists('enable', $config)) {
+                    $params["{$wanPath}.Name"] = [$baseName, 'xsd:string'];
+                }
+                break;
+        }
+
+        return $params;
     }
 
     /**
@@ -883,17 +952,8 @@ class GenieAcsService
             return ['success' => false, 'message' => 'Hanya WAN PPPoE yang boleh diedit.'];
         }
 
-        $params = [];
-
-        if (isset($config['username'])) {
-            $params["{$wanPath}.Username"] = [$config['username'], 'xsd:string'];
-        }
-        if (isset($config['password']) && $config['password'] !== '') {
-            $params["{$wanPath}.Password"] = [$config['password'], 'xsd:string'];
-        }
-        if (isset($config['vlan'])) {
-            $params["{$wanPath}.X_HW_VLAN"] = [(int) $config['vlan'], 'xsd:int'];
-        }
+        $brand = $this->getBrandByDeviceId($deviceId);
+        $params = $this->buildWanPppoeParams($wanPath, $config, $brand);
 
         if (empty($params)) {
             return ['success' => false, 'message' => 'Tidak ada parameter yang diubah.'];
