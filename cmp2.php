@@ -1,44 +1,34 @@
 <?php
-// Minimal script - just get SmartOLT ONU config
-require '/www/wwwroot/internet35/vendor/autoload.php';
-$app = require_once '/www/wwwroot/internet35/bootstrap/app.php';
-$kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
-$kernel->bootstrap();
+chdir('/www/wwwroot/internet35');
+require 'vendor/autoload.php';
+$app = require 'bootstrap/app.php';
+$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+$olt = App\Models\Olt::where('ip_address','136.1.1.100')->first();
+$user = $olt->telnet_username;
+$pass = $olt->telnet_password;
+function waitFor($fp,$p,$t=10){$b='';$s=time();while(time()-$s<$t){$d=@fread($fp,4096);if($d)$b.=$d;foreach($p as $x){if(strpos($b,$x)!==false)return $b;}if(stream_get_meta_data($fp)['timed_out'])usleep(100000);}return $b;}
+function rp($fp,$t=15){$b='';$d=time()+$t;while(time()<$d){$x=@fread($fp,4096);if($x)$b.=$x;if(preg_match('/[\w)][#>]\s*$/',$b))break;if(stream_get_meta_data($fp)['timed_out'])usleep(100000);}return $b;}
+function c($fp,$cmd,$t=8){fwrite($fp,$cmd."\r\n");usleep(400000);$o=rp($fp,$t);echo "\n=== ".$cmd." ===\n".preg_replace('/[\x00-\x08\x0e-\x1f\x7f]/','',$o);}
+$fp=fsockopen('136.1.1.100',23,$e,$es,10);stream_set_timeout($fp,2);
+waitFor($fp,['Username:','login:','>']);fwrite($fp,$user."\r\n");
+waitFor($fp,['Password:','password:']);fwrite($fp,$pass."\r\n");
+sleep(1);rp($fp);fwrite($fp,"terminal length 0\r\n");usleep(500000);rp($fp);
 
-$olt = App\Models\Olt::where('brand', 'zte')->first();
-$fp = @fsockopen($olt->ip_address, 23, $errno, $errstr, 10);
-if (!$fp) die('fail');
-stream_set_timeout($fp, 5);
+// Check OMCI/Config fail reason
+c($fp,'show gpon onu failed-config gpon-onu_1/1/1:16');
+c($fp,'show gpon onu failed-config gpon-onu_1/1/1:17');
 
-function r($fp, $t=10) {
-    $b=''; $e=time()+$t;
-    while(time()<$e) {
-        $c=@fread($fp,8192);
-        if($c!==false&&$c!=='') $b.=$c;
-        if(preg_match('/[#>]\s*$/',$b)) return $b;
-        usleep(100000);
-    }
-    return $b;
-}
+// ONU 17 detail state
+c($fp,'show gpon onu state gpon-onu_1/1/1:16');
+c($fp,'show gpon onu state gpon-onu_1/1/1:17');
 
-// Login + enable
-$b = r($fp); fwrite($fp, $olt->telnet_username."\r\n");
-$b = r($fp); fwrite($fp, $olt->telnet_password."\r\n");
-r($fp);
-fwrite($fp, "enable\r\n"); r($fp);
-fwrite($fp, "terminal length 0\r\n"); r($fp);
-fwrite($fp, "configure terminal\r\n"); r($fp);
-
-// Enter pon-onu-mng for SmartOLT ONU
-fwrite($fp, "pon-onu-mng gpon-onu_1/1/4:2\r\n"); r($fp);
-fwrite($fp, "show running-config\r\n");
-echo "=== SmartOLT 1/1/4:2 ===\n" . r($fp, 15) . "\n";
-fwrite($fp, "exit\r\n"); r($fp);
-
-// Enter pon-onu-mng for our ONU
-fwrite($fp, "pon-onu-mng gpon-onu_1/1/1:19\r\n"); r($fp);
-fwrite($fp, "show running-config\r\n");
-echo "=== Our App 1/1/1:19 ===\n" . r($fp, 15) . "\n";
-fwrite($fp, "exit\r\n"); r($fp);
-
+// Check pon-onu-mng current saved for both  
+fwrite($fp,"configure terminal\r\n");usleep(300000);rp($fp);
+fwrite($fp,"pon-onu-mng gpon-onu_1/1/1:16\r\n");usleep(300000);rp($fp);
+c($fp,'show running-config');
+fwrite($fp,"exit\r\n");usleep(200000);rp($fp);
+fwrite($fp,"pon-onu-mng gpon-onu_1/1/1:17\r\n");usleep(300000);rp($fp);
+c($fp,'show running-config');
+fwrite($fp,"exit\r\n");usleep(200000);rp($fp);
+fwrite($fp,"exit\r\n");usleep(200000);rp($fp);
 fclose($fp);

@@ -3,7 +3,7 @@ require __DIR__.'/vendor/autoload.php';
 $app = require __DIR__.'/bootstrap/app.php';
 $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
-$o = App\Models\Onu::find(16);
+$o = App\Models\Onu::where('serial_number', 'FHTT9B302530')->first();
 echo json_encode([
     'status'      => $o->status,
     'olt_rx'      => $o->olt_rx_power,
