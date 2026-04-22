@@ -485,6 +485,8 @@ class OnuController extends Controller implements HasMiddleware
                 'pppoe_username' => $request->pppoe_username,
                 'pppoe_password' => $request->pppoe_password,
                 'wait_seconds'   => 5,
+                'brand'          => $onu->brandFromSerial(),
+                'serial_number'  => $onu->serial_number,
             ];
 
             $result = $helper->applyPonOnuMng($onu->slot, $onu->port, $onu->onu_id, $params);

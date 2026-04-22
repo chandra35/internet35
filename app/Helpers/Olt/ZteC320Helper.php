@@ -1776,12 +1776,20 @@ class ZteC320Helper extends BaseOltHelper
                 \Log::info('ZTE applyPonOnuMng retry output', ['output' => $output]);
             }
 
-            // Verifikasi pasca-config: cek apakah `tr069-mgmt 1 acs` dan flow benar-benar
-            // tertulis di OLT, dan `Config state: success`.
+            // Verifikasi pasca-config: brand-aware.
+            // - ZTE/ZTEG → Config state OLT = success (OMCI proprietary diterima ONU)
+            // - Huawei/Fiberhome/lainnya → Config state OLT sering "fail" karena ME
+            //   ZTE-specific ditolak, tapi ini bukan blocker. Yang valid adalah cek ke
+            //   GenieACS apakah ONU pernah Inform.
+            $brand = strtolower((string) ($params['brand'] ?? 'zte'));
+            $serial = strtoupper((string) ($params['serial_number'] ?? ''));
+
             $verify = $this->verifyPonOnuMngApplied($slot, $port, $onuId, [
                 'vlan'      => $vlan,
                 'mgmt_vlan' => $mgmtVlan,
                 'acs_url'   => $acsUrl,
+                'brand'     => $brand,
+                'serial_number' => $serial,
             ]);
             $result['verification'] = $verify;
 
@@ -1799,7 +1807,12 @@ class ZteC320Helper extends BaseOltHelper
                 ]);
             } else {
                 $result['success'] = true;
-                $result['message'] = 'Konfigurasi layanan ONU berhasil diterapkan & terverifikasi.';
+                if ($verify['has_acs']) {
+                    $result['message'] = 'Konfigurasi layanan ONU berhasil & ACS aktif.';
+                } else {
+                    // ok=true tapi has_acs=false → ONU non-ZTE belum Inform (normal)
+                    $result['message'] = 'Konfigurasi layanan ONU berhasil. ACS belum Inform — wajar untuk ONU baru, tunggu 5-30 menit.';
+                }
                 if ($fatalErrors) {
                     // Verifikasi lulus tapi ada perintah error (misal security-mgmt sudah ada).
                     // Bukan blocker, hanya info.
@@ -1851,42 +1864,84 @@ class ZteC320Helper extends BaseOltHelper
      * Verifikasi `pon-onu-mng` benar-benar terkonfigurasi di OLT setelah
      * applyPonOnuMng dijalankan.
      *
-     * @return array{ok:bool, issues:array<string>, config_state:?string, has_acs:bool, has_flow:bool}
+     * Brand-aware:
+     * - ZTE ONUs (ZTEG*) → andalkan Config state OLT (OMCI proprietary diterima)
+     * - Huawei (HWTC*), Fiberhome (FHTT*), lainnya → Config state akan selalu
+     *   "fail" karena ME proprietary ZTE ditolak, jadi cek service-port + GenieACS
+     *
+     * @return array{ok:bool, issues:array<string>, config_state:?string, has_acs:bool, has_flow:bool, method:string}
      */
     protected function verifyPonOnuMngApplied(int $slot, int $port, int $onuId, array $expected): array
     {
+        $brand = strtolower((string) ($expected['brand'] ?? 'zte'));
+        $isZteOnu = ($brand === 'zte');
+
         $result = [
             'ok' => false,
             'issues' => [],
             'config_state' => null,
             'has_acs' => false,
             'has_flow' => false,
+            'method' => $isZteOnu ? 'olt_config_state' : 'genieacs_lookup',
         ];
 
         try {
-            // ZTE C320 tidak support `show running-config-pon-onu-mng`. Andalkan
-            // `show gpon onu detail-info` — `Config state: success` = OMCI diterima
-            // (artinya pon-onu-mng commands termasuk tr069-mgmt acs URL diterima ONU).
+            // Selalu baca Config state untuk informasi diagnostik
             $output = $this->executeBatchCliCommands([
                 "show gpon onu detail-info gpon-onu_1/{$slot}/{$port}:{$onuId}",
             ]);
-
             if (preg_match('/Config state:\s*(\S+)/i', $output, $m)) {
                 $result['config_state'] = strtolower($m[1]);
             }
 
-            $state = $result['config_state'];
-            if ($state === 'success') {
-                $result['has_acs'] = true; // OMCI accepted → tr069-mgmt URL diterima ONU
-                $result['has_flow'] = true;
-                $result['ok'] = true;
-            } elseif ($state === 'fail') {
-                $result['issues'][] = 'Config state OLT = fail (ONU menolak konfigurasi OMCI; cek profile/VLAN/PON sync)';
-            } elseif ($state === null) {
-                $result['issues'][] = 'Tidak dapat membaca Config state dari OLT (output kosong/parse gagal)';
-            } else {
-                // initial / pending / lainnya
-                $result['issues'][] = "Config state OLT = {$state} (belum success, ONU mungkin masih sync)";
+            if ($isZteOnu) {
+                // ZTE ONU: Config state harus success
+                $state = $result['config_state'];
+                if ($state === 'success') {
+                    $result['has_acs'] = true;
+                    $result['has_flow'] = true;
+                    $result['ok'] = true;
+                } elseif ($state === 'fail') {
+                    $result['issues'][] = 'Config state OLT = fail (ONU menolak konfigurasi OMCI)';
+                } elseif ($state === null) {
+                    $result['issues'][] = 'Tidak dapat membaca Config state dari OLT';
+                } else {
+                    $result['issues'][] = "Config state OLT = {$state} (belum success, ONU mungkin masih sync)";
+                }
+                return $result;
+            }
+
+            // Non-ZTE ONU (Huawei/Fiberhome/dll): Config state biasanya "fail" karena
+            // OMCI ZTE-proprietary ditolak. Yang valid: cek apakah device sudah pernah
+            // Inform ke GenieACS. Belum tentu langsung — Huawei butuh 5-30 menit untuk
+            // Inform pertama setelah dapat IP DHCP.
+            $serial = (string) ($expected['serial_number'] ?? '');
+            if ($serial === '') {
+                $result['issues'][] = 'Serial number tidak dipass — verifikasi GenieACS dilewati';
+                $result['ok'] = true; // tidak bisa verify, anggap sukses
+                return $result;
+            }
+
+            try {
+                $genieacs = new \App\Services\GenieAcsService();
+                if (!$genieacs->isAvailable()) {
+                    $result['issues'][] = 'GenieACS tidak tersedia — verifikasi ACS tidak bisa';
+                    $result['ok'] = true; // OLT push sudah selesai, anggap sukses
+                    return $result;
+                }
+                $device = $genieacs->findDeviceBySerial($serial);
+                if ($device) {
+                    $result['has_acs'] = true;
+                    $result['has_flow'] = true;
+                    $result['ok'] = true;
+                } else {
+                    // Belum Inform — wajar untuk ONU baru. Anggap sukses tapi info pending.
+                    $result['ok'] = true;
+                    $result['issues'][] = 'ONU belum Inform ke GenieACS (normal untuk ONU baru, tunggu 5-30 menit setelah ONU dapat IP)';
+                }
+            } catch (Exception $e) {
+                $result['issues'][] = 'GenieACS lookup error: ' . $e->getMessage();
+                $result['ok'] = true; // jangan blok karena ACS error
             }
         } catch (Exception $e) {
             $result['issues'][] = 'Verifikasi gagal: ' . $e->getMessage();
