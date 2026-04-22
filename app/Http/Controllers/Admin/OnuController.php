@@ -1119,6 +1119,10 @@ class OnuController extends Controller implements HasMiddleware
             'pppoe_username' => 'required|string|max:100',
             'pppoe_password' => 'required|string|max:100',
             'vlan' => 'nullable|integer|min:1|max:4094',
+            // Fiberhome WebUI override (optional, sent only when brand=fiberhome)
+            'webui_user'     => 'nullable|string|max:64',
+            'webui_password' => 'nullable|string|max:128',
+            'webui_save'     => 'nullable|boolean',
         ]);
 
         try {
@@ -1139,7 +1143,7 @@ class OnuController extends Controller implements HasMiddleware
                     'username' => $request->pppoe_username,
                     'password' => $request->pppoe_password,
                     'vlan'     => $vlan,
-                ]);
+                ], $request);
                 if ($webResult !== null) {
                     if (!empty($webResult['success'])) {
                         $onu->update(['pppoe_username' => $request->pppoe_username]);
@@ -1169,8 +1173,16 @@ class OnuController extends Controller implements HasMiddleware
      * Configure PPPoE WAN on Fiberhome ONU via its WebUI XHR API.
      * Returns the result array (success or failure) when the WebUI path
      * was attempted, or null to indicate "not applicable, fall back".
+     *
+     * Credential resolution priority (highest first):
+     *  1. Request override ($request->webui_user / webui_password) — typed in modal
+     *  2. Onu model column ($onu->webui_user / webui_password) — saved per-ONU
+     *  3. config('services.fiberhome.*') — global default from .env
+     *
+     * If $request->webui_save is truthy and an override was provided, the
+     * credential is persisted to the ONU row (encrypted) for next time.
      */
-    private function configureFiberhomeWebUi(Onu $onu, \App\Services\GenieAcsService $genieacs, string $deviceId, array $config): ?array
+    private function configureFiberhomeWebUi(Onu $onu, \App\Services\GenieAcsService $genieacs, string $deviceId, array $config, ?Request $request = null): ?array
     {
         // Resolve the ONU's IP. Prefer mgmt_ip from DB, else look up the
         // TR-069 management WAN's ExternalIPAddress from GenieACS.
@@ -1193,17 +1205,38 @@ class OnuController extends Controller implements HasMiddleware
             ];
         }
 
-        $adminUser = (string) config('services.fiberhome.webui_user', 'admin');
-        $adminPass = (string) config('services.fiberhome.webui_password', '');
+        // Resolve credentials (request -> ONU column -> .env default)
+        $reqUser = $request ? trim((string) $request->input('webui_user', '')) : '';
+        $reqPass = $request ? (string) $request->input('webui_password', '') : '';
+        $save    = $request ? filter_var($request->input('webui_save'), FILTER_VALIDATE_BOOLEAN) : false;
+
+        $adminUser = $reqUser !== ''
+            ? $reqUser
+            : ($onu->webui_user ?: (string) config('services.fiberhome.webui_user', 'admin'));
+
+        $adminPass = $reqPass !== ''
+            ? $reqPass
+            : ($onu->webui_password ?: (string) config('services.fiberhome.webui_password', ''));
+
         if ($adminPass === '') {
             return [
                 'success' => false,
-                'message' => 'Fiberhome WebUI: FIBERHOME_WEBUI_PASSWORD belum dikonfigurasi di .env.',
+                'message' => 'Fiberhome WebUI: password admin belum diisi (isi di modal, atau set FIBERHOME_WEBUI_PASSWORD di .env).',
             ];
         }
 
         $svc = new \App\Services\FiberhomeWebUiService($ip, $adminUser, $adminPass);
-        return $svc->configureWanPppoe($config);
+        $result = $svc->configureWanPppoe($config);
+
+        // Persist credentials per-ONU only if (a) login likely succeeded, and (b) user opted in.
+        if ($save && !empty($result['success']) && ($reqUser !== '' || $reqPass !== '')) {
+            $onu->update([
+                'webui_user'     => $reqUser !== '' ? $reqUser : $onu->webui_user,
+                'webui_password' => $reqPass !== '' ? $reqPass : $onu->webui_password,
+            ]);
+        }
+
+        return $result;
     }
 
     /**
@@ -1260,6 +1293,10 @@ class OnuController extends Controller implements HasMiddleware
             'pppoe_username' => 'required|string|max:100',
             'pppoe_password' => 'nullable|string|max:100',
             'vlan'           => 'nullable|integer|min:1|max:4094',
+            // Fiberhome WebUI override (optional, sent only when brand=fiberhome)
+            'webui_user'     => 'nullable|string|max:64',
+            'webui_password' => 'nullable|string|max:128',
+            'webui_save'     => 'nullable|boolean',
         ]);
 
         // Server-side protection: only PPPoE paths allowed
@@ -1296,7 +1333,7 @@ class OnuController extends Controller implements HasMiddleware
                 if (!isset($config['vlan'])) {
                     $config['vlan'] = $onu->vlan_config['vlan_id'] ?? 100;
                 }
-                $webResult = $this->configureFiberhomeWebUi($onu, $genieacs, $device['device_id'], $config);
+                $webResult = $this->configureFiberhomeWebUi($onu, $genieacs, $device['device_id'], $config, $request);
                 if ($webResult !== null) {
                     if (!empty($webResult['success'])) {
                         $onu->update(['pppoe_username' => $request->pppoe_username]);

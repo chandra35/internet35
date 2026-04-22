@@ -1098,6 +1098,31 @@
                         <label>PPPoE Password</label>
                         <input type="text" name="pppoe_password" class="form-control" placeholder="password" required>
                     </div>
+                    @if($onu->brandFromSerial() === 'fiberhome')
+                    {{-- Fiberhome WebUI override: TR-069 cannot configure WAN VLAN reliably on HG6145F,
+                         so this brand uses a WebUI scraper. The credential is resolved as:
+                         request override > onus.webui_password > config('services.fiberhome.*'). --}}
+                    <div class="card border-warning mt-3 mb-0">
+                        <div class="card-header py-2 bg-warning text-dark">
+                            <i class="fas fa-key mr-1"></i><strong>Kredensial WebUI ONU Fiberhome</strong>
+                            <small class="d-block text-dark" style="font-size:11px;">Kosongkan untuk pakai default tersimpan / .env.</small>
+                        </div>
+                        <div class="card-body py-2">
+                            <div class="form-group mb-2">
+                                <label class="mb-1">WebUI User</label>
+                                <input type="text" name="webui_user" class="form-control form-control-sm" placeholder="admin" value="{{ $onu->webui_user }}" autocomplete="off">
+                            </div>
+                            <div class="form-group mb-2">
+                                <label class="mb-1">WebUI Password</label>
+                                <input type="text" name="webui_password" class="form-control form-control-sm" placeholder="{{ $onu->webui_password ? '•••••• (tersimpan, kosongkan untuk pakai)' : 'pakai default .env' }}" autocomplete="off">
+                            </div>
+                            <div class="form-check mb-0">
+                                <input type="checkbox" name="webui_save" value="1" id="webui-save-pppoe" class="form-check-input">
+                                <label for="webui-save-pppoe" class="form-check-label small">Simpan kredensial ini untuk ONU ini (terenkripsi).</label>
+                            </div>
+                        </div>
+                    </div>
+                    @endif
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
@@ -1251,6 +1276,29 @@
                         <label>PPPoE Password <small class="text-muted">(kosongkan jika tidak ingin mengubah)</small></label>
                         <input type="text" id="wan-edit-password" class="form-control" placeholder="Password baru (opsional)">
                     </div>
+                    @if($onu->brandFromSerial() === 'fiberhome')
+                    {{-- Fiberhome WebUI override (same logic as Setup PPPoE modal) --}}
+                    <div class="card border-warning mt-3 mb-0">
+                        <div class="card-header py-2 bg-warning text-dark">
+                            <i class="fas fa-key mr-1"></i><strong>Kredensial WebUI ONU Fiberhome</strong>
+                            <small class="d-block text-dark" style="font-size:11px;">Kosongkan untuk pakai default tersimpan / .env.</small>
+                        </div>
+                        <div class="card-body py-2">
+                            <div class="form-group mb-2">
+                                <label class="mb-1">WebUI User</label>
+                                <input type="text" id="wan-edit-webui-user" class="form-control form-control-sm" placeholder="admin" value="{{ $onu->webui_user }}" autocomplete="off">
+                            </div>
+                            <div class="form-group mb-2">
+                                <label class="mb-1">WebUI Password</label>
+                                <input type="text" id="wan-edit-webui-password" class="form-control form-control-sm" placeholder="{{ $onu->webui_password ? '•••••• (tersimpan, kosongkan untuk pakai)' : 'pakai default .env' }}" autocomplete="off">
+                            </div>
+                            <div class="form-check mb-0">
+                                <input type="checkbox" id="wan-edit-webui-save" value="1" class="form-check-input">
+                                <label for="wan-edit-webui-save" class="form-check-label small">Simpan kredensial ini untuk ONU ini (terenkripsi).</label>
+                            </div>
+                        </div>
+                    </div>
+                    @endif
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
@@ -2404,12 +2452,21 @@ $(function() {
         e.preventDefault();
         var btn = $(this).find('button[type="submit"]');
         btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Menerapkan...');
-        $.post('/admin/onus/{{ $onu->id }}/tr069-wan', {
+        var $form = $(this);
+        var payload = {
             _token: '{{ csrf_token() }}',
-            pppoe_username: $(this).find('[name="pppoe_username"]').val(),
-            pppoe_password: $(this).find('[name="pppoe_password"]').val(),
-            vlan: $(this).find('[name="vlan"]').val(),
-        })
+            pppoe_username: $form.find('[name="pppoe_username"]').val(),
+            pppoe_password: $form.find('[name="pppoe_password"]').val(),
+            vlan: $form.find('[name="vlan"]').val(),
+        };
+        // Fiberhome WebUI override (fields exist only when brand=fiberhome)
+        var $wuUser = $form.find('[name="webui_user"]');
+        if ($wuUser.length) {
+            payload.webui_user = $wuUser.val();
+            payload.webui_password = $form.find('[name="webui_password"]').val();
+            payload.webui_save = $form.find('[name="webui_save"]').is(':checked') ? 1 : 0;
+        }
+        $.post('/admin/onus/{{ $onu->id }}/tr069-wan', payload)
         .done(function(res) {
             if (res.pending) {
                 $('#modal-pppoe').modal('hide');
@@ -2583,16 +2640,23 @@ $(function() {
         e.preventDefault();
         var btn = $(this).find('button[type="submit"]');
         btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Menyimpan...');
+        var data = {
+            _token: '{{ csrf_token() }}',
+            wan_path: $('#wan-edit-path').val(),
+            pppoe_username: $('#wan-edit-username').val(),
+            pppoe_password: $('#wan-edit-password').val(),
+            vlan: $('#wan-edit-vlan').val(),
+        };
+        // Fiberhome WebUI override (fields exist only when brand=fiberhome)
+        if ($('#wan-edit-webui-user').length) {
+            data.webui_user = $('#wan-edit-webui-user').val();
+            data.webui_password = $('#wan-edit-webui-password').val();
+            data.webui_save = $('#wan-edit-webui-save').is(':checked') ? 1 : 0;
+        }
         $.ajax({
             url: '/admin/onus/{{ $onu->id }}/tr069-wan',
             method: 'PUT',
-            data: {
-                _token: '{{ csrf_token() }}',
-                wan_path: $('#wan-edit-path').val(),
-                pppoe_username: $('#wan-edit-username').val(),
-                pppoe_password: $('#wan-edit-password').val(),
-                vlan: $('#wan-edit-vlan').val(),
-            },
+            data: data,
         })
         .done(function(res) {
             if (res.success) {

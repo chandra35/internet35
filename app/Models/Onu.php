@@ -53,6 +53,8 @@ class Onu extends Model
         'mgmt_ip',
         'wan_ip',
         'pppoe_username',
+        'webui_user',
+        'webui_password',
         'odp_port',
         'description',
         'notes',
@@ -84,6 +86,7 @@ class Onu extends Model
         'last_online_at' => 'datetime',
         'last_offline_at' => 'datetime',
         'last_sync_at' => 'datetime',
+        'webui_password' => 'encrypted',
     ];
 
     /**
@@ -243,6 +246,37 @@ class Onu extends Model
     public function hasWeakSignal(): bool
     {
         return in_array($this->signal_quality, ['weak', 'critical']);
+    }
+
+    /**
+     * Best-effort vendor brand detection from serial number prefix.
+     * Returns lowercase short brand name compatible with
+     * GenieAcsService::detectBrand() ('huawei','zte','fiberhome', ...).
+     *
+     * This is a cheap synchronous check usable from views. Authoritative
+     * brand detection still belongs in GenieAcsService::detectBrand()
+     * which inspects TR-069 vendor-specific objects.
+     */
+    public function brandFromSerial(): string
+    {
+        $sn = strtoupper((string) $this->serial_number);
+        if ($sn === '') return 'unknown';
+        // 4-char ASCII prefix used by most ONU vendors
+        if (str_starts_with($sn, 'HWTC')) return 'huawei';
+        if (str_starts_with($sn, 'ZTEG')) return 'zte';
+        if (str_starts_with($sn, 'FHTT')) return 'fiberhome';
+        if (str_starts_with($sn, 'CIGG') || str_starts_with($sn, 'CXNK')) return 'tp-link';
+        if (str_starts_with($sn, 'ALCL')) return 'nokia';
+        if (str_starts_with($sn, 'SCOM')) return 'sercomm';
+        if (str_starts_with($sn, 'CXNK')) return 'calix';
+        // Vendor column is sometimes populated from OLT-side OUI lookup
+        $vendor = strtolower((string) $this->vendor);
+        foreach (['huawei','zte','fiberhome','tp-link','tplink','nokia','sercomm','calix','dzs'] as $b) {
+            if ($vendor !== '' && str_contains($vendor, str_replace('-', '', $b))) {
+                return $b === 'tplink' ? 'tp-link' : $b;
+            }
+        }
+        return 'unknown';
     }
 
     // Relationships
