@@ -30,11 +30,20 @@ class GenieAcsService
             // Try multiple search strategies
 
             // Strategy 1: Search by serial in _id (contains the hex serial)
+            // Huawei encodes vendor prefix as ASCII hex (HWTC -> 48575443), other
+            // vendors (e.g. Fiberhome FHTT...) store the serial as-is in _id.
+            // Try both the hex-encoded form and the raw serial.
+            $idCandidates = [];
             $hexSerial = $this->shortSnToHex($serialNumber);
             if ($hexSerial) {
+                $idCandidates[] = $hexSerial;
+            }
+            $idCandidates[] = $serialNumber;
+
+            foreach (array_unique($idCandidates) as $idRegex) {
                 $response = Http::timeout($this->timeout)
                     ->get("{$this->nbiUrl}/devices", [
-                        'query' => json_encode(['_id' => ['$regex' => $hexSerial, '$options' => 'i']]),
+                        'query' => json_encode(['_id' => ['$regex' => $idRegex, '$options' => 'i']]),
                     ]);
 
                 if ($response->ok()) {

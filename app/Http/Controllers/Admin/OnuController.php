@@ -353,6 +353,7 @@ class OnuController extends Controller implements HasMiddleware
                     'slot' => $slot,
                     'port' => $port,
                     'onu_id' => $result['onu_id'],
+                    'serial_number' => strtoupper($request->serial_number),
                     'name' => $request->name,
                     'onu_type' => $request->onu_type ?: $this->detectOnuType($request->serial_number),
                     'customer_id' => $request->customer_id,
