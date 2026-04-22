@@ -44,4 +44,10 @@ return [
         'timeout' => env('GENIEACS_TIMEOUT', 10),
     ],
 
+    // Vendor ONU WebUI credentials (used when TR-069 cannot configure WAN VLAN reliably).
+    'fiberhome' => [
+        'webui_user'     => env('FIBERHOME_WEBUI_USER', 'admin'),
+        'webui_password' => env('FIBERHOME_WEBUI_PASSWORD', ''),
+    ],
+
 ];

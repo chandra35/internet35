@@ -1107,6 +1107,11 @@ class OnuController extends Controller implements HasMiddleware
 
     /**
      * Configure WAN via TR069 (PPPoE setup).
+     *
+     * For Fiberhome ONUs (HG6145F etc), TR-069 cannot reliably set WAN VLAN
+     * — firmware rewrites .Name back to "1_INTERNET_R_VID_" without VLAN.
+     * For those devices we fall back to scraping the ONU's admin WebUI
+     * (FiberhomeWebUiService), which is the only working path.
      */
     public function configureTr069Wan(Onu $onu, Request $request)
     {
@@ -1124,10 +1129,30 @@ class OnuController extends Controller implements HasMiddleware
                 return response()->json(['success' => false, 'message' => 'Device tidak ditemukan di GenieACS']);
             }
 
+            $vlan = $request->vlan ?? $onu->vlan_config['vlan_id'] ?? 100;
+
+            // Detect brand — Fiberhome must use WebUI path because TR-069 VLAN config
+            // is silently rejected by the firmware.
+            $brand = $genieacs->getBrandByDeviceId($device['device_id']);
+            if ($brand === 'fiberhome') {
+                $webResult = $this->configureFiberhomeWebUi($onu, $genieacs, $device['device_id'], [
+                    'username' => $request->pppoe_username,
+                    'password' => $request->pppoe_password,
+                    'vlan'     => $vlan,
+                ]);
+                if ($webResult !== null) {
+                    if (!empty($webResult['success'])) {
+                        $onu->update(['pppoe_username' => $request->pppoe_username]);
+                    }
+                    return response()->json($webResult);
+                }
+                // null => fall through to GenieACS path with a warning marker
+            }
+
             $result = $genieacs->configureWanPppoe($device['device_id'], [
                 'username' => $request->pppoe_username,
                 'password' => $request->pppoe_password,
-                'vlan' => $request->vlan ?? $onu->vlan_config['vlan_id'] ?? 100,
+                'vlan' => $vlan,
             ]);
 
             if ($result['success']) {
@@ -1138,6 +1163,47 @@ class OnuController extends Controller implements HasMiddleware
         } catch (Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Configure PPPoE WAN on Fiberhome ONU via its WebUI XHR API.
+     * Returns the result array (success or failure) when the WebUI path
+     * was attempted, or null to indicate "not applicable, fall back".
+     */
+    private function configureFiberhomeWebUi(Onu $onu, \App\Services\GenieAcsService $genieacs, string $deviceId, array $config): ?array
+    {
+        // Resolve the ONU's IP. Prefer mgmt_ip from DB, else look up the
+        // TR-069 management WAN's ExternalIPAddress from GenieACS.
+        $ip = trim((string) ($onu->mgmt_ip ?? ''));
+        if ($ip === '') {
+            $wanInfo = $genieacs->getWanInfo($deviceId) ?: [];
+            foreach ($wanInfo as $w) {
+                $candidate = trim((string) ($w['external_ip'] ?? ''));
+                if ($candidate !== '' && $candidate !== '0.0.0.0' && filter_var($candidate, FILTER_VALIDATE_IP)) {
+                    $ip = $candidate;
+                    break;
+                }
+            }
+        }
+
+        if ($ip === '') {
+            return [
+                'success' => false,
+                'message' => 'Fiberhome WebUI: IP manajemen ONU tidak diketahui (mgmt_ip kosong dan ExternalIPAddress GenieACS tidak tersedia).',
+            ];
+        }
+
+        $adminUser = (string) config('services.fiberhome.webui_user', 'admin');
+        $adminPass = (string) config('services.fiberhome.webui_password', '');
+        if ($adminPass === '') {
+            return [
+                'success' => false,
+                'message' => 'Fiberhome WebUI: FIBERHOME_WEBUI_PASSWORD belum dikonfigurasi di .env.',
+            ];
+        }
+
+        $svc = new \App\Services\FiberhomeWebUiService($ip, $adminUser, $adminPass);
+        return $svc->configureWanPppoe($config);
     }
 
     /**
@@ -1215,6 +1281,28 @@ class OnuController extends Controller implements HasMiddleware
             }
             if ($request->filled('vlan')) {
                 $config['vlan'] = $request->vlan;
+            }
+
+            // Fiberhome: route through WebUI scraper (TR-069 cannot set VLAN reliably).
+            $brand = $genieacs->getBrandByDeviceId($device['device_id']);
+            if ($brand === 'fiberhome') {
+                // WebUI scraper requires both username and password
+                if (!isset($config['password']) || $config['password'] === '') {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Fiberhome WebUI memerlukan password PPPoE (tidak bisa edit username/VLAN saja).',
+                    ]);
+                }
+                if (!isset($config['vlan'])) {
+                    $config['vlan'] = $onu->vlan_config['vlan_id'] ?? 100;
+                }
+                $webResult = $this->configureFiberhomeWebUi($onu, $genieacs, $device['device_id'], $config);
+                if ($webResult !== null) {
+                    if (!empty($webResult['success'])) {
+                        $onu->update(['pppoe_username' => $request->pppoe_username]);
+                    }
+                    return response()->json($webResult);
+                }
             }
 
             $result = $genieacs->updateWanPppoe($device['device_id'], $request->wan_path, $config);
