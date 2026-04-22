@@ -1072,11 +1072,23 @@
                 <div class="modal-body">
                     <div class="form-group">
                         <label>WAN VLAN-ID</label>
-                        <select class="form-control" name="vlan" id="pppoe-vlan">
-                            @if($onu->vlan_config['vlan_id'] ?? null)
-                                <option value="{{ $onu->vlan_config['vlan_id'] }}" selected>{{ $onu->vlan_config['vlan_id'] }}</option>
+                        @php
+                            $currentVlan = $onu->vlan_config['vlan_id'] ?? null;
+                            $vlans = collect($vlanOptions ?? []);
+                            if ($currentVlan && !$vlans->contains((int) $currentVlan)) {
+                                $vlans = $vlans->push((int) $currentVlan)->sort()->values();
+                            }
+                        @endphp
+                        <select class="form-control" name="vlan" id="pppoe-vlan" required>
+                            @if($vlans->isEmpty())
+                                <option value="" disabled selected>-- Belum ada VLAN terdaftar di OLT ini --</option>
+                            @else
+                                @foreach($vlans as $v)
+                                    <option value="{{ $v }}" {{ ((int) $currentVlan === (int) $v) ? 'selected' : '' }}>VLAN {{ $v }}</option>
+                                @endforeach
                             @endif
                         </select>
+                        <small class="form-text text-muted">Daftar VLAN yang sudah dipakai ONU lain di OLT ini.</small>
                     </div>
                     <div class="form-group">
                         <label>PPPoE Username</label>
@@ -1220,7 +1232,16 @@
                 <div class="modal-body">
                     <div class="form-group">
                         <label>WAN VLAN-ID</label>
-                        <input type="number" id="wan-edit-vlan" class="form-control" min="1" max="4094" placeholder="VLAN ID">
+                        @php
+                            $editVlans = collect($vlanOptions ?? []);
+                        @endphp
+                        <select id="wan-edit-vlan" class="form-control">
+                            <option value="">-- Tidak diubah --</option>
+                            @foreach($editVlans as $v)
+                                <option value="{{ $v }}">VLAN {{ $v }}</option>
+                            @endforeach
+                        </select>
+                        <small class="form-text text-muted">Pilih VLAN baru, atau biarkan "Tidak diubah" untuk hanya mengubah username/password.</small>
                     </div>
                     <div class="form-group">
                         <label>PPPoE Username</label>
@@ -2544,9 +2565,16 @@ $(function() {
 
     // WAN Edit
     $(document).on('click', '.btn-edit-wan', function() {
+        var existingVlan = $(this).data('vlan');
         $('#wan-edit-path').val($(this).data('path'));
         $('#wan-edit-username').val($(this).data('username'));
-        $('#wan-edit-vlan').val($(this).data('vlan'));
+
+        var $vlanSel = $('#wan-edit-vlan');
+        if (existingVlan && !$vlanSel.find('option[value="' + existingVlan + '"]').length) {
+            $vlanSel.append('<option value="' + existingVlan + '">VLAN ' + existingVlan + ' (saat ini)</option>');
+        }
+        $vlanSel.val(existingVlan || '');
+
         $('#wan-edit-password').val('');
         $('#modal-wan-edit').modal('show');
     });

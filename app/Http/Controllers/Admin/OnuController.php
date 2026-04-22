@@ -135,10 +135,25 @@ class OnuController extends Controller implements HasMiddleware
         $oltTrafficProfiles = \App\Models\OltProfile::where('olt_id', $onu->olt_id)
             ->trafficProfiles()->orderBy('name')->get();
 
+        // Build a list of VLAN IDs already used on this OLT so the WAN
+        // configuration modals can offer a safe dropdown instead of
+        // free-form input. Falls back to the current ONU's own VLAN.
+        $vlanOptions = Onu::where('olt_id', $onu->olt_id)
+            ->whereNotNull('vlan_config')
+            ->pluck('vlan_config')
+            ->map(fn ($cfg) => is_array($cfg) ? ($cfg['vlan_id'] ?? null) : null)
+            ->filter(fn ($v) => is_numeric($v) && $v >= 1 && $v <= 4094)
+            ->map(fn ($v) => (int) $v)
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+
         return view('admin.onus.show', compact(
             'onu', 'signalHistory', 'customers',
             'chartLabels', 'chartRxData', 'chartTxData',
-            'oltTcontProfiles', 'oltTrafficProfiles'
+            'oltTcontProfiles', 'oltTrafficProfiles',
+            'vlanOptions'
         ));
     }
 
