@@ -318,6 +318,13 @@ $(function() {
             confirmButtonText: 'Ya, Hapus!'
         }).then((result) => {
             if (result.isConfirmed) {
+                // Blocking progress: prevent user from leaving while OLT CLI runs (10-30s)
+                Swal.fire({
+                    title: '<i class="fas fa-cog fa-spin text-danger mr-2"></i>Menghapus ONU ' + sn,
+                    html: 'Mengirim perintah <code>no onu</code> ke OLT...<br><small class="text-muted">Jangan tutup atau refresh halaman ini (±10-30 detik).</small>',
+                    allowOutsideClick: false, allowEscapeKey: false, showConfirmButton: false,
+                    didOpen: function() { Swal.showLoading(); }
+                });
                 $.ajax({
                     url: '/admin/onus/' + id + '/unregister',
                     method: 'POST',

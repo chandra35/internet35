@@ -1499,6 +1499,13 @@ $(function() {
             icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545', confirmButtonText: 'Ya, Hapus!'
         }).then(function(result) {
             if (result.isConfirmed) {
+                // Blocking progress: prevent user from leaving while OLT CLI runs (10-30s)
+                Swal.fire({
+                    title: '<i class="fas fa-cog fa-spin text-danger mr-2"></i>Menghapus ONU',
+                    html: 'Mengirim perintah <code>no onu</code> ke OLT...<br><small class="text-muted">Jangan tutup atau refresh halaman ini (±10-30 detik).</small>',
+                    allowOutsideClick: false, allowEscapeKey: false, showConfirmButton: false,
+                    didOpen: function() { Swal.showLoading(); }
+                });
                 $.post('/admin/onus/' + id + '/unregister', { _token: '{{ csrf_token() }}' })
                     .done(function(res) { Swal.fire('Berhasil', res.message, 'success').then(function() { window.location.href = res.redirect_url || '{{ route("admin.onus.index") }}'; }); })
                     .fail(function(xhr) { Swal.fire('Gagal', xhr.responseJSON?.message || 'Gagal menghapus ONU', 'error'); });
