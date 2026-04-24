@@ -422,6 +422,21 @@ class OnuController extends Controller implements HasMiddleware
                 
                 $this->activityLog->log('onus', "Registered ONU: {$onu->serial_number} on {$olt->name}");
 
+                // Enrich from GenieACS immediately — best-effort, non-blocking.
+                // Fills firmware, vendor, rx_power, temp if ONU already in ACS.
+                try {
+                    $enrichSvc = new \App\Services\GenieAcsService();
+                    if ($enrichSvc->isAvailable()) {
+                        $enrichData = $enrichSvc->enrichOnuFromGenieAcs($onu->serial_number);
+                        if (!empty($enrichData)) {
+                            unset($enrichData['status']); // OLT is authoritative at register time
+                            $onu->update($enrichData);
+                        }
+                    }
+                } catch (\Exception $_enrichEx) {
+                    \Log::debug('GenieACS enrich post-register: ' . $_enrichEx->getMessage());
+                }
+
                 // TR-069 mode: push PPPoE to ACS after ONU is saved in DB
                 $acsMessage = '';
                 if ($wanMode === 'tr069' && $request->filled('pppoe_username')) {

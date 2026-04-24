@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Exception;
@@ -1939,6 +1940,8 @@ class GenieAcsService
                 'VirtualParameters.gettemp',
                 'VirtualParameters.pppoeIP',
                 'VirtualParameters.getSerialNumber',
+                'VirtualParameters.getTxPower',
+                'VirtualParameters.getWanStatus',
                 'InternetGatewayDevice.DeviceInfo.SoftwareVersion',
                 'InternetGatewayDevice.DeviceInfo.HardwareVersion',
                 'InternetGatewayDevice.DeviceInfo.Manufacturer',
@@ -2000,6 +2003,151 @@ class GenieAcsService
             Log::error("GenieACS getDevicesForSync error: " . $e->getMessage());
             return [];
         }
+    }
+
+    /**
+     * Fetch enriched ONU data from GenieACS for a single serial number.
+     * Returns array ready for $onu->update(). Returns [] if device not found or error.
+     */
+    public function enrichOnuFromGenieAcs(string $serialNumber): array
+    {
+        try {
+            $device = $this->findDeviceBySerial($serialNumber);
+            if (!$device) return [];
+            return $this->getEnrichDataByDeviceId($device['device_id']);
+        } catch (Exception $e) {
+            Log::warning("GenieACS enrichOnuFromGenieAcs [{$serialNumber}]: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Fetch VirtualParameters + DeviceInfo for a device ID and build DB update array.
+     * Returns keys: rx_power, tx_power, temperature, wan_ip, software_version,
+     *               hardware_version, vendor, onu_type, last_online_at
+     */
+    public function getEnrichDataByDeviceId(string $deviceId): array
+    {
+        $deviceId = $this->safeDeviceId($deviceId);
+        $projection = implode(',', [
+            '_lastInform',
+            'VirtualParameters.RXPower',
+            'VirtualParameters.gettemp',
+            'VirtualParameters.pppoeIP',
+            'VirtualParameters.getTxPower',
+            'VirtualParameters.getWanStatus',
+            'InternetGatewayDevice.DeviceInfo.SoftwareVersion',
+            'InternetGatewayDevice.DeviceInfo.HardwareVersion',
+            'InternetGatewayDevice.DeviceInfo.Manufacturer',
+            'InternetGatewayDevice.DeviceInfo.ModelName',
+            'Device.DeviceInfo.SoftwareVersion',
+            'Device.DeviceInfo.HardwareVersion',
+            'Device.DeviceInfo.Manufacturer',
+            'Device.DeviceInfo.ModelName',
+        ]);
+        try {
+            $response = Http::timeout(10)->get("{$this->nbiUrl}/devices", [
+                'query'      => json_encode(['_id' => $deviceId]),
+                'projection' => $projection,
+            ]);
+
+            if (!$response->ok() || empty($response->json())) return [];
+
+            $device  = $response->json()[0];
+            $vp      = $device['VirtualParameters'] ?? [];
+            $igd     = $device['InternetGatewayDevice']['DeviceInfo']
+                    ?? $device['Device']['DeviceInfo']
+                    ?? [];
+
+            $updates = [];
+
+            // RX power (dBm, float string like "-22")
+            $rxRaw = $vp['RXPower']['_value'] ?? null;
+            if ($rxRaw !== null && $rxRaw !== 'N/A' && is_numeric($rxRaw)) {
+                $updates['rx_power'] = (float) $rxRaw;
+            }
+
+            // TX power (dBm, float) — from new getTxPower VP
+            $txRaw = $vp['getTxPower']['_value'] ?? null;
+            if ($txRaw !== null && $txRaw !== 'N/A' && is_numeric($txRaw)) {
+                $updates['tx_power'] = (float) $txRaw;
+            }
+
+            // Temperature (°C)
+            $tempRaw = $vp['gettemp']['_value'] ?? null;
+            if ($tempRaw !== null && $tempRaw !== 'N/A' && is_numeric($tempRaw)) {
+                $updates['temperature'] = (float) $tempRaw;
+            }
+
+            // WAN IP from PPPoE
+            $wanIp = $vp['pppoeIP']['_value'] ?? null;
+            if ($wanIp && $wanIp !== '0.0.0.0') {
+                $updates['wan_ip'] = $wanIp;
+            }
+
+            // Software version
+            $sw = $this->getValue($igd, 'SoftwareVersion');
+            if ($sw) $updates['software_version'] = $sw;
+
+            // Hardware version
+            $hw = $this->getValue($igd, 'HardwareVersion');
+            if ($hw) $updates['hardware_version'] = $hw;
+
+            // Vendor from manufacturer string
+            $mfr = $this->getValue($igd, 'Manufacturer');
+            if ($mfr) $updates['vendor'] = $this->normalizeVendorCode($mfr);
+
+            // ONU model
+            $model = $this->getValue($igd, 'ModelName');
+            if ($model) $updates['onu_type'] = $model;
+
+            // last_online_at from last_inform if within 6 hours
+            $lastInform = $device['_lastInform'] ?? null;
+            if ($lastInform) {
+                $inform = Carbon::parse($lastInform);
+                if ($inform->diffInHours(now()) <= 6) {
+                    $updates['last_online_at'] = $inform;
+                }
+            }
+
+            return $updates;
+        } catch (Exception $e) {
+            Log::warning("GenieACS getEnrichDataByDeviceId [{$deviceId}]: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Create or update a VirtualParameter in GenieACS via NBI.
+     * $script is a JS function body returning [timestamp, value].
+     */
+    public function createVirtualParameter(string $name, string $script): bool
+    {
+        try {
+            $response = Http::timeout(10)
+                ->withHeaders(['Content-Type' => 'application/json'])
+                ->put("{$this->nbiUrl}/virtual-parameters/{$name}", ['script' => $script]);
+            return $response->successful();
+        } catch (Exception $e) {
+            Log::error("GenieACS createVirtualParameter [{$name}]: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Normalize TR-069 Manufacturer string to 4-char vendor code used in ONU.vendor.
+     */
+    private function normalizeVendorCode(string $manufacturer): string
+    {
+        $m = strtolower($manufacturer);
+        if (str_contains($m, 'huawei'))    return 'HWTC';
+        if (str_contains($m, 'zte'))       return 'ZTEG';
+        if (str_contains($m, 'fiberhome')) return 'FHTT';
+        if (str_contains($m, 'nokia'))     return 'ALCL';
+        if (str_contains($m, 'tp-link'))   return 'TPLN';
+        if (str_contains($m, 'mikrotik'))  return 'MIKR';
+        if (str_contains($m, 'raisecom'))  return 'GGCL';
+        return strtoupper(substr($manufacturer, 0, 4));
     }
 
     /**

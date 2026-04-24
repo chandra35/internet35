@@ -73,11 +73,23 @@ class PushPppoeToGenieAcs implements ShouldQueue
             'vlan'     => $this->vlan,
         ]);
 
-        if ($result['success']) {
-            Log::info("PushPppoeToGenieAcs: ONU {$onu->serial_number} PPPoE configured successfully via GenieACS.");
-        } elseif ($result['pending'] ?? false) {
-            // GenieACS queued the task — it will run at next inform, done.
-            Log::info("PushPppoeToGenieAcs: ONU {$onu->serial_number} PPPoE task queued in GenieACS (pending).");
+        if ($result['success'] || ($result['pending'] ?? false)) {
+            if ($result['success']) {
+                Log::info("PushPppoeToGenieAcs: ONU {$onu->serial_number} PPPoE configured successfully via GenieACS.");
+            } else {
+                Log::info("PushPppoeToGenieAcs: ONU {$onu->serial_number} PPPoE task queued in GenieACS (pending).");
+            }
+
+            // Pull DeviceInfo + VirtualParameters now that device is confirmed in ACS
+            try {
+                $enrichData = $genieacs->getEnrichDataByDeviceId($device['device_id']);
+                if (!empty($enrichData)) {
+                    $enrichData['status'] = 'online'; // device just informed ACS
+                    $onu->update($enrichData);
+                }
+            } catch (\Exception $enrichEx) {
+                Log::debug("PushPppoeToGenieAcs: enrich failed for {$onu->serial_number}: " . $enrichEx->getMessage());
+            }
         } else {
             Log::warning("PushPppoeToGenieAcs: ONU {$onu->serial_number} configureWanPppoe failed: " . ($result['message'] ?? 'unknown'));
             // Retry — transient error
