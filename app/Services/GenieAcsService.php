@@ -1990,6 +1990,8 @@ class GenieAcsService
 
                 $wanStatus = $vp['getWanStatus']['_value'] ?? null;
 
+                $brand = $this->detectBrand($device);
+
                 $result[$id] = [
                     'device_id'        => $id,
                     'last_inform'      => $device['_lastInform'] ?? null,
@@ -2003,6 +2005,7 @@ class GenieAcsService
                     'manufacturer'     => $this->getValue($igd, 'Manufacturer'),
                     'model'            => $this->getValue($igd, 'ModelName'),
                     'serial_hex'       => $serialHex,
+                    'brand'            => $brand !== 'unknown' ? $brand : null,
                 ];
             }
 
@@ -2101,9 +2104,12 @@ class GenieAcsService
             $hw = $this->getValue($igd, 'HardwareVersion');
             if ($hw) $updates['hardware_version'] = $hw;
 
-            // Vendor from manufacturer string
-            $mfr = $this->getValue($igd, 'Manufacturer');
-            if ($mfr) $updates['vendor'] = $this->normalizeVendorCode($mfr);
+            // Vendor — detectBrand() pakai 4 layer (IGD keys, OUI, Manufacturer, device ID)
+            // jauh lebih reliable daripada hanya string Manufacturer yang sering null.
+            $detectedBrand = $this->detectBrand($device);
+            if ($detectedBrand !== 'unknown') {
+                $updates['vendor'] = $this->normalizeVendorCode($detectedBrand);
+            }
 
             // ONU model
             $model = $this->getValue($igd, 'ModelName');
@@ -2149,19 +2155,25 @@ class GenieAcsService
     }
 
     /**
-     * Normalize TR-069 Manufacturer string to 4-char vendor code used in ONU.vendor.
+     * Normalize brand name (from detectBrand() or Manufacturer string)
+     * to 4-char vendor code stored in ONU.vendor.
+     *
+     * Accepts both detectBrand() output ('huawei', 'zte', …)
+     * and raw Manufacturer strings (substring matched).
      */
-    private function normalizeVendorCode(string $manufacturer): string
+    private function normalizeVendorCode(string $brand): string
     {
-        $m = strtolower($manufacturer);
+        $m = strtolower($brand);
         if (str_contains($m, 'huawei'))    return 'HWTC';
         if (str_contains($m, 'zte'))       return 'ZTEG';
-        if (str_contains($m, 'fiberhome')) return 'FHTT';
-        if (str_contains($m, 'nokia'))     return 'ALCL';
-        if (str_contains($m, 'tp-link'))   return 'TPLN';
+        if (str_contains($m, 'fiberhome') || $m === 'fiberhome') return 'FHTT';
+        if (str_contains($m, 'nokia') || str_contains($m, 'alcatel') || $m === 'nokia') return 'ALCL';
+        if (str_contains($m, 'tp-link') || $m === 'tp-link')   return 'TPLN';
         if (str_contains($m, 'mikrotik'))  return 'MIKR';
-        if (str_contains($m, 'raisecom'))  return 'GGCL';
-        return strtoupper(substr($manufacturer, 0, 4));
+        if (str_contains($m, 'raisecom') || $m === 'dzs')       return 'GGCL';
+        if ($m === 'sercomm')              return 'SRCM';
+        if ($m === 'calix')                return 'CLIX';
+        return strtoupper(substr($brand, 0, 4));
     }
 
     /**

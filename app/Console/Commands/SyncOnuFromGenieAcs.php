@@ -187,11 +187,13 @@ class SyncOnuFromGenieAcs extends Command
             }
         }
 
-        // --- Vendor (from manufacturer) ---
-        if ($device['manufacturer'] && !$onu->vendor) {
-            $vendor = $this->normalizeVendor($device['manufacturer']);
-            if ($vendor) {
-                $updates['vendor'] = $vendor;
+        // --- Vendor: pakai brand dari detectBrand() (paling reliable) ---
+        // Fallback ke normalizeVendor(manufacturer) jika brand tidak ada
+        if (!$onu->vendor) {
+            if (!empty($device['brand'])) {
+                $updates['vendor'] = $this->normalizeVendor($device['brand']);
+            } elseif (!empty($device['manufacturer'])) {
+                $updates['vendor'] = $this->normalizeVendor($device['manufacturer']);
             }
         }
 
@@ -233,11 +235,13 @@ class SyncOnuFromGenieAcs extends Command
         if (str_contains($m, 'huawei'))    return 'HWTC';
         if (str_contains($m, 'zte'))       return 'ZTEG';
         if (str_contains($m, 'fiberhome')) return 'FHTT';
-        if (str_contains($m, 'nokia'))     return 'ALCL';
+        if (str_contains($m, 'nokia') || str_contains($m, 'alcatel')) return 'ALCL';
         if (str_contains($m, 'tp-link'))   return 'TPLN';
         if (str_contains($m, 'mikrotik'))  return 'MIKR';
         if (str_contains($m, 'zioncom'))   return 'ZION';
-        if (str_contains($m, 'raisecom')) return 'GGCL';
+        if (str_contains($m, 'raisecom') || str_contains($m, 'dzs')) return 'GGCL';
+        if (str_contains($m, 'sercomm'))   return 'SRCM';
+        if (str_contains($m, 'calix'))     return 'CLIX';
         return strtoupper(substr($manufacturer, 0, 4));
     }
 
