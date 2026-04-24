@@ -102,11 +102,14 @@
 
                     <div class="form-group">
                         <label>File Firmware <span class="text-danger">*</span></label>
-                        <div class="custom-file">
-                            <input type="file" class="custom-file-input" id="fw-file-input" name="file" required>
-                            <label class="custom-file-label" for="fw-file-input">Pilih file...</label>
+                        <div class="input-group">
+                            <div class="custom-file">
+                                <input type="file" class="custom-file-input" id="fw-file-input" name="file" required
+                                       accept=".bin,.img,.tar,.gz,.zip,.ubi,.trx,.fw,application/octet-stream">
+                                <label class="custom-file-label" for="fw-file-input" id="fw-file-label">Pilih file...</label>
+                            </div>
                         </div>
-                        <small class="text-muted">Format: .bin .img .tar .gz .zip .ubi .trx .fw — Maks 64 MB</small>
+                        <small class="text-muted">Format: .bin .img .tar .gz .zip .ubi .trx .fw — Maks 128 MB</small>
                         <div id="fw-detect-result" class="mt-1" style="display:none">
                             <span id="fw-detect-badge" class="badge badge-secondary">
                                 <i class="fas fa-spinner fa-spin mr-1"></i>Scanning...
@@ -175,11 +178,18 @@
 // ---------------------------------------------------------------
 var scanUrl = '{{ route("admin.firmware.scan") }}';
 
-$('#fw-file-input').on('change', function() {
-    var fileInput = this;
-    var raw = $(this).val().split('\\').pop();
-    $(this).next('.custom-file-label').html(raw || 'Pilih file...');
-    if (!fileInput.files || !fileInput.files[0]) return;
+// Dual binding: jQuery change + native input event (fallback untuk browser tertentu)
+document.getElementById('fw-file-input').addEventListener('change', handleFileChange);
+
+function handleFileChange() {
+    var fileInput = document.getElementById('fw-file-input');
+    if (!fileInput.files || !fileInput.files.length) return;
+
+    var file = fileInput.files[0];
+    var raw  = file.name;
+
+    // Update label
+    document.getElementById('fw-file-label').textContent = raw;
 
     // Reset badge
     $('#fw-detect-result').hide();
@@ -192,10 +202,10 @@ $('#fw-file-input').on('change', function() {
         applyDetected(detected, 'nama file');
     }
 
-    // Selalu scan binary juga (lebih akurat) — di background
+    // Scan binary di background
     showScanningBadge();
-    scanBinary(fileInput.files[0]);
-});
+    scanBinary(file);
+}
 
 function detectFromFilename(name) {
     var BP = [
