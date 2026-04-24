@@ -3101,7 +3101,7 @@ $(function() {
     // ----------------------------------------------------------------
     // Load daftar firmware tersimpan berdasarkan brand ONU
     // ----------------------------------------------------------------
-    var onuBrand  = '{{ strtolower($onu->vendor ?? "") }}'; // HWTC → coba match
+    var onuBrand  = '{{ $onu->brandFromSerial() }}'; // deteksi dari serial number prefix
     var onuModel  = '{{ $onu->onu_type ?? "" }}';
 
     // Normalize vendor code ke brand name untuk API
