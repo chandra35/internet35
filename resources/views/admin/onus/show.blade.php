@@ -730,7 +730,10 @@
                                                         <div class="small font-weight-bold mb-2 text-primary"><i class="fas fa-user-shield mr-1"></i>Web Admin</div>
                                                         <div class="d-flex align-items-center justify-content-between mb-2">
                                                             <span class="small">Status</span>
-                                                            <div class="custom-control custom-switch"><input type="checkbox" class="custom-control-input acl-toggle" id="web_admin_enable" data-key="web_admin_enable"><label class="custom-control-label" for="web_admin_enable"></label></div>
+                                                            <div class="d-flex align-items-center gap-1">
+                                                                <div class="custom-control custom-switch"><input type="checkbox" class="custom-control-input acl-toggle" id="web_admin_enable" data-key="web_admin_enable"><label class="custom-control-label" for="web_admin_enable"></label></div>
+                                                                <button class="btn btn-xs btn-outline-primary ml-1 btn-save-web-enable" data-key="web_admin_enable" type="button" title="Simpan status"><i class="fas fa-save"></i></button>
+                                                            </div>
                                                         </div>
                                                         <div class="form-group mb-2">
                                                             <label class="small">Username</label>
@@ -755,7 +758,10 @@
                                                         <div class="small font-weight-bold mb-2 text-success"><i class="fas fa-user mr-1"></i>Web User</div>
                                                         <div class="d-flex align-items-center justify-content-between mb-2">
                                                             <span class="small">Status</span>
-                                                            <div class="custom-control custom-switch"><input type="checkbox" class="custom-control-input acl-toggle" id="web_user_enable" data-key="web_user_enable"><label class="custom-control-label" for="web_user_enable"></label></div>
+                                                            <div class="d-flex align-items-center gap-1">
+                                                                <div class="custom-control custom-switch"><input type="checkbox" class="custom-control-input acl-toggle" id="web_user_enable" data-key="web_user_enable"><label class="custom-control-label" for="web_user_enable"></label></div>
+                                                                <button class="btn btn-xs btn-outline-success ml-1 btn-save-web-enable" data-key="web_user_enable" type="button" title="Simpan status"><i class="fas fa-save"></i></button>
+                                                            </div>
                                                         </div>
                                                         <div class="form-group mb-2">
                                                             <label class="small">Username</label>
@@ -2962,6 +2968,30 @@ $(function() {
         loadTr069Summary();
         loadBlockedClients();
         setTimeout(function() { btn.find('i').removeClass('fa-spin'); }, 2000);
+    });
+
+    // ── Save web UI enable toggle (admin or user) ────────────────────────────
+    $(document).on('click', '.btn-save-web-enable', function() {
+        var key = $(this).data('key'); // 'web_admin_enable' or 'web_user_enable'
+        var checked = $('#' + key).is(':checked') ? 1 : 0;
+        var btn = $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+        var settings = {};
+        settings[key] = checked;
+        $.post('/admin/onus/{{ $onu->id }}/tr069-security', {
+            _token: '{{ csrf_token() }}',
+            settings: settings,
+        })
+        .done(function(res) {
+            if (res.success) {
+                toastr.success(res.status === 200
+                    ? 'Status berhasil diterapkan ke perangkat.'
+                    : 'Status dikirim, akan diterapkan saat device check-in berikutnya.');
+            } else {
+                toastr.error(res.message || 'Gagal mengubah status');
+            }
+        })
+        .fail(function() { toastr.error('Koneksi gagal'); })
+        .always(function() { btn.prop('disabled', false).html('<i class="fas fa-save"></i>'); });
     });
 
     // ── Save web UI username (admin or user) ─────────────────────────────────
