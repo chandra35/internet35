@@ -18,6 +18,22 @@ class GenieAcsService
     }
 
     /**
+     * Encode '%' in device ID for use in URL path segments.
+     *
+     * GenieACS stores some device IDs with literal '%' characters
+     * (e.g. "00259E-HG8145X6%2D10-..."). HTTP clients (Guzzle/cURL) decode
+     * percent-encoded sequences when parsing URL strings, so "%2D" becomes "-"
+     * and GenieACS returns 404. Double-encoding '%' → '%25' ensures the literal
+     * '%' survives the HTTP client's URL parsing.
+     *
+     * For device IDs without '%', this is a no-op — no impact on existing ONUs.
+     */
+    private function safeDeviceId(string $deviceId): string
+    {
+        return str_replace('%', '%25', $deviceId);
+    }
+
+    /**
      * Find GenieACS device by ONU serial number.
      * GenieACS device ID format: {OUI}-{ProductClass}-{SerialNumber}
      * The serial in GenieACS is the full hex SN (e.g. 48575443CA9CD3A3).
@@ -96,6 +112,7 @@ class GenieAcsService
      */
     public function getDevice(string $deviceId): ?array
     {
+        $deviceId = $this->safeDeviceId($deviceId);
         try {
             $response = Http::timeout($this->timeout)
                 ->get("{$this->nbiUrl}/devices/{$deviceId}");
@@ -285,30 +302,47 @@ class GenieAcsService
      */
     public function setParameterValues(string $deviceId, array $parameterValues, bool $connectionRequest = false): array
     {
-        try {
-            $params = [];
-            foreach ($parameterValues as $name => $value) {
-                $params[] = [$name, $value[0], $value[1] ?? 'xsd:string'];
-            }
+        $deviceId = $this->safeDeviceId($deviceId);
+        $params = [];
+        foreach ($parameterValues as $name => $value) {
+            $params[] = [$name, $value[0], $value[1] ?? 'xsd:string'];
+        }
+        $payload = ['name' => 'setParameterValues', 'parameterValues' => $params];
 
+        try {
             $url = "{$this->nbiUrl}/devices/{$deviceId}/tasks";
             if ($connectionRequest) {
                 $url .= '?connection_request';
             }
 
-            $response = Http::timeout($this->timeout)
-                ->asJson()
-                ->post($url, [
-                    'name' => 'setParameterValues',
-                    'parameterValues' => $params,
-                ]);
+            $response = Http::timeout($this->timeout)->asJson()->post($url, $payload);
 
             return [
                 'success' => $response->status() === 200 || $response->status() === 202,
+                'pending' => $response->status() === 202,
                 'task_id' => $response->json('_id'),
-                'status' => $response->status(),
+                'status'  => $response->status(),
             ];
         } catch (Exception $e) {
+            // cURL 52 (empty reply) or 28 (timeout) = Connection Request to ONU failed.
+            // Queue without connection_request so task runs at next periodic inform.
+            if ($connectionRequest && preg_match('/cURL error (52|28|7)/', $e->getMessage())) {
+                Log::warning("GenieACS setParameterValues CR failed ({$e->getMessage()}), queuing without connection_request");
+                try {
+                    $queued = Http::timeout(10)->asJson()
+                        ->post("{$this->nbiUrl}/devices/{$deviceId}/tasks", $payload);
+                    if ($queued->status() === 200 || $queued->status() === 202) {
+                        return [
+                            'success' => true,
+                            'pending' => true,
+                            'task_id' => $queued->json('_id'),
+                            'status'  => $queued->status(),
+                        ];
+                    }
+                } catch (Exception $inner) {
+                    Log::error("GenieACS setParameterValues queue fallback failed: " . $inner->getMessage());
+                }
+            }
             Log::error("GenieACS setParameterValues error: " . $e->getMessage());
             return ['success' => false, 'message' => $e->getMessage()];
         }
@@ -319,6 +353,7 @@ class GenieAcsService
      */
     public function refreshDevice(string $deviceId, string $parameterPath = ''): array
     {
+        $deviceId = $this->safeDeviceId($deviceId);
         try {
             $task = ['name' => 'getParameterValues'];
             if ($parameterPath) {
@@ -344,6 +379,7 @@ class GenieAcsService
      */
     public function rebootDevice(string $deviceId): array
     {
+        $deviceId = $this->safeDeviceId($deviceId);
         try {
             $response = Http::timeout($this->timeout)
                 ->asJson()
@@ -384,6 +420,7 @@ class GenieAcsService
      */
     public function deleteDevice(string $deviceId): bool
     {
+        $deviceId = $this->safeDeviceId($deviceId);
         try {
             $response = Http::timeout($this->timeout)
                 ->delete("{$this->nbiUrl}/devices/{$deviceId}");
@@ -482,6 +519,9 @@ class GenieAcsService
 
         // 4. Kalau tidak ada WCD kosong, buat WCD baru
         if ($candidateWcd === null) {
+            // Snapshot WCD indices before addObject to detect the new one
+            $existingWcdIdx = array_filter(array_keys($tree), fn($k) => is_numeric($k));
+
             $addWcd = $this->addObject($deviceId, "{$wcdParent}.", true);
             if (!$addWcd['success']) {
                 return ['success' => false, 'message' => 'Gagal membuat WANConnectionDevice baru: ' . ($addWcd['message'] ?? 'unknown')];
@@ -494,8 +534,35 @@ class GenieAcsService
                 ];
             }
             $candidateWcd = $addWcd['instance'] ?? null;
+
+            // instanceNumber missing in some GenieACS responses — re-read tree to find new WCD
             if (!$candidateWcd) {
-                return ['success' => false, 'message' => 'AddObject WCD sukses tapi instance tidak diketahui.'];
+                $resp2 = Http::timeout($this->timeout)->get("{$this->nbiUrl}/devices", [
+                    'query'      => json_encode(['_id' => $deviceId]),
+                    'projection' => $wcdParent,
+                ]);
+                $tree2 = $resp2->json()[0]['InternetGatewayDevice']['WANDevice']['1']['WANConnectionDevice'] ?? [];
+                foreach (array_keys($tree2) as $idx2) {
+                    if (is_numeric($idx2) && !in_array($idx2, $existingWcdIdx)) {
+                        $candidateWcd = $idx2;
+                        break;
+                    }
+                }
+                // Still not found — pick highest numeric index
+                if (!$candidateWcd) {
+                    $numericIdx = array_filter(array_keys($tree2), 'is_numeric');
+                    if ($numericIdx) {
+                        $candidateWcd = max($numericIdx);
+                    }
+                }
+            }
+
+            if (!$candidateWcd) {
+                return [
+                    'success' => false,
+                    'pending' => true,
+                    'message' => 'AddObject WCD berhasil tapi index tidak diketahui. Tunggu ONU inform (1-3 menit), lalu klik "Setup PPPoE WAN" lagi.',
+                ];
             }
         }
 
@@ -814,6 +881,7 @@ class GenieAcsService
      */
     public function setLanDhcpConfig(string $deviceId, array $config): array
     {
+        $deviceId = $this->safeDeviceId($deviceId);
         try {
             $base  = 'InternetGatewayDevice.LANDevice.1.LANHostConfigManagement';
             $iface = 'InternetGatewayDevice.LANDevice.1.LANIPInterface.1';
@@ -874,6 +942,7 @@ class GenieAcsService
      */
     public function blockClientMac(string $deviceId, string $mac, string $brand = 'unknown'): array
     {
+        $deviceId = $this->safeDeviceId($deviceId);
         // Normalise MAC to colon-separated uppercase
         $mac = strtoupper(preg_replace('/[^0-9A-Fa-f]/', '', $mac));
         if (strlen($mac) === 12) {
@@ -932,6 +1001,7 @@ class GenieAcsService
      */
     public function unblockClientMac(string $deviceId, string $mac, string $brand = 'unknown'): array
     {
+        $deviceId = $this->safeDeviceId($deviceId);
         $mac = strtoupper(preg_replace('/[^0-9A-Fa-f]/', '', $mac));
         if (strlen($mac) === 12) {
             $mac = implode(':', str_split($mac, 2));
@@ -976,6 +1046,7 @@ class GenieAcsService
      */
     public function deleteWanConnection(string $deviceId, string $wanPath): array
     {
+        $deviceId = $this->safeDeviceId($deviceId);
         // Safety guard: only allow deleting PPPoE connections
         if (!str_contains($wanPath, 'WANPPPConnection')) {
             return ['success' => false, 'message' => 'Hanya WAN PPPoE yang boleh dihapus.'];
@@ -1030,26 +1101,47 @@ class GenieAcsService
      */
     public function addObject(string $deviceId, string $objectPath, bool $waitComplete = false): array
     {
+        $deviceId = $this->safeDeviceId($deviceId);
+        $payload = [
+            'name'       => 'addObject',
+            'objectName' => rtrim($objectPath, '.'),
+        ];
         try {
             $url = "{$this->nbiUrl}/devices/{$deviceId}/tasks?connection_request";
             if ($waitComplete) {
                 $url .= '&timeout=15000';
             }
 
-            $response = Http::timeout(30)
-                ->asJson()
-                ->post($url, [
-                    'name' => 'addObject',
-                    'objectName' => rtrim($objectPath, '.'),
-                ]);
+            $response = Http::timeout(30)->asJson()->post($url, $payload);
 
             return [
-                'success' => $response->status() === 200 || $response->status() === 202,
+                'success'   => $response->status() === 200 || $response->status() === 202,
                 'completed' => $response->status() === 200,
-                'task_id' => $response->json('_id'),
-                'instance' => $response->json('instanceNumber'),
+                'task_id'   => $response->json('_id'),
+                'instance'  => $response->json('instanceNumber'),
             ];
         } catch (Exception $e) {
+            // cURL 52 (empty reply) or 28 (timeout) = Connection Request to ONU failed
+            // (e.g. CR auth mismatch after password change). Fall back to queuing the
+            // task without connection_request so it runs at next periodic inform.
+            if (preg_match('/cURL error (52|28|7)/', $e->getMessage())) {
+                Log::warning("GenieACS addObject CR failed ({$e->getMessage()}), queuing without connection_request");
+                try {
+                    $queued = Http::timeout(10)->asJson()
+                        ->post("{$this->nbiUrl}/devices/{$deviceId}/tasks", $payload);
+                    if ($queued->status() === 200 || $queued->status() === 202) {
+                        return [
+                            'success'   => true,
+                            'completed' => false,
+                            'pending'   => true,
+                            'task_id'   => $queued->json('_id'),
+                            'instance'  => null,
+                        ];
+                    }
+                } catch (Exception $inner) {
+                    Log::error("GenieACS addObject queue fallback failed: " . $inner->getMessage());
+                }
+            }
             Log::error("GenieACS addObject error: " . $e->getMessage());
             return ['success' => false, 'message' => $e->getMessage()];
         }
@@ -1060,6 +1152,7 @@ class GenieAcsService
      */
     public function deleteObject(string $deviceId, string $objectPath): array
     {
+        $deviceId = $this->safeDeviceId($deviceId);
         try {
             $url = "{$this->nbiUrl}/devices/{$deviceId}/tasks?connection_request&timeout=15000";
 
@@ -1149,6 +1242,7 @@ class GenieAcsService
      */
     protected function triggerLanParamFetch(string $deviceId, string $lanIndex = '1'): void
     {
+        $deviceId = $this->safeDeviceId($deviceId);
         $base = "InternetGatewayDevice.LANDevice.{$lanIndex}.LANHostConfigManagement";
         $params = [
             "{$base}.IPRouters",
@@ -1177,6 +1271,7 @@ class GenieAcsService
      */
     public function smartRefresh(string $deviceId): array
     {
+        $deviceId = $this->safeDeviceId($deviceId);
         // Clear existing pending getParameterValues tasks to avoid accumulation
         $this->clearDeviceTasks($deviceId, 'getParameterValues');
 
@@ -1544,6 +1639,7 @@ class GenieAcsService
      */
     public function downloadFirmware(string $deviceId, string $fileUrl, string $fileSize = '0'): array
     {
+        $deviceId = $this->safeDeviceId($deviceId);
         try {
             $response = Http::timeout(30)
                 ->asJson()
@@ -1569,6 +1665,7 @@ class GenieAcsService
      */
     public function factoryReset(string $deviceId): array
     {
+        $deviceId = $this->safeDeviceId($deviceId);
         try {
             $response = Http::timeout($this->timeout)
                 ->asJson()

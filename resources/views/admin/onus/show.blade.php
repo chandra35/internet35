@@ -233,7 +233,7 @@
                         </tr>
                         @endif
                         @if($onu->mgmt_ip)
-                        <tr><td><strong>Management IP</strong></td><td><code>{{ $onu->mgmt_ip }}</code></td></tr>
+                        <tr><td><strong>Management IP</strong></td><td><code>{{ $onu->mgmt_ip }}</code> <a href="http://{{ $onu->mgmt_ip }}" target="_blank" rel="noopener noreferrer" class="btn btn-xs btn-outline-primary ml-1" title="Buka Web UI ONU"><i class="fas fa-external-link-alt fa-xs mr-1"></i>Web UI</a></td></tr>
                         @endif
                         <tr><td><strong>Last Online</strong></td><td>{{ $onu->last_online_at ? $onu->last_online_at->format('d/m/Y H:i') . ' (' . $onu->last_online_at->diffForHumans() . ')' : '-' }}</td></tr>
                         <tr><td><strong>Last Sync</strong></td><td>{{ $onu->last_sync_at ? $onu->last_sync_at->format('d/m/Y H:i') . ' (' . $onu->last_sync_at->diffForHumans() . ')' : '-' }}</td></tr>
@@ -713,7 +713,14 @@
 
                                         {{-- Web UI Accounts --}}
                                         <div class="acs-card">
-                                            <div class="acs-section-header"><i class="fas fa-globe mr-1 text-success"></i>Web UI Accounts</div>
+                                            <div class="acs-section-header d-flex justify-content-between align-items-center">
+                                                <span><i class="fas fa-globe mr-1 text-success"></i>Web UI Accounts</span>
+                                                @if($onu->mgmt_ip)
+                                                <a href="http://{{ $onu->mgmt_ip }}" target="_blank" rel="noopener noreferrer" class="btn btn-xs btn-outline-success">
+                                                    <i class="fas fa-external-link-alt mr-1"></i>Buka Web UI
+                                                </a>
+                                                @endif
+                                            </div>
                                             <div class="card-body">
                                                 <div class="row">
                                                     <div class="col-md-6 border-right">

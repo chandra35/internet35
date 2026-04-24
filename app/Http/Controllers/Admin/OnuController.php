@@ -438,11 +438,30 @@ class OnuController extends Controller implements HasMiddleware
                                 ? ' PPPoE WAN berhasil dikonfigurasi via TR-069.'
                                 : ' Credentials tersimpan — ONU belum terhubung ke ACS, akan dikonfigurasi otomatis setelah online.';
                         } else {
-                            $acsMessage = ' Credentials tersimpan — ONU belum terhubung ke ACS, akan dikonfigurasi otomatis setelah online.';
+                            // ONU belum di GenieACS — dispatch job yang retry otomatis
+                            // sampai ONU online (max 20x @ 60 detik = ~20 menit)
+                            \App\Jobs\PushPppoeToGenieAcs::dispatch(
+                                $onu->id,
+                                $request->pppoe_username,
+                                $request->pppoe_password ?? '',
+                                (int) $vlanValue,
+                            );
+                            $acsMessage = ' Credentials tersimpan — PPPoE akan dikonfigurasi otomatis setelah ONU terhubung ke ACS.';
                         }
                     } catch (\Exception $e) {
                         \Log::warning('TR-069 WAN push post-register failed: ' . $e->getMessage());
-                        $acsMessage = ' Credentials tersimpan — push ke ACS gagal, coba lagi dari halaman ONU.';
+                        // Dispatch job sebagai fallback jika ada exception
+                        try {
+                            \App\Jobs\PushPppoeToGenieAcs::dispatch(
+                                $onu->id,
+                                $request->pppoe_username,
+                                $request->pppoe_password ?? '',
+                                (int) $vlanValue,
+                            );
+                            $acsMessage = ' Credentials tersimpan — PPPoE akan dikonfigurasi otomatis setelah ONU terhubung ke ACS.';
+                        } catch (\Exception $je) {
+                            $acsMessage = ' Credentials tersimpan — coba klik "Setup PPPoE WAN" setelah ONU online.';
+                        }
                     }
                 }
 
