@@ -729,58 +729,38 @@
                                                     <div class="col-md-6 border-right">
                                                         <div class="small font-weight-bold mb-2 text-primary"><i class="fas fa-user-shield mr-1"></i>Web Admin</div>
                                                         <div class="d-flex align-items-center justify-content-between mb-2">
-                                                            <span class="small">Status</span>
-                                                            <div class="d-flex align-items-center gap-1">
-                                                                <div class="custom-control custom-switch"><input type="checkbox" class="custom-control-input acl-toggle" id="web_admin_enable" data-key="web_admin_enable"><label class="custom-control-label" for="web_admin_enable"></label></div>
-                                                                <button class="btn btn-xs btn-outline-primary ml-1 btn-save-web-enable" data-key="web_admin_enable" type="button" title="Simpan status"><i class="fas fa-save"></i></button>
-                                                            </div>
+                                                            <span class="small">Enable</span>
+                                                            <div class="custom-control custom-switch"><input type="checkbox" class="custom-control-input acl-toggle" id="web_admin_enable" data-key="web_admin_enable"><label class="custom-control-label" for="web_admin_enable"></label></div>
                                                         </div>
                                                         <div class="form-group mb-2">
                                                             <label class="small">Username</label>
-                                                            <div class="input-group input-group-sm">
-                                                                <input type="text" class="form-control" id="web-admin-name" placeholder="Username" autocomplete="off">
-                                                                <div class="input-group-append">
-                                                                    <button class="btn btn-outline-secondary btn-save-web-username" data-target="web_admin_username" type="button" title="Simpan Username"><i class="fas fa-user-edit"></i></button>
-                                                                </div>
-                                                            </div>
+                                                            <input type="text" class="form-control form-control-sm" id="web-admin-name" placeholder="telecomadmin" autocomplete="off">
                                                         </div>
-                                                        <div class="form-group mb-0">
+                                                        <div class="form-group mb-2">
                                                             <label class="small">Password Baru</label>
-                                                            <div class="input-group input-group-sm">
-                                                                <input type="password" class="form-control" id="web-admin-password" placeholder="Password baru" autocomplete="new-password">
-                                                                <div class="input-group-append">
-                                                                    <button class="btn btn-outline-primary btn-save-web-pw" data-target="web_admin_password" type="button"><i class="fas fa-key"></i></button>
-                                                                </div>
-                                                            </div>
+                                                            <input type="password" class="form-control form-control-sm" id="web-admin-password" placeholder="Password baru" autocomplete="new-password">
                                                         </div>
+                                                        <button class="btn btn-primary btn-sm btn-block btn-apply-web-account" data-account="admin" type="button">
+                                                            <i class="fas fa-save mr-1"></i>Terapkan Web Admin
+                                                        </button>
                                                     </div>
                                                     <div class="col-md-6">
                                                         <div class="small font-weight-bold mb-2 text-success"><i class="fas fa-user mr-1"></i>Web User</div>
                                                         <div class="d-flex align-items-center justify-content-between mb-2">
-                                                            <span class="small">Status</span>
-                                                            <div class="d-flex align-items-center gap-1">
-                                                                <div class="custom-control custom-switch"><input type="checkbox" class="custom-control-input acl-toggle" id="web_user_enable" data-key="web_user_enable"><label class="custom-control-label" for="web_user_enable"></label></div>
-                                                                <button class="btn btn-xs btn-outline-success ml-1 btn-save-web-enable" data-key="web_user_enable" type="button" title="Simpan status"><i class="fas fa-save"></i></button>
-                                                            </div>
+                                                            <span class="small">Enable</span>
+                                                            <div class="custom-control custom-switch"><input type="checkbox" class="custom-control-input acl-toggle" id="web_user_enable" data-key="web_user_enable"><label class="custom-control-label" for="web_user_enable"></label></div>
                                                         </div>
                                                         <div class="form-group mb-2">
                                                             <label class="small">Username</label>
-                                                            <div class="input-group input-group-sm">
-                                                                <input type="text" class="form-control" id="web-user-name" placeholder="Username" autocomplete="off">
-                                                                <div class="input-group-append">
-                                                                    <button class="btn btn-outline-secondary btn-save-web-username" data-target="web_user_username" type="button" title="Simpan Username"><i class="fas fa-user-edit"></i></button>
-                                                                </div>
-                                                            </div>
+                                                            <input type="text" class="form-control form-control-sm" id="web-user-name" placeholder="user" autocomplete="off">
                                                         </div>
-                                                        <div class="form-group mb-0">
+                                                        <div class="form-group mb-2">
                                                             <label class="small">Password Baru</label>
-                                                            <div class="input-group input-group-sm">
-                                                                <input type="password" class="form-control" id="web-user-password" placeholder="Password baru" autocomplete="new-password">
-                                                                <div class="input-group-append">
-                                                                    <button class="btn btn-outline-success btn-save-web-pw" data-target="web_user_password" type="button"><i class="fas fa-key"></i></button>
-                                                                </div>
-                                                            </div>
+                                                            <input type="password" class="form-control form-control-sm" id="web-user-password" placeholder="Password baru" autocomplete="new-password">
                                                         </div>
+                                                        <button class="btn btn-success btn-sm btn-block btn-apply-web-account" data-account="user" type="button">
+                                                            <i class="fas fa-save mr-1"></i>Terapkan Web User
+                                                        </button>
                                                     </div>
                                                 </div>
                                             </div>
@@ -2968,6 +2948,44 @@ $(function() {
         loadTr069Summary();
         loadBlockedClients();
         setTimeout(function() { btn.find('i').removeClass('fa-spin'); }, 2000);
+    });
+
+    // ── Apply web account (enable + username + password in one request) ──────
+    $(document).on('click', '.btn-apply-web-account', function() {
+        var account = $(this).data('account'); // 'admin' or 'user'
+        var isAdmin = account === 'admin';
+        var enable  = isAdmin ? $('#web_admin_enable').is(':checked') : $('#web_user_enable').is(':checked');
+        var username = isAdmin ? $('#web-admin-name').val().trim() : $('#web-user-name').val().trim();
+        var password = isAdmin ? $('#web-admin-password').val().trim() : $('#web-user-password').val().trim();
+
+        if (!username) { toastr.warning('Masukkan username terlebih dahulu'); return; }
+        if (!password) { toastr.warning('Masukkan password baru terlebih dahulu'); return; }
+
+        var settings = {};
+        settings[isAdmin ? 'web_admin_enable'   : 'web_user_enable']   = enable ? 1 : 0;
+        settings[isAdmin ? 'web_admin_username'  : 'web_user_username'] = username;
+        settings[isAdmin ? 'web_admin_password'  : 'web_user_password'] = password;
+
+        var btn = $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Mengirim...');
+        $.post('/admin/onus/{{ $onu->id }}/tr069-security', {
+            _token: '{{ csrf_token() }}',
+            settings: settings,
+        })
+        .done(function(res) {
+            if (res.success) {
+                toastr.success(res.status === 200
+                    ? 'Berhasil diterapkan ke perangkat.'
+                    : 'Dikirim, akan diterapkan saat device check-in.');
+                if (isAdmin) { $('#web-admin-password').val(''); }
+                else         { $('#web-user-password').val(''); }
+            } else {
+                toastr.error(res.message || 'Gagal mengirim pengaturan');
+            }
+        })
+        .fail(function() { toastr.error('Koneksi gagal'); })
+        .always(function() {
+            btn.prop('disabled', false).html('<i class="fas fa-save mr-1"></i>Terapkan Web ' + (isAdmin ? 'Admin' : 'User'));
+        });
     });
 
     // ── Save web UI enable toggle (admin or user) ────────────────────────────
