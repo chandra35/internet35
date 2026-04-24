@@ -106,7 +106,23 @@ foreach ($vps as $name => $script) {
     $action = in_array($name, $existing) ? 'UPDATE' : 'CREATE';
     echo "{$action} VirtualParameter '{$name}'... ";
     $ok = $g->createVirtualParameter($name, $script);
-    echo ($ok ? 'OK' : 'GAGAL') . PHP_EOL;
+    if ($ok) {
+        echo "OK" . PHP_EOL;
+    } else {
+        echo "GAGAL" . PHP_EOL;
+        // Debug: show raw response
+        try {
+            $r = \Illuminate\Support\Facades\Http::timeout(10)
+                ->asJson()
+                ->put(
+                    config('services.genieacs.nbi_url', 'http://172.10.10.254:7557') . "/virtual_parameters/{$name}",
+                    ['script' => $script]
+                );
+            echo "  HTTP {$r->status()}: " . substr($r->body(), 0, 200) . PHP_EOL;
+        } catch (\Exception $debugEx) {
+            echo "  Exception: " . $debugEx->getMessage() . PHP_EOL;
+        }
+    }
 }
 
 echo PHP_EOL . "Selesai. Restart GenieACS tidak diperlukan — VP aktif di inform berikutnya." . PHP_EOL;
