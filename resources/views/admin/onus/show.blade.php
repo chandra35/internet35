@@ -821,21 +821,50 @@
                                             <span id="fw-model">-</span> | <span id="fw-hw-version">-</span>
                                         </div>
                                     </div>
+                                    {{-- List firmware tersimpan --}}
+                                    <div class="acs-card">
+                                        <div class="acs-section-header"><i class="fas fa-archive mr-1 text-info"></i>Firmware Tersimpan</div>
+                                        <div class="card-body p-2">
+                                            <div id="fw-file-list">
+                                                <div class="text-center text-muted py-3 small" id="fw-list-loading">
+                                                    <i class="fas fa-spinner fa-spin mr-1"></i>Memuat daftar firmware...
+                                                </div>
+                                                <div id="fw-list-empty" style="display:none" class="text-center text-muted py-3 small">
+                                                    Belum ada firmware tersimpan untuk brand ini.<br>
+                                                    <a href="{{ route('admin.firmware.index') }}" target="_blank">Upload firmware</a>
+                                                </div>
+                                                <div id="fw-list-items"></div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                                 <div class="col-lg-6">
                                     <div class="acs-card">
                                         <div class="acs-section-header"><i class="fas fa-cloud-upload-alt mr-1 text-primary"></i>Upgrade Firmware via TR-069</div>
                                         <div class="card-body">
                                             <form id="form-firmware-upgrade">
+                                                {{-- Pilih dari file tersimpan --}}
+                                                <div class="form-group mb-2" id="fw-select-group">
+                                                    <label class="small font-weight-bold">Pilih File Firmware</label>
+                                                    <select id="fw-select-file" class="form-control form-control-sm">
+                                                        <option value="">-- Pilih versi firmware --</option>
+                                                    </select>
+                                                    <small class="text-muted">Hanya firmware kompatibel dengan brand ONU ini yang ditampilkan.</small>
+                                                </div>
+                                                <div class="text-center my-1 small text-muted">— atau —</div>
+                                                {{-- Manual URL --}}
                                                 <div class="form-group mb-2">
-                                                    <label class="small font-weight-bold">File URL (HTTP/FTP)</label>
-                                                    <input type="url" name="file_url" class="form-control form-control-sm" placeholder="http://server/firmware.bin" required>
-                                                    <small class="text-muted">URL firmware harus bisa diakses oleh ONU</small>
+                                                    <label class="small font-weight-bold">URL Manual (HTTP/FTP)</label>
+                                                    <input type="url" id="fw-manual-url" name="file_url" class="form-control form-control-sm" placeholder="http://server/firmware.bin">
+                                                    <small class="text-muted">URL harus bisa diakses langsung oleh ONU</small>
                                                 </div>
                                                 <button type="submit" class="btn btn-primary btn-sm btn-block">
                                                     <i class="fas fa-cloud-upload-alt mr-1"></i>Mulai Upgrade
                                                 </button>
                                             </form>
+                                            <div class="mt-2 small text-muted">
+                                                <i class="fas fa-info-circle mr-1"></i>ONU akan mengunduh firmware lalu reboot otomatis (~5-10 menit).
+                                            </div>
                                         </div>
                                     </div>
                                     <div class="acs-card mt-2">
@@ -3069,15 +3098,86 @@ $(function() {
     });
 
     // Firmware upgrade
+    // ----------------------------------------------------------------
+    // Load daftar firmware tersimpan berdasarkan brand ONU
+    // ----------------------------------------------------------------
+    var onuBrand  = '{{ strtolower($onu->vendor ?? "") }}'; // HWTC → coba match
+    var onuModel  = '{{ $onu->onu_type ?? "" }}';
+
+    // Normalize vendor code ke brand name untuk API
+    var brandMap = { 'hwtc': 'huawei', 'zteg': 'zte', 'fhtt': 'fiberhome', 'alcl': 'nokia', 'tpln': 'tp-link', 'ggcl': 'dzs' };
+    var apiBrand = brandMap[onuBrand] || onuBrand;
+
+    function loadFirmwareList() {
+        if (!apiBrand) {
+            $('#fw-list-loading').hide();
+            $('#fw-list-empty').show();
+            return;
+        }
+        $.get('{{ route("admin.firmware.list-for-onu") }}', { brand: apiBrand, model: onuModel })
+        .done(function(files) {
+            $('#fw-list-loading').hide();
+            if (!files.length) {
+                $('#fw-list-empty').show();
+                return;
+            }
+            var html = '<table class="table table-sm table-borderless mb-0">';
+            html += '<thead><tr><th class="small">Versi</th><th class="small">Model</th><th class="small">Ukuran</th><th></th></tr></thead><tbody>';
+            var selectOpts = '<option value="">-- Pilih versi firmware --</option>';
+            files.forEach(function(f) {
+                html += '<tr>'
+                    + '<td class="small font-weight-bold">' + f.version + '</td>'
+                    + '<td class="small text-muted">' + f.model_pattern + '</td>'
+                    + '<td class="small text-muted">' + f.file_size + '</td>'
+                    + '<td><button class="btn btn-xs btn-outline-primary btn-fw-select" data-url="' + f.download_url + '" data-version="' + f.version + '"><i class="fas fa-check"></i></button></td>'
+                    + '</tr>';
+                selectOpts += '<option value="' + f.download_url + '">' + f.version + ' (' + f.model_pattern + ', ' + f.file_size + ')</option>';
+            });
+            html += '</tbody></table>';
+            $('#fw-list-items').html(html);
+            $('#fw-select-file').html(selectOpts);
+        })
+        .fail(function() {
+            $('#fw-list-loading').html('<span class="text-danger">Gagal memuat daftar firmware.</span>');
+        });
+    }
+
+    // Load saat tab firmware dibuka
+    $('a[href="#acs-firmware"]').one('click', loadFirmwareList);
+
+    // Klik tombol pilih di tabel → isi select
+    $(document).on('click', '.btn-fw-select', function() {
+        var url = $(this).data('url');
+        var ver = $(this).data('version');
+        $('#fw-select-file').val(url);
+        $('#fw-manual-url').val('');
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Firmware ' + ver + ' dipilih', showConfirmButton: false, timer: 1500 });
+    });
+
+    // Saat select berubah → kosongkan manual URL
+    $('#fw-select-file').on('change', function() {
+        if ($(this).val()) $('#fw-manual-url').val('');
+    });
+
+    // Manual URL diisi → reset select
+    $('#fw-manual-url').on('input', function() {
+        if ($(this).val()) $('#fw-select-file').val('');
+    });
+
     $('#form-firmware-upgrade').submit(function(e) {
         e.preventDefault();
         var btn = $(this).find('button[type="submit"]');
-        var fileUrl = $(this).find('[name="file_url"]').val();
+        var fileUrl = $('#fw-select-file').val() || $('#fw-manual-url').val();
+
+        if (!fileUrl) {
+            Swal.fire('Pilih Firmware', 'Pilih firmware dari daftar atau masukkan URL manual.', 'warning');
+            return;
+        }
 
         Swal.fire({
             title: 'Konfirmasi Upgrade Firmware',
-            html: 'Download firmware dari:<br><code>' + $('<div>').text(fileUrl).html() + '</code>',
-            icon: 'question', showCancelButton: true, confirmButtonText: 'Ya, Mulai Upgrade'
+            html: 'Download firmware dari:<br><code>' + $('<div>').text(fileUrl).html() + '</code><br><br><small class="text-muted">ONU akan reboot otomatis setelah flash selesai (~5-10 menit).</small>',
+            icon: 'question', showCancelButton: true, confirmButtonText: 'Ya, Mulai Upgrade', cancelButtonText: 'Batal'
         }).then(function(result) {
             if (result.isConfirmed) {
                 btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Mengirim...');
