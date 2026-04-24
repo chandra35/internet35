@@ -171,7 +171,7 @@
 </div>
 @endsection
 
-@section('scripts')
+@push('js')
 <script>
 // ---------------------------------------------------------------
 // Firmware scanner: nama file dulu, lalu scan binary via Python
@@ -302,4 +302,4 @@ $(document).on('submit', '.form-delete-fw', function(e) {
     });
 });
 </script>
-@endsection
+@endpush
