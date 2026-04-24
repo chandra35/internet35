@@ -233,7 +233,12 @@
                         </tr>
                         @endif
                         @if($onu->mgmt_ip)
-                        <tr><td><strong>Management IP</strong></td><td><code>{{ $onu->mgmt_ip }}</code> <a href="http://{{ $onu->mgmt_ip }}" target="_blank" rel="noopener noreferrer" class="btn btn-xs btn-outline-primary ml-1" title="Buka Web UI ONU"><i class="fas fa-external-link-alt fa-xs mr-1"></i>Web UI</a></td></tr>
+                        <tr><td><strong>Management IP</strong></td><td>
+                            <code>{{ $onu->mgmt_ip }}</code>
+                            @if(!str_starts_with($onu->mgmt_ip, 'dhcp'))
+                            <a href="http://{{ $onu->mgmt_ip }}" target="_blank" rel="noopener noreferrer" class="btn btn-xs btn-outline-primary ml-1" title="Buka Web UI ONU"><i class="fas fa-external-link-alt fa-xs mr-1"></i>Web UI</a>
+                            @endif
+                        </td></tr>
                         @endif
                         <tr><td><strong>Last Online</strong></td><td>{{ $onu->last_online_at ? $onu->last_online_at->format('d/m/Y H:i') . ' (' . $onu->last_online_at->diffForHumans() . ')' : '-' }}</td></tr>
                         <tr><td><strong>Last Sync</strong></td><td>{{ $onu->last_sync_at ? $onu->last_sync_at->format('d/m/Y H:i') . ' (' . $onu->last_sync_at->diffForHumans() . ')' : '-' }}</td></tr>
@@ -715,11 +720,9 @@
                                         <div class="acs-card">
                                             <div class="acs-section-header d-flex justify-content-between align-items-center">
                                                 <span><i class="fas fa-globe mr-1 text-success"></i>Web UI Accounts</span>
-                                                @if($onu->mgmt_ip)
-                                                <a href="http://{{ $onu->mgmt_ip }}" target="_blank" rel="noopener noreferrer" class="btn btn-xs btn-outline-success">
+                                                <a href="#" target="_blank" rel="noopener noreferrer" class="btn btn-xs btn-outline-success" id="btn-open-webui" style="display:none">
                                                     <i class="fas fa-external-link-alt mr-1"></i>Buka Web UI
                                                 </a>
-                                                @endif
                                             </div>
                                             <div class="card-body">
                                                 <div class="row">
@@ -2779,6 +2782,13 @@ $(function() {
                     if (d.web_user)  $('#web-user-name').val(d.web_user.username || '-');
 
                     // ── ACS Info ──────────────────────────────────────────────
+                    // Extract management IP from CWM URL for Web UI button
+                    if (d.acs && d.acs.connection_request_url) {
+                        var cwmMatch = d.acs.connection_request_url.match(/https?:\/\/([0-9]{1,3}(?:\.[0-9]{1,3}){3})/);
+                        if (cwmMatch) {
+                            $('#btn-open-webui').attr('href', 'http://' + cwmMatch[1]).show();
+                        }
+                    }
                     var acsRows = '';
                     if (d.acs) {
                         acsRows += '<tr><td width="40%">ACS URL</td><td><code class="small" style="word-break:break-all">' + (d.acs.url || '-') + '</code></td></tr>';
