@@ -13,12 +13,12 @@ $script = 'return [Date.now(), "N/A"];';
 $r = \Illuminate\Support\Facades\Http::timeout(10)->get($nbiUrl . '/devices?limit=1');
 echo "GET /devices: " . $r->status() . PHP_EOL;
 
-// Test PUT with simple script
-echo "PUT /virtual-parameters/getTxPower..." . PHP_EOL;
+// Test PUT with simple script — note: underscore not hyphen
+echo "PUT /virtual_parameters/getTxPower..." . PHP_EOL;
 try {
     $response = \Illuminate\Support\Facades\Http::timeout(10)
         ->withHeaders(['Content-Type' => 'application/json'])
-        ->put($nbiUrl . '/virtual-parameters/getTxPower', ['script' => $script]);
+        ->put($nbiUrl . '/virtual_parameters/getTxPower', ['script' => $script]);
     
     echo "HTTP status: " . $response->status() . PHP_EOL;
     echo "Body: " . $response->body() . PHP_EOL;
@@ -31,7 +31,7 @@ echo PHP_EOL . "Trying asJson()..." . PHP_EOL;
 try {
     $response2 = \Illuminate\Support\Facades\Http::timeout(10)
         ->asJson()
-        ->put($nbiUrl . '/virtual-parameters/getTxPower', ['script' => $script]);
+        ->put($nbiUrl . '/virtual_parameters/getTxPower', ['script' => $script]);
     
     echo "HTTP status: " . $response2->status() . PHP_EOL;
     echo "Body: " . $response2->body() . PHP_EOL;
@@ -44,7 +44,7 @@ echo PHP_EOL . "Trying withBody(json)..." . PHP_EOL;
 try {
     $response3 = \Illuminate\Support\Facades\Http::timeout(10)
         ->withBody(json_encode(['script' => $script]), 'application/json')
-        ->put($nbiUrl . '/virtual-parameters/getTxPower');
+        ->put($nbiUrl . '/virtual_parameters/getTxPower');
     
     echo "HTTP status: " . $response3->status() . PHP_EOL;
     echo "Body: " . $response3->body() . PHP_EOL;
