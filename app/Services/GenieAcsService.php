@@ -1984,12 +1984,20 @@ class GenieAcsService
 
                 $serialHex = $vp['getSerialNumber']['_value'] ?? null;
 
+                $txRaw = $vp['getTxPower']['_value'] ?? null;
+                $tx    = ($txRaw !== null && $txRaw !== 'N/A' && is_numeric($txRaw))
+                    ? (float) $txRaw : null;
+
+                $wanStatus = $vp['getWanStatus']['_value'] ?? null;
+
                 $result[$id] = [
                     'device_id'        => $id,
                     'last_inform'      => $device['_lastInform'] ?? null,
                     'rx_power'         => $rx,
+                    'tx_power'         => $tx,
                     'temperature'      => $temp,
                     'wan_ip'           => $wanIp,
+                    'wan_status'       => $wanStatus,
                     'software_version' => $this->getValue($igd, 'SoftwareVersion'),
                     'hardware_version' => $this->getValue($igd, 'HardwareVersion'),
                     'manufacturer'     => $this->getValue($igd, 'Manufacturer'),
@@ -2100,6 +2108,12 @@ class GenieAcsService
             // ONU model
             $model = $this->getValue($igd, 'ModelName');
             if ($model) $updates['onu_type'] = $model;
+
+            // WAN status → online/offline inference from getWanStatus VP
+            $wanStatus = $vp['getWanStatus']['_value'] ?? null;
+            if ($wanStatus === 'Connected') {
+                $updates['status'] = 'online';
+            }
 
             // last_online_at from last_inform if within 6 hours
             $lastInform = $device['_lastInform'] ?? null;

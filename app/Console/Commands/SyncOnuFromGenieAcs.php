@@ -152,6 +152,13 @@ class SyncOnuFromGenieAcs extends Command
             }
         }
 
+        // --- TX Power ---
+        if (($device['tx_power'] ?? null) !== null) {
+            if ((float) ($onu->tx_power ?? PHP_INT_MAX) !== $device['tx_power']) {
+                $updates['tx_power'] = $device['tx_power'];
+            }
+        }
+
         // --- Temperature ---
         if ($device['temperature'] !== null) {
             if ((float) ($onu->temperature ?? PHP_INT_MAX) !== $device['temperature']) {
@@ -193,7 +200,14 @@ class SyncOnuFromGenieAcs extends Command
             $updates['onu_type'] = $device['model'];
         }
 
-        // --- Status from last_inform ---
+        // --- Status from WAN PPPoE status ---
+        if (($device['wan_status'] ?? null) === 'Connected') {
+            if ($onu->status !== 'online') {
+                $updates['status'] = 'online';
+            }
+        }
+
+        // --- Status from last_inform (fallback) ---
         if ($device['last_inform']) {
             $lastInform = Carbon::parse($device['last_inform']);
             $hoursAgo   = $lastInform->diffInHours(now());
