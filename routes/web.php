@@ -449,6 +449,7 @@ Route::prefix('admin')->middleware(['auth', 'role:superadmin|admin|admin-pop|tek
     Route::prefix('firmware')->name('firmware.')->group(function () {
         Route::get('/',                    [\App\Http\Controllers\Admin\FirmwareFileController::class, 'index'])->name('index');
         Route::post('/',                   [\App\Http\Controllers\Admin\FirmwareFileController::class, 'store'])->name('store');
+        Route::post('/scan',               [\App\Http\Controllers\Admin\FirmwareFileController::class, 'scan'])->name('scan');
         Route::delete('/{firmware}',       [\App\Http\Controllers\Admin\FirmwareFileController::class, 'destroy'])->name('destroy');
         Route::get('/{firmware}/download', [\App\Http\Controllers\Admin\FirmwareFileController::class, 'download'])->name('download');
         Route::get('/list-for-onu',        [\App\Http\Controllers\Admin\FirmwareFileController::class, 'listForOnu'])->name('list-for-onu');

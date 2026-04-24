@@ -14,6 +14,56 @@ class FirmwareFileController extends Controller
     private const MAX_SIZE_MB = 64;
 
     // -----------------------------------------------------------------
+    // Scan — analyse firmware binary via Python script (AJAX, pre-upload)
+    // POST /admin/firmware/scan  (multipart: file)
+    // Returns JSON: {brand, model, version, extra[], source, error?}
+    // -----------------------------------------------------------------
+
+    public function scan(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|max:' . (self::MAX_SIZE_MB * 1024),
+        ]);
+
+        $file = $request->file('file');
+        $ext  = strtolower($file->getClientOriginalExtension());
+
+        if (!in_array($ext, self::ALLOWED_EXTENSIONS)) {
+            return response()->json(['error' => 'Format file tidak didukung.'], 422);
+        }
+
+        // Store to temp dir with random name (never use original name in exec)
+        $tmpName = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'fw_scan_' . Str::uuid() . '.' . $ext;
+        $file->move(dirname($tmpName), basename($tmpName));
+
+        try {
+            $scriptPath = base_path('scripts/scan_firmware.py');
+            $cmd = sprintf(
+                'python3 %s %s 2>/dev/null',
+                escapeshellarg($scriptPath),
+                escapeshellarg($tmpName)
+            );
+
+            $output = null;
+            $exitCode = 0;
+            exec($cmd, $lines, $exitCode);
+            $output = implode('', $lines);
+
+            $result = json_decode($output, true);
+
+            if ($result === null) {
+                return response()->json(['error' => 'Scanner tidak mengembalikan output valid.'], 500);
+            }
+
+            return response()->json($result);
+        } finally {
+            if (file_exists($tmpName)) {
+                unlink($tmpName);
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------
     // Index — management page
     // -----------------------------------------------------------------
 

@@ -108,7 +108,9 @@
                         </div>
                         <small class="text-muted">Format: .bin .img .tar .gz .zip .ubi .trx .fw — Maks 64 MB</small>
                         <div id="fw-detect-result" class="mt-1" style="display:none">
-                            <span class="badge badge-success"><i class="fas fa-magic mr-1"></i>Terdeteksi otomatis dari nama file</span>
+                            <span id="fw-detect-badge" class="badge badge-secondary">
+                                <i class="fas fa-spinner fa-spin mr-1"></i>Scanning...
+                            </span>
                         </div>
                     </div>
 
@@ -169,88 +171,104 @@
 @section('scripts')
 <script>
 // ---------------------------------------------------------------
-// Auto-detect version / brand / model dari nama file firmware
+// Firmware scanner: nama file dulu, lalu scan binary via Python
 // ---------------------------------------------------------------
-var BRAND_PATTERNS = [
-    {
-        re:      /\b(HG8\d{3}[A-Z0-9]*|MA5\d{3}[A-Z0-9]*|EG8\d{3}[A-Z0-9]*|HN8\d{3}[A-Z0-9]*)/i,
-        brand:   'huawei',
-        modelRe: /\b(HG8\d{3}[A-Z0-9]*|MA5\d{3}[A-Z0-9]*|EG8\d{3}[A-Z0-9]*|HN8\d{3}[A-Z0-9]*)/i,
-    },
-    {
-        re:      /\b(ZXHN[-_ ]?[A-Z0-9]+|F6[0-9]{2}[A-Z]?\d?|F[0-9]{3}[A-Z])\b/i,
-        brand:   'zte',
-        modelRe: /\b(ZXHN[-_ ]?[A-Z0-9]+|F[0-9]{3}[A-Z]?\w*)/i,
-    },
-    {
-        re:      /\b(AN\d{4}[-A-Z0-9]*|HG6\d{3}[A-Z0-9]*|AN5\d{3}[A-Z0-9]*)/i,
-        brand:   'fiberhome',
-        modelRe: /\b(AN\d{4}[-A-Z0-9]*|HG6\d{3}[A-Z0-9]*|AN5\d{3}[A-Z0-9]*)/i,
-    },
-    {
-        re:      /\b(G-\d{4}[A-Z0-9]*|BONT[-]?\d+|G-010[A-Z0-9-]*)/i,
-        brand:   'nokia',
-        modelRe: /\b(G-\d{4}[A-Z0-9]*|G-010[A-Z0-9-]*)/i,
-    },
-    {
-        re:      /\b(Archer[-_ ]?[A-Z0-9]+|TL-[A-Z0-9]+)/i,
-        brand:   'tp-link',
-        modelRe: /\b(Archer[-_ ]?[A-Z0-9]+|TL-[A-Z0-9]+)/i,
-    },
-];
-
-var VERSION_PATTERNS = [
-    { re: /\b(V\d+R\d+C\d+S\d+)\b/i,            hint: 'Huawei: VxRxxxCxxSxxx' },
-    { re: /\b(V\d+R\d+C\d+)\b/i,                 hint: 'Huawei: VxRxxxCxx' },
-    { re: /\b(RP\d{4,})\b/i,                      hint: 'FiberHome: RPxxxx' },
-    { re: /[_-](V\d+\.\d+[\.\d]*[A-Z0-9]*)/i,    hint: 'ZTE/Nokia: Vx.x.x' },
-    { re: /[_-](\d+\.\d+\.\d+[A-Z0-9._-]*)\b/,   hint: 'Generic: x.x.x' },
-];
+var scanUrl = '{{ route("admin.firmware.scan") }}';
 
 $('#fw-file-input').on('change', function() {
-    var raw  = $(this).val().split('\\').pop();
+    var fileInput = this;
+    var raw = $(this).val().split('\\').pop();
     $(this).next('.custom-file-label').html(raw || 'Pilih file...');
+    if (!fileInput.files || !fileInput.files[0]) return;
+
+    // Reset badge
+    $('#fw-detect-result').hide();
+    $('#fw-version-hint').hide();
 
     var name     = raw.replace(/\.[^.]+$/, '');
-    var detected = 0;
+    var detected = detectFromFilename(name);
 
-    // --- Brand + Model ---
-    if (!$('#fw-brand').val()) {
-        for (var i = 0; i < BRAND_PATTERNS.length; i++) {
-            var bp = BRAND_PATTERNS[i];
-            if (bp.re.test(name)) {
-                $('#fw-brand').val(bp.brand);
-                if (!$('#fw-model').val() && bp.modelRe) {
-                    var m = name.match(bp.modelRe);
-                    if (m) $('#fw-model').val(m[1]);
-                }
-                detected++;
-                break;
-            }
-        }
+    if (detected.version || detected.brand) {
+        applyDetected(detected, 'nama file');
     }
 
-    // --- Versi ---
-    if (!$('#fw-version').val()) {
-        for (var j = 0; j < VERSION_PATTERNS.length; j++) {
-            var vp = VERSION_PATTERNS[j];
-            var v  = name.match(vp.re);
-            if (v) {
-                $('#fw-version').val(v[1].toUpperCase());
-                $('#fw-version-hint').text('Format: ' + vp.hint).show();
-                detected++;
-                break;
-            }
-        }
-    }
-
-    $('#fw-detect-result').toggle(detected > 0);
+    // Selalu scan binary juga (lebih akurat) — di background
+    showScanningBadge();
+    scanBinary(fileInput.files[0]);
 });
+
+function detectFromFilename(name) {
+    var BP = [
+        { re: /\b(HG8\d{3}[A-Z0-9]*|MA5\d{3}[A-Z0-9]*|EG8\d{3}[A-Z0-9]*|HN8\d{3}[A-Z0-9]*)/i, brand: 'huawei',    mr: /\b(HG8\d{3}[A-Z0-9]*|MA5\d{3}[A-Z0-9]*|EG8\d{3}[A-Z0-9]*|HN8\d{3}[A-Z0-9]*)/i },
+        { re: /\b(ZXHN[-_ ]?[A-Z0-9]+|F6[0-9]{2}[A-Z]?\d?)/i,                                    brand: 'zte',       mr: /\b(ZXHN[-_ ]?[A-Z0-9]+|F[0-9]{3}[A-Z]?\w*)/i },
+        { re: /\b(AN\d{4}[-A-Z0-9]*|HG6\d{3}[A-Z0-9]*|AN5\d{3}[A-Z0-9]*)/i,                     brand: 'fiberhome', mr: /\b(AN\d{4}[-A-Z0-9]*|HG6\d{3}[A-Z0-9]*)/i },
+        { re: /\b(G-\d{4}[A-Z0-9]*|BONT\d+)/i,                                                    brand: 'nokia',     mr: /\b(G-\d{4}[A-Z0-9-]*)/i },
+    ];
+    var VP = [
+        /\b(V\d+R\d+C\d+S\d+)\b/i, /\b(V\d+R\d{2,3}C\d{2})\b/i,
+        /\b(RP\d{4,})\b/i, /[_-](V\d+\.\d+[\.\d]*[A-Z0-9]{0,6})/i,
+    ];
+    var res = { brand: null, model: null, version: null };
+    for (var i = 0; i < BP.length; i++) {
+        if (BP[i].re.test(name)) {
+            res.brand = BP[i].brand;
+            var m = name.match(BP[i].mr);
+            if (m) res.model = m[1];
+            break;
+        }
+    }
+    for (var j = 0; j < VP.length; j++) {
+        var v = name.match(VP[j]);
+        if (v) { res.version = v[1].toUpperCase(); break; }
+    }
+    return res;
+}
+
+function showScanningBadge() {
+    $('#fw-detect-result').show();
+    $('#fw-detect-badge').removeClass('badge-success badge-danger badge-secondary')
+        .addClass('badge-warning')
+        .html('<i class="fas fa-spinner fa-spin mr-1"></i>Scanning isi file...');
+}
+
+function scanBinary(file) {
+    var fd = new FormData();
+    fd.append('file', file);
+    fd.append('_token', '{{ csrf_token() }}');
+
+    $.ajax({ url: scanUrl, type: 'POST', data: fd, processData: false, contentType: false, timeout: 30000 })
+    .done(function(res) {
+        if (res.error) {
+            $('#fw-detect-badge').removeClass('badge-warning').addClass('badge-secondary')
+                .html('<i class="fas fa-exclamation-circle mr-1"></i>Scan gagal: ' + $('<div>').text(res.error).html());
+            return;
+        }
+        // Binary scan override: selalu update versi jika lebih spesifik
+        var cur = $('#fw-version').val();
+        if (res.version && (!cur || res.version.length >= cur.length)) {
+            $('#fw-version').val(res.version.toUpperCase());
+        }
+        if (res.brand && !$('#fw-brand').val())  $('#fw-brand').val(res.brand);
+        if (res.model && !$('#fw-model').val())  $('#fw-model').val(res.model);
+
+        var extra = res.extra && res.extra.length ? ' <span class="text-muted small">(juga ditemukan: ' + res.extra.slice(0,3).join(', ') + ')</span>' : '';
+        $('#fw-detect-badge').removeClass('badge-warning').addClass('badge-success')
+            .html('<i class="fas fa-magic mr-1"></i>Terdeteksi dari isi binary' + extra);
+    })
+    .fail(function() {
+        $('#fw-detect-badge').removeClass('badge-warning').addClass('badge-secondary')
+            .html('<i class="fas fa-exclamation-circle mr-1"></i>Scan binary timeout/error, gunakan deteksi nama file');
+    });
+}
+
+function applyDetected(res, source) {
+    if (res.brand && !$('#fw-brand').val()) $('#fw-brand').val(res.brand);
+    if (res.model && !$('#fw-model').val()) $('#fw-model').val(res.model);
+    if (res.version && !$('#fw-version').val()) $('#fw-version').val(res.version);
+}
 
 // Reset hint jika version diedit manual
-$('#fw-version').on('input', function() {
-    $('#fw-version-hint').hide();
-});
+$('#fw-version').on('input', function() { $('#fw-version-hint').hide(); });
 
 // Konfirmasi hapus
 $(document).on('submit', '.form-delete-fw', function(e) {
