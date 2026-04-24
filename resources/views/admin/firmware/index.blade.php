@@ -147,7 +147,7 @@
                                   placeholder="Changelog, keterangan, dsb...">{{ old('notes') }}</textarea>
                     </div>
 
-                    <button type="submit" class="btn btn-primary btn-block">
+                    <button type="submit" id="fw-submit-btn" class="btn btn-primary btn-block">
                         <i class="fas fa-cloud-upload-alt mr-1"></i>Upload Firmware
                     </button>
                 </form>
@@ -170,6 +170,57 @@
     </div>
 </div>
 @endsection
+
+{{-- Upload Progress Overlay --}}
+<div id="fw-upload-overlay" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.65); backdrop-filter:blur(3px);">
+    <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:420px; max-width:90vw;">
+        <div class="card card-dark shadow-lg" style="border-radius:12px; overflow:hidden;">
+            <div class="card-header text-center py-3" style="background:#1a1a2e;">
+                <div id="fw-ov-icon" class="mb-2">
+                    <i class="fas fa-cloud-upload-alt fa-2x text-primary" id="fw-ov-icon-upload"></i>
+                    <i class="fas fa-check-circle fa-2x text-success" id="fw-ov-icon-done" style="display:none"></i>
+                    <i class="fas fa-times-circle fa-2x text-danger" id="fw-ov-icon-fail" style="display:none"></i>
+                </div>
+                <h5 class="mb-0" id="fw-ov-title">Mengupload Firmware...</h5>
+                <small class="text-muted" id="fw-ov-filename"></small>
+            </div>
+            <div class="card-body px-4 py-3" style="background:#16213e;">
+                {{-- Progress bar --}}
+                <div id="fw-ov-progress-wrap">
+                    <div class="d-flex justify-content-between mb-1">
+                        <small class="text-muted" id="fw-ov-speed"></small>
+                        <small class="font-weight-bold text-white" id="fw-ov-pct">0%</small>
+                    </div>
+                    <div class="progress" style="height:14px; border-radius:7px; background:#0f3460;">
+                        <div id="fw-ov-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
+                             style="width:0%; border-radius:7px; transition:width 0.2s ease;">
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between mt-1">
+                        <small class="text-muted" id="fw-ov-transferred"></small>
+                        <small class="text-muted" id="fw-ov-eta"></small>
+                    </div>
+                </div>
+                {{-- Status text --}}
+                <div class="text-center mt-3" id="fw-ov-status">
+                    <small class="text-muted">
+                        <i class="fas fa-spinner fa-spin mr-1"></i>
+                        <span id="fw-ov-status-text">Mengirim file ke server...</span>
+                    </small>
+                </div>
+                {{-- Done actions --}}
+                <div id="fw-ov-actions" class="mt-3 text-center" style="display:none">
+                    <button class="btn btn-success btn-sm mr-2" onclick="location.reload()">
+                        <i class="fas fa-sync mr-1"></i>Refresh Halaman
+                    </button>
+                    <button class="btn btn-secondary btn-sm" onclick="document.getElementById('fw-upload-overlay').style.display='none'">
+                        Tutup
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
 @push('js')
 <script>
@@ -285,7 +336,139 @@ function applyDetected(res, source) {
 // Reset hint jika version diedit manual
 $('#fw-version').on('input', function() { $('#fw-version-hint').hide(); });
 
+// ---------------------------------------------------------------
+// Upload dengan XHR progress
+// ---------------------------------------------------------------
+document.querySelector('form[action="{{ route("admin.firmware.store") }}"]').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var form = this;
+
+    // Validasi file dipilih
+    var fileInput = document.getElementById('fw-file-input');
+    if (!fileInput.files || !fileInput.files.length) {
+        Swal.fire('Pilih File', 'Silakan pilih file firmware terlebih dahulu.', 'warning');
+        return;
+    }
+
+    var file     = fileInput.files[0];
+    var sizeMB   = (file.size / 1048576).toFixed(1);
+    var formData = new FormData(form);
+
+    // Tampilkan overlay
+    var overlay = document.getElementById('fw-upload-overlay');
+    overlay.style.display = 'block';
+    document.getElementById('fw-ov-filename').textContent = file.name + ' (' + sizeMB + ' MB)';
+    document.getElementById('fw-ov-title').textContent    = 'Mengupload Firmware...';
+    document.getElementById('fw-ov-icon-upload').style.display = 'inline-block';
+    document.getElementById('fw-ov-icon-done').style.display   = 'none';
+    document.getElementById('fw-ov-icon-fail').style.display   = 'none';
+    document.getElementById('fw-ov-actions').style.display     = 'none';
+    document.getElementById('fw-ov-progress-wrap').style.display = 'block';
+    document.getElementById('fw-submit-btn').disabled = true;
+
+    var startTime = Date.now();
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', form.action, true);
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    xhr.setRequestHeader('Accept', 'application/json');
+
+    xhr.upload.addEventListener('progress', function(e) {
+        if (!e.lengthComputable) return;
+        var pct      = Math.round(e.loaded / e.total * 100);
+        var elapsed  = (Date.now() - startTime) / 1000;
+        var speed    = e.loaded / elapsed; // bytes/s
+        var remaining = (e.total - e.loaded) / speed;
+
+        document.getElementById('fw-ov-bar').style.width = pct + '%';
+        document.getElementById('fw-ov-pct').textContent = pct + '%';
+        document.getElementById('fw-ov-transferred').textContent = formatBytes(e.loaded) + ' / ' + formatBytes(e.total);
+        document.getElementById('fw-ov-speed').textContent = formatBytes(speed) + '/s';
+        document.getElementById('fw-ov-eta').textContent   = pct < 100 ? 'ETA ~' + formatSeconds(remaining) : '';
+
+        if (pct >= 100) {
+            document.getElementById('fw-ov-status-text').textContent = 'Memproses file di server...';
+            document.getElementById('fw-ov-bar').classList.remove('bg-primary');
+            document.getElementById('fw-ov-bar').classList.add('bg-warning');
+        }
+    });
+
+    xhr.addEventListener('load', function() {
+        document.getElementById('fw-submit-btn').disabled = false;
+        document.getElementById('fw-ov-progress-wrap').style.display = 'none';
+        document.getElementById('fw-ov-status').style.display = 'none';
+
+        if (xhr.status === 200 || xhr.status === 302) {
+            // Cek apakah response adalah JSON error dari Laravel
+            var isJson = false;
+            try { var j = JSON.parse(xhr.responseText); isJson = true; } catch(e) {}
+
+            if (isJson && j && j.errors) {
+                var msgs = Object.values(j.errors).flat().join('<br>');
+                showOverlayFail('Validasi Gagal', msgs);
+            } else {
+                showOverlayDone();
+            }
+        } else if (xhr.status === 422) {
+            try {
+                var err = JSON.parse(xhr.responseText);
+                var msgs = Object.values(err.errors || {}).flat().join('<br>');
+                showOverlayFail('Validasi Gagal', msgs || 'Periksa form dan coba lagi.');
+            } catch(e) {
+                showOverlayFail('Gagal', 'Error ' + xhr.status);
+            }
+        } else {
+            showOverlayFail('Upload Gagal', 'HTTP ' + xhr.status + ' — Coba lagi.');
+        }
+    });
+
+    xhr.addEventListener('error', function() {
+        document.getElementById('fw-submit-btn').disabled = false;
+        showOverlayFail('Koneksi Error', 'Gagal menghubungi server. Periksa koneksi jaringan.');
+    });
+
+    xhr.addEventListener('abort', function() {
+        document.getElementById('fw-submit-btn').disabled = false;
+        document.getElementById('fw-upload-overlay').style.display = 'none';
+    });
+
+    xhr.send(formData);
+});
+
+function showOverlayDone() {
+    document.getElementById('fw-ov-icon-upload').style.display = 'none';
+    document.getElementById('fw-ov-icon-done').style.display   = 'inline-block';
+    document.getElementById('fw-ov-title').textContent          = 'Upload Berhasil!';
+    document.getElementById('fw-ov-status').innerHTML           = '<span class="text-success"><i class="fas fa-check mr-1"></i>Firmware berhasil disimpan di server.</span>';
+    document.getElementById('fw-ov-status').style.display       = 'block';
+    document.getElementById('fw-ov-actions').style.display      = 'block';
+    // Auto-reload setelah 2 detik
+    setTimeout(function() { location.reload(); }, 2000);
+}
+
+function showOverlayFail(title, msg) {
+    document.getElementById('fw-ov-icon-upload').style.display = 'none';
+    document.getElementById('fw-ov-icon-fail').style.display   = 'inline-block';
+    document.getElementById('fw-ov-title').textContent          = title;
+    document.getElementById('fw-ov-status').innerHTML           = '<span class="text-danger">' + msg + '</span>';
+    document.getElementById('fw-ov-status').style.display       = 'block';
+    document.getElementById('fw-ov-actions').style.display      = 'block';
+}
+
+function formatBytes(b) {
+    if (b < 1024)     return b.toFixed(0) + ' B';
+    if (b < 1048576)  return (b/1024).toFixed(1) + ' KB';
+    return (b/1048576).toFixed(1) + ' MB';
+}
+
+function formatSeconds(s) {
+    if (s < 60) return Math.ceil(s) + 'd';
+    return Math.floor(s/60) + 'm ' + Math.ceil(s%60) + 'd';
+}
+
+// ---------------------------------------------------------------
 // Konfirmasi hapus
+// ---------------------------------------------------------------
 $(document).on('submit', '.form-delete-fw', function(e) {
     e.preventDefault();
     var form = this;
