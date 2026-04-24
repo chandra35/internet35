@@ -101,8 +101,20 @@
                     @csrf
 
                     <div class="form-group">
+                        <label>File Firmware <span class="text-danger">*</span></label>
+                        <div class="custom-file">
+                            <input type="file" class="custom-file-input" id="fw-file-input" name="file" required>
+                            <label class="custom-file-label" for="fw-file-input">Pilih file...</label>
+                        </div>
+                        <small class="text-muted">Format: .bin .img .tar .gz .zip .ubi .trx .fw — Maks 64 MB</small>
+                        <div id="fw-detect-result" class="mt-1" style="display:none">
+                            <span class="badge badge-success"><i class="fas fa-magic mr-1"></i>Terdeteksi otomatis dari nama file</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
                         <label>Brand <span class="text-danger">*</span></label>
-                        <select name="brand" class="form-control" required>
+                        <select id="fw-brand" name="brand" class="form-control" required>
                             <option value="">-- Pilih Brand --</option>
                             @foreach(['huawei','zte','fiberhome','nokia','tp-link','sercomm','dzs','mikrotik','calix'] as $b)
                                 <option value="{{ $b }}" {{ old('brand') == $b ? 'selected' : '' }}>{{ ucfirst($b) }}</option>
@@ -112,24 +124,16 @@
 
                     <div class="form-group">
                         <label>Pola Model <small class="text-muted">(opsional)</small></label>
-                        <input type="text" name="model_pattern" class="form-control" value="{{ old('model_pattern') }}"
+                        <input id="fw-model" type="text" name="model_pattern" class="form-control" value="{{ old('model_pattern') }}"
                                placeholder="Contoh: HG8145V5, HG8245*, kosong = semua model">
                         <small class="text-muted">Gunakan * di akhir untuk prefix match. Kosongkan untuk semua model brand ini.</small>
                     </div>
 
                     <div class="form-group">
                         <label>Versi Firmware <span class="text-danger">*</span></label>
-                        <input type="text" name="version" class="form-control" value="{{ old('version') }}"
+                        <input id="fw-version" type="text" name="version" class="form-control" value="{{ old('version') }}"
                                placeholder="Contoh: V5R021C10S030" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label>File Firmware <span class="text-danger">*</span></label>
-                        <div class="custom-file">
-                            <input type="file" class="custom-file-input" id="fw-file-input" name="file" required>
-                            <label class="custom-file-label" for="fw-file-input">Pilih file...</label>
-                        </div>
-                        <small class="text-muted">Format: .bin .img .tar .gz .zip .ubi .trx .fw — Maks {{ number_format(64) }} MB</small>
+                        <small id="fw-version-hint" class="text-muted" style="display:none"></small>
                     </div>
 
                     <div class="form-group">
@@ -164,10 +168,88 @@
 
 @section('scripts')
 <script>
-// Custom file input label
-$('.custom-file-input').on('change', function() {
-    var name = $(this).val().split('\\').pop();
-    $(this).next('.custom-file-label').html(name || 'Pilih file...');
+// ---------------------------------------------------------------
+// Auto-detect version / brand / model dari nama file firmware
+// ---------------------------------------------------------------
+var BRAND_PATTERNS = [
+    {
+        re:      /\b(HG8\d{3}[A-Z0-9]*|MA5\d{3}[A-Z0-9]*|EG8\d{3}[A-Z0-9]*|HN8\d{3}[A-Z0-9]*)/i,
+        brand:   'huawei',
+        modelRe: /\b(HG8\d{3}[A-Z0-9]*|MA5\d{3}[A-Z0-9]*|EG8\d{3}[A-Z0-9]*|HN8\d{3}[A-Z0-9]*)/i,
+    },
+    {
+        re:      /\b(ZXHN[-_ ]?[A-Z0-9]+|F6[0-9]{2}[A-Z]?\d?|F[0-9]{3}[A-Z])\b/i,
+        brand:   'zte',
+        modelRe: /\b(ZXHN[-_ ]?[A-Z0-9]+|F[0-9]{3}[A-Z]?\w*)/i,
+    },
+    {
+        re:      /\b(AN\d{4}[-A-Z0-9]*|HG6\d{3}[A-Z0-9]*|AN5\d{3}[A-Z0-9]*)/i,
+        brand:   'fiberhome',
+        modelRe: /\b(AN\d{4}[-A-Z0-9]*|HG6\d{3}[A-Z0-9]*|AN5\d{3}[A-Z0-9]*)/i,
+    },
+    {
+        re:      /\b(G-\d{4}[A-Z0-9]*|BONT[-]?\d+|G-010[A-Z0-9-]*)/i,
+        brand:   'nokia',
+        modelRe: /\b(G-\d{4}[A-Z0-9]*|G-010[A-Z0-9-]*)/i,
+    },
+    {
+        re:      /\b(Archer[-_ ]?[A-Z0-9]+|TL-[A-Z0-9]+)/i,
+        brand:   'tp-link',
+        modelRe: /\b(Archer[-_ ]?[A-Z0-9]+|TL-[A-Z0-9]+)/i,
+    },
+];
+
+var VERSION_PATTERNS = [
+    { re: /\b(V\d+R\d+C\d+S\d+)\b/i,            hint: 'Huawei: VxRxxxCxxSxxx' },
+    { re: /\b(V\d+R\d+C\d+)\b/i,                 hint: 'Huawei: VxRxxxCxx' },
+    { re: /\b(RP\d{4,})\b/i,                      hint: 'FiberHome: RPxxxx' },
+    { re: /[_-](V\d+\.\d+[\.\d]*[A-Z0-9]*)/i,    hint: 'ZTE/Nokia: Vx.x.x' },
+    { re: /[_-](\d+\.\d+\.\d+[A-Z0-9._-]*)\b/,   hint: 'Generic: x.x.x' },
+];
+
+$('#fw-file-input').on('change', function() {
+    var raw  = $(this).val().split('\\').pop();
+    $(this).next('.custom-file-label').html(raw || 'Pilih file...');
+
+    var name     = raw.replace(/\.[^.]+$/, '');
+    var detected = 0;
+
+    // --- Brand + Model ---
+    if (!$('#fw-brand').val()) {
+        for (var i = 0; i < BRAND_PATTERNS.length; i++) {
+            var bp = BRAND_PATTERNS[i];
+            if (bp.re.test(name)) {
+                $('#fw-brand').val(bp.brand);
+                if (!$('#fw-model').val() && bp.modelRe) {
+                    var m = name.match(bp.modelRe);
+                    if (m) $('#fw-model').val(m[1]);
+                }
+                detected++;
+                break;
+            }
+        }
+    }
+
+    // --- Versi ---
+    if (!$('#fw-version').val()) {
+        for (var j = 0; j < VERSION_PATTERNS.length; j++) {
+            var vp = VERSION_PATTERNS[j];
+            var v  = name.match(vp.re);
+            if (v) {
+                $('#fw-version').val(v[1].toUpperCase());
+                $('#fw-version-hint').text('Format: ' + vp.hint).show();
+                detected++;
+                break;
+            }
+        }
+    }
+
+    $('#fw-detect-result').toggle(detected > 0);
+});
+
+// Reset hint jika version diedit manual
+$('#fw-version').on('input', function() {
+    $('#fw-version-hint').hide();
 });
 
 // Konfirmasi hapus
