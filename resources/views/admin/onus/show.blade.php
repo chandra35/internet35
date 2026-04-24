@@ -73,7 +73,7 @@
             <div class="col-lg-6">
                 <div class="d-flex align-items-center">
                     <div class="mr-3">
-                        <i class="fas fa-hdd fa-2x text-{{ $onu->status == 'online' ? 'success' : ($onu->status == 'los' ? 'warning' : 'danger') }}"></i>
+                        <i class="fas fa-hdd fa-2x text-{{ $onu->status == 'online' ? 'success' : ($onu->status == 'los' ? 'warning' : ($onu->status == 'unknown' ? 'muted' : 'danger')) }}" id="onu-hero-icon"></i>
                     </div>
                     <div>
                         <h4 class="mb-0 font-weight-bold">{{ $onu->name ?? $onu->description ?? $onu->serial_number }}</h4>
@@ -104,9 +104,12 @@
                         $distFormatted = $dist >= 1000 ? number_format($dist / 1000, 2) . 'km' : $dist . 'm';
                     }
                 @endphp
-                <span class="badge badge-{{ $onu->status == 'online' ? 'success' : ($onu->status == 'los' ? 'warning' : 'danger') }} px-3 py-2 mr-2" style="font-size:13px" id="onu-status">
+                <span class="badge badge-{{ $onu->status == 'online' ? 'success' : ($onu->status == 'los' ? 'warning' : ($onu->status == 'unknown' ? 'secondary' : 'danger')) }} px-3 py-2 mr-2" style="font-size:13px" id="onu-status">
                     <i class="fas fa-circle mr-1" style="font-size:8px;vertical-align:middle"></i>
                     {{ strtoupper($onu->status ?? 'unknown') }}
+                </span>
+                <span class="badge badge-success px-2 py-1" style="font-size:11px;display:none" id="tr069-online-badge">
+                    <i class="fas fa-wifi mr-1"></i>TR-069 Online
                 </span>
                 <span class="badge badge-{{ $rxClass }} px-3 py-2" style="font-size:13px" id="onu-signal">
                     <i class="fas fa-signal mr-1"></i>
@@ -242,6 +245,12 @@
                         @endif
                         <tr><td><strong>Last Online</strong></td><td>{{ $onu->last_online_at ? $onu->last_online_at->format('d/m/Y H:i') . ' (' . $onu->last_online_at->diffForHumans() . ')' : '-' }}</td></tr>
                         <tr><td><strong>Last Sync</strong></td><td>{{ $onu->last_sync_at ? $onu->last_sync_at->format('d/m/Y H:i') . ' (' . $onu->last_sync_at->diffForHumans() . ')' : '-' }}</td></tr>
+                        {{-- Brand info from TR-069 (populated via JS) --}}
+                        <tr id="ov-brand-row" style="display:none"><td><strong>Manufacturer</strong></td><td id="ov-manufacturer">-</td></tr>
+                        <tr id="ov-model-row" style="display:none"><td><strong>Model</strong></td><td id="ov-model">-</td></tr>
+                        <tr id="ov-firmware-row" style="display:none"><td><strong>Firmware</strong></td><td id="ov-firmware">-</td></tr>
+                        <tr id="ov-hardware-row" style="display:none"><td><strong>Hardware Ver.</strong></td><td id="ov-hardware">-</td></tr>
+                        <tr id="ov-tr069-inform-row" style="display:none"><td><strong>TR-069 Last Inform</strong></td><td id="ov-tr069-inform">-</td></tr>
                     </table>
                 </div>
                 <div class="col-lg-6">
@@ -1644,6 +1653,31 @@ $(function() {
         if (dev.provisioning_code) rows += '<tr><td>Provisioning</td><td><span id="tr069-provcode-text">' + dev.provisioning_code + '</span> <button type="button" class="btn btn-xs btn-link p-0 ml-1" id="btn-edit-provcode" title="Ubah ProvisioningCode"><i class="fas fa-pen text-muted"></i></button></td></tr>';
         if (dev.device_id) rows += '<tr><td>Device ID</td><td><code class="small">' + dev.device_id + '</code></td></tr>';
         $('#tr069-general-table').html(rows);
+
+        // Update Overview brand info
+        if (dev.manufacturer) { $('#ov-manufacturer').text(dev.manufacturer); $('#ov-brand-row').show(); }
+        if (dev.model) { $('#ov-model').text(dev.model); $('#ov-model-row').show(); }
+        if (dev.software_version) { $('#ov-firmware').html('<span class="badge badge-primary">' + dev.software_version + '</span>'); $('#ov-firmware-row').show(); }
+        if (dev.hardware_version) { $('#ov-hardware').text(dev.hardware_version); $('#ov-hardware-row').show(); }
+        if (dev.last_inform) {
+            var informDate = new Date(dev.last_inform);
+            var diffHours = (new Date() - informDate) / 3600000;
+            var diffLabel = diffHours < 1 ? 'baru saja' : (diffHours < 24 ? Math.round(diffHours) + ' jam lalu' : Math.round(diffHours / 24) + ' hari lalu');
+            $('#ov-tr069-inform').text(informDate.toLocaleString('id-ID') + ' (' + diffLabel + ')');
+            $('#ov-tr069-inform-row').show();
+            // If last_inform < 6 jam, ONU confirmed online via TR-069
+            if (diffHours < 6) {
+                $('#tr069-online-badge').show();
+                $('#onu-status')
+                    .removeClass('badge-secondary badge-danger badge-warning')
+                    .addClass('badge-success')
+                    .find('i').nextAll().length === 0 ? null : null;
+                $('#onu-status').html('<i class="fas fa-circle mr-1" style="font-size:8px;vertical-align:middle"></i>ONLINE');
+                $('#onu-hero-icon').removeClass('text-muted text-danger text-warning').addClass('text-success');
+            } else if (diffHours < 48) {
+                $('#tr069-online-badge').show();
+            }
+        }
 
         // System status
         $('#tr069-cpu').html(dev.cpu_usage ? '<div class="progress" style="height:16px"><div class="progress-bar bg-' + (dev.cpu_usage > 80 ? 'danger' : dev.cpu_usage > 50 ? 'warning' : 'success') + '" style="width:' + dev.cpu_usage + '%">' + dev.cpu_usage + '%</div></div>' : '-');
