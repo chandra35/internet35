@@ -744,26 +744,41 @@ class OnuController extends Controller implements HasMiddleware
             
             // Get traffic info
             $trafficInfo = $helper->getOnuTraffic($onu->slot ?? 0, $onu->port, $onu->onu_id);
+
+            // Get live status from OLT SNMP
+            $onuInfo  = $helper->getOnuInfo($onu->slot ?? 0, $onu->port, $onu->onu_id);
+            $liveStatus = $onuInfo['status'] ?? null;
             
             // Update ONU
-            $onu->update([
-                'rx_power' => $opticalInfo['rx_power'] ?? null,
-                'tx_power' => $opticalInfo['tx_power'] ?? null,
+            $updateData = [
+                'rx_power'     => $opticalInfo['rx_power'] ?? null,
+                'tx_power'     => $opticalInfo['tx_power'] ?? null,
                 'olt_rx_power' => $opticalInfo['olt_rx_power'] ?? null,
-                'distance' => $opticalInfo['distance'] ?? $onu->distance,
-            ]);
+                'distance'     => $opticalInfo['distance'] ?? $onu->distance,
+            ];
+            // Only update status if OLT returned a known value
+            $knownStatuses = ['online', 'offline', 'los', 'dying_gasp', 'power_off'];
+            if ($liveStatus && in_array($liveStatus, $knownStatuses)) {
+                $updateData['status'] = $liveStatus;
+                if ($liveStatus === 'online') {
+                    $updateData['last_online_at'] = now();
+                }
+            }
+
+            $onu->update($updateData);
             
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'rx_power' => $opticalInfo['rx_power'],
-                    'tx_power' => $opticalInfo['tx_power'],
-                    'olt_rx_power' => $opticalInfo['olt_rx_power'],
-                    'distance' => $opticalInfo['distance'] ?? $onu->distance,
-                    'in_octets' => $trafficInfo['in_octets'],
-                    'out_octets' => $trafficInfo['out_octets'],
+                    'rx_power'            => $opticalInfo['rx_power'],
+                    'tx_power'            => $opticalInfo['tx_power'],
+                    'olt_rx_power'        => $opticalInfo['olt_rx_power'],
+                    'distance'            => $opticalInfo['distance'] ?? $onu->distance,
+                    'status'              => $liveStatus,
+                    'in_octets'           => $trafficInfo['in_octets'],
+                    'out_octets'          => $trafficInfo['out_octets'],
                     'in_octets_formatted' => $this->formatBytes($trafficInfo['in_octets']),
-                    'out_octets_formatted' => $this->formatBytes($trafficInfo['out_octets']),
+                    'out_octets_formatted'=> $this->formatBytes($trafficInfo['out_octets']),
                 ],
                 'message' => 'Signal refreshed',
             ]);

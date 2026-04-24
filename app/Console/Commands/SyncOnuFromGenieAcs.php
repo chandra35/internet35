@@ -203,23 +203,38 @@ class SyncOnuFromGenieAcs extends Command
         }
 
         // --- Status from WAN PPPoE status ---
-        if (($device['wan_status'] ?? null) === 'Connected') {
-            if ($onu->status !== 'online') {
-                $updates['status'] = 'online';
+        // Hanya set online jika last_inform juga baru (≤15 mnt), agar data stale tidak override status offline dari SNMP
+        $lastInformRecent = false;
+        if ($device['last_inform']) {
+            $lastInform = Carbon::parse($device['last_inform']);
+            $minsAgo    = $lastInform->diffInMinutes(now());
+            $lastInformRecent = $minsAgo <= 15;
+
+            if ($lastInformRecent) {
+                // ONU aktif TR-069 dalam 15 menit terakhir
+                if ($onu->status !== 'online') {
+                    $updates['status']        = 'online';
+                    $updates['last_online_at'] = $lastInform;
+                }
+            } elseif ($minsAgo > 15 && $minsAgo <= (self::ONLINE_THRESHOLD_HOURS * 60)) {
+                // last_inform 15 mnt – 6 jam lalu → masih dianggap online, tapi jangan override status dari OLT SNMP
+                // Hanya set online jika status saat ini unknown
+                if ($onu->status === 'unknown') {
+                    $updates['status']        = 'online';
+                    $updates['last_online_at'] = $lastInform;
+                }
+            } elseif ($lastInform->diffInHours(now()) > self::ONLINE_THRESHOLD_HOURS) {
+                // Sudah lebih dari 6 jam tidak inform → offline
+                if ($onu->status === 'online') {
+                    $updates['status'] = 'offline';
+                }
             }
         }
 
-        // --- Status from last_inform (fallback) ---
-        if ($device['last_inform']) {
-            $lastInform = Carbon::parse($device['last_inform']);
-            $hoursAgo   = $lastInform->diffInHours(now());
-
-            if ($hoursAgo <= self::ONLINE_THRESHOLD_HOURS) {
-                // Device recently informed → mark online (only if currently unknown)
-                if ($onu->status === 'unknown') {
-                    $updates['status'] = 'online';
-                    $updates['last_online_at'] = $lastInform;
-                }
+        if (($device['wan_status'] ?? null) === 'Connected' && $lastInformRecent) {
+            // Konfirmasi online hanya jika TR-069 juga baru saja aktif
+            if ($onu->status !== 'online') {
+                $updates['status'] = 'online';
             }
         }
 
