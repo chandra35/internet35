@@ -14,6 +14,7 @@ if ($exists) {
     echo "Task onu:sync-genieacs already exists!" . PHP_EOL;
 } else {
     DB::table('scheduled_tasks')->insert([
+        'id'          => (string) \Illuminate\Support\Str::uuid(),
         'name'        => 'Sync ONU dari GenieACS',
         'command'     => 'onu:sync-genieacs',
         'schedule'    => 'everyFiveMinutes',
