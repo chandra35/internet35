@@ -2125,7 +2125,7 @@ class GenieAcsService
     {
         try {
             $response = Http::timeout(10)
-                ->withHeaders(['Content-Type' => 'application/json'])
+                ->asJson()
                 ->put("{$this->nbiUrl}/virtual_parameters/{$name}", ['script' => $script]);
             return $response->successful();
         } catch (Exception $e) {

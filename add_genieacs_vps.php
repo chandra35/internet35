@@ -24,50 +24,55 @@ if (!$g->isAvailable()) {
 
 // -------------------------------------------------------------------
 // 1. getTxPower — TX optical power ONU
-//    Mencoba path Huawei dulu, lalu ZTE, lalu fallback ke N/A.
-//    Format return: string dBm seperti "2.5" atau "-1.3"
+//    Mencoba path ZTE dulu, lalu Huawei, lalu FiberHome.
+//    Return: float dBm string, atau "N/A"
 // -------------------------------------------------------------------
 $getTxPowerScript = <<<'JS'
-let result = "N/A";
-try {
-  // Huawei ONT TX power via vendor-specific TR-069 path
-  let hw = declare("InternetGatewayDevice.X_HW_DEBUG.GPON.TxOpticalPower", {value: 1});
-  if (hw.value && hw.value[0] !== undefined && hw.value[0] !== "") {
-    result = String(hw.value[0]);
+// TX Optical Power
+let m = "N/A";
+let zte = declare("InternetGatewayDevice.WANDevice.*.X_ZTE-COM_WANPONInterfaceConfig.TXPower", {value: Date.now()});
+let huawei = declare("InternetGatewayDevice.WANDevice.*.X_GponInterafceConfig.TXPower", {value: Date.now()});
+let fiberhome = declare("InternetGatewayDevice.WANDevice.*.X_FH_GponInterfaceConfig.TXPower", {value: Date.now()});
+if (zte.size) {
+  let val = zte.value[0];
+  if (typeof val !== "undefined" && val !== "") m = val;
+} else if (huawei.size) {
+  for (let p of huawei) {
+    if (p.value[0]) { m = p.value[0]; break; }
   }
-} catch(e1) {
-  try {
-    // ZTE ONT TX power via vendor-specific path
-    let zte = declare("InternetGatewayDevice.X_ZTE-COM_GPON.TxPower", {value: 1});
-    if (zte.value && zte.value[0] !== undefined && zte.value[0] !== "") {
-      result = String(zte.value[0]);
-    }
-  } catch(e2) {
-    result = "N/A";
+} else if (fiberhome.size) {
+  for (let p of fiberhome) {
+    if (p.value[0]) { m = p.value[0]; break; }
   }
 }
-return [Date.now(), result];
+return {writable: false, value: [m, "xsd:string"]};
 JS;
 
 // -------------------------------------------------------------------
 // 2. getWanStatus — status koneksi WAN PPPoE
-//    Membaca ConnectionStatus dari WANPPPConnection.
 //    Return: "Connected" | "Disconnected" | "Unknown"
 // -------------------------------------------------------------------
 $getWanStatusScript = <<<'JS'
+// WAN PPPoE Connection Status
 let result = "Unknown";
-try {
-  let x = declare(
-    "InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.ConnectionStatus",
-    {value: 1}
-  );
-  if (x.value && x.value[0]) {
-    result = x.value[0];
+let keys = [
+  "InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.ConnectionStatus",
+  "InternetGatewayDevice.WANDevice.1.WANConnectionDevice.2.WANPPPConnection.1.ConnectionStatus",
+  "InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.2.ConnectionStatus"
+];
+for (let i = 0; i < keys.length; i++) {
+  let d = declare(keys[i], {value: Date.now()});
+  if (d.size) {
+    for (let p of d) {
+      if (p.value && p.value[0]) {
+        result = p.value[0];
+        break;
+      }
+    }
+    if (result !== "Unknown") break;
   }
-} catch(e) {
-  result = "Unknown";
 }
-return [Date.now(), result];
+return {writable: false, value: [result, "xsd:string"]};
 JS;
 
 // -------------------------------------------------------------------
