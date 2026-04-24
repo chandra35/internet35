@@ -77,7 +77,7 @@ echo "Mengambil daftar VirtualParameters yang ada..." . PHP_EOL;
 $existing = [];
 try {
     $r = \Illuminate\Support\Facades\Http::timeout(10)->get(
-        config('services.genieacs.nbi_url', 'http://172.10.10.254:7557') . '/virtual-parameters'
+        config('services.genieacs.nbi_url', 'http://172.10.10.254:7557') . '/virtual_parameters'
     );
     if ($r->ok()) {
         foreach ($r->json() as $vp) {
@@ -105,4 +105,4 @@ foreach ($vps as $name => $script) {
 }
 
 echo PHP_EOL . "Selesai. Restart GenieACS tidak diperlukan — VP aktif di inform berikutnya." . PHP_EOL;
-echo "Cek hasilnya: curl http://172.10.10.254:7557/virtual-parameters" . PHP_EOL;
+echo "Cek hasilnya: curl http://172.10.10.254:7557/virtual_parameters" . PHP_EOL;

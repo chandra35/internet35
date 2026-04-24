@@ -2126,7 +2126,7 @@ class GenieAcsService
         try {
             $response = Http::timeout(10)
                 ->withHeaders(['Content-Type' => 'application/json'])
-                ->put("{$this->nbiUrl}/virtual-parameters/{$name}", ['script' => $script]);
+                ->put("{$this->nbiUrl}/virtual_parameters/{$name}", ['script' => $script]);
             return $response->successful();
         } catch (Exception $e) {
             Log::error("GenieACS createVirtualParameter [{$name}]: " . $e->getMessage());
