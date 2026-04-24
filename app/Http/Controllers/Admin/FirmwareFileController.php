@@ -65,7 +65,7 @@ class FirmwareFileController extends Controller
             'original_name' => $file->getClientOriginalName(),
             'file_size'     => $file->getSize(),
             'notes'         => $request->notes,
-            'uploaded_by'   => (int) auth()->id(),
+            'uploaded_by'   => auth()->id(),
         ]);
 
         return back()->with('success', 'Firmware berhasil diupload.');

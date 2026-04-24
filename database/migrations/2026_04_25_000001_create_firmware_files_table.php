@@ -17,7 +17,8 @@ return new class extends Migration
             $table->string('original_name', 255);  // nama file asli saat upload
             $table->unsignedBigInteger('file_size')->default(0); // bytes
             $table->text('notes')->nullable();
-            $table->foreignId('uploaded_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->char('uploaded_by', 36)->nullable();
+            $table->foreign('uploaded_by')->references('id')->on('users')->nullOnDelete();
             $table->timestamps();
 
             $table->index(['brand', 'model_pattern']);
