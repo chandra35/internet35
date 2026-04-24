@@ -1924,6 +1924,85 @@ class GenieAcsService
     }
 
     /**
+     * Bulk fetch all devices from GenieACS NBI with only the fields needed for ONU sync.
+     * Returns array keyed by device _id, value is a parsed array with:
+     *   device_id, last_inform, rx_power, temperature, wan_ip, software_version,
+     *   hardware_version, manufacturer, model, serial_hex
+     */
+    public function getDevicesForSync(): array
+    {
+        try {
+            $projection = implode(',', [
+                '_id',
+                '_lastInform',
+                'VirtualParameters.RXPower',
+                'VirtualParameters.gettemp',
+                'VirtualParameters.pppoeIP',
+                'VirtualParameters.getSerialNumber',
+                'InternetGatewayDevice.DeviceInfo.SoftwareVersion',
+                'InternetGatewayDevice.DeviceInfo.HardwareVersion',
+                'InternetGatewayDevice.DeviceInfo.Manufacturer',
+                'InternetGatewayDevice.DeviceInfo.ModelName',
+                'Device.DeviceInfo.SoftwareVersion',
+                'Device.DeviceInfo.HardwareVersion',
+                'Device.DeviceInfo.Manufacturer',
+                'Device.DeviceInfo.ModelName',
+            ]);
+
+            $response = Http::timeout(30)->get("{$this->nbiUrl}/devices", [
+                'projection' => $projection,
+            ]);
+
+            if (!$response->ok()) {
+                Log::warning("GenieACS getDevicesForSync HTTP {$response->status()}");
+                return [];
+            }
+
+            $result = [];
+            foreach ($response->json() as $device) {
+                $id  = $device['_id'] ?? null;
+                if (!$id) continue;
+
+                $vp  = $device['VirtualParameters'] ?? [];
+                $igd = $device['InternetGatewayDevice']['DeviceInfo']
+                    ?? $device['Device']['DeviceInfo']
+                    ?? [];
+
+                $rxRaw = $vp['RXPower']['_value'] ?? null;
+                $rx    = ($rxRaw !== null && $rxRaw !== 'N/A' && is_numeric($rxRaw))
+                    ? (float) $rxRaw : null;
+
+                $tempRaw = $vp['gettemp']['_value'] ?? null;
+                $temp    = ($tempRaw !== null && $tempRaw !== 'N/A' && is_numeric($tempRaw))
+                    ? (float) $tempRaw : null;
+
+                $wanIp = $vp['pppoeIP']['_value'] ?? null;
+                $wanIp = ($wanIp && $wanIp !== '0.0.0.0') ? $wanIp : null;
+
+                $serialHex = $vp['getSerialNumber']['_value'] ?? null;
+
+                $result[$id] = [
+                    'device_id'        => $id,
+                    'last_inform'      => $device['_lastInform'] ?? null,
+                    'rx_power'         => $rx,
+                    'temperature'      => $temp,
+                    'wan_ip'           => $wanIp,
+                    'software_version' => $this->getValue($igd, 'SoftwareVersion'),
+                    'hardware_version' => $this->getValue($igd, 'HardwareVersion'),
+                    'manufacturer'     => $this->getValue($igd, 'Manufacturer'),
+                    'model'            => $this->getValue($igd, 'ModelName'),
+                    'serial_hex'       => $serialHex,
+                ];
+            }
+
+            return $result;
+        } catch (Exception $e) {
+            Log::error("GenieACS getDevicesForSync error: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
      * Convert short SN format (e.g. HWTC6ED42F9A) to hex format used in GenieACS ID.
      * ONU SN = 4-byte vendor ID + 4-byte serial
      * HWTC = vendor (Huawei), 6ED42F9A = serial part
