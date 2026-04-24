@@ -11,7 +11,7 @@ use Illuminate\Support\Str;
 class FirmwareFileController extends Controller
 {
     private const ALLOWED_EXTENSIONS = ['bin', 'img', 'tar', 'gz', 'zip', 'ubi', 'trx', 'fw'];
-    private const MAX_SIZE_MB = 64;
+    private const MAX_SIZE_MB = 128;
 
     // -----------------------------------------------------------------
     // Scan — analyse firmware binary via Python script (AJAX, pre-upload)
@@ -22,15 +22,12 @@ class FirmwareFileController extends Controller
     public function scan(Request $request)
     {
         $request->validate([
-            'file' => 'required|file|max:' . (self::MAX_SIZE_MB * 1024),
+            'file' => 'required|file|max:' . (8 * 1024), // max 8MB slice
         ]);
 
         $file = $request->file('file');
-        $ext  = strtolower($file->getClientOriginalExtension());
-
-        if (!in_array($ext, self::ALLOWED_EXTENSIONS)) {
-            return response()->json(['error' => 'Format file tidak didukung.'], 422);
-        }
+        // Tidak cek ekstensi di scan — file bisa berupa slice/blob tanpa ekstensi
+        $ext  = strtolower($file->getClientOriginalExtension()) ?: 'bin';
 
         // Store to temp dir with random name (never use original name in exec)
         $tmpName = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'fw_scan_' . Str::uuid() . '.' . $ext;

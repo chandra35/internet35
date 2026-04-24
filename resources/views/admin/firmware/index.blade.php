@@ -232,8 +232,13 @@ function showScanningBadge() {
 }
 
 function scanBinary(file) {
+    // Kirim hanya 4MB pertama — cukup untuk deteksi, hemat bandwidth & bypass limit
+    var SCAN_MAX = 4 * 1024 * 1024;
+    var slice    = file.size > SCAN_MAX ? file.slice(0, SCAN_MAX) : file;
+    var partial  = new File([slice], file.name, { type: file.type });
+
     var fd = new FormData();
-    fd.append('file', file);
+    fd.append('file', partial);
     fd.append('_token', '{{ csrf_token() }}');
 
     $.ajax({ url: scanUrl, type: 'POST', data: fd, processData: false, contentType: false, timeout: 30000 })
