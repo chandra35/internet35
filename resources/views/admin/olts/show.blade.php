@@ -1361,8 +1361,11 @@ $(function() {
             $('#pon-pct-text-' + port).text(p.pct + '%');
         });
 
-        // Update timestamp
-        $('#pon-status-updated').html('<i class="fas fa-circle text-success" style="font-size:8px"></i> ' + data.updated_at);
+        // Update timestamp + source indicator
+        var sourceIcon = (data.source === 'snmp_poll')
+            ? '<i class="fas fa-wifi text-primary" style="font-size:8px" title="Live SNMP poll"></i>'
+            : '<i class="fas fa-circle text-success" style="font-size:8px" title="Trap realtime"></i>';
+        $('#pon-status-updated').html(sourceIcon + ' ' + data.updated_at);
     }
 
     function refreshPonStatus() {

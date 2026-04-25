@@ -795,11 +795,54 @@ class OltController extends Controller implements HasMiddleware
 
     /**
      * GET /admin/olts/{olt}/pon-status
-     * Realtime PON port status dari DB (diupdate oleh SNMP trap handler).
-     * Dipakai oleh halaman OLT show untuk auto-refresh status tanpa reload.
+     *
+     * Hybrid realtime PON status:
+     *  - Fast path  : SNMP trap handler update DB → return dari DB (<1s stale)
+     *  - Fallback   : Jika data stale > STALE_SEC dan OLT support SNMP
+     *                 → poll OLT langsung via SNMP walk → update DB → return fresh
+     *
+     * Ini memastikan halaman tetap realtime meski trap belum dikonfigurasi di OLT.
      */
     public function getPonStatus(Olt $olt)
     {
+        $STALE_SEC = 60; // detik sebelum trigger SNMP poll fallback
+        $source    = 'cache';
+
+        // --- Hybrid: SNMP poll fallback jika data stale ---
+        $lastUpdate = $olt->onus()->whereNull('deleted_at')->max('updated_at');
+        $isStale    = !$lastUpdate || now()->diffInSeconds(\Carbon\Carbon::parse($lastUpdate)) > $STALE_SEC;
+
+        if ($isStale) {
+            try {
+                $helper = OltFactory::make($olt);
+                if ($helper->supportsSnmp()) {
+                    $pollResults = $helper->pollOnuRunStatus();
+                    if (!empty($pollResults)) {
+                        $now = now()->toDateTimeString();
+                        foreach ($pollResults as $r) {
+                            $query = $olt->onus()
+                                ->whereNull('deleted_at')
+                                ->where('slot',   $r['slot'])
+                                ->where('port',   $r['port'])
+                                ->where('onu_id', $r['onu_id']);
+
+                            $updates = ['status' => $r['status'], 'updated_at' => $now];
+                            if ($r['status'] === 'online') {
+                                $updates['last_online_at'] = $now;
+                            }
+                            $query->update($updates);
+                        }
+                        $source = 'snmp_poll';
+                        Log::info("getPonStatus SNMP poll: OLT={$olt->name} updated=" . count($pollResults));
+                    }
+                }
+            } catch (Exception $e) {
+                Log::warning("getPonStatus SNMP poll failed for OLT {$olt->name}: " . $e->getMessage());
+                // Lanjut dengan data dari DB (stale tapi better than nothing)
+            }
+        }
+
+        // --- Bangun response dari DB ---
         $onus = $olt->onus()
             ->select('id', 'slot', 'port', 'status')
             ->whereNull('deleted_at')
@@ -820,6 +863,7 @@ class OltController extends Controller implements HasMiddleware
 
         return response()->json([
             'updated_at'    => now()->format('H:i:s'),
+            'source'        => $source,  // 'cache' = trap fresh | 'snmp_poll' = live query
             'total'         => $onus->count(),
             'total_online'  => $onus->where('status', 'online')->count(),
             'total_offline' => $onus->whereIn('status', ['offline', 'los', 'dying_gasp', 'power_off'])->count(),

@@ -1189,6 +1189,37 @@ class ZteC320Helper extends BaseOltHelper
     }
 
     /**
+     * Poll all ONU run statuses via SNMP walk.
+     * Dipakai sebagai fallback ketika SNMP trap belum dikonfigurasi di OLT.
+     * Returns array of ['slot', 'port', 'onu_id', 'status'] dari OLT langsung.
+     */
+    public function pollOnuRunStatus(): array
+    {
+        $results = [];
+        $raw = $this->snmpWalk($this->zteOids['zxAnGponOnuRunStatus']);
+
+        foreach ($raw as $fullOid => $value) {
+            $parsed = $this->parseOnuIndex($fullOid);
+            if (!$parsed) {
+                continue;
+            }
+            $statusInt = (int) $value;
+            $status    = $this->runStatusMap[$statusInt] ?? null;
+            if (!$status) {
+                continue;
+            }
+            $results[] = [
+                'slot'   => $parsed['slot'],
+                'port'   => $parsed['port'],
+                'onu_id' => $parsed['onu_id'],
+                'status' => $status,
+            ];
+        }
+
+        return $results;
+    }
+
+    /**
      * Get detailed ONU info
      */
     public function getOnuInfo(int $slot, int $port, int $onuId): array
