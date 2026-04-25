@@ -68,9 +68,20 @@ log = logging.getLogger(__name__)
 
 def parse_onu_index(index_str):
     """
-    ZTE ONU index: (shelf*65536*256) + (slot*65536) + (port*256) + onu_id
-    Or a simpler encoding. Try both.
+    ZTE ONU index can arrive as:
+      - Dotted notation: 'shelf.slot.port.onu_id'  (e.g. '0.1.1.1')
+      - Single integer:  (shelf<<24)|(slot<<16)|(port<<8)|onu_id
     """
+    index_str = str(index_str).strip()
+    # Dotted: strip leading dot then split
+    parts = index_str.lstrip('.').split('.')
+    if len(parts) == 4:
+        try:
+            shelf, slot, port, onu_id = (int(p) for p in parts)
+            return shelf, slot, port, onu_id
+        except (ValueError, TypeError):
+            pass
+    # Single integer
     try:
         idx = int(index_str)
         onu_id = idx & 0xFF
@@ -79,7 +90,8 @@ def parse_onu_index(index_str):
         shelf  = (idx >> 24) & 0xFF
         return shelf, slot, port, onu_id
     except (ValueError, TypeError):
-        return None, None, None, None
+        pass
+    return None, None, None, None
 
 
 def parse_serial_hex(hex_str):
