@@ -798,21 +798,20 @@ class OltController extends Controller implements HasMiddleware
      *
      * Hybrid realtime PON status:
      *  - Fast path  : SNMP trap handler update DB → return dari DB (<1s stale)
-     *  - Fallback   : Jika data stale > STALE_SEC dan OLT support SNMP
-     *                 → poll OLT langsung via SNMP walk → update DB → return fresh
+     *  - Fallback   : Setiap POLL_INTERVAL detik, poll OLT langsung via SNMP walk
+     *                 → update DB → return fresh
      *
-     * Ini memastikan halaman tetap realtime meski trap belum dikonfigurasi di OLT.
+     * Staleness ditrack per-OLT via Cache (bukan max updated_at ONU),
+     * supaya tidak dipengaruhi update ONU individual dari sumber lain (GenieACS, trap).
      */
     public function getPonStatus(Olt $olt)
     {
-        $STALE_SEC = 60; // detik sebelum trigger SNMP poll fallback
-        $source    = 'cache';
+        $POLL_INTERVAL = 60; // detik antar SNMP poll (independen dari trap/genieacs)
+        $source        = 'cache';
+        $cacheKey      = "pon_status_poll_{$olt->id}";
 
-        // --- Hybrid: SNMP poll fallback jika data stale ---
-        $lastUpdate = $olt->onus()->whereNull('deleted_at')->max('updated_at');
-        $isStale    = !$lastUpdate || now()->diffInSeconds(\Carbon\Carbon::parse($lastUpdate)) > $STALE_SEC;
-
-        if ($isStale) {
+        // --- Hybrid: SNMP poll setiap POLL_INTERVAL detik ---
+        if (!\Illuminate\Support\Facades\Cache::has($cacheKey)) {
             try {
                 $helper = OltFactory::make($olt);
                 if ($helper->supportsSnmp()) {
@@ -820,25 +819,27 @@ class OltController extends Controller implements HasMiddleware
                     if (!empty($pollResults)) {
                         $now = now()->toDateTimeString();
                         foreach ($pollResults as $r) {
-                            $query = $olt->onus()
-                                ->whereNull('deleted_at')
-                                ->where('slot',   $r['slot'])
-                                ->where('port',   $r['port'])
-                                ->where('onu_id', $r['onu_id']);
-
                             $updates = ['status' => $r['status'], 'updated_at' => $now];
                             if ($r['status'] === 'online') {
                                 $updates['last_online_at'] = $now;
                             }
-                            $query->update($updates);
+                            $olt->onus()
+                                ->whereNull('deleted_at')
+                                ->where('slot',   $r['slot'])
+                                ->where('port',   $r['port'])
+                                ->where('onu_id', $r['onu_id'])
+                                ->update($updates);
                         }
                         $source = 'snmp_poll';
                         Log::info("getPonStatus SNMP poll: OLT={$olt->name} updated=" . count($pollResults));
                     }
+                    // Set cache agar poll tidak jalan lagi sampai POLL_INTERVAL habis
+                    \Illuminate\Support\Facades\Cache::put($cacheKey, now()->toDateTimeString(), $POLL_INTERVAL);
                 }
             } catch (Exception $e) {
                 Log::warning("getPonStatus SNMP poll failed for OLT {$olt->name}: " . $e->getMessage());
-                // Lanjut dengan data dari DB (stale tapi better than nothing)
+                // Set cache pendek supaya retry 15s lagi (bukan nunggu 60s)
+                \Illuminate\Support\Facades\Cache::put($cacheKey, 'error', 15);
             }
         }
 
