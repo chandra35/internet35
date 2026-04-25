@@ -794,6 +794,40 @@ class OltController extends Controller implements HasMiddleware
     }
 
     /**
+     * GET /admin/olts/{olt}/pon-status
+     * Realtime PON port status dari DB (diupdate oleh SNMP trap handler).
+     * Dipakai oleh halaman OLT show untuk auto-refresh status tanpa reload.
+     */
+    public function getPonStatus(Olt $olt)
+    {
+        $onus = $olt->onus()
+            ->select('id', 'slot', 'port', 'status')
+            ->whereNull('deleted_at')
+            ->get();
+
+        $totalPonPorts = $olt->total_pon_ports ?? 16;
+        $ports = [];
+
+        for ($p = 1; $p <= $totalPonPorts; $p++) {
+            $portOnus   = $onus->where('port', $p);
+            $total      = $portOnus->count();
+            $online     = $portOnus->where('status', 'online')->count();
+            $offline    = $portOnus->whereIn('status', ['offline', 'los', 'dying_gasp', 'power_off'])->count();
+            $pct        = $total > 0 ? round($online / $total * 100) : 0;
+            $slot       = $portOnus->first()->slot ?? 1;
+            $ports[$p]  = compact('slot', 'total', 'online', 'offline', 'pct');
+        }
+
+        return response()->json([
+            'updated_at'    => now()->format('H:i:s'),
+            'total'         => $onus->count(),
+            'total_online'  => $onus->where('status', 'online')->count(),
+            'total_offline' => $onus->whereIn('status', ['offline', 'los', 'dying_gasp', 'power_off'])->count(),
+            'ports'         => $ports,
+        ]);
+    }
+
+    /**
      * Show OLT infrastructure page (Cards, VLANs, Uplinks)
      */
     public function infrastructure(Olt $olt)

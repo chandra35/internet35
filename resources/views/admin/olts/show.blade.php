@@ -147,11 +147,18 @@
     <!-- PON Port Stats with ONU count + clickable links -->
     <div class="col-lg-8">
         <div class="card">
-            <div class="card-header">
-                <h3 class="card-title"><i class="fas fa-project-diagram mr-2"></i>PON Ports</h3>
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h3 class="card-title mb-0"><i class="fas fa-project-diagram mr-2"></i>PON Ports</h3>
+                <div class="d-flex align-items-center">
+                    <small class="text-muted mr-2" id="pon-status-updated" style="font-size:11px">
+                        <i class="fas fa-circle text-success" style="font-size:8px"></i> Live
+                    </small>
+                    <span class="badge badge-success mr-1" id="pon-total-online-badge">{{ $onuStats['online'] }} online</span>
+                    <span class="badge badge-danger" id="pon-total-offline-badge">{{ $onuStats['offline'] }} offline</span>
+                </div>
             </div>
             <div class="card-body p-0">
-                <table class="table table-sm table-hover mb-0">
+                <table class="table table-sm table-hover mb-0" id="pon-ports-table">
                     <thead class="thead-light">
                         <tr>
                             <th>Port</th>
@@ -162,7 +169,7 @@
                             <th></th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="pon-ports-tbody">
                         @for($i = 1; $i <= ($olt->total_pon_ports ?? 8); $i++)
                         @php
                             $portOnus = $olt->onus->where('port', $i);
@@ -170,39 +177,41 @@
                             $onlineCount = $portOnus->where('status', 'online')->count();
                             $offlineCount = $onuCount - $onlineCount;
                             $percentage = $onuCount > 0 ? round(($onlineCount / $onuCount) * 100) : 0;
+                            $slotNum = $portOnus->first() ? $portOnus->first()->slot : 1;
                         @endphp
-                        <tr>
+                        <tr id="pon-row-{{ $i }}" data-port="{{ $i }}">
                             <td>
-                                <i class="fas fa-ethernet text-{{ $onuCount > 0 ? ($percentage >= 80 ? 'success' : ($percentage >= 50 ? 'warning' : 'danger')) : 'muted' }} mr-1"></i>
-                                <strong>PON {{ $olt->onus->first() ? $olt->onus->first()->slot : 1 }}/{{ $i }}</strong>
+                                <i class="fas fa-ethernet text-{{ $onuCount > 0 ? ($percentage >= 80 ? 'success' : ($percentage >= 50 ? 'warning' : 'danger')) : 'muted' }} mr-1" id="pon-icon-{{ $i }}"></i>
+                                <strong>PON {{ $slotNum }}/{{ $i }}</strong>
                             </td>
-                            <td class="text-center">
+                            <td class="text-center" id="pon-total-{{ $i }}">
                                 @if($onuCount > 0)
                                     <span class="badge badge-secondary">{{ $onuCount }}</span>
                                 @else
                                     <span class="text-muted">0</span>
                                 @endif
                             </td>
-                            <td class="text-center">
+                            <td class="text-center" id="pon-online-{{ $i }}">
                                 @if($onlineCount > 0)
                                     <span class="badge badge-success">{{ $onlineCount }}</span>
                                 @else
                                     <span class="text-muted">0</span>
                                 @endif
                             </td>
-                            <td class="text-center">
+                            <td class="text-center" id="pon-offline-{{ $i }}">
                                 @if($offlineCount > 0)
                                     <span class="badge badge-danger">{{ $offlineCount }}</span>
                                 @else
                                     <span class="text-muted">0</span>
                                 @endif
                             </td>
-                            <td class="text-center">
+                            <td class="text-center" id="pon-pct-{{ $i }}">
                                 <div class="progress progress-sm my-1" style="width:60px;display:inline-block;">
                                     <div class="progress-bar bg-{{ $percentage >= 80 ? 'success' : ($percentage >= 50 ? 'warning' : 'danger') }}" 
+                                         id="pon-bar-{{ $i }}"
                                          style="width: {{ $percentage }}%"></div>
                                 </div>
-                                <small>{{ $percentage }}%</small>
+                                <small id="pon-pct-text-{{ $i }}">{{ $percentage }}%</small>
                             </td>
                             <td class="text-right">
                                 @if($onuCount > 0)
@@ -217,9 +226,9 @@
                     <tfoot class="thead-light">
                         <tr>
                             <td><strong>Total</strong></td>
-                            <td class="text-center"><strong>{{ $olt->onus->count() }}</strong></td>
-                            <td class="text-center"><strong class="text-success">{{ $olt->onus->where('status', 'online')->count() }}</strong></td>
-                            <td class="text-center"><strong class="text-danger">{{ $olt->onus->where('status', '!=', 'online')->count() }}</strong></td>
+                            <td class="text-center" id="pon-footer-total"><strong>{{ $olt->onus->count() }}</strong></td>
+                            <td class="text-center" id="pon-footer-online"><strong class="text-success">{{ $olt->onus->where('status', 'online')->count() }}</strong></td>
+                            <td class="text-center" id="pon-footer-offline"><strong class="text-danger">{{ $olt->onus->where('status', '!=', 'online')->count() }}</strong></td>
                             <td colspan="2"></td>
                         </tr>
                     </tfoot>
@@ -1288,7 +1297,96 @@ $(function() {
     setInterval(function() {
         loadTrafficStats(true);
     }, refreshInterval);
+
+    // ---------------------------------------------------------------
+    // PON Port Status Auto-Refresh (via DB, diupdate SNMP trap handler)
+    // Interval 20 detik — cukup real-time karena trap update DB < 1 detik
+    // ---------------------------------------------------------------
+    var ponStatusUrl = '{{ route("admin.olts.pon-status", $olt) }}';
+    var ponRefreshTimer = null;
+
+    function ponBadgeColor(pct) {
+        if (pct >= 80) return 'success';
+        if (pct >= 50) return 'warning';
+        return 'danger';
+    }
+
+    function updatePonTable(data) {
+        // Update footer badges
+        $('#pon-total-online-badge').text(data.total_online + ' online');
+        $('#pon-total-offline-badge').text(data.total_offline + ' offline');
+        $('#pon-footer-total').html('<strong>' + data.total + '</strong>');
+        $('#pon-footer-online').html('<strong class="text-success">' + data.total_online + '</strong>');
+        $('#pon-footer-offline').html('<strong class="text-danger">' + data.total_offline + '</strong>');
+
+        // Update per-port
+        $.each(data.ports, function(port, p) {
+            var color = ponBadgeColor(p.pct);
+
+            // Icon warna
+            $('#pon-icon-' + port)
+                .removeClass('text-success text-warning text-danger text-muted')
+                .addClass(p.total > 0 ? 'text-' + color : 'text-muted');
+
+            // Total
+            $('#pon-total-' + port).html(p.total > 0
+                ? '<span class="badge badge-secondary">' + p.total + '</span>'
+                : '<span class="text-muted">0</span>');
+
+            // Online
+            $('#pon-online-' + port).html(p.online > 0
+                ? '<span class="badge badge-success">' + p.online + '</span>'
+                : '<span class="text-muted">0</span>');
+
+            // Offline — highlight jika ada perubahan
+            var offlineCell = $('#pon-offline-' + port);
+            var prevOffline = parseInt(offlineCell.data('prev') || 0);
+            offlineCell.data('prev', p.offline);
+            if (p.offline > 0) {
+                offlineCell.html('<span class="badge badge-danger">' + p.offline + '</span>');
+                // Flash efek jika offline bertambah
+                if (p.offline > prevOffline) {
+                    offlineCell.find('.badge').css('animation', 'none').addClass('badge-pulse');
+                    setTimeout(function() { offlineCell.find('.badge').removeClass('badge-pulse'); }, 2000);
+                }
+            } else {
+                offlineCell.html('<span class="text-muted">0</span>');
+            }
+
+            // Progress bar
+            $('#pon-bar-' + port)
+                .css('width', p.pct + '%')
+                .removeClass('bg-success bg-warning bg-danger')
+                .addClass('bg-' + color);
+            $('#pon-pct-text-' + port).text(p.pct + '%');
+        });
+
+        // Update timestamp
+        $('#pon-status-updated').html('<i class="fas fa-circle text-success" style="font-size:8px"></i> ' + data.updated_at);
+    }
+
+    function refreshPonStatus() {
+        $.getJSON(ponStatusUrl)
+            .done(function(data) {
+                updatePonTable(data);
+            })
+            .fail(function() {
+                $('#pon-status-updated').html('<i class="fas fa-circle text-warning" style="font-size:8px"></i> error');
+            });
+    }
+
+    // Jalankan pertama kali setelah 5 detik, lalu setiap 20 detik
+    setTimeout(refreshPonStatus, 5000);
+    setInterval(refreshPonStatus, 20000);
 });
 </script>
+<style>
+@keyframes badge-pulse-anim {
+    0%   { transform: scale(1); }
+    50%  { transform: scale(1.3); background-color: #ff0000; }
+    100% { transform: scale(1); }
+}
+.badge-pulse { animation: badge-pulse-anim 0.5s ease 3; }
+</style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.4/js/lightbox.min.js"></script>
 @endpush

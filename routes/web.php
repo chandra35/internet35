@@ -375,6 +375,7 @@ Route::prefix('admin')->middleware(['auth', 'role:superadmin|admin|admin-pop|tek
         Route::get('/{olt}/signal-history', [\App\Http\Controllers\Admin\OltController::class, 'getSignalHistory'])->name('signal-history');
         Route::get('/{olt}/traffic-stats', [\App\Http\Controllers\Admin\OltController::class, 'getTrafficStats'])->name('traffic-stats');
         Route::get('/{olt}/onus', [\App\Http\Controllers\Admin\OltController::class, 'getOnus'])->name('onus');
+        Route::get('/{olt}/pon-status', [\App\Http\Controllers\Admin\OltController::class, 'getPonStatus'])->name('pon-status');
 
         // Infrastructure (Cards, VLANs, Uplinks) - READ ONLY from OLT
         Route::get('/{olt}/infrastructure', [\App\Http\Controllers\Admin\OltController::class, 'infrastructure'])->name('infrastructure');
