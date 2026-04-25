@@ -198,7 +198,21 @@ def main():
         return
 
     hostname = lines[0].strip()
-    olt_ip   = lines[1].strip()
+    raw_addr = lines[1].strip()
+
+    # snmptrapd v5.8 can format line 2 as:
+    #   "UDP: [1.2.3.4]:port->[5.6.7.8]:162"  (source IP is first IP)
+    #   or plain "1.2.3.4"
+    m = re.search(r'\[(\d+\.\d+\.\d+\.\d+)\]', raw_addr)
+    olt_ip = m.group(1) if m else raw_addr.split(':')[0].strip()
+
+    def normalize_oid(oid):
+        """Replace iso. prefix with 1. and remove MIB name prefixes."""
+        oid = re.sub(r'^iso\.', '1.', oid)
+        # Strip MIB name prefixes like 'SNMPv2-MIB::sysUpTime.0' -> numeric
+        if '::' in oid:
+            oid = oid.split('::')[1]  # keep suffix only (may still be named)
+        return oid
 
     # Parse varbinds: "OID VALUE"
     varbinds = {}
@@ -209,11 +223,14 @@ def main():
             continue
         parts = line.split(None, 1)
         if len(parts) == 2:
-            oid, val = parts[0].strip(), parts[1].strip()
+            oid_raw, val = parts[0].strip(), parts[1].strip()
+            oid = normalize_oid(oid_raw)
+            # Normalize value OID too (for snmpTrapOID value)
+            val_norm = normalize_oid(val)
             varbinds[oid] = val
             # SNMPv2-MIB::snmpTrapOID.0
             if 'snmpTrapOID' in oid or oid == '1.3.6.1.6.3.1.1.4.1.0':
-                trap_oid = val.strip()
+                trap_oid = val_norm.strip()
 
     log.debug(f"Trap from {olt_ip} ({hostname}): trapOID={trap_oid}, varbinds_count={len(varbinds)}")
     log.debug(f"Raw varbinds: {varbinds}")
