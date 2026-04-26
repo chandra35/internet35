@@ -1654,6 +1654,16 @@ class OnuController extends Controller implements HasMiddleware
 
             $result = $genieacs->configureWifi($device['device_id'], $config);
 
+            // Simpan SSID + password ke DB supaya auto-provisioning bisa pakai
+            // saat factory reset. Hanya simpan untuk WLANConfiguration.1 (SSID utama).
+            if (!empty($result['success']) &&
+                str_contains($request->wlan_path, 'WLANConfiguration.1')) {
+                $save = [];
+                if ($request->filled('ssid'))     $save['wifi_ssid']     = $request->ssid;
+                if ($request->filled('password'))  $save['wifi_password'] = $request->password;
+                if (!empty($save)) $onu->update($save);
+            }
+
             return response()->json($result);
         } catch (Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
