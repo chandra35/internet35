@@ -1989,27 +1989,17 @@ class OnuController extends Controller implements HasMiddleware
                 return response()->json(['success' => false, 'message' => 'Device tidak ditemukan di GenieACS']);
             }
 
+            // Use deleteObject (same as WAN delete) — Huawei firmware supports
+            // deleteObject on WLANConfiguration. Previously we used setParameterValues
+            // soft-delete because tasks were stuck as 202, but that was caused by the
+            // %2D device ID mismatch in MongoDB. Now that connection_request is confirmed
+            // working (returns 200), we use the proper TR-069 deleteObject with
+            // connection_request&timeout=15000 — identical to deleteWanConnection().
             $path   = rtrim($request->wlan_path, '.');
-            $params = [
-                "{$path}.Enable"                        => [false, 'xsd:boolean'],
-                "{$path}.SSID"                          => ['', 'xsd:string'],
-                "{$path}.KeyPassphrase"                 => ['', 'xsd:string'],
-                "{$path}.PreSharedKey.1.PreSharedKey"   => ['', 'xsd:string'],
-            ];
-
-            // connection_request=true + timeout=30s, same window as addObject (15s).
-            // GenieACS holds the HTTP connection for 30s waiting for device to inform.
-            // If device informs within 30s → 200 (completed synchronously).
-            // If not → 202 (pending); user should retry after clicking "Refresh Data".
-            //
-            // IMPORTANT: do NOT use timeout > 50s total (refreshDevice 10s +
-            // setParameterValues 40s) — nginx proxy_read_timeout (default 60s) will
-            // kill the PHP connection, causing GenieACS to cancel the in-memory session
-            // and leaving the task permanently stuck in the MongoDB queue.
-            $result = $genieacs->setParameterValues($device['device_id'], $params, true, 30_000);
+            $result = $genieacs->deleteWlanInstance($device['device_id'], $path);
 
             if (!$result['success']) {
-                return response()->json(['success' => false, 'message' => 'Gagal mengirim perintah hapus SSID']);
+                return response()->json(['success' => false, 'message' => $result['message'] ?? 'Gagal mengirim perintah hapus SSID']);
             }
 
             if ($result['completed'] ?? false) {

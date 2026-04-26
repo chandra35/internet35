@@ -720,9 +720,6 @@ class GenieAcsService
                     $wlanSsid    = $this->getValue($wValue, 'SSID');
                     $wlanEnabled = $this->getValue($wValue, 'Enable');
 
-                    // Skip soft-deleted SSIDs (disabled + SSID kosong = hasil hapus via setParameterValues)
-                    if ($wlanEnabled === false && ($wlanSsid === '' || $wlanSsid === null)) continue;
-
                     $wlans[] = [
                         'path' => "InternetGatewayDevice.LANDevice.{$ldKey}.WLANConfiguration.{$wKey}",
                         'index' => $wKey,
@@ -1065,6 +1062,37 @@ class GenieAcsService
     /**
      * Delete a WAN connection instance (WANPPPConnection only — never call on IP/management WANs).
      */
+    /**
+     * Delete a WLANConfiguration instance (secondary SSID) via TR-069 deleteObject.
+     * Uses connection_request + timeout=15000 — identical pattern to deleteWanConnection().
+     */
+    public function deleteWlanInstance(string $deviceId, string $wlanPath): array
+    {
+        $deviceId = $this->safeDeviceId($deviceId);
+        try {
+            $url = "{$this->nbiUrl}/devices/{$deviceId}/tasks?connection_request&timeout=15000";
+
+            $response = Http::timeout(30)
+                ->asJson()
+                ->post($url, [
+                    'name'       => 'deleteObject',
+                    'objectName' => rtrim($wlanPath, '.'),
+                ]);
+
+            $ok = $response->status() === 200 || $response->status() === 202;
+
+            return [
+                'success'   => $ok,
+                'completed' => $response->status() === 200,
+                'pending'   => $response->status() === 202,
+                'message'   => $ok ? 'SSID berhasil dihapus.' : 'Gagal menghapus SSID: ' . $response->body(),
+            ];
+        } catch (Exception $e) {
+            Log::error("GenieACS deleteWlanInstance error: " . $e->getMessage());
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
     public function deleteWanConnection(string $deviceId, string $wanPath): array
     {
         $deviceId = $this->safeDeviceId($deviceId);
