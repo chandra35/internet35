@@ -1496,6 +1496,10 @@ $(function() {
     // ========== Traffic ==========
     var lastTrafficRx = null, lastTrafficTx = null, lastTrafficTime = null;
 
+    // Management IP ONU (diisi saat Security tab render dari connection_request_url)
+    // Digunakan untuk link Web UI di WAN card
+    var webuiUrl = '{{ $onu->mgmt_ip && !str_starts_with($onu->mgmt_ip, "dhcp") ? "http://" . $onu->mgmt_ip : "" }}';
+
     function rxBadgeClass(val) {
         if (val === null || val === undefined) return 'secondary';
         if (val >= -25) return 'success';
@@ -1832,7 +1836,10 @@ $(function() {
                 if (wan.username) wanHtml += '<div><i class="fas fa-user text-muted mr-1"></i>Username: <strong>' + wan.username + '</strong></div>';
                 var ip = wan.external_ip;
                 if (ip && ip !== '0.0.0.0') {
-                    wanHtml += '<div><i class="fas fa-network-wired text-success mr-1"></i>IP: <code class="wan-ip">' + ip + '</code></div>';
+                    var webuiBadge = webuiUrl
+                        ? ' <a href="' + webuiUrl + '" target="_blank" rel="noopener noreferrer" class="badge badge-outline-primary ml-1" title="Buka Web UI ONU (' + webuiUrl + ')"><i class="fas fa-external-link-alt mr-1"></i>Web UI</a>'
+                        : '';
+                    wanHtml += '<div><i class="fas fa-network-wired text-success mr-1"></i>IP: <a href="http://' + ip + '" target="_blank" rel="noopener noreferrer" class="wan-ip" title="Buka http://' + ip + '">' + ip + '</a>' + webuiBadge + '</div>';
                 } else if (wan.status === 'Connected') {
                     wanHtml += '<div><i class="fas fa-spinner fa-spin text-muted mr-1"></i><span class="text-muted">Menunggu IP...</span></div>';
                 } else if (wan.status === 'Connecting') {
@@ -2588,7 +2595,10 @@ $(function() {
                             var html = '';
                             if (matched.username) html += '<div><i class="fas fa-user text-muted mr-1"></i>Username: <strong>' + matched.username + '</strong></div>';
                             if (ip && ip !== '0.0.0.0') {
-                                html += '<div><i class="fas fa-network-wired text-success mr-1"></i>IP: <code class="wan-ip">' + ip + '</code></div>';
+                                var webuiBadgePoll = webuiUrl
+                                    ? ' <a href="' + webuiUrl + '" target="_blank" rel="noopener noreferrer" class="badge badge-outline-primary ml-1" title="Buka Web UI ONU (' + webuiUrl + ')"><i class="fas fa-external-link-alt mr-1"></i>Web UI</a>'
+                                    : '';
+                                html += '<div><i class="fas fa-network-wired text-success mr-1"></i>IP: <a href="http://' + ip + '" target="_blank" rel="noopener noreferrer" class="wan-ip" title="Buka http://' + ip + '">' + ip + '</a>' + webuiBadgePoll + '</div>';
                             } else if (matched.status === 'Connected') {
                                 html += '<div><i class="fas fa-spinner fa-spin text-muted mr-1"></i><span class="text-muted">Menunggu IP...</span></div>';
                             } else if (matched.status === 'Connecting') {
@@ -3096,7 +3106,8 @@ $(function() {
                     if (d.acs && d.acs.connection_request_url) {
                         var cwmMatch = d.acs.connection_request_url.match(/https?:\/\/([0-9]{1,3}(?:\.[0-9]{1,3}){3})/);
                         if (cwmMatch) {
-                            $('#btn-open-webui').attr('href', 'http://' + cwmMatch[1]).show();
+                            webuiUrl = 'http://' + cwmMatch[1];
+                            $('#btn-open-webui').attr('href', webuiUrl).show();
                         }
                     }
                     var acsRows = '';
