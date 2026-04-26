@@ -53,13 +53,21 @@ class GenieAcsProvisionController extends Controller
 
         $pppoeUsername = $customer?->pppoe_username ?? $onu->pppoe_username ?? null;
 
-        // pppoe_password ada di customer (encrypted), bukan di onus table
+        // pppoe_password: prioritas dari customer, fallback ke onus.pppoe_password
+        // Ini memungkinkan ONU standalone (tanpa customer) tetap bisa di-provision.
         $pppoePassword = null;
         if ($customer && $customer->pppoe_password) {
             try {
                 $pppoePassword = $customer->decrypted_pppoe_password;
             } catch (\Exception $e) {
                 // Decryption failed — jangan expose error detail
+                $pppoePassword = null;
+            }
+        }
+        if ($pppoePassword === null && $onu->pppoe_password) {
+            try {
+                $pppoePassword = $onu->pppoe_password; // cast 'encrypted' auto-decrypt
+            } catch (\Exception $e) {
                 $pppoePassword = null;
             }
         }

@@ -387,6 +387,7 @@ class OnuController extends Controller implements HasMiddleware
                     'description' => $request->description,
                     'mgmt_ip' => $request->filled('mgmt_vlan') ? 'dhcp:vlan:' . $request->mgmt_vlan : null,
                     'pppoe_username' => $request->pppoe_username,
+                    'pppoe_password' => $request->pppoe_password ?: null,
                     'config_status' => 'registered',
                     'status' => 'unknown',
                     'created_by' => auth()->id(),
@@ -1098,6 +1099,9 @@ class OnuController extends Controller implements HasMiddleware
                 $updateData = [];
                 if ($request->wan_type === 'pppoe' && $request->pppoe_username) {
                     $updateData['pppoe_username'] = $request->pppoe_username;
+                    if ($request->filled('pppoe_password')) {
+                        $updateData['pppoe_password'] = $request->pppoe_password;
+                    }
                 }
                 $vlanConfig = $onu->vlan_config ?? [];
                 $vlanConfig['vlan_id'] = (int) $request->wan_vlan;
@@ -1223,7 +1227,11 @@ class OnuController extends Controller implements HasMiddleware
                 ], $request);
                 if ($webResult !== null) {
                     if (!empty($webResult['success'])) {
-                        $onu->update(['pppoe_username' => $request->pppoe_username]);
+                        $saveFields = ['pppoe_username' => $request->pppoe_username];
+                        if ($request->filled('pppoe_password')) {
+                            $saveFields['pppoe_password'] = $request->pppoe_password;
+                        }
+                        $onu->update($saveFields);
                     }
                     return response()->json($webResult);
                 }
@@ -1237,7 +1245,11 @@ class OnuController extends Controller implements HasMiddleware
             ]);
 
             if ($result['success']) {
-                $onu->update(['pppoe_username' => $request->pppoe_username]);
+                $updateFields = ['pppoe_username' => $request->pppoe_username];
+                if ($request->filled('pppoe_password')) {
+                    $updateFields['pppoe_password'] = $request->pppoe_password;
+                }
+                $onu->update($updateFields);
             }
 
             return response()->json($result);
@@ -1413,7 +1425,11 @@ class OnuController extends Controller implements HasMiddleware
                 $webResult = $this->configureFiberhomeWebUi($onu, $genieacs, $device['device_id'], $config, $request);
                 if ($webResult !== null) {
                     if (!empty($webResult['success'])) {
-                        $onu->update(['pppoe_username' => $request->pppoe_username]);
+                        $saveFields = ['pppoe_username' => $request->pppoe_username];
+                        if ($request->filled('pppoe_password')) {
+                            $saveFields['pppoe_password'] = $request->pppoe_password;
+                        }
+                        $onu->update($saveFields);
                     }
                     return response()->json($webResult);
                 }
@@ -1422,7 +1438,11 @@ class OnuController extends Controller implements HasMiddleware
             $result = $genieacs->updateWanPppoe($device['device_id'], $request->wan_path, $config);
 
             if ($result['success']) {
-                $onu->update(['pppoe_username' => $request->pppoe_username]);
+                $saveFields = ['pppoe_username' => $request->pppoe_username];
+                if ($request->filled('pppoe_password')) {
+                    $saveFields['pppoe_password'] = $request->pppoe_password;
+                }
+                $onu->update($saveFields);
             }
 
             return response()->json($result);
