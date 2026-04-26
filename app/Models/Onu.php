@@ -55,6 +55,8 @@ class Onu extends Model
         'pppoe_username',
         'webui_user',
         'webui_password',
+        'wifi_ssid',
+        'wifi_password',
         'odp_port',
         'description',
         'notes',
@@ -87,6 +89,7 @@ class Onu extends Model
         'last_offline_at' => 'datetime',
         'last_sync_at' => 'datetime',
         'webui_password' => 'encrypted',
+        'wifi_password'  => 'encrypted',
     ];
 
     /**

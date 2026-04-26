@@ -42,6 +42,8 @@ return [
         'cwmp_password' => env('GENIEACS_CWMP_PASSWORD', ''),
         'ui_url' => env('GENIEACS_UI_URL', 'http://172.10.10.254:3000'),
         'timeout' => env('GENIEACS_TIMEOUT', 10),
+        // Static key shared with GenieACS extension for provision callback auth.
+        'provision_key' => env('GENIEACS_PROVISION_KEY', ''),
     ],
 
     // Vendor ONU WebUI credentials (used when TR-069 cannot configure WAN VLAN reliably).

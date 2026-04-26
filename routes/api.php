@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\WebhookController;
+use App\Http\Controllers\Api\GenieAcsProvisionController;
 use Laravolt\Indonesia\Models\City;
 use Laravolt\Indonesia\Models\District;
 use Laravolt\Indonesia\Models\Village;
@@ -32,6 +33,12 @@ Route::prefix('callback')->group(function () {
     Route::post('/duitku', [WebhookController::class, 'duitku']);
     Route::post('/ipaymu', [WebhookController::class, 'ipaymu']);
 });
+
+// GenieACS auto-provisioning endpoint (no CSRF, no session auth — key-based)
+// Called by GenieACS Node.js extension on 0 BOOTSTRAP event.
+Route::get('/acs/provision/{serial}', [GenieAcsProvisionController::class, 'getProvision'])
+    ->name('api.acs.provision')
+    ->where('serial', '[A-Za-z0-9%+._-]+');
 
 // Wilayah Indonesia API
 Route::prefix('wilayah')->group(function () {
