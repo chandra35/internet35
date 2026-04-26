@@ -830,7 +830,12 @@
                                     </div>
                                     {{-- List firmware tersimpan --}}
                                     <div class="acs-card">
-                                        <div class="acs-section-header"><i class="fas fa-archive mr-1 text-info"></i>Firmware Tersimpan</div>
+                                        <div class="acs-section-header d-flex align-items-center">
+                                            <span><i class="fas fa-archive mr-1 text-info"></i>Firmware Tersimpan</span>
+                                            <button type="button" class="btn btn-xs btn-outline-primary ml-auto" data-toggle="modal" data-target="#modal-upload-firmware">
+                                                <i class="fas fa-cloud-upload-alt mr-1"></i>Upload
+                                            </button>
+                                        </div>
                                         <div class="card-body p-2">
                                             <div id="fw-file-list">
                                                 <div class="text-center text-muted py-3 small" id="fw-list-loading">
@@ -838,7 +843,10 @@
                                                 </div>
                                                 <div id="fw-list-empty" style="display:none" class="text-center text-muted py-3 small">
                                                     Belum ada firmware tersimpan untuk brand ini.<br>
-                                                    <a href="{{ route('admin.firmware.index') }}" target="_blank">Upload firmware</a>
+                                                    <button type="button" class="btn btn-sm btn-outline-primary mt-2" data-toggle="modal" data-target="#modal-upload-firmware">
+                                                        <i class="fas fa-cloud-upload-alt mr-1"></i>Upload Firmware Baru
+                                                    </button>
+                                                    <a href="{{ route('admin.firmware.index') }}" target="_blank" class="d-block mt-1 small text-muted">atau buka halaman manajemen firmware</a>
                                                 </div>
                                                 <div id="fw-list-items"></div>
                                             </div>
@@ -886,6 +894,100 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {{-- ======== MODAL: UPLOAD FIRMWARE ======== --}}
+        <div class="modal fade" id="modal-upload-firmware" tabindex="-1" role="dialog" aria-labelledby="modal-upload-firmware-label" aria-hidden="true">
+            <div class="modal-dialog modal-lg" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="modal-upload-firmware-label">
+                            <i class="fas fa-cloud-upload-alt mr-2 text-primary"></i>Upload Firmware Baru
+                        </h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Tutup"><span aria-hidden="true">&times;</span></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="form-fw-modal-upload" enctype="multipart/form-data">
+                            @csrf
+                            <div class="row">
+                                <div class="col-12">
+                                    <div class="form-group">
+                                        <label class="font-weight-bold">File Firmware <span class="text-danger">*</span></label>
+                                        <div class="input-group">
+                                            <div class="custom-file">
+                                                <input type="file" class="custom-file-input" id="fw-modal-file" name="file" required
+                                                       accept=".bin,.img,.tar,.gz,.zip,.ubi,.trx,.fw,application/octet-stream">
+                                                <label class="custom-file-label" for="fw-modal-file" id="fw-modal-file-label">Pilih file...</label>
+                                            </div>
+                                        </div>
+                                        <small class="text-muted">Format: .bin .img .tar .gz .zip .ubi .trx .fw — Maks 128 MB</small>
+                                        <div id="fw-modal-detect-result" class="mt-1" style="display:none">
+                                            <span id="fw-modal-detect-badge" class="badge badge-secondary"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="font-weight-bold">Brand <span class="text-danger">*</span></label>
+                                        <select id="fw-modal-brand" name="brand" class="form-control" required>
+                                            <option value="">-- Pilih Brand --</option>
+                                            @foreach(['huawei','zte','fiberhome','nokia','tp-link','sercomm','dzs','mikrotik','calix'] as $b)
+                                                <option value="{{ $b }}">{{ ucfirst($b) }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="font-weight-bold">Versi Firmware <span class="text-danger">*</span></label>
+                                        <input id="fw-modal-version" type="text" name="version" class="form-control"
+                                               placeholder="Contoh: V5R021C10S030" required>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="form-group">
+                                        <label class="font-weight-bold">Pola Model <small class="text-muted">(opsional)</small></label>
+                                        <input id="fw-modal-model" type="text" name="model_pattern" class="form-control"
+                                               placeholder="Contoh: HG8145V5, HG8245*, kosong = semua model">
+                                        <small class="text-muted">Gunakan * untuk prefix match. Kosongkan untuk semua model brand ini.</small>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="form-group mb-0">
+                                        <label class="font-weight-bold">Catatan <small class="text-muted">(opsional)</small></label>
+                                        <textarea name="notes" class="form-control" rows="2"
+                                                  placeholder="Changelog, keterangan, dsb..."></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                            {{-- Progress upload --}}
+                            <div id="fw-modal-progress-wrap" class="mt-3" style="display:none">
+                                <hr class="mt-2 mb-2">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <small class="text-muted" id="fw-modal-speed"></small>
+                                    <small class="font-weight-bold" id="fw-modal-pct">0%</small>
+                                </div>
+                                <div class="progress" style="height:10px; border-radius:5px;">
+                                    <div id="fw-modal-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
+                                         style="width:0%; border-radius:5px; transition:width 0.2s ease;"></div>
+                                </div>
+                                <div class="d-flex justify-content-between mt-1">
+                                    <small class="text-muted" id="fw-modal-transferred"></small>
+                                    <small class="text-muted" id="fw-modal-status-text">Mengirim file...</small>
+                                </div>
+                            </div>
+                            {{-- Error alert --}}
+                            <div id="fw-modal-error" class="alert alert-danger mt-3 mb-0" style="display:none"></div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal" id="fw-modal-cancel">Batal</button>
+                        <button type="button" class="btn btn-primary" id="fw-modal-submit">
+                            <i class="fas fa-cloud-upload-alt mr-1"></i>Upload Firmware
+                        </button>
                     </div>
                 </div>
             </div>
@@ -3455,7 +3557,215 @@ $(function() {
         if ($(this).val()) $('#fw-select-file').val('');
     });
 
-    $('#form-firmware-upgrade').submit(function(e) {
+    // ----------------------------------------------------------------
+    // Modal Upload Firmware
+    // ----------------------------------------------------------------
+    var fwScanUrl   = '{{ route("admin.firmware.scan") }}';
+    var fwStoreUrl  = '{{ route("admin.firmware.store") }}';
+
+    // Pre-fill brand saat modal dibuka
+    $('#modal-upload-firmware').on('show.bs.modal', function() {
+        if (apiBrand && !$('#fw-modal-brand').val()) {
+            $('#fw-modal-brand').val(apiBrand);
+        }
+        $('#fw-modal-error').hide();
+        $('#fw-modal-progress-wrap').hide();
+    });
+
+    // Reset form saat modal ditutup (selain saat upload sedang berjalan)
+    $('#modal-upload-firmware').on('hidden.bs.modal', function() {
+        if ($('#fw-modal-submit').prop('disabled')) return; // upload berjalan, jangan reset
+        document.getElementById('form-fw-modal-upload').reset();
+        $('#fw-modal-file-label').text('Pilih file...');
+        $('#fw-modal-detect-result').hide();
+        $('#fw-modal-error').hide();
+        $('#fw-modal-progress-wrap').hide();
+    });
+
+    // File dipilih → auto-detect dari nama file + scan binary
+    document.getElementById('fw-modal-file').addEventListener('change', function() {
+        if (!this.files || !this.files.length) return;
+        var file = this.files[0];
+        document.getElementById('fw-modal-file-label').textContent = file.name;
+
+        // Reset
+        $('#fw-modal-detect-result').hide();
+        $('#fw-modal-error').hide();
+
+        // Detect dari nama file
+        var detected = fwDetectFromFilename(file.name.replace(/\.[^.]+$/, ''));
+        if (detected.brand && !$('#fw-modal-brand').val()) $('#fw-modal-brand').val(detected.brand);
+        if (detected.model && !$('#fw-modal-model').val()) $('#fw-modal-model').val(detected.model);
+        if (detected.version && !$('#fw-modal-version').val()) $('#fw-modal-version').val(detected.version);
+
+        // Scan binary di background
+        fwModalShowScanningBadge();
+        fwModalScanBinary(file);
+    });
+
+    function fwDetectFromFilename(name) {
+        var BP = [
+            { re: /\b(HG8\d{3}[A-Z0-9]*|MA5\d{3}[A-Z0-9]*|EG8\d{3}[A-Z0-9]*|HN8\d{3}[A-Z0-9]*)/i, brand: 'huawei',    mr: /\b(HG8\d{3}[A-Z0-9]*|MA5\d{3}[A-Z0-9]*|EG8\d{3}[A-Z0-9]*|HN8\d{3}[A-Z0-9]*)/i },
+            { re: /\b(ZXHN[-_ ]?[A-Z0-9]+|F6[0-9]{2}[A-Z]?\d?)/i,                                    brand: 'zte',       mr: /\b(ZXHN[-_ ]?[A-Z0-9]+|F[0-9]{3}[A-Z]?\w*)/i },
+            { re: /\b(AN\d{4}[-A-Z0-9]*|HG6\d{3}[A-Z0-9]*|AN5\d{3}[A-Z0-9]*)/i,                     brand: 'fiberhome', mr: /\b(AN\d{4}[-A-Z0-9]*|HG6\d{3}[A-Z0-9]*)/i },
+            { re: /\b(G-\d{4}[A-Z0-9]*|BONT\d+)/i,                                                    brand: 'nokia',     mr: /\b(G-\d{4}[A-Z0-9-]*)/i },
+        ];
+        var VP = [
+            /\b(V\d+R\d+C\d+S\d+)\b/i, /\b(V\d+R\d{2,3}C\d{2})\b/i,
+            /\b(RP\d{4,})\b/i, /[_-](V\d+\.\d+[\.\d]*[A-Z0-9]{0,6})/i,
+        ];
+        var res = { brand: null, model: null, version: null };
+        for (var i = 0; i < BP.length; i++) {
+            if (BP[i].re.test(name)) {
+                res.brand = BP[i].brand;
+                var m = name.match(BP[i].mr);
+                if (m) res.model = m[1];
+                break;
+            }
+        }
+        for (var j = 0; j < VP.length; j++) {
+            var v = name.match(VP[j]);
+            if (v) { res.version = v[1].toUpperCase(); break; }
+        }
+        return res;
+    }
+
+    function fwModalShowScanningBadge() {
+        $('#fw-modal-detect-result').show();
+        $('#fw-modal-detect-badge').removeClass('badge-success badge-danger badge-secondary')
+            .addClass('badge-warning')
+            .html('<i class="fas fa-spinner fa-spin mr-1"></i>Scanning isi file...');
+    }
+
+    function fwModalScanBinary(file) {
+        var SCAN_MAX = 4 * 1024 * 1024;
+        var slice    = file.size > SCAN_MAX ? file.slice(0, SCAN_MAX) : file;
+        var fd       = new FormData();
+        fd.append('file', new File([slice], file.name, { type: file.type }));
+        fd.append('_token', '{{ csrf_token() }}');
+
+        $.ajax({ url: fwScanUrl, type: 'POST', data: fd, processData: false, contentType: false, timeout: 30000 })
+        .done(function(res) {
+            if (res.error) {
+                $('#fw-modal-detect-badge').removeClass('badge-warning').addClass('badge-secondary')
+                    .html('<i class="fas fa-exclamation-circle mr-1"></i>Scan gagal: ' + $('<div>').text(res.error).html());
+                return;
+            }
+            var cur = $('#fw-modal-version').val();
+            if (res.version && (!cur || res.version.length >= cur.length)) $('#fw-modal-version').val(res.version.toUpperCase());
+            if (res.brand && !$('#fw-modal-brand').val())  $('#fw-modal-brand').val(res.brand);
+            if (res.model && !$('#fw-modal-model').val())  $('#fw-modal-model').val(res.model);
+            var extra = res.extra && res.extra.length ? ' <span class="text-muted small">(juga: ' + res.extra.slice(0,2).join(', ') + ')</span>' : '';
+            $('#fw-modal-detect-badge').removeClass('badge-warning').addClass('badge-success')
+                .html('<i class="fas fa-magic mr-1"></i>Terdeteksi dari binary' + extra);
+        })
+        .fail(function() {
+            $('#fw-modal-detect-badge').removeClass('badge-warning').addClass('badge-secondary')
+                .html('<i class="fas fa-exclamation-circle mr-1"></i>Scan timeout, gunakan deteksi nama file');
+        });
+    }
+
+    // Submit modal upload via XHR
+    $('#fw-modal-submit').on('click', function() {
+        var fileInput = document.getElementById('fw-modal-file');
+        if (!fileInput.files || !fileInput.files.length) {
+            $('#fw-modal-error').text('Pilih file firmware terlebih dahulu.').show();
+            return;
+        }
+        var brand   = $('#fw-modal-brand').val();
+        var version = $('#fw-modal-version').val().trim();
+        if (!brand)   { $('#fw-modal-error').text('Pilih brand firmware.').show(); return; }
+        if (!version) { $('#fw-modal-error').text('Isi versi firmware.').show(); return; }
+
+        $('#fw-modal-error').hide();
+        var formData = new FormData(document.getElementById('form-fw-modal-upload'));
+        var file     = fileInput.files[0];
+        var startTime = Date.now();
+
+        // Tampilkan progress
+        $('#fw-modal-progress-wrap').show();
+        var $bar = $('#fw-modal-bar'), $pct = $('#fw-modal-pct'), $speed = $('#fw-modal-speed');
+        var $transferred = $('#fw-modal-transferred'), $status = $('#fw-modal-status-text');
+        $bar.css('width', '0%').removeClass('bg-success bg-danger').addClass('bg-primary');
+        $('#fw-modal-submit').prop('disabled', true);
+        $('#fw-modal-cancel').prop('disabled', true);
+
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', fwStoreUrl, true);
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.setRequestHeader('Accept', 'application/json');
+
+        xhr.upload.addEventListener('progress', function(e) {
+            if (!e.lengthComputable) return;
+            var pct      = Math.round(e.loaded / e.total * 100);
+            var elapsed  = (Date.now() - startTime) / 1000;
+            var speed    = e.loaded / elapsed;
+            var remaining = (e.total - e.loaded) / speed;
+            $bar.css('width', pct + '%');
+            $pct.text(pct + '%');
+            $transferred.text(fwFormatBytes(e.loaded) + ' / ' + fwFormatBytes(e.total));
+            $speed.text(fwFormatBytes(speed) + '/s');
+            $status.text(pct >= 100 ? 'Memproses di server...' : 'Mengirim file...');
+            if (pct >= 100) $bar.removeClass('bg-primary').addClass('bg-warning');
+        });
+
+        xhr.addEventListener('load', function() {
+            $('#fw-modal-submit').prop('disabled', false);
+            $('#fw-modal-cancel').prop('disabled', false);
+            if (xhr.status === 200 || xhr.status === 201) {
+                try {
+                    var j = JSON.parse(xhr.responseText);
+                    if (j && j.errors) {
+                        var msgs = Object.values(j.errors).flat().join(' | ');
+                        fwModalShowError(msgs);
+                        return;
+                    }
+                } catch(e) {}
+                $bar.css('width','100%').removeClass('bg-primary bg-warning').addClass('bg-success');
+                $pct.text('100%');
+                $status.text('Upload berhasil!');
+                // Reset daftar firmware (hapus listener one() lalu load ulang)
+                $('a[href="#acs-firmware"]').off('click.fwload');
+                $('#fw-list-loading').show();
+                $('#fw-list-empty').hide();
+                $('#fw-list-items').empty();
+                loadFirmwareList();
+                setTimeout(function() {
+                    $('#modal-upload-firmware').modal('hide');
+                    toastr.success('Firmware berhasil diupload.', 'Upload Berhasil');
+                }, 800);
+            } else if (xhr.status === 422) {
+                try {
+                    var err = JSON.parse(xhr.responseText);
+                    var msgs = Object.values(err.errors || {}).flat().join(' | ');
+                    fwModalShowError(msgs || 'Validasi gagal.');
+                } catch(e) { fwModalShowError('Validasi gagal (HTTP 422).'); }
+            } else {
+                fwModalShowError('Upload gagal (HTTP ' + xhr.status + '). Coba lagi.');
+            }
+        });
+
+        xhr.addEventListener('error', function() {
+            $('#fw-modal-submit').prop('disabled', false);
+            $('#fw-modal-cancel').prop('disabled', false);
+            fwModalShowError('Koneksi error. Periksa jaringan dan coba lagi.');
+        });
+
+        xhr.send(formData);
+    });
+
+    function fwModalShowError(msg) {
+        $('#fw-modal-progress-wrap').hide();
+        $('#fw-modal-error').html('<i class="fas fa-exclamation-circle mr-1"></i>' + $('<div>').text(msg).html()).show();
+    }
+
+    function fwFormatBytes(b) {
+        if (b < 1024)    return b.toFixed(0) + ' B';
+        if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+        return (b/1048576).toFixed(1) + ' MB';
+    }
+
+
         e.preventDefault();
         var btn = $(this).find('button[type="submit"]');
         var fileUrl = $('#fw-select-file').val() || $('#fw-manual-url').val();

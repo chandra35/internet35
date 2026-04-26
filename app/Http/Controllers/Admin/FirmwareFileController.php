@@ -115,6 +115,10 @@ class FirmwareFileController extends Controller
             'uploaded_by'   => auth()->id(),
         ]);
 
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json(['success' => true, 'message' => 'Firmware berhasil diupload.']);
+        }
+
         return back()->with('success', 'Firmware berhasil diupload.');
     }
 
