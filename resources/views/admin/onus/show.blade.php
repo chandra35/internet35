@@ -1849,6 +1849,13 @@ $(function() {
                         + ' data-ssid="' + (wifi.ssid || '') + '"'
                         + ' data-enabled="' + (wifi.enabled ? '1' : '0') + '"'
                         + ' title="Edit WiFi"><i class="fas fa-cog"></i></button>';
+                    wifiHtml += '<button type="button" class="btn btn-sm '
+                        + (isEnabled ? 'btn-outline-warning' : 'btn-outline-success') + ' btn-toggle-wifi"'
+                        + ' data-path="' + (wifi.path || '') + '"'
+                        + ' data-ssid="' + (wifi.ssid || 'SSID ' + wlanIndex) + '"'
+                        + ' data-enabled="' + (wifi.enabled ? '1' : '0') + '"'
+                        + ' title="' + (isEnabled ? 'Nonaktifkan SSID' : 'Aktifkan SSID') + '">'
+                        + '<i class="fas fa-' + (isEnabled ? 'toggle-off' : 'toggle-on') + '"></i></button>';
                     if (canDelete) {
                         wifiHtml += '<button type="button" class="btn btn-sm btn-outline-danger btn-delete-wifi"'
                             + ' data-path="' + (wifi.path || '') + '"'
@@ -2566,6 +2573,36 @@ $(function() {
             target.attr('type', 'password');
             icon.removeClass('fa-eye-slash').addClass('fa-eye');
         }
+    });
+
+    // WiFi Toggle Enable/Disable
+    $(document).on('click', '.btn-toggle-wifi', function() {
+        var path    = $(this).data('path');
+        var ssid    = $(this).data('ssid');
+        var enabled = parseInt($(this).data('enabled')) === 1;
+        var newEnabled = !enabled;
+        var $btn = $(this);
+
+        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+
+        $.post('/admin/onus/{{ $onu->id }}/tr069-wifi', {
+            _token: '{{ csrf_token() }}',
+            wlan_path: path,
+            enabled: newEnabled ? 1 : 0,
+        })
+        .done(function(res) {
+            if (res.success) {
+                toastr.info((newEnabled ? 'Mengaktifkan' : 'Menonaktifkan') + ' SSID "' + ssid + '"...');
+                startPoll(null, 'refresh');
+            } else {
+                toastr.error(res.message || 'Gagal mengubah status SSID');
+                $btn.prop('disabled', false).html('<i class="fas fa-' + (enabled ? 'toggle-off' : 'toggle-on') + '"></i>');
+            }
+        })
+        .fail(function(xhr) {
+            toastr.error(xhr.responseJSON ? xhr.responseJSON.message : 'Server error');
+            $btn.prop('disabled', false).html('<i class="fas fa-' + (enabled ? 'toggle-off' : 'toggle-on') + '"></i>');
+        });
     });
 
     // WiFi Edit
