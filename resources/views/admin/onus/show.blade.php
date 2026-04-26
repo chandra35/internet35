@@ -2649,6 +2649,14 @@ $(function() {
     $(document).on('click', '.btn-delete-wifi', function() {
         var path = $(this).data('path');
         var ssid = $(this).data('ssid');
+
+        // Fire a silent refresh in the background BEFORE showing the confirmation
+        // dialog. By the time the user reads and confirms (~2-3 s), the device has
+        // already responded to the getParameterValues connection_request and is in
+        // its fresh inform cycle. The subsequent setParameterValues (30 s window)
+        // will then execute synchronously — same mechanism as Edit/Add SSID.
+        $.post('/admin/onus/{{ $onu->id }}/tr069-refresh', { _token: '{{ csrf_token() }}' });
+
         Swal.fire({
             title: 'Hapus SSID?',
             html: 'SSID <strong>' + $('<div>').text(ssid).html() + '</strong> akan dihapus dari device.<br><small class="text-muted">Pengguna yang terhubung akan diputus.</small>',

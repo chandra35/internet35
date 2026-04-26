@@ -1997,20 +1997,16 @@ class OnuController extends Controller implements HasMiddleware
                 "{$path}.PreSharedKey.1.PreSharedKey"   => ['', 'xsd:string'],
             ];
 
-            // Use connection_request=true with a 450-second GenieACS-side timeout.
+            // connection_request=true + timeout=30s, same window as addObject (15s).
+            // GenieACS holds the HTTP connection for 30s waiting for device to inform.
+            // If device informs within 30s → 200 (completed synchronously).
+            // If not → 202 (pending); user should retry after clicking "Refresh Data".
             //
-            // Why: device IDs containing %2D (e.g. HG8145X6-10) suffer a mismatch
-            // between the device ID stored in MongoDB (%2D) and the ID CWMP calculates
-            // from the Inform message (literal hyphen).  Tasks queued without
-            // connection_request are therefore never matched during periodic informs.
-            //
-            // With connection_request + timeout, GenieACS keeps an in-memory session
-            // open and executes the task when the device's next periodic inform arrives
-            // (instead of relying on a MongoDB device-ID lookup that would fail).
-            // The PHP HTTP client timeout is set inside setParameterValues accordingly.
-            //
-            // Inform interval for this device class is ~400 s, so 450 s covers it.
-            $result = $genieacs->setParameterValues($device['device_id'], $params, true, 450_000);
+            // IMPORTANT: do NOT use timeout > 50s total (refreshDevice 10s +
+            // setParameterValues 40s) — nginx proxy_read_timeout (default 60s) will
+            // kill the PHP connection, causing GenieACS to cancel the in-memory session
+            // and leaving the task permanently stuck in the MongoDB queue.
+            $result = $genieacs->setParameterValues($device['device_id'], $params, true, 30_000);
 
             if (!$result['success']) {
                 return response()->json(['success' => false, 'message' => 'Gagal mengirim perintah hapus SSID']);
