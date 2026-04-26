@@ -3040,6 +3040,7 @@ $(function() {
     $(document).on('click', '#btn-save-security', function() {
         var btn = $(this);
         var settings = {};
+        var savedOk = false;
         $('.acl-toggle').each(function() {
             settings[$(this).data('key')] = $(this).is(':checked') ? 1 : 0;
         });
@@ -3050,23 +3051,40 @@ $(function() {
         })
         .done(function(res) {
             if (res.success) {
+                savedOk = true;
                 toastr.success(res.status === 200
                     ? 'Settings berhasil diterapkan ke perangkat.'
                     : 'Settings dikirim, akan diterapkan saat device check-in berikutnya.');
-                // Trigger a device refresh so GenieACS fetches updated values,
-                // then reload security tab after 10s
+                // Trigger a device refresh so GenieACS fetches updated values.
+                // ONU check-in interval = 200s (~3 menit), reload setelah 30s
+                // agar nilai yang tampil sudah dikonfirmasi dari ONU.
                 $.post('/admin/onus/{{ $onu->id }}/tr069-refresh', { _token: '{{ csrf_token() }}' });
-                setTimeout(function() {
-                    $('#tr069-security-content').hide();
-                    $('#tr069-security-loading').show();
-                    loadSecurityInfo();
-                }, 10000);
+                toastr.info('Data Security akan diperbarui dalam 30 detik setelah ONU mengkonfirmasi perubahan...', '', { timeOut: 28000 });
+
+                var countdown = 30;
+                var countInterval = setInterval(function() {
+                    countdown--;
+                    btn.html('<i class="fas fa-clock mr-1"></i>Memuat ulang (' + countdown + 's)...');
+                    if (countdown <= 0) {
+                        clearInterval(countInterval);
+                        btn.html('<i class="fas fa-spinner fa-spin mr-1"></i>Memuat...');
+                        $('#tr069-security-content').hide();
+                        $('#tr069-security-loading').show();
+                        loadSecurityInfo();
+                        btn.prop('disabled', false).html('<i class="fas fa-save mr-1"></i>Simpan Semua');
+                    }
+                }, 1000);
             } else {
                 toastr.error(res.message || 'Gagal mengirim settings');
             }
         })
         .fail(function() { toastr.error('Koneksi gagal'); })
-        .always(function() { btn.prop('disabled', false).html('<i class="fas fa-save mr-1"></i>Simpan Semua'); });
+        .always(function() {
+            // Reset tombol hanya jika save tidak berhasil (sukses = countdown yg reset)
+            if (!savedOk) {
+                btn.prop('disabled', false).html('<i class="fas fa-save mr-1"></i>Simpan Semua');
+            }
+        });
     });
 
     // ── Save CLI password ────────────────────────────────────────────────────
