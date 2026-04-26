@@ -703,11 +703,17 @@ class GenieAcsService
                         $freqBand = ($ch >= 36) ? '5GHz' : '2.4GHz';
                     }
 
+                    $wlanSsid    = $this->getValue($wValue, 'SSID');
+                    $wlanEnabled = $this->getValue($wValue, 'Enable');
+
+                    // Skip soft-deleted SSIDs (disabled + SSID kosong = hasil hapus via setParameterValues)
+                    if ($wlanEnabled === false && ($wlanSsid === '' || $wlanSsid === null)) continue;
+
                     $wlans[] = [
                         'path' => "InternetGatewayDevice.LANDevice.{$ldKey}.WLANConfiguration.{$wKey}",
                         'index' => $wKey,
-                        'ssid' => $this->getValue($wValue, 'SSID'),
-                        'enabled' => $this->getValue($wValue, 'Enable'),
+                        'ssid' => $wlanSsid,
+                        'enabled' => $wlanEnabled,
                         'channel' => $channel,
                         'band' => $freqBand,
                         'standard' => $this->getValue($wValue, 'Standard'),

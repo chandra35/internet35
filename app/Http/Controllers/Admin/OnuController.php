@@ -1964,7 +1964,11 @@ class OnuController extends Controller implements HasMiddleware
     }
 
     /**
-     * Delete a WiFi SSID instance via TR-069 DeleteObject.
+     * Delete a WiFi SSID instance via TR-069.
+     *
+     * Huawei firmware (HG8145, EG8145, dll) sering tidak execute DeleteObject.
+     * Strategi: soft-delete via setParameterValues (Enable=false, SSID="", clear password).
+     * getWifiInfo() sudah diupdate untuk memfilter entri soft-deleted ini.
      */
     public function deleteTr069Wifi(Onu $onu, Request $request)
     {
@@ -1985,16 +1989,26 @@ class OnuController extends Controller implements HasMiddleware
                 return response()->json(['success' => false, 'message' => 'Device tidak ditemukan di GenieACS']);
             }
 
-            $result = $genieacs->deleteObject($device['device_id'], $request->wlan_path);
+            $path   = rtrim($request->wlan_path, '.');
+            $params = [
+                "{$path}.Enable"                        => [false, 'xsd:boolean'],
+                "{$path}.SSID"                          => ['', 'xsd:string'],
+                "{$path}.KeyPassphrase"                 => ['', 'xsd:string'],
+                "{$path}.PreSharedKey.1.PreSharedKey"   => ['', 'xsd:string'],
+            ];
+
+            // connection_request=true: wake device immediately
+            $result = $genieacs->setParameterValues($device['device_id'], $params, true);
 
             if (!$result['success']) {
-                return response()->json(['success' => false, 'message' => 'Gagal mengirim deleteObject task']);
+                return response()->json(['success' => false, 'message' => 'Gagal mengirim perintah hapus SSID']);
             }
 
+            $completed = !($result['pending'] ?? true);
             return response()->json([
                 'success'   => true,
-                'completed' => $result['completed'] ?? false,
-                'message'   => ($result['completed'] ?? false)
+                'completed' => $completed,
+                'message'   => $completed
                     ? 'SSID berhasil dihapus.'
                     : 'Perintah hapus dikirim. SSID akan hilang setelah device check-in.',
             ]);
