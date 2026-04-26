@@ -1997,20 +1997,21 @@ class OnuController extends Controller implements HasMiddleware
                 "{$path}.PreSharedKey.1.PreSharedKey"   => ['', 'xsd:string'],
             ];
 
-            // connection_request=true: wake device immediately
-            $result = $genieacs->setParameterValues($device['device_id'], $params, true);
+            // Step 1: Queue task WITHOUT connection_request so it's committed to DB first
+            $result = $genieacs->setParameterValues($device['device_id'], $params, false);
 
             if (!$result['success']) {
                 return response()->json(['success' => false, 'message' => 'Gagal mengirim perintah hapus SSID']);
             }
 
-            $completed = !($result['pending'] ?? true);
+            // Step 2: AFTER task is committed, send connection_request to wake device
+            // This avoids race condition where device connects before task is in DB
+            $genieacs->refreshDevice($device['device_id']);
+
             return response()->json([
                 'success'   => true,
-                'completed' => $completed,
-                'message'   => $completed
-                    ? 'SSID berhasil dihapus.'
-                    : 'Perintah hapus dikirim. SSID akan hilang setelah device check-in.',
+                'completed' => false,
+                'message'   => 'Perintah hapus dikirim. SSID akan hilang setelah device check-in.',
             ]);
         } catch (Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
