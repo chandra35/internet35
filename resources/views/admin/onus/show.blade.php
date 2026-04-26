@@ -891,20 +891,30 @@
             <div class="row">
                 <div class="col-lg-8">
                     <h6 class="text-muted text-uppercase mb-3"><i class="fas fa-chart-line mr-1"></i>Histori Signal</h6>
-                    <div class="mb-2">
-                        <select id="chart-period" class="form-control form-control-sm d-inline-block" style="width:auto">
+                    <div class="mb-2 d-flex align-items-center">
+                        <select id="chart-period" class="form-control form-control-sm d-inline-block mr-2" style="width:auto">
                             <option value="24h">24 Jam</option>
                             <option value="7d" selected>7 Hari</option>
                             <option value="30d">30 Hari</option>
                         </select>
+                        <small class="text-muted"><i class="fas fa-info-circle mr-1"></i>Data direkam otomatis setiap 5 menit saat ONU online</small>
                     </div>
-                    <canvas id="signal-chart" style="height:300px;"></canvas>
+                    <div style="position:relative;height:300px;">
+                        <canvas id="signal-chart"></canvas>
+                        <div id="signal-chart-empty" style="display:none;position:absolute;top:0;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.85);">
+                            <div class="text-center text-muted">
+                                <i class="fas fa-chart-line fa-2x mb-2"></i>
+                                <p class="mb-0">Belum ada data histori signal</p>
+                                <small>Data akan terekam otomatis saat ONU online</small>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div class="col-lg-4">
                     <h6 class="text-muted text-uppercase mb-3"><i class="fas fa-history mr-1"></i>Riwayat Terbaru</h6>
                     <div class="table-responsive" style="max-height:380px;overflow-y:auto">
                         <table class="table table-sm table-striped mb-0">
-                            <thead><tr><th>Waktu</th><th>RX</th><th>TX</th></tr></thead>
+                            <thead><tr><th>Waktu</th><th>RX (dBm)</th><th>TX (dBm)</th></tr></thead>
                             <tbody>
                                 @forelse($signalHistory as $history)
                                 <tr>
@@ -912,12 +922,25 @@
                                     <td>
                                         @php
                                             $histRx = $history->rx_power;
-                                            $histRxClass = $histRx >= -25 ? 'success' : ($histRx >= -27 ? 'warning' : 'danger');
+                                            // Nilai optik ONU selalu negatif (misal -15 s.d. -30 dBm).
+                                            // Nilai 0 atau null berarti data tidak valid / belum terbaca.
+                                            $histRxValid = $histRx !== null && $histRx < 0;
+                                            $histRxClass = !$histRxValid ? 'secondary'
+                                                : ($histRx >= -25 ? 'success'
+                                                    : ($histRx >= -27 ? 'warning' : 'danger'));
                                         @endphp
-                                        <span class="badge badge-{{ $histRxClass }}">{{ number_format($histRx, 2) }}</span>
+                                        <span class="badge badge-{{ $histRxClass }}">
+                                            {{ $histRxValid ? number_format($histRx, 2) : 'N/A' }}
+                                        </span>
                                     </td>
                                     <td>
-                                        <span class="badge badge-info">{{ $history->tx_power ? number_format($history->tx_power, 2) : '-' }}</span>
+                                        @php
+                                            $histTx = $history->tx_power;
+                                            $histTxValid = $histTx !== null && $histTx != 0;
+                                        @endphp
+                                        <span class="badge badge-{{ $histTxValid ? 'info' : 'secondary' }}">
+                                            {{ $histTxValid ? number_format($histTx, 2) : 'N/A' }}
+                                        </span>
                                     </td>
                                 </tr>
                                 @empty
@@ -1373,23 +1396,51 @@ $(function() {
     });
 
     // ========== Signal Chart ==========
+    // Filter null/0 values — optical power is always negative dBm; 0 = no reading
+    function filterSignalData(labels, values) {
+        var filteredLabels = [], filteredValues = [];
+        for (var i = 0; i < values.length; i++) {
+            if (values[i] !== null && values[i] !== 0) {
+                filteredLabels.push(labels[i]);
+                filteredValues.push(values[i]);
+            }
+        }
+        return { labels: filteredLabels, values: filteredValues };
+    }
+
+    function updateChartEmptyState(labels) {
+        if (labels.length === 0) {
+            $('#signal-chart-empty').css('display', 'flex');
+        } else {
+            $('#signal-chart-empty').hide();
+        }
+    }
+
+    var rawLabels  = {!! json_encode($chartLabels ?? []) !!};
+    var rawRxData  = {!! json_encode($chartRxData ?? []) !!};
+    var rawTxData  = {!! json_encode($chartTxData ?? []) !!};
+    var filteredRx = filterSignalData(rawLabels, rawRxData);
+    var filteredTx = filterSignalData(rawLabels, rawTxData);
+    // Use RX labels as primary (more complete); fall back to TX
+    var chartLabels = filteredRx.labels.length > 0 ? filteredRx.labels : filteredTx.labels;
+
     var ctx = document.getElementById('signal-chart').getContext('2d');
     var signalChart = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: {!! json_encode($chartLabels ?? []) !!},
+            labels: chartLabels,
             datasets: [{
                 label: 'RX Power (dBm)',
-                data: {!! json_encode($chartRxData ?? []) !!},
+                data: filteredRx.values,
                 borderColor: 'rgb(75, 192, 192)',
                 backgroundColor: 'rgba(75, 192, 192, 0.1)',
-                tension: 0.3, fill: true
+                tension: 0.3, fill: true, spanGaps: false
             }, {
                 label: 'TX Power (dBm)',
-                data: {!! json_encode($chartTxData ?? []) !!},
+                data: filteredTx.values,
                 borderColor: 'rgb(54, 162, 235)',
                 backgroundColor: 'rgba(54, 162, 235, 0.1)',
-                tension: 0.3, fill: true
+                tension: 0.3, fill: true, spanGaps: false
             }]
         },
         options: {
@@ -1397,7 +1448,12 @@ $(function() {
             maintainAspectRatio: false,
             interaction: { mode: 'index', intersect: false },
             scales: {
-                y: { title: { display: true, text: 'dBm' } }
+                y: {
+                    title: { display: true, text: 'dBm' },
+                    suggestedMin: -35,
+                    suggestedMax: -5,
+                    reverse: false
+                }
             },
             plugins: {
                 annotation: {
@@ -1405,25 +1461,30 @@ $(function() {
                         warningLine: {
                             type: 'line', yMin: -25, yMax: -25,
                             borderColor: 'orange', borderWidth: 1, borderDash: [5,5],
-                            label: { enabled: true, content: 'Warning (-25dBm)' }
+                            label: { display: true, content: 'Warning -25dBm', position: 'end', font: { size: 10 } }
                         },
                         criticalLine: {
                             type: 'line', yMin: -27, yMax: -27,
                             borderColor: 'red', borderWidth: 1, borderDash: [5,5],
-                            label: { enabled: true, content: 'Critical (-27dBm)' }
+                            label: { display: true, content: 'Critical -27dBm', position: 'end', font: { size: 10 } }
                         }
                     }
                 }
             }
         }
     });
+    updateChartEmptyState(chartLabels);
 
     $('#chart-period').change(function() {
         $.get('{{ route("admin.onus.signal-history", $onu) }}', { period: $(this).val() }, function(res) {
-            signalChart.data.labels = res.labels;
-            signalChart.data.datasets[0].data = res.rx_data;
-            signalChart.data.datasets[1].data = res.tx_data;
+            var fRx = filterSignalData(res.labels, res.rx_data);
+            var fTx = filterSignalData(res.labels, res.tx_data);
+            var newLabels = fRx.labels.length > 0 ? fRx.labels : fTx.labels;
+            signalChart.data.labels = newLabels;
+            signalChart.data.datasets[0].data = fRx.values;
+            signalChart.data.datasets[1].data = fTx.values;
             signalChart.update();
+            updateChartEmptyState(newLabels);
         });
     });
 

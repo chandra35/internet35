@@ -766,6 +766,31 @@ class OnuController extends Controller implements HasMiddleware
             }
 
             $onu->update($updateData);
+
+            // Save to signal history only when we have a valid reading.
+            // Optical rx_power is always a negative dBm value; 0/null means no data.
+            // Throttle to at most 1 record per 5 minutes to avoid flooding the table.
+            $rxPower  = $opticalInfo['rx_power'] ?? null;
+            $oltRxPow = $opticalInfo['olt_rx_power'] ?? null;
+            if ($rxPower !== null && $rxPower < 0) {
+                $recentEntry = $onu->signalHistories()
+                    ->where('recorded_at', '>=', now()->subMinutes(5))
+                    ->exists();
+
+                if (!$recentEntry) {
+                    $onu->signalHistories()->create([
+                        'olt_id'       => $onu->olt_id,
+                        'rx_power'     => $rxPower,
+                        'tx_power'     => $opticalInfo['tx_power'] ?? null,
+                        'olt_rx_power' => $oltRxPow,
+                        'temperature'  => $opticalInfo['temperature'] ?? null,
+                        'voltage'      => $opticalInfo['voltage'] ?? null,
+                        'distance'     => $opticalInfo['distance'] ?? null,
+                        'status'       => $liveStatus,
+                        'recorded_at'  => now(),
+                    ]);
+                }
+            }
             
             return response()->json([
                 'success' => true,
