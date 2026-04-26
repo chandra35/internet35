@@ -1989,12 +1989,12 @@ class OnuController extends Controller implements HasMiddleware
                 return response()->json(['success' => false, 'message' => 'Device tidak ditemukan di GenieACS']);
             }
 
-            // Use deleteObject (same as WAN delete) — Huawei firmware supports
-            // deleteObject on WLANConfiguration. Previously we used setParameterValues
-            // soft-delete because tasks were stuck as 202, but that was caused by the
-            // %2D device ID mismatch in MongoDB. Now that connection_request is confirmed
-            // working (returns 200), we use the proper TR-069 deleteObject with
-            // connection_request&timeout=15000 — identical to deleteWanConnection().
+            // Soft-delete via setParameterValues (Enable=false, SSID="").
+            // Huawei firmware rejects deleteObject on WLANConfiguration with faultCode 9002
+            // "Internal error" — confirmed in CWMP access log, affects all Huawei models
+            // (HG8145V5, HG8245H, HG8145X6-10, EG8145, etc.). The CR URL is reachable and
+            // tasks do execute; device simply refuses to delete WLAN instances via TR-069.
+            // getWifiInfo() filters out entries with empty SSID so they vanish from the UI.
             $path   = rtrim($request->wlan_path, '.');
             $result = $genieacs->deleteWlanInstance($device['device_id'], $path);
 

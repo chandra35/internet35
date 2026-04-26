@@ -720,6 +720,9 @@ class GenieAcsService
                     $wlanSsid    = $this->getValue($wValue, 'SSID');
                     $wlanEnabled = $this->getValue($wValue, 'Enable');
 
+                    // Skip soft-deleted entries: SSID cleared to empty string by deleteWlanInstance()
+                    if ($wlanSsid === '') continue;
+
                     $wlans[] = [
                         'path' => "InternetGatewayDevice.LANDevice.{$ldKey}.WLANConfiguration.{$wKey}",
                         'index' => $wKey,
@@ -1063,34 +1066,23 @@ class GenieAcsService
      * Delete a WAN connection instance (WANPPPConnection only — never call on IP/management WANs).
      */
     /**
-     * Delete a WLANConfiguration instance (secondary SSID) via TR-069 deleteObject.
-     * Uses connection_request + timeout=15000 — identical pattern to deleteWanConnection().
+     * Soft-delete a WLANConfiguration instance (secondary SSID) via TR-069 setParameterValues.
+     *
+     * Huawei firmware (all models: HG8145V5, HG8245H, HG8145X6-10, EG8145, etc.) returns
+     * faultCode 9002 "Internal error" when DeleteObject is sent on WLANConfiguration —
+     * confirmed in CWMP access log. This is a firmware-level restriction; deleteObject
+     * simply does not work for WLAN instances on Huawei CPE.
+     *
+     * Soft-delete: disable the SSID and clear its name so getWifiInfo() filters it out.
+     * getWifiInfo() skips any WLANConfiguration entry whose SSID value is an empty string.
      */
     public function deleteWlanInstance(string $deviceId, string $wlanPath): array
     {
-        $deviceId = $this->safeDeviceId($deviceId);
-        try {
-            $url = "{$this->nbiUrl}/devices/{$deviceId}/tasks?connection_request&timeout=15000";
-
-            $response = Http::timeout(30)
-                ->asJson()
-                ->post($url, [
-                    'name'       => 'deleteObject',
-                    'objectName' => rtrim($wlanPath, '.'),
-                ]);
-
-            $ok = $response->status() === 200 || $response->status() === 202;
-
-            return [
-                'success'   => $ok,
-                'completed' => $response->status() === 200,
-                'pending'   => $response->status() === 202,
-                'message'   => $ok ? 'SSID berhasil dihapus.' : 'Gagal menghapus SSID: ' . $response->body(),
-            ];
-        } catch (Exception $e) {
-            Log::error("GenieACS deleteWlanInstance error: " . $e->getMessage());
-            return ['success' => false, 'message' => $e->getMessage()];
-        }
+        $path = rtrim($wlanPath, '.');
+        return $this->setParameterValues($deviceId, [
+            "{$path}.Enable" => [false, 'xsd:boolean'],
+            "{$path}.SSID"   => ['', 'xsd:string'],
+        ], true, 20000);
     }
 
     public function deleteWanConnection(string $deviceId, string $wanPath): array
