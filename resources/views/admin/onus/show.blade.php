@@ -2945,8 +2945,25 @@ $(function() {
     });
 
     function loadSecurityInfo() {
-        $('#tr069-security-loading').show();
+        $('#tr069-security-loading').show().html('<i class="fas fa-spinner fa-spin mr-1"></i> Memuat data security...');
         $('#tr069-security-content').hide();
+
+        // Trigger getParameterValues untuk OID security agar data yang ditampilkan
+        // segar langsung dari ONU, bukan cache MongoDB lama.
+        // Jika ONU merespon langsung (immediate=true), tunggu 4s; jika tidak, 8s.
+        $.post('/admin/onus/{{ $onu->id }}/tr069-security-refresh', { _token: '{{ csrf_token() }}' })
+            .always(function(res) {
+                var immediate = res && res.immediate === true;
+                var delay = immediate ? 4000 : 8000;
+                var hint  = immediate
+                    ? 'ONU merespon, memuat data...'
+                    : 'ONU sedang check-in, memuat data...';
+                $('#tr069-security-loading').html('<i class="fas fa-spinner fa-spin mr-1"></i> ' + hint);
+                setTimeout(function() { fetchAndRenderSecurity(); }, delay);
+            });
+    }
+
+    function fetchAndRenderSecurity() {
         $.get('/admin/onus/{{ $onu->id }}/tr069-security')
             .done(function(res) {
                 if (res.success && res.data) {
@@ -3069,8 +3086,9 @@ $(function() {
                         clearInterval(countInterval);
                         btn.html('<i class="fas fa-spinner fa-spin mr-1"></i>Memuat...');
                         $('#tr069-security-content').hide();
-                        $('#tr069-security-loading').show();
-                        loadSecurityInfo();
+                        $('#tr069-security-loading').show().html('<i class="fas fa-spinner fa-spin mr-1"></i> Memuat data terbaru dari ONU...');
+                        // Setelah save, ONU sudah di-refresh, langsung baca saja
+                        fetchAndRenderSecurity();
                         btn.prop('disabled', false).html('<i class="fas fa-save mr-1"></i>Simpan Semua');
                     }
                 }, 1000);

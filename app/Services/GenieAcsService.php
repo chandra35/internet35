@@ -1559,6 +1559,56 @@ class GenieAcsService
     }
 
     /**
+     * Trigger a targeted getParameterValues for security-related OIDs.
+     * Called when the Security tab is opened so displayed values are fresh.
+     * Fire-and-forget with connection_request so ONU is woken up immediately.
+     */
+    public function refreshSecurityParams(string $deviceId): array
+    {
+        $deviceId = $this->safeDeviceId($deviceId);
+
+        // Detect brand to pick correct OID paths
+        $brand = 'unknown';
+        try {
+            $resp  = Http::timeout(5)->get("{$this->nbiUrl}/devices", ['query' => json_encode(['_id' => $deviceId])]);
+            $brand = ($resp->ok() && !empty($resp->json())) ? $this->detectBrand($resp->json()[0]) : 'unknown';
+        } catch (Exception $e) { /* best-effort */ }
+
+        $params = match ($brand) {
+            'huawei' => [
+                'InternetGatewayDevice.X_HW_Security.AclServices.',
+                'InternetGatewayDevice.X_HW_Security.Dosfilter.',
+                'InternetGatewayDevice.UserInterface.X_HW_CLISSHControl.',
+                'InternetGatewayDevice.UserInterface.X_HW_CLITelnetAccess.',
+                'InternetGatewayDevice.UserInterface.X_HW_WebUserInfo.',
+                'InternetGatewayDevice.ManagementServer.',
+            ],
+            'zte' => [
+                'InternetGatewayDevice.Users.',
+                'InternetGatewayDevice.ManagementServer.',
+            ],
+            default => ['InternetGatewayDevice.ManagementServer.'],
+        };
+
+        try {
+            $response = Http::timeout($this->timeout)
+                ->asJson()
+                ->post("{$this->nbiUrl}/devices/{$deviceId}/tasks?connection_request", [
+                    'name'           => 'getParameterValues',
+                    'parameterNames' => $params,
+                ]);
+
+            return [
+                'success' => $response->status() === 200 || $response->status() === 202,
+                'immediate' => $response->status() === 200, // 200 = ONU responded, 202 = queued
+            ];
+        } catch (Exception $e) {
+            Log::warning("GenieACS refreshSecurityParams error: " . $e->getMessage());
+            return ['success' => false, 'immediate' => false];
+        }
+    }
+
+    /**
      * Set security / remote access settings.
      * Auto-detects brand and uses appropriate OID paths.
      */

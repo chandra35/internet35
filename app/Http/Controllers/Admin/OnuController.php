@@ -1709,6 +1709,28 @@ class OnuController extends Controller implements HasMiddleware
     }
 
     /**
+     * Trigger getParameterValues for security OIDs so Security tab shows fresh data.
+     * Returns whether the ONU responded immediately (200) or task was queued (202).
+     */
+    public function refreshTr069Security(Onu $onu)
+    {
+        try {
+            $genieacs = new \App\Services\GenieAcsService();
+            $device = $genieacs->findDeviceBySerial($onu->serial_number);
+
+            if (!$device) {
+                return response()->json(['success' => false, 'immediate' => false]);
+            }
+
+            $result = $genieacs->refreshSecurityParams($device['device_id']);
+
+            return response()->json(['success' => $result['success'], 'immediate' => $result['immediate'] ?? false]);
+        } catch (Exception $e) {
+            return response()->json(['success' => false, 'immediate' => false]);
+        }
+    }
+
+    /**
      * Set security/remote access settings via TR-069.
      */
     public function setTr069Security(Onu $onu, Request $request)
