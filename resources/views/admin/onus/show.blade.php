@@ -48,6 +48,8 @@
     }
     .wifi-card:hover { box-shadow: 0 4px 15px rgba(0,0,0,.08); transform: translateY(-1px); }
     .wifi-card.wifi-disabled { opacity: 0.6; background: #f8f9fa; }
+    .wifi-card.wifi-system { background: #f1f3f5; border-left: 3px solid #6c757d; opacity: 0.82; }
+    .wifi-card.wifi-system:hover { transform: none; box-shadow: none; cursor: default; }
     .wifi-card .wifi-status-bar { position: absolute; top: 0; left: 0; right: 0; height: 3px; }
     .wifi-card .wifi-status-bar.active { background: linear-gradient(90deg, #28a745, #20c997); }
     .wifi-card .wifi-status-bar.inactive { background: #dee2e6; }
@@ -1824,26 +1826,32 @@ $(function() {
                 entries.forEach(function(entry) {
                     var wifi = entry.wifi, i = entry.i;
                     var isEnabled = wifi.enabled;
+                    var isSystem  = wifi.system === true || wifi.system === 1;
                     var wlanIndex = 1;
                     var idxMatch = (wifi.path || '').match(/WLANConfiguration\.(\d+)/);
                     if (idxMatch) wlanIndex = parseInt(idxMatch[1], 10);
-                    var canDelete = wlanIndex > 1;
+                    var canDelete = wlanIndex > 1 && !isSystem;
 
-                    wifiHtml += '<div class="wifi-card' + (!isEnabled ? ' wifi-disabled' : '') + '">';
+                    wifiHtml += '<div class="wifi-card' + (!isEnabled ? ' wifi-disabled' : '') + (isSystem ? ' wifi-system' : '') + '">';
                     wifiHtml += '<div class="wifi-status-bar ' + (isEnabled ? 'active' : 'inactive') + '"></div>';
                     wifiHtml += '<div class="d-flex justify-content-between align-items-start">';
                     wifiHtml += '<div class="d-flex align-items-center">';
-                    wifiHtml += '<div class="wifi-signal-icon mr-3 text-' + (isEnabled ? 'success' : 'secondary') + '">';
-                    wifiHtml += '<i class="fas fa-wifi"></i>';
+                    wifiHtml += '<div class="wifi-signal-icon mr-3 text-' + (isEnabled ? (isSystem ? 'secondary' : 'success') : 'secondary') + '">';
+                    wifiHtml += '<i class="fas ' + (isSystem ? 'fa-lock' : 'fa-wifi') + '"></i>';
                     wifiHtml += '</div>';
                     wifiHtml += '<div>';
                     wifiHtml += '<div class="wifi-ssid-name">' + (wifi.ssid || 'SSID ' + (i + 1)) + '</div>';
                     wifiHtml += '<div class="mt-1">';
-                    wifiHtml += '<span class="badge badge-' + (isEnabled ? 'success' : 'secondary') + ' badge-pill mr-1">';
-                    wifiHtml += '<i class="fas fa-' + (isEnabled ? 'check-circle' : 'times-circle') + ' mr-1"></i>';
-                    wifiHtml += (isEnabled ? 'Active' : 'Disabled') + '</span>';
+                    if (isSystem) {
+                        wifiHtml += '<span class="badge badge-dark badge-pill mr-1" title="SSID sistem firmware — tidak dapat diedit">'
+                            + '<i class="fas fa-lock mr-1"></i>System</span>';
+                    } else {
+                        wifiHtml += '<span class="badge badge-' + (isEnabled ? 'success' : 'secondary') + ' badge-pill mr-1">';
+                        wifiHtml += '<i class="fas fa-' + (isEnabled ? 'check-circle' : 'times-circle') + ' mr-1"></i>';
+                        wifiHtml += (isEnabled ? 'Active' : 'Disabled') + '</span>';
+                    }
                     if (wifi.channel) wifiHtml += '<span class="badge badge-outline-secondary badge-pill mr-1">Ch ' + wifi.channel + '</span>';
-                    if (wifi.total_associations !== null && wifi.total_associations !== undefined && wifi.total_associations !== '') {
+                    if (!isSystem && wifi.total_associations !== null && wifi.total_associations !== undefined && wifi.total_associations !== '') {
                         var assocCount = parseInt(wifi.total_associations) || 0;
                         wifiHtml += '<span class="badge badge-' + (assocCount > 0 ? 'info' : 'light') + ' badge-pill">';
                         wifiHtml += '<i class="fas fa-laptop mr-1"></i>' + assocCount + ' device' + (assocCount !== 1 ? 's' : '') + '</span>';
@@ -1852,23 +1860,30 @@ $(function() {
 
                     // Action buttons
                     wifiHtml += '<div class="btn-group btn-group-sm">';
-                    wifiHtml += '<button type="button" class="btn btn-sm btn-outline-info btn-edit-wifi"'
-                        + ' data-path="' + (wifi.path || '') + '"'
-                        + ' data-ssid="' + (wifi.ssid || '') + '"'
-                        + ' data-enabled="' + (wifi.enabled ? '1' : '0') + '"'
-                        + ' title="Edit WiFi"><i class="fas fa-cog"></i></button>';
-                    wifiHtml += '<button type="button" class="btn btn-sm '
-                        + (isEnabled ? 'btn-outline-warning' : 'btn-outline-success') + ' btn-toggle-wifi"'
-                        + ' data-path="' + (wifi.path || '') + '"'
-                        + ' data-ssid="' + (wifi.ssid || 'SSID ' + wlanIndex) + '"'
-                        + ' data-enabled="' + (wifi.enabled ? '1' : '0') + '"'
-                        + ' title="' + (isEnabled ? 'Nonaktifkan SSID' : 'Aktifkan SSID') + '">'
-                        + '<i class="fas fa-' + (isEnabled ? 'toggle-off' : 'toggle-on') + '"></i></button>';
-                    if (canDelete) {
-                        wifiHtml += '<button type="button" class="btn btn-sm btn-outline-danger btn-delete-wifi"'
+                    if (isSystem) {
+                        // System SSID: read-only, tidak bisa diedit/toggle/hapus
+                        wifiHtml += '<span class="badge badge-secondary align-self-center px-2 py-1" '
+                            + 'title="SSID ini dibuat otomatis oleh firmware (backhaul/mesh) dan tidak dapat diubah dari sini.">'
+                            + '<i class="fas fa-lock mr-1"></i>Protected</span>';
+                    } else {
+                        wifiHtml += '<button type="button" class="btn btn-sm btn-outline-info btn-edit-wifi"'
+                            + ' data-path="' + (wifi.path || '') + '"'
+                            + ' data-ssid="' + (wifi.ssid || '') + '"'
+                            + ' data-enabled="' + (wifi.enabled ? '1' : '0') + '"'
+                            + ' title="Edit WiFi"><i class="fas fa-cog"></i></button>';
+                        wifiHtml += '<button type="button" class="btn btn-sm '
+                            + (isEnabled ? 'btn-outline-warning' : 'btn-outline-success') + ' btn-toggle-wifi"'
                             + ' data-path="' + (wifi.path || '') + '"'
                             + ' data-ssid="' + (wifi.ssid || 'SSID ' + wlanIndex) + '"'
-                            + ' title="Hapus SSID"><i class="fas fa-trash-alt"></i></button>';
+                            + ' data-enabled="' + (wifi.enabled ? '1' : '0') + '"'
+                            + ' title="' + (isEnabled ? 'Nonaktifkan SSID' : 'Aktifkan SSID') + '">'
+                            + '<i class="fas fa-' + (isEnabled ? 'toggle-off' : 'toggle-on') + '"></i></button>';
+                        if (canDelete) {
+                            wifiHtml += '<button type="button" class="btn btn-sm btn-outline-danger btn-delete-wifi"'
+                                + ' data-path="' + (wifi.path || '') + '"'
+                                + ' data-ssid="' + (wifi.ssid || 'SSID ' + wlanIndex) + '"'
+                                + ' title="Hapus SSID"><i class="fas fa-trash-alt"></i></button>';
+                        }
                     }
                     wifiHtml += '</div></div>';
 

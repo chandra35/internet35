@@ -723,6 +723,18 @@ class GenieAcsService
                     // Skip soft-deleted entries: SSID cleared to empty string by deleteWlanInstance()
                     if ($wlanSsid === '') continue;
 
+                    $ssidAdvertised = $this->getValue($wValue, 'SSIDAdvertisementEnabled');
+                    $wlanIndexInt   = (int) $wKey;
+
+                    // Mark as system/backhaul if: hidden (SSIDAdvertisementEnabled=false)
+                    // AND either SSID matches Huawei backhaul pattern or index >= 9.
+                    // System SSIDs are read-only in the UI — operator must not edit them.
+                    $isSystem = ($ssidAdvertised === false || $ssidAdvertised === 'false' || $ssidAdvertised === '0')
+                        && (
+                            str_starts_with(strtolower((string) $wlanSsid), 'backhaul')
+                            || $wlanIndexInt >= 9
+                        );
+
                     $wlans[] = [
                         'path' => "InternetGatewayDevice.LANDevice.{$ldKey}.WLANConfiguration.{$wKey}",
                         'index' => $wKey,
@@ -736,6 +748,8 @@ class GenieAcsService
                         'password' => $this->getValue($wValue, 'PreSharedKey.1.PreSharedKey') ?? $this->getValue($wValue, 'KeyPassphrase'),
                         'mac_address' => $this->getValue($wValue, 'BSSID'),
                         'total_associations' => $this->getValue($wValue, 'TotalAssociations'),
+                        'ssid_advertised' => $ssidAdvertised,
+                        'system' => $isSystem,
                     ];
                 }
             }
