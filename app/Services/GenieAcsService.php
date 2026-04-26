@@ -1567,6 +1567,10 @@ class GenieAcsService
     {
         $deviceId = $this->safeDeviceId($deviceId);
 
+        // Clear existing getParameterValues tasks first to avoid accumulation.
+        // Without this, every call adds a new pending task in GenieACS.
+        $this->clearDeviceTasks($deviceId, 'getParameterValues');
+
         // Detect brand to pick correct OID paths
         $brand = 'unknown';
         try {
@@ -1599,7 +1603,7 @@ class GenieAcsService
                 ]);
 
             return [
-                'success' => $response->status() === 200 || $response->status() === 202,
+                'success'   => $response->status() === 200 || $response->status() === 202,
                 'immediate' => $response->status() === 200, // 200 = ONU responded, 202 = queued
             ];
         } catch (Exception $e) {

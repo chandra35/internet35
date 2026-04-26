@@ -626,7 +626,12 @@
                                 <i class="fas fa-spinner fa-spin"></i> Memuat data security...
                             </div>
                             <div id="tr069-security-content" style="display:none">
-                                <div id="security-brand-bar" class="mb-2"></div>
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <div id="security-brand-bar"></div>
+                                    <button class="btn btn-sm btn-outline-secondary" id="btn-refresh-security-onu" title="Ambil data terbaru langsung dari ONU via TR-069">
+                                        <i class="fas fa-sync-alt mr-1"></i>Refresh dari ONU
+                                    </button>
+                                </div>
 
                                 {{-- Row 1: ACL Services + ACS Server --}}
                                 <div class="row">
@@ -2998,7 +3003,9 @@ $(function() {
         });
     });
 
-    // Security tab: load on demand
+    // Security tab: load on demand — baca cache langsung, TANPA trigger task ke ONU.
+    // Trigger task (getParameterValues) hanya via tombol "Refresh dari ONU" agar
+    // tidak menambah pending tasks setiap kali tab dibuka.
     $('a[href="#acs-security"]').on('shown.bs.tab', function() {
         if ($('#tr069-security-content').is(':hidden')) {
             loadSecurityInfo();
@@ -3008,21 +3015,31 @@ $(function() {
     function loadSecurityInfo() {
         $('#tr069-security-loading').show().html('<i class="fas fa-spinner fa-spin mr-1"></i> Memuat data security...');
         $('#tr069-security-content').hide();
+        // Langsung baca dari cache GenieACS — tidak membuat task baru
+        fetchAndRenderSecurity();
+    }
 
-        // Trigger getParameterValues untuk OID security agar data yang ditampilkan
-        // segar langsung dari ONU, bukan cache MongoDB lama.
-        // Jika ONU merespon langsung (immediate=true), tunggu 4s; jika tidak, 8s.
+    // Tombol "Refresh dari ONU": trigger getParameterValues → tunggu → reload
+    $(document).on('click', '#btn-refresh-security-onu', function() {
+        var btn = $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Mengambil data...');
         $.post('/admin/onus/{{ $onu->id }}/tr069-security-refresh', { _token: '{{ csrf_token() }}' })
             .always(function(res) {
                 var immediate = res && res.immediate === true;
                 var delay = immediate ? 4000 : 8000;
-                var hint  = immediate
-                    ? 'ONU merespon, memuat data...'
-                    : 'ONU sedang check-in, memuat data...';
-                $('#tr069-security-loading').html('<i class="fas fa-spinner fa-spin mr-1"></i> ' + hint);
-                setTimeout(function() { fetchAndRenderSecurity(); }, delay);
+                var countdown = Math.ceil(delay / 1000);
+                var interval = setInterval(function() {
+                    countdown--;
+                    btn.html('<i class="fas fa-clock mr-1"></i>Menunggu ONU (' + countdown + 's)...');
+                    if (countdown <= 0) {
+                        clearInterval(interval);
+                        $('#tr069-security-content').hide();
+                        $('#tr069-security-loading').show().html('<i class="fas fa-spinner fa-spin mr-1"></i> Memuat data terbaru...');
+                        fetchAndRenderSecurity();
+                        btn.prop('disabled', false).html('<i class="fas fa-sync-alt mr-1"></i>Refresh dari ONU');
+                    }
+                }, 1000);
             });
-    }
+    });
 
     function fetchAndRenderSecurity() {
         $.get('/admin/onus/{{ $onu->id }}/tr069-security')
