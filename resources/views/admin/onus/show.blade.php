@@ -3765,7 +3765,7 @@ $(function() {
         return (b/1048576).toFixed(1) + ' MB';
     }
 
-
+    $('#form-firmware-upgrade').submit(function(e) {
         e.preventDefault();
         var btn = $(this).find('button[type="submit"]');
         var fileUrl = $('#fw-select-file').val() || $('#fw-manual-url').val();
