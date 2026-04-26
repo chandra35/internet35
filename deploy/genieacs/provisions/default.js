@@ -11,11 +11,37 @@
  * PENTING: Tidak push config setiap inform -- hanya ketika belum ada PPPoE.
  */
 
-var serial = declare("DeviceID.SerialNumber", { value: 1 }).value[0];
-var brand  = declare("DeviceID.Manufacturer", { value: 1 }).value[0] || "";
+// DeviceID.SerialNumber di GenieACS = hex-encoded bytes, misal "48575443840472AE".
+// Untuk Huawei GPON: 4 byte pertama = ASCII vendor ID, 4 byte terakhir = hex unit serial.
+// Konversi ke format billing: "48575443" + "840472AE" → "HWTC" + "840472AE" = "HWTC840472AE"
+var rawSerial = declare("DeviceID.SerialNumber", { value: 1 }).value[0] || "";
+var brand     = declare("DeviceID.Manufacturer", { value: 1 }).value[0] || "";
+
+// Konversi hex serial ke format billing (hanya untuk Huawei GPON format)
+var serial = rawSerial;
+if (rawSerial.length === 16 && /^[0-9A-Fa-f]+$/.test(rawSerial)) {
+  var vendorHex  = rawSerial.substr(0, 8);
+  var vendorText = "";
+  for (var _i = 0; _i < 8; _i += 2) {
+    vendorText += String.fromCharCode(parseInt(vendorHex.substr(_i, 2), 16));
+  }
+  serial = vendorText + rawSerial.substr(8).toUpperCase();
+}
 
 // Hanya untuk Huawei
 if (serial && brand.indexOf("Huawei") !== -1) {
+
+  // --- Always read: WLAN SSID bawaan ONU (agar tampil di billing dashboard) ---
+  declare("InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID",   { value: 1 });
+  declare("InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.Enable", { value: 1 });
+  declare("InternetGatewayDevice.LANDevice.1.WLANConfiguration.5.SSID",   { value: 1 });
+  declare("InternetGatewayDevice.LANDevice.1.WLANConfiguration.5.Enable", { value: 1 });
+
+  // --- Always read: WAN MGMT VLAN (WANIPConnection di WANConnectionDevice.2) ---
+  declare("InternetGatewayDevice.WANDevice.1.WANConnectionDevice.2.WANIPConnection.1.X_HW_VLAN",        { value: 1 });
+  declare("InternetGatewayDevice.WANDevice.1.WANConnectionDevice.2.WANIPConnection.1.Name",             { value: 1 });
+  declare("InternetGatewayDevice.WANDevice.1.WANConnectionDevice.2.WANIPConnection.1.ConnectionType",   { value: 1 });
+  declare("InternetGatewayDevice.WANDevice.1.WANConnectionDevice.2.WANIPConnection.1.ExternalIPAddress",{ value: 1 });
 
   // Cek apakah WANPPPConnection sudah ada
   // NumberOfEntries = 0 berarti belum ada instance PPPoE
