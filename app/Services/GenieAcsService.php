@@ -301,8 +301,27 @@ class GenieAcsService
     /**
      * Set parameter values on device.
      */
-    public function setParameterValues(string $deviceId, array $parameterValues, bool $connectionRequest = false): array
-    {
+    /**
+     * Set parameter values on device.
+     *
+     * @param  string  $deviceId
+     * @param  array   $parameterValues  ['path' => [value, 'xsd:type'], ...]
+     * @param  bool    $connectionRequest  Append ?connection_request to NBI URL
+     * @param  int     $crTimeoutMs        GenieACS-side timeout (ms) for connection_request mode.
+     *                                     GenieACS holds the HTTP connection open this long waiting
+     *                                     for the device to inform. Required for devices whose
+     *                                     _connectionRequestUrl is empty (e.g. HG8145X6-10 whose
+     *                                     device ID contains %2D — CWMP can't wake them via CR,
+     *                                     but will execute queued tasks during the next periodic
+     *                                     inform while the in-memory session is still active).
+     *                                     0 = GenieACS default (no explicit timeout).
+     */
+    public function setParameterValues(
+        string $deviceId,
+        array $parameterValues,
+        bool $connectionRequest = false,
+        int $crTimeoutMs = 0
+    ): array {
         $deviceId = $this->safeDeviceId($deviceId);
         $params = [];
         foreach ($parameterValues as $name => $value) {
@@ -313,37 +332,32 @@ class GenieAcsService
         try {
             $url = "{$this->nbiUrl}/devices/{$deviceId}/tasks";
             if ($connectionRequest) {
-                $url .= '?connection_request';
+                $url .= $crTimeoutMs > 0
+                    ? "?connection_request&timeout={$crTimeoutMs}"
+                    : '?connection_request';
             }
 
-            $response = Http::timeout($this->timeout)->asJson()->post($url, $payload);
+            // PHP HTTP timeout must exceed GenieACS-side timeout so the connection
+            // isn't dropped before GenieACS can return 200 on successful inform.
+            $phpTimeout = $connectionRequest && $crTimeoutMs > 0
+                ? (int) ceil($crTimeoutMs / 1000) + 10
+                : $this->timeout;
+
+            $response = Http::timeout($phpTimeout)->asJson()->post($url, $payload);
 
             return [
-                'success' => $response->status() === 200 || $response->status() === 202,
-                'pending' => $response->status() === 202,
-                'task_id' => $response->json('_id'),
-                'status'  => $response->status(),
+                'success'   => $response->status() === 200 || $response->status() === 202,
+                'completed' => $response->status() === 200,
+                'pending'   => $response->status() === 202,
+                'task_id'   => $response->json('_id'),
+                'status'    => $response->status(),
             ];
         } catch (Exception $e) {
-            // cURL 52 (empty reply) or 28 (timeout) = Connection Request to ONU failed.
-            // Queue without connection_request so task runs at next periodic inform.
-            if ($connectionRequest && preg_match('/cURL error (52|28|7)/', $e->getMessage())) {
-                Log::warning("GenieACS setParameterValues CR failed ({$e->getMessage()}), queuing without connection_request");
-                try {
-                    $queued = Http::timeout(10)->asJson()
-                        ->post("{$this->nbiUrl}/devices/{$deviceId}/tasks", $payload);
-                    if ($queued->status() === 200 || $queued->status() === 202) {
-                        return [
-                            'success' => true,
-                            'pending' => true,
-                            'task_id' => $queued->json('_id'),
-                            'status'  => $queued->status(),
-                        ];
-                    }
-                } catch (Exception $inner) {
-                    Log::error("GenieACS setParameterValues queue fallback failed: " . $inner->getMessage());
-                }
-            }
+            // NOTE: Do NOT fall back to queuing without connection_request.
+            // For devices with %2D in their ID (e.g. HG8145X6-10), CWMP calculates
+            // the device ID with a literal hyphen during periodic informs, so MongoDB
+            // task lookup never matches the %2D-keyed task — it stays pending forever.
+            // The only reliable path is connection_request with an in-memory session.
             Log::error("GenieACS setParameterValues error: " . $e->getMessage());
             return ['success' => false, 'message' => $e->getMessage()];
         }

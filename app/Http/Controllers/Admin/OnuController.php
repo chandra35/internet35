@@ -1997,16 +1997,32 @@ class OnuController extends Controller implements HasMiddleware
                 "{$path}.PreSharedKey.1.PreSharedKey"   => ['', 'xsd:string'],
             ];
 
-            // Step 1: Queue task WITHOUT connection_request so it's committed to DB first
-            $result = $genieacs->setParameterValues($device['device_id'], $params, false);
+            // Use connection_request=true with a 450-second GenieACS-side timeout.
+            //
+            // Why: device IDs containing %2D (e.g. HG8145X6-10) suffer a mismatch
+            // between the device ID stored in MongoDB (%2D) and the ID CWMP calculates
+            // from the Inform message (literal hyphen).  Tasks queued without
+            // connection_request are therefore never matched during periodic informs.
+            //
+            // With connection_request + timeout, GenieACS keeps an in-memory session
+            // open and executes the task when the device's next periodic inform arrives
+            // (instead of relying on a MongoDB device-ID lookup that would fail).
+            // The PHP HTTP client timeout is set inside setParameterValues accordingly.
+            //
+            // Inform interval for this device class is ~400 s, so 450 s covers it.
+            $result = $genieacs->setParameterValues($device['device_id'], $params, true, 450_000);
 
             if (!$result['success']) {
                 return response()->json(['success' => false, 'message' => 'Gagal mengirim perintah hapus SSID']);
             }
 
-            // Step 2: AFTER task is committed, send connection_request to wake device
-            // This avoids race condition where device connects before task is in DB
-            $genieacs->refreshDevice($device['device_id']);
+            if ($result['completed'] ?? false) {
+                return response()->json([
+                    'success'   => true,
+                    'completed' => true,
+                    'message'   => 'SSID berhasil dihapus.',
+                ]);
+            }
 
             return response()->json([
                 'success'   => true,
