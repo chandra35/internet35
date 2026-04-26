@@ -1741,8 +1741,12 @@ $(function() {
                 if (wan.name) wanHtml += ' <small class="text-muted">(' + wan.name + ')</small>';
                 wanHtml += '</div>';
                 wanHtml += '<div class="d-flex align-items-center">';
-                wanHtml += '<span class="badge badge-' + statusBadge + ' mr-2">' + (wan.status || 'Unknown') + '</span>';
+                wanHtml += '<span class="badge badge-' + statusBadge + ' mr-2 wan-status-badge">' + (wan.status || 'Unknown') + '</span>';
                 if (isPppoe) {
+                    wanHtml += '<button type="button" class="btn btn-xs btn-outline-secondary mr-1 btn-refresh-wan" '
+                        + 'data-path="' + (wan.path || '') + '" '
+                        + 'title="Refresh status koneksi PPPoE">'
+                        + '<i class="fas fa-sync-alt"></i></button>';
                     wanHtml += '<button type="button" class="btn btn-xs btn-outline-primary mr-1 btn-edit-wan" '
                         + 'data-path="' + (wan.path || '') + '" '
                         + 'data-username="' + (wan.username || '') + '" '
@@ -1756,13 +1760,17 @@ $(function() {
                     wanHtml += '<span class="badge badge-light" title="WAN management — tidak dapat diedit/dihapus"><i class="fas fa-lock mr-1"></i>Protected</span>';
                 }
                 wanHtml += '</div></div>';
-                wanHtml += '<div class="mt-2 small">';
+                wanHtml += '<div class="mt-2 small" id="wan-info-' + i + '">';
                 if (wan.username) wanHtml += '<div><i class="fas fa-user text-muted mr-1"></i>Username: <strong>' + wan.username + '</strong></div>';
                 var ip = wan.external_ip;
                 if (ip && ip !== '0.0.0.0') {
-                    wanHtml += '<div><i class="fas fa-network-wired text-muted mr-1"></i>IP: <code>' + ip + '</code></div>';
-                } else if (ip === '0.0.0.0') {
-                    wanHtml += '<div><i class="fas fa-network-wired text-warning mr-1"></i>IP: <span class="text-warning">Belum terhubung</span></div>';
+                    wanHtml += '<div><i class="fas fa-network-wired text-success mr-1"></i>IP: <code class="wan-ip">' + ip + '</code></div>';
+                } else if (wan.status === 'Connected') {
+                    wanHtml += '<div><i class="fas fa-spinner fa-spin text-muted mr-1"></i><span class="text-muted">Menunggu IP...</span></div>';
+                } else if (wan.status === 'Connecting') {
+                    wanHtml += '<div><i class="fas fa-circle-notch fa-spin text-warning mr-1"></i><span class="text-warning">Sedang dial PPPoE...</span></div>';
+                } else {
+                    wanHtml += '<div><i class="fas fa-times-circle text-secondary mr-1"></i><span class="text-muted">Belum terhubung</span></div>';
                 }
                 if (wan.gateway && wan.gateway !== '0.0.0.0') wanHtml += '<div><i class="fas fa-route text-muted mr-1"></i>Gateway: <code>' + wan.gateway + '</code></div>';
                 if (wan.dns && wan.dns.trim()) wanHtml += '<div><i class="fas fa-server text-muted mr-1"></i>DNS: ' + wan.dns.trim() + '</div>';
@@ -2438,6 +2446,104 @@ $(function() {
             }
         }, 3000);
     }
+
+    // Refresh status per-card PPPoE WAN
+    $(document).on('click', '.btn-refresh-wan', function() {
+        var $btn = $(this);
+        var $card = $btn.closest('.wan-connection-card');
+        $btn.find('i').addClass('fa-spin').css('color', '');
+        $btn.prop('disabled', true);
+
+        // Kirim Connection Request ke device, lalu poll sampai data fresh
+        $.post('/admin/onus/{{ $onu->id }}/tr069-refresh', { _token: '{{ csrf_token() }}' })
+            .done(function(res) {
+                if (!res.success) {
+                    $btn.find('i').removeClass('fa-spin');
+                    $btn.prop('disabled', false);
+                    toastr.warning(res.message || 'Tidak dapat mengirim request ke device.');
+                    return;
+                }
+
+                // Poll setiap 3 detik sampai device check-in dan tidak ada pending task
+                var attempts = 0, maxAttempts = 15; // max ~45 detik
+                var timer = setInterval(function() {
+                    attempts++;
+                    $.get('/admin/onus/{{ $onu->id }}/tr069-summary')
+                        .done(function(r) {
+                            if (!r.success || !r.found) return;
+                            var tasks   = r.data.tasks || [];
+                            var pending = tasks.filter(function(t) { return t.name === 'getParameterValues'; });
+                            if (pending.length > 0) return; // masih proses
+
+                            clearInterval(timer);
+                            $btn.find('i').removeClass('fa-spin');
+                            $btn.prop('disabled', false);
+
+                            // Update hanya section WAN di card ini (tanpa reload seluruh halaman)
+                            var wans = r.data.wan_connections || [];
+                            var wanPath = $btn.data('path');
+                            var matched = null;
+                            wans.forEach(function(w) { if (w.path === wanPath) matched = w; });
+
+                            if (!matched) {
+                                toastr.info('Data WAN diperbarui.');
+                                renderTr069(r.data);
+                                return;
+                            }
+
+                            // Update badge status
+                            var sc = matched.status === 'Connected' ? 'success'
+                                    : (matched.status === 'Connecting' ? 'warning' : 'secondary');
+                            $card.find('.wan-status-badge')
+                                .attr('class', 'badge badge-' + sc + ' mr-2 wan-status-badge')
+                                .text(matched.status || 'Unknown');
+                            $card.removeClass('connected connecting disconnected').addClass(
+                                matched.status === 'Connected' ? 'connected'
+                                : (matched.status === 'Connecting' ? 'connecting' : 'disconnected')
+                            );
+
+                            // Rebuild info section
+                            var ip  = matched.external_ip;
+                            var html = '';
+                            if (matched.username) html += '<div><i class="fas fa-user text-muted mr-1"></i>Username: <strong>' + matched.username + '</strong></div>';
+                            if (ip && ip !== '0.0.0.0') {
+                                html += '<div><i class="fas fa-network-wired text-success mr-1"></i>IP: <code class="wan-ip">' + ip + '</code></div>';
+                            } else if (matched.status === 'Connected') {
+                                html += '<div><i class="fas fa-spinner fa-spin text-muted mr-1"></i><span class="text-muted">Menunggu IP...</span></div>';
+                            } else if (matched.status === 'Connecting') {
+                                html += '<div><i class="fas fa-circle-notch fa-spin text-warning mr-1"></i><span class="text-warning">Sedang dial PPPoE...</span></div>';
+                            } else {
+                                html += '<div><i class="fas fa-times-circle text-secondary mr-1"></i><span class="text-muted">Belum terhubung</span></div>';
+                            }
+                            if (matched.gateway && matched.gateway !== '0.0.0.0') html += '<div><i class="fas fa-route text-muted mr-1"></i>Gateway: <code>' + matched.gateway + '</code></div>';
+                            if (matched.dns && matched.dns.trim()) html += '<div><i class="fas fa-server text-muted mr-1"></i>DNS: ' + matched.dns.trim() + '</div>';
+                            if (matched.vlan_id) html += '<div><i class="fas fa-tag text-muted mr-1"></i>VLAN: ' + matched.vlan_id + '</div>';
+                            if (matched.uptime && parseInt(matched.uptime) > 0) html += '<div><i class="fas fa-clock text-muted mr-1"></i>Uptime: ' + formatUptime(matched.uptime) + '</div>';
+
+                            $card.find('.mt-2.small').html(html);
+
+                            var msg = matched.status === 'Connected'
+                                ? (ip && ip !== '0.0.0.0' ? 'PPPoE Connected — IP: ' + ip : 'PPPoE Connected')
+                                : (matched.status === 'Connecting' ? 'Sedang dial PPPoE...' : 'PPPoE Disconnected');
+                            var toastrFn = matched.status === 'Connected' ? 'success'
+                                        : (matched.status === 'Connecting' ? 'warning' : 'error');
+                            toastr[toastrFn](msg);
+                        });
+
+                    if (attempts >= maxAttempts) {
+                        clearInterval(timer);
+                        $btn.find('i').removeClass('fa-spin');
+                        $btn.prop('disabled', false);
+                        toastr.warning('Device belum merespons dalam 45 detik. Coba lagi saat device online.');
+                    }
+                }, 3000);
+            })
+            .fail(function() {
+                $btn.find('i').removeClass('fa-spin');
+                $btn.prop('disabled', false);
+                toastr.error('Gagal mengirim request ke device.');
+            });
+    });
 
     // Refresh TR069
     $(document).on('click', '.btn-refresh-tr069, .btn-refresh-tr069-data', function() {
