@@ -708,13 +708,23 @@ class GenieAcsService
                 foreach ($wlanConfig as $wKey => $wValue) {
                     if (!is_array($wValue) || $wKey === '_object' || $wKey === '_writable' || $wKey === '_timestamp') continue;
                     $channel = $this->getValue($wValue, 'Channel');
-                    // Detect band: prefer explicit OperatingFrequencyBand, fallback to channel number
+                    // Detect band: prefer explicit OperatingFrequencyBand, fallback to channel number,
+                    // then Huawei index convention (1-4 = 2.4GHz, 5-8 = 5GHz).
                     $freqBand = $this->getValue($wValue, 'OperatingFrequencyBand')
                         ?? $this->getValue($wValue, 'X_HW_FrequencyBand')
                         ?? $this->getValue($wValue, 'X_HW_FREQ_BAND');
                     if (!$freqBand && $channel !== null && $channel !== '') {
                         $ch = (int) $channel;
                         $freqBand = ($ch >= 36) ? '5GHz' : '2.4GHz';
+                    }
+                    // Huawei index fallback: 1-4 → 2.4GHz, 5-8 → 5GHz
+                    if (!$freqBand) {
+                        $wlanIndexInt2 = (int) $wKey;
+                        if ($wlanIndexInt2 >= 1 && $wlanIndexInt2 <= 4) {
+                            $freqBand = '2.4GHz';
+                        } elseif ($wlanIndexInt2 >= 5 && $wlanIndexInt2 <= 8) {
+                            $freqBand = '5GHz';
+                        }
                     }
 
                     $wlanSsid    = $this->getValue($wValue, 'SSID');

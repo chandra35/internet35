@@ -31,11 +31,16 @@ if (rawSerial.length === 16 && /^[0-9A-Fa-f]+$/.test(rawSerial)) {
 // Hanya untuk Huawei
 if (serial && brand.indexOf("Huawei") !== -1) {
 
-  // --- Always read: WLAN SSID bawaan ONU (agar tampil di billing dashboard) ---
-  declare("InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID",   { value: 1 });
-  declare("InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.Enable", { value: 1 });
-  declare("InternetGatewayDevice.LANDevice.1.WLANConfiguration.5.SSID",   { value: 1 });
-  declare("InternetGatewayDevice.LANDevice.1.WLANConfiguration.5.Enable", { value: 1 });
+  // --- Always read: semua 8 SSID slot (Huawei: index 1-4 = 2.4GHz, 5-8 = 5GHz) ---
+  // Declare SSID, Enable, dan Channel agar band bisa dideteksi dari nomor channel.
+  var _wlanPfx = "InternetGatewayDevice.LANDevice.1.WLANConfiguration.";
+  var _wlanIdx = [1, 2, 3, 4, 5, 6, 7, 8];
+  for (var _wi = 0; _wi < _wlanIdx.length; _wi++) {
+    var _i = _wlanIdx[_wi];
+    declare(_wlanPfx + _i + ".SSID",    { value: 1 });
+    declare(_wlanPfx + _i + ".Enable",  { value: 1 });
+    declare(_wlanPfx + _i + ".Channel", { value: 1 });
+  }
 
   // --- Always read: WAN MGMT VLAN (WANIPConnection di WANConnectionDevice.2) ---
   declare("InternetGatewayDevice.WANDevice.1.WANConnectionDevice.2.WANIPConnection.1.X_HW_VLAN",        { value: 1 });
