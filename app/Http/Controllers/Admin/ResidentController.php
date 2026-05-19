@@ -22,7 +22,9 @@ class ResidentController extends Controller implements HasMiddleware
     public static function middleware(): array
     {
         return [
-            new Middleware('role:superadmin'),
+            // search & checkAccess are accessible to admin-pop too (access controlled via PopResidentAccess table)
+            new Middleware('role:superadmin', except: ['search', 'checkAccess']),
+            new Middleware('role:superadmin|admin-pop', only: ['search', 'checkAccess']),
         ];
     }
 
