@@ -2,80 +2,57 @@
 
 @section('title', 'Tagihan')
 
-@section('page-title', 'Daftar Tagihan')
+@section('page-title', 'Tagihan Saya')
 
 @section('content')
-<div class="row">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h3 class="card-title">
-                    <i class="fas fa-file-invoice-dollar mr-2"></i>
-                    Tagihan Anda
-                </h3>
+<div class="card">
+    <div class="card-header d-flex align-items-center justify-content-between">
+        <span class="card-title"><i class="fas fa-file-invoice-dollar mr-1"></i> Semua Tagihan</span>
+        @if($invoices->total() > 0)
+        <small class="text-muted">{{ $invoices->total() }} tagihan</small>
+        @endif
+    </div>
+    <div class="card-body p-0">
+        @forelse($invoices as $invoice)
+        <div class="d-flex align-items-center px-3 py-3 border-bottom invoice-row">
+            <div class="flex-grow-1" style="min-width:0;">
+                <div class="d-flex align-items-center flex-wrap" style="gap:6px;">
+                    <code style="font-size:0.78rem;color:#1565c0;">{{ $invoice->invoice_number }}</code>
+                    <span class="badge badge-{{ $invoice->status_color }}" style="font-size:0.65rem;">{{ $invoice->status_label }}</span>
+                </div>
+                <div class="text-muted mt-1" style="font-size:0.75rem;">
+                    <i class="fas fa-calendar-alt mr-1"></i>{{ $invoice->period_start?->format('M Y') ?? '-' }}
+                    @if($invoice->due_date)
+                    · Jatuh tempo <strong class="{{ $invoice->due_date->isPast() && $invoice->status !== 'paid' ? 'text-danger' : '' }}">{{ $invoice->due_date->format('d M Y') }}</strong>
+                    @if($invoice->status === 'overdue') <span class="text-danger">({{ $invoice->due_date->diffInDays(now()) }} hari)</span>@endif
+                    @endif
+                </div>
             </div>
-            <div class="card-body">
-                @if($invoices->count() > 0)
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>No. Invoice</th>
-                                <th>Periode</th>
-                                <th>Jatuh Tempo</th>
-                                <th>Jumlah</th>
-                                <th>Status</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach($invoices as $invoice)
-                            <tr class="{{ $invoice->status === 'overdue' ? 'table-danger' : '' }}">
-                                <td><code>{{ $invoice->invoice_number }}</code></td>
-                                <td>{{ $invoice->period_start?->format('M Y') ?? '-' }}</td>
-                                <td>
-                                    {{ $invoice->due_date?->format('d M Y') ?? '-' }}
-                                    @if($invoice->status === 'overdue')
-                                    <br><small class="text-danger">Terlambat {{ $invoice->due_date->diffInDays(now()) }} hari</small>
-                                    @endif
-                                </td>
-                                <td>
-                                    <strong>Rp {{ number_format($invoice->total_amount, 0, ',', '.') }}</strong>
-                                </td>
-                                <td>
-                                    <span class="badge badge-{{ $invoice->status_color }}">
-                                        {{ $invoice->status_label }}
-                                    </span>
-                                </td>
-                                <td>
-                                    @if(in_array($invoice->status, ['pending', 'overdue']))
-                                    <a href="{{ route('pelanggan.invoice', $invoice) }}" class="btn btn-sm btn-primary">
-                                        <i class="fas fa-credit-card mr-1"></i> Bayar
-                                    </a>
-                                    @elseif($invoice->status === 'paid')
-                                    <a href="{{ route('pelanggan.invoice', $invoice) }}" class="btn btn-sm btn-outline-secondary">
-                                        <i class="fas fa-eye mr-1"></i> Lihat
-                                    </a>
-                                    @endif
-                                </td>
-                            </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-                
-                <div class="d-flex justify-content-center mt-4">
-                    {{ $invoices->links() }}
-                </div>
+            <div class="text-right ml-3 flex-shrink-0">
+                <div style="font-size:0.9rem;font-weight:700;color:#1a1a1a;">Rp {{ number_format($invoice->total_amount, 0, ',', '.') }}</div>
+                @if(in_array($invoice->status, ['unpaid', 'overdue', 'pending']))
+                <a href="{{ route('pelanggan.invoice', $invoice) }}" class="btn btn-xs btn-primary mt-1">
+                    <i class="fas fa-credit-card mr-1"></i>Bayar
+                </a>
                 @else
-                <div class="text-center py-5">
-                    <i class="fas fa-file-invoice fa-4x text-muted mb-3"></i>
-                    <h5 class="text-muted">Belum ada tagihan</h5>
-                    <p class="text-muted">Tagihan akan muncul di sini saat periode penagihan dimulai.</p>
-                </div>
+                <a href="{{ route('pelanggan.invoice', $invoice) }}" class="btn btn-xs btn-outline-secondary mt-1">
+                    <i class="fas fa-eye mr-1"></i>Detail
+                </a>
                 @endif
             </div>
         </div>
+        @empty
+        <div class="text-center py-5 text-muted">
+            <i class="fas fa-file-invoice fa-3x mb-3 d-block"></i>
+            <div style="font-size:0.88rem;">Belum ada tagihan</div>
+            <small>Tagihan akan muncul di sini saat periode penagihan dimulai.</small>
+        </div>
+        @endforelse
     </div>
+    @if($invoices->hasPages())
+    <div class="card-footer py-2">
+        <div class="d-flex justify-content-center">{{ $invoices->links() }}</div>
+    </div>
+    @endif
 </div>
 @endsection

@@ -17,42 +17,99 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastr@2.1.4/build/toastr.min.css">
     
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
-        }
-        .main-sidebar {
-            background: linear-gradient(180deg, #1e3a5f 0%, #0d1b2a 100%);
-        }
+        body { font-family: 'Inter', sans-serif; font-size: 0.875rem; }
+
+        /* Sidebar */
+        .main-sidebar { background: linear-gradient(180deg, #1a2e4a 0%, #0d1b2a 100%); }
         .sidebar-dark-primary .nav-sidebar > .nav-item > .nav-link.active {
-            background-color: rgba(255,255,255,0.1);
-            color: #fff;
+            background-color: rgba(255,255,255,0.12); color: #fff; border-radius: 8px;
         }
-        .brand-link {
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-        }
-        .small-box {
-            border-radius: 12px;
-        }
-        .small-box .icon {
-            font-size: 60px;
-            opacity: 0.2;
-        }
+        .nav-sidebar .nav-link { border-radius: 8px; margin: 1px 8px; }
+        .brand-link { border-bottom: 1px solid rgba(255,255,255,0.1); padding: 10px 15px !important; }
+        .brand-text { font-size: 1.1rem !important; }
+
+        /* Content */
+        .content-wrapper { background-color: #f0f2f5; }
+        .content-header { padding: 10px 15px 0 !important; }
+        .content-header h1 { font-size: 1.15rem; font-weight: 600; }
+        .content { padding: 10px 0 !important; }
+
+        /* Cards */
         .card {
-            border-radius: 12px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,0.07);
+            border: 1px solid rgba(0,0,0,0.06); margin-bottom: 16px;
         }
-        .content-wrapper {
-            background-color: #f4f6f9;
+        .card-header {
+            background: #fff; border-bottom: 1px solid rgba(0,0,0,0.07);
+            padding: 10px 16px; border-radius: 10px 10px 0 0 !important;
         }
-        .user-panel img {
-            width: 40px;
-            height: 40px;
+        .card-title { font-size: 0.82rem; font-weight: 600; color: #444; margin-bottom: 0; }
+        .card-body { padding: 14px 16px; }
+        .card-footer { padding: 8px 16px; background: #fafafa; border-top: 1px solid #f0f0f0; border-radius: 0 0 10px 10px !important; }
+
+        /* Compact Stat Cards */
+        .stat-card {
+            border-radius: 10px; padding: 14px 14px 10px;
+            color: #fff; position: relative; overflow: hidden;
+            height: 100%; min-height: 88px;
+            display: flex; flex-direction: column; justify-content: space-between;
+            cursor: default; text-decoration: none;
         }
-        .btn {
-            border-radius: 8px;
+        .stat-card a { color: inherit; text-decoration: none; }
+        .stat-icon { position: absolute; right: 12px; top: 10px; font-size: 32px; opacity: 0.18; }
+        .stat-value { font-size: 1.15rem; font-weight: 700; line-height: 1.25; margin-top: 2px; word-break: break-word; }
+        .stat-label { font-size: 0.7rem; opacity: 0.88; margin-top: 1px; line-height: 1.3; }
+        .stat-link {
+            display: inline-block; color: rgba(255,255,255,0.75); font-size: 0.7rem;
+            margin-top: 6px; text-decoration: none; border-top: 1px solid rgba(255,255,255,0.15);
+            padding-top: 5px; width: 100%;
         }
-        .alert {
-            border-radius: 8px;
+        .stat-link:hover { color: #fff; }
+        .stat-green  { background: linear-gradient(135deg, #1aaa55, #17c671); }
+        .stat-red    { background: linear-gradient(135deg, #dc3545, #c82333); }
+        .stat-yellow { background: linear-gradient(135deg, #e0871a, #f4a721); }
+        .stat-blue   { background: linear-gradient(135deg, #1565c0, #1976d2); }
+        .stat-teal   { background: linear-gradient(135deg, #00838f, #0097a7); }
+
+        /* Period strip */
+        .period-strip { background: #fff; border-radius: 10px; border: 1px solid rgba(0,0,0,0.06); padding: 10px 14px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+        .period-strip .period-label { font-size: 0.7rem; color: #888; }
+        .period-strip .period-val { font-size: 0.85rem; font-weight: 600; color: #333; }
+
+        /* Invoice alert banner */
+        .invoice-banner {
+            display: flex; align-items: center; background: #fff;
+            border-left: 4px solid #dc3545; border-radius: 8px;
+            padding: 10px 14px; margin-bottom: 12px;
+            box-shadow: 0 1px 4px rgba(220,53,69,0.15);
+        }
+        .invoice-banner.overdue { border-left-color: #dc3545; }
+        .invoice-banner.pending { border-left-color: #f39c12; }
+
+        /* Compact table */
+        .table-compact td, .table-compact th { padding: 7px 10px; font-size: 0.82rem; vertical-align: middle; }
+        .table-compact thead th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.3px; color: #888; background: #fafafa; }
+
+        /* Payment list items */
+        .payment-item { padding: 9px 14px; border-bottom: 1px solid #f0f0f0; }
+        .payment-item:last-child { border-bottom: none; }
+
+        /* Navbar */
+        .main-header.navbar { min-height: 48px; padding: 0 12px; }
+        .navbar .nav-link { padding: 8px 10px; font-size: 0.85rem; }
+        .badge-sm { font-size: 0.65rem; padding: 2px 5px; }
+
+        /* Buttons */
+        .btn { border-radius: 7px; }
+        .btn-sm { font-size: 0.78rem; padding: 4px 10px; }
+        .btn-xs { font-size: 0.72rem; padding: 2px 7px; border-radius: 5px; }
+        .alert { border-radius: 8px; }
+
+        /* Mobile */
+        @media (max-width: 576px) {
+            .stat-value { font-size: 0.98rem; }
+            .stat-icon { font-size: 24px; }
+            .content-header h1 { font-size: 1rem; }
         }
     </style>
     @stack('css')
