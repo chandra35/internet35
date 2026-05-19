@@ -252,6 +252,7 @@ class CustomerController extends Controller implements HasMiddleware
             'installation_fee' => 'nullable|numeric|min:0',
             'billing_day' => 'nullable|integer|min:1|max:28',
             'create_user_account' => 'boolean',
+            'activate_now' => 'boolean',
             'sync_mikrotik' => 'boolean',
             'sync_radius' => 'boolean',
             'imported_from_mikrotik' => 'boolean', // Flag if imported from existing Mikrotik secret
@@ -344,8 +345,8 @@ class CustomerController extends Controller implements HasMiddleware
                 'installation_date' => $request->installation_date ?? now()->toDateString(),
                 'monthly_fee' => $request->monthly_fee ?? ($package->price ?? 0),
                 'installation_fee' => $request->installation_fee ?? 0,
-                'billing_day' => $request->billing_day ?? 1,
-                'status' => 'pending',
+                'billing_day' => $request->billing_day ?? (int) now()->day,
+                'status' => $request->boolean('activate_now') ? 'active' : 'pending',
                 'notes' => $request->notes,
                 'internal_notes' => $request->internal_notes,
                 'registered_by' => auth()->id(),

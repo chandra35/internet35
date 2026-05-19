@@ -73,10 +73,16 @@ class BillingGenerate extends Command
             $dueDays = $popSetting?->invoice_due_days ?? 7;
             
             // Get active customers whose billing_day matches today
+            // Also include customers with billing_day=NULL when processing day 1 (treat NULL as 1)
             $customers = Customer::where('pop_id', $pop->id)
                 ->where('status', 'active')
                 ->whereNotNull('package_id')
-                ->where('billing_day', $billingDay)
+                ->where(function ($q) use ($billingDay) {
+                    $q->where('billing_day', $billingDay);
+                    if ($billingDay === 1) {
+                        $q->orWhereNull('billing_day');
+                    }
+                })
                 ->with('package')
                 ->whereDoesntHave('invoices', function($q) use ($periodStart, $periodEnd) {
                     $q->where('period_start', $periodStart->toDateString())

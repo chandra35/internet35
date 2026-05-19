@@ -265,9 +265,10 @@
                                         <label>Tanggal Jatuh Tempo</label>
                                         <select name="billing_day" class="form-control select2">
                                             @for($i = 1; $i <= 28; $i++)
-                                            <option value="{{ $i }}" {{ $i === 1 ? 'selected' : '' }}>Tanggal {{ $i }}</option>
+                                            <option value="{{ $i }}" {{ $i === (int) date('j') ? 'selected' : '' }}>Tanggal {{ $i }}</option>
                                             @endfor
                                         </select>
+                                        <small class="text-muted">Default: tanggal hari ini ({{ date('j') }}). Invoice akan digenerate setiap bulan pada tanggal ini.</small>
                                     </div>
                                 </div>
                             </div>
@@ -675,6 +676,15 @@
                     <div id="importBadge" class="alert alert-info d-none mb-3">
                         <i class="fas fa-cloud-download-alt mr-2"></i>
                         <strong>Mode Import:</strong> PPP Secret diambil dari Mikrotik. Data tidak akan dibuat ulang.
+                    </div>
+
+                    <!-- Status Activation -->
+                    <div class="custom-control custom-switch mb-3">
+                        <input type="checkbox" class="custom-control-input" id="activate_now" name="activate_now" value="1" checked>
+                        <label class="custom-control-label text-white" for="activate_now">
+                            <i class="fas fa-check-circle mr-1"></i>Langsung aktifkan pelanggan
+                            <small class="d-block text-white-50">Centang agar invoice otomatis digenerate saat tagihan tiba. Jika tidak dicentang, status = <strong>Pending</strong> (tidak dibilling).</small>
+                        </label>
                     </div>
                     
                     <button type="submit" class="btn btn-light btn-lg btn-block" id="btnSubmit" disabled>
