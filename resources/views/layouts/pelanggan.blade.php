@@ -17,52 +17,66 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastr@2.1.4/build/toastr.min.css">
     
     <style>
-        body { font-family: 'Inter', sans-serif; font-size: 0.875rem; }
+        /* Base — 13px felt right for compact portal */
+        *, body { font-family: 'Inter', sans-serif; }
+        body { font-size: 13px; line-height: 1.5; color: #2d3748; }
 
         /* Sidebar */
         .main-sidebar { background: linear-gradient(180deg, #1a2e4a 0%, #0d1b2a 100%); }
         .sidebar-dark-primary .nav-sidebar > .nav-item > .nav-link.active {
             background-color: rgba(255,255,255,0.12); color: #fff; border-radius: 8px;
         }
-        .nav-sidebar .nav-link { border-radius: 8px; margin: 1px 8px; }
-        .brand-link { border-bottom: 1px solid rgba(255,255,255,0.1); padding: 10px 15px !important; }
-        .brand-text { font-size: 1.1rem !important; }
+        .nav-sidebar .nav-link {
+            border-radius: 8px; margin: 1px 8px;
+            font-size: 0.8rem; padding: 7px 10px;
+        }
+        .nav-sidebar .nav-icon { font-size: 0.85rem; width: 1.4rem; }
+        .nav-sidebar .nav-link p { font-size: 0.8rem; line-height: 1.4; }
+        .brand-link { border-bottom: 1px solid rgba(255,255,255,0.1); padding: 9px 15px !important; }
+        .brand-text { font-size: 0.92rem !important; letter-spacing: 0.3px; }
+        .user-panel .info a { font-size: 0.8rem; font-weight: 500; }
+        .user-panel .info small { font-size: 0.68rem; }
 
-        /* Content */
+        /* Navbar */
+        .main-header.navbar { min-height: 44px; padding: 0 12px; }
+        .navbar .nav-link { padding: 6px 10px; font-size: 0.78rem; }
+        .badge-sm { font-size: 0.6rem; padding: 2px 5px; }
+        .dropdown-item { font-size: 0.78rem; padding: 5px 14px; }
+
+        /* Content area */
         .content-wrapper { background-color: #f0f2f5; }
-        .content-header { padding: 10px 15px 0 !important; }
-        .content-header h1 { font-size: 1.15rem; font-weight: 600; }
-        .content { padding: 10px 0 !important; }
+        .content-header { padding: 8px 15px 0 !important; }
+        .content-header h1 { font-size: 0.92rem; font-weight: 600; color: #1a2533; margin: 0; }
+        .content-header .breadcrumb { font-size: 0.7rem; }
+        .content { padding: 8px 0 !important; }
 
         /* Cards */
         .card {
-            border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,0.07);
-            border: 1px solid rgba(0,0,0,0.06); margin-bottom: 16px;
+            border-radius: 10px; box-shadow: 0 1px 5px rgba(0,0,0,0.07);
+            border: 1px solid rgba(0,0,0,0.06); margin-bottom: 14px; font-size: 0.8rem;
         }
         .card-header {
             background: #fff; border-bottom: 1px solid rgba(0,0,0,0.07);
-            padding: 10px 16px; border-radius: 10px 10px 0 0 !important;
+            padding: 9px 14px; border-radius: 10px 10px 0 0 !important;
         }
-        .card-title { font-size: 0.82rem; font-weight: 600; color: #444; margin-bottom: 0; }
-        .card-body { padding: 14px 16px; }
-        .card-footer { padding: 8px 16px; background: #fafafa; border-top: 1px solid #f0f0f0; border-radius: 0 0 10px 10px !important; }
+        .card-title { font-size: 0.78rem; font-weight: 600; color: #444; margin-bottom: 0; }
+        .card-body { padding: 12px 14px; }
+        .card-footer { padding: 7px 14px; background: #fafafa; border-top: 1px solid #f0f0f0; border-radius: 0 0 10px 10px !important; font-size: 0.75rem; }
 
         /* Compact Stat Cards */
         .stat-card {
-            border-radius: 10px; padding: 14px 14px 10px;
+            border-radius: 10px; padding: 12px 13px 9px;
             color: #fff; position: relative; overflow: hidden;
-            height: 100%; min-height: 88px;
+            height: 100%; min-height: 82px;
             display: flex; flex-direction: column; justify-content: space-between;
-            cursor: default; text-decoration: none;
         }
-        .stat-card a { color: inherit; text-decoration: none; }
-        .stat-icon { position: absolute; right: 12px; top: 10px; font-size: 32px; opacity: 0.18; }
-        .stat-value { font-size: 1.15rem; font-weight: 700; line-height: 1.25; margin-top: 2px; word-break: break-word; }
-        .stat-label { font-size: 0.7rem; opacity: 0.88; margin-top: 1px; line-height: 1.3; }
+        .stat-icon { position: absolute; right: 10px; top: 8px; font-size: 28px; opacity: 0.16; }
+        .stat-value { font-size: 1rem; font-weight: 700; line-height: 1.25; margin-top: 2px; word-break: break-word; }
+        .stat-label { font-size: 0.65rem; opacity: 0.88; margin-top: 1px; line-height: 1.3; }
         .stat-link {
-            display: inline-block; color: rgba(255,255,255,0.75); font-size: 0.7rem;
-            margin-top: 6px; text-decoration: none; border-top: 1px solid rgba(255,255,255,0.15);
-            padding-top: 5px; width: 100%;
+            display: block; color: rgba(255,255,255,0.72); font-size: 0.65rem;
+            margin-top: 5px; text-decoration: none; border-top: 1px solid rgba(255,255,255,0.15);
+            padding-top: 4px;
         }
         .stat-link:hover { color: #fff; }
         .stat-green  { background: linear-gradient(135deg, #1aaa55, #17c671); }
@@ -72,44 +86,41 @@
         .stat-teal   { background: linear-gradient(135deg, #00838f, #0097a7); }
 
         /* Period strip */
-        .period-strip { background: #fff; border-radius: 10px; border: 1px solid rgba(0,0,0,0.06); padding: 10px 14px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
-        .period-strip .period-label { font-size: 0.7rem; color: #888; }
-        .period-strip .period-val { font-size: 0.85rem; font-weight: 600; color: #333; }
+        .period-strip { background: #fff; border-radius: 10px; border: 1px solid rgba(0,0,0,0.06); padding: 9px 13px; margin-bottom: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
+        .period-strip .period-label { font-size: 0.68rem; color: #888; }
+        .period-strip .period-val { font-size: 0.78rem; font-weight: 600; color: #333; }
 
         /* Invoice alert banner */
         .invoice-banner {
             display: flex; align-items: center; background: #fff;
             border-left: 4px solid #dc3545; border-radius: 8px;
-            padding: 10px 14px; margin-bottom: 12px;
-            box-shadow: 0 1px 4px rgba(220,53,69,0.15);
+            padding: 9px 13px; margin-bottom: 10px;
+            box-shadow: 0 1px 4px rgba(220,53,69,0.12); font-size: 0.78rem;
         }
-        .invoice-banner.overdue { border-left-color: #dc3545; }
         .invoice-banner.pending { border-left-color: #f39c12; }
 
-        /* Compact table */
-        .table-compact td, .table-compact th { padding: 7px 10px; font-size: 0.82rem; vertical-align: middle; }
-        .table-compact thead th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.3px; color: #888; background: #fafafa; }
-
         /* Payment list items */
-        .payment-item { padding: 9px 14px; border-bottom: 1px solid #f0f0f0; }
+        .payment-item { padding: 8px 14px; border-bottom: 1px solid #f0f0f0; }
         .payment-item:last-child { border-bottom: none; }
-
-        /* Navbar */
-        .main-header.navbar { min-height: 48px; padding: 0 12px; }
-        .navbar .nav-link { padding: 8px 10px; font-size: 0.85rem; }
-        .badge-sm { font-size: 0.65rem; padding: 2px 5px; }
+        .invoice-row:hover { background: #fafbfc; }
 
         /* Buttons */
-        .btn { border-radius: 7px; }
-        .btn-sm { font-size: 0.78rem; padding: 4px 10px; }
-        .btn-xs { font-size: 0.72rem; padding: 2px 7px; border-radius: 5px; }
-        .alert { border-radius: 8px; }
+        .btn { border-radius: 7px; font-size: 0.78rem; }
+        .btn-sm { font-size: 0.73rem; padding: 3px 9px; }
+        .btn-xs { font-size: 0.68rem; padding: 2px 6px; border-radius: 5px; }
+        .alert { border-radius: 8px; font-size: 0.8rem; }
+        code { font-size: 0.78rem; }
+        .badge { font-size: 0.65rem; }
+
+        /* Footer */
+        .main-footer { font-size: 0.72rem; padding: 8px 16px; }
 
         /* Mobile */
         @media (max-width: 576px) {
-            .stat-value { font-size: 0.98rem; }
-            .stat-icon { font-size: 24px; }
-            .content-header h1 { font-size: 1rem; }
+            body { font-size: 12.5px; }
+            .stat-value { font-size: 0.88rem; }
+            .stat-icon { font-size: 22px; }
+            .content-header h1 { font-size: 0.85rem; }
         }
     </style>
     @stack('css')
