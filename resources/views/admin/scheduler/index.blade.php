@@ -78,6 +78,13 @@
         50% { box-shadow: 0 0 0 6px rgba(40,167,69,0.1); }
     }
     .dot-success { animation: dotPulse 2s infinite; }
+    /* Circular action buttons (matches customers page .btn-action) */
+    .btn-action {
+        width: 30px; height: 30px; padding: 0;
+        display: inline-flex; align-items: center; justify-content: center;
+        border-radius: 50% !important; font-size: 0.72rem;
+    }
+    .btn-action.dropdown-toggle::after { display: none; }
     .task-card {
         border-left: 4px solid #6c757d;
         transition: all 0.2s ease;
@@ -360,10 +367,10 @@
                                 @endif
                             </div>
                             <div class="col-md-3 text-right">
-                                <div class="btn-group">
+                                <div class="d-flex justify-content-end flex-wrap" style="gap:4px;">
                                     <form action="{{ route('admin.scheduler.run', $task) }}" method="POST" class="d-inline">
                                         @csrf
-                                        <button type="submit" class="btn btn-primary btn-sm" 
+                                        <button type="submit" class="btn btn-primary btn-action" 
                                                 title="Jalankan Sekarang"
                                                 onclick="return confirm('Jalankan task ini sekarang?')">
                                             <i class="fas fa-play"></i>
@@ -371,22 +378,22 @@
                                     </form>
                                     <form action="{{ route('admin.scheduler.toggle', $task) }}" method="POST" class="d-inline">
                                         @csrf
-                                        <button type="submit" class="btn {{ $task->is_enabled ? 'btn-warning' : 'btn-success' }} btn-sm" 
+                                        <button type="submit" class="btn {{ $task->is_enabled ? 'btn-warning' : 'btn-success' }} btn-action" 
                                                 title="{{ $task->is_enabled ? 'Nonaktifkan' : 'Aktifkan' }}">
                                             <i class="fas {{ $task->is_enabled ? 'fa-pause' : 'fa-play' }}"></i>
                                         </button>
                                     </form>
-                                    <a href="{{ route('admin.scheduler.show', $task) }}" class="btn btn-info btn-sm" title="Detail">
+                                    <a href="{{ route('admin.scheduler.show', $task) }}" class="btn btn-info btn-action" title="Detail">
                                         <i class="fas fa-eye"></i>
                                     </a>
-                                    <a href="{{ route('admin.scheduler.edit', $task) }}" class="btn btn-secondary btn-sm" title="Edit">
+                                    <a href="{{ route('admin.scheduler.edit', $task) }}" class="btn btn-secondary btn-action" title="Edit">
                                         <i class="fas fa-edit"></i>
                                     </a>
                                     <form action="{{ route('admin.scheduler.destroy', $task) }}" method="POST" class="d-inline"
                                           onsubmit="return confirm('Hapus task ini?')">
                                         @csrf
                                         @method('DELETE')
-                                        <button type="submit" class="btn btn-danger btn-sm" title="Hapus">
+                                        <button type="submit" class="btn btn-danger btn-action" title="Hapus">
                                             <i class="fas fa-trash"></i>
                                         </button>
                                     </form>
