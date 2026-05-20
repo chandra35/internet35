@@ -11,9 +11,28 @@
 
 @push('css')
 <style>
-    /* Stat cards */
-    .stat-card { transition: transform 0.2s, box-shadow 0.2s; cursor: pointer; }
-    .stat-card:hover { transform: translateY(-3px); box-shadow: 0 6px 18px rgba(0,0,0,0.15) !important; }
+    /* Portal-style stat cards */
+    .stat-card {
+        border-radius: 10px; padding: 14px 16px 12px; color: #fff;
+        position: relative; overflow: hidden; cursor: pointer;
+        transition: transform 0.18s, box-shadow 0.18s;
+        text-decoration: none; display: block;
+    }
+    .stat-card:hover { transform: translateY(-3px); box-shadow: 0 7px 22px rgba(0,0,0,0.22); color: #fff; text-decoration: none; }
+    .stat-card .sc-icon { position: absolute; right: 12px; top: 10px; font-size: 32px; opacity: 0.14; pointer-events: none; }
+    .stat-card .sc-value { font-size: 1.6rem; font-weight: 700; line-height: 1.2; }
+    .stat-card .sc-label { font-size: 0.7rem; opacity: 0.88; margin-top: 2px; }
+    .stat-card .sc-link  { display: block; color: rgba(255,255,255,0.72); font-size: 0.65rem; margin-top: 7px; border-top: 1px solid rgba(255,255,255,0.18); padding-top: 5px; }
+    .stat-card .sc-link:hover { color: #fff; }
+    .stat-blue  { background: linear-gradient(135deg, #1565c0, #1976d2); }
+    .stat-green { background: linear-gradient(135deg, #1aaa55, #17c671); }
+    .stat-yellow{ background: linear-gradient(135deg, #e0871a, #f4a721); }
+    .stat-red   { background: linear-gradient(135deg, #dc3545, #c82333); }
+    /* Table row — colored left border by status */
+    .row-active    { box-shadow: inset 3px 0 0 #1aaa55; }
+    .row-pending   { box-shadow: inset 3px 0 0 #f4a721; }
+    .row-suspended { box-shadow: inset 3px 0 0 #dc3545; }
+    .row-terminated{ box-shadow: inset 3px 0 0 #868e96; }
     /* Customer list card */
     .card-customers { border: none !important; border-radius: 10px !important; overflow: hidden; }
     .card-customers > .card-header {
@@ -117,65 +136,43 @@
 @else
 
 <!-- Statistics -->
-<div class="row">
-    <div class="col-lg-3 col-6">
-        <div class="small-box bg-info stat-card">
-            <div class="inner">
-                <h3>{{ number_format($stats['total']) }}</h3>
-                <p>Total Pelanggan</p>
-            </div>
-            <div class="icon">
-                <i class="fas fa-users"></i>
-            </div>
-        </div>
+<div class="row mb-3">
+    <div class="col-6 col-md-3 mb-2 mb-md-0">
+        <a href="{{ route('admin.customers.index', $popId ? ['pop_id' => $popId] : []) }}" class="stat-card stat-blue">
+            <i class="fas fa-users sc-icon"></i>
+            <div class="sc-value">{{ number_format($stats['total']) }}</div>
+            <div class="sc-label">Total Pelanggan</div>
+        </a>
     </div>
-    <div class="col-lg-3 col-6">
-        <div class="small-box bg-success stat-card">
-            <div class="inner">
-                <h3>{{ number_format($stats['active']) }}</h3>
-                <p>Aktif</p>
-            </div>
-            <div class="icon">
-                <i class="fas fa-check-circle"></i>
-            </div>
-            <a href="{{ route('admin.customers.index', ['status' => 'active']) }}" class="small-box-footer">
-                Lihat <i class="fas fa-arrow-circle-right"></i>
-            </a>
-        </div>
+    <div class="col-6 col-md-3 mb-2 mb-md-0">
+        <a href="{{ route('admin.customers.index', array_merge($popId ? ['pop_id' => $popId] : [], ['status' => 'active'])) }}" class="stat-card stat-green">
+            <i class="fas fa-check-circle sc-icon"></i>
+            <div class="sc-value">{{ number_format($stats['active']) }}</div>
+            <div class="sc-label">Aktif</div>
+            <span class="sc-link">Filter aktif →</span>
+        </a>
     </div>
-    <div class="col-lg-3 col-6">
-        <div class="small-box bg-warning stat-card">
-            <div class="inner">
-                <h3>{{ number_format($stats['pending']) }}</h3>
-                <p>Pending</p>
-            </div>
-            <div class="icon">
-                <i class="fas fa-clock"></i>
-            </div>
-            <a href="{{ route('admin.customers.index', ['status' => 'pending']) }}" class="small-box-footer">
-                Lihat <i class="fas fa-arrow-circle-right"></i>
-            </a>
-        </div>
+    <div class="col-6 col-md-3">
+        <a href="{{ route('admin.customers.index', array_merge($popId ? ['pop_id' => $popId] : [], ['status' => 'pending'])) }}" class="stat-card stat-yellow">
+            <i class="fas fa-clock sc-icon"></i>
+            <div class="sc-value">{{ number_format($stats['pending']) }}</div>
+            <div class="sc-label">Pending</div>
+            <span class="sc-link">Filter pending →</span>
+        </a>
     </div>
-    <div class="col-lg-3 col-6">
-        <div class="small-box bg-danger stat-card">
-            <div class="inner">
-                <h3>{{ number_format($stats['suspended']) }}</h3>
-                <p>Suspended</p>
-            </div>
-            <div class="icon">
-                <i class="fas fa-ban"></i>
-            </div>
-            <a href="{{ route('admin.customers.index', ['status' => 'suspended']) }}" class="small-box-footer">
-                Lihat <i class="fas fa-arrow-circle-right"></i>
-            </a>
-        </div>
+    <div class="col-6 col-md-3">
+        <a href="{{ route('admin.customers.index', array_merge($popId ? ['pop_id' => $popId] : [], ['status' => 'suspended'])) }}" class="stat-card stat-red">
+            <i class="fas fa-ban sc-icon"></i>
+            <div class="sc-value">{{ number_format($stats['suspended']) }}</div>
+            <div class="sc-label">Suspended</div>
+            <span class="sc-link">Filter suspended →</span>
+        </a>
     </div>
 </div>
 
 <!-- Customer List -->
-<div class="card card-customers shadow-sm">
-    <div class="card-header">
+<div class="card card-customers shadow-sm" style="border-radius:10px;">
+    <div class="card-header" style="border-bottom:1px solid rgba(255,255,255,0.12);">
         <h3 class="card-title">
             <i class="fas fa-users mr-2"></i>Daftar Pelanggan
         </h3>

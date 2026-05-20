@@ -96,7 +96,7 @@
                 $avatarBg = $avatarColors[abs(crc32($customer->name)) % count($avatarColors)];
                 $initial = strtoupper(mb_substr($customer->name, 0, 1));
             @endphp
-            <tr>
+            <tr class="row-{{ $customer->status }}">
                 <td class="cb-cell">
                     <div class="custom-control custom-checkbox">
                         <input type="checkbox" class="custom-control-input customer-check" id="chk{{ $customer->id }}" value="{{ $customer->id }}">
