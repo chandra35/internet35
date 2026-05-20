@@ -11,50 +11,76 @@
 
 @push('css')
 <style>
-    .customer-photo {
-        width: 38px;
-        height: 38px;
-        border-radius: 50%;
-        object-fit: cover;
-        flex-shrink: 0;
+    /* Stat cards */
+    .stat-card { transition: transform 0.2s, box-shadow 0.2s; cursor: pointer; }
+    .stat-card:hover { transform: translateY(-3px); box-shadow: 0 6px 18px rgba(0,0,0,0.15) !important; }
+    /* Customer list card */
+    .card-customers { border: none !important; border-radius: 10px !important; overflow: hidden; }
+    .card-customers > .card-header {
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        border-bottom: none; padding: 14px 20px;
     }
-    .stat-card {
-        transition: all 0.3s ease;
+    .card-customers > .card-header .card-title { color: white; font-size: 1rem; font-weight: 600; }
+    /* Customer avatar */
+    .cust-avatar {
+        width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+        object-fit: cover; display: flex; align-items: center; justify-content: center;
+        font-weight: 700; font-size: 0.9rem; color: white;
     }
-    .stat-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    /* Table */
+    .table-customers { font-size: 0.875rem; }
+    .table-customers thead th {
+        background: #f4f6fb; color: #5a6a7e;
+        font-size: 0.69rem; font-weight: 700;
+        text-transform: uppercase; letter-spacing: 0.5px;
+        border-top: none; border-bottom: 2px solid #dde3ec;
+        padding: 10px 14px; white-space: nowrap;
     }
+    .table-customers tbody td {
+        padding: 10px 14px; vertical-align: middle;
+        border-top: 1px solid #f0f2f8;
+    }
+    .table-customers tbody tr:hover td { background: #f0f5ff; }
+    /* Action buttons */
+    .btn-action {
+        width: 28px; height: 28px; padding: 0;
+        display: inline-flex; align-items: center; justify-content: center;
+        border-radius: 50% !important; font-size: 0.7rem;
+    }
+    .btn-action.dropdown-toggle::after { display: none; }
+    /* Bulk toolbar */
     .bulk-toolbar {
         display: none;
-        background: #343a40;
-        color: white;
-        padding: 10px 15px;
-        border-radius: 6px;
-        margin-bottom: 15px;
-        animation: slideDown 0.2s ease;
+        background: linear-gradient(135deg, #2d3748, #4a5568);
+        color: white; padding: 12px 16px; border-radius: 8px;
+        margin-bottom: 14px; animation: slideDown 0.2s ease;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
     }
-    .bulk-toolbar.show { display: flex; flex-wrap: wrap; }
+    .bulk-toolbar.show { display: flex; flex-wrap: wrap; align-items: center; }
     @keyframes slideDown {
-        from { opacity: 0; transform: translateY(-10px); }
-        to { opacity: 1; transform: translateY(0); }
+        from { opacity: 0; transform: translateY(-8px); }
+        to   { opacity: 1; transform: translateY(0); }
     }
-    .cb-cell { width: 35px; text-align: center; }
+    .cb-cell { width: 38px; text-align: center; }
     .cb-cell .custom-control { display: inline-block; }
-    .badge-isolir {
-        font-size: 0.7rem;
-        cursor: pointer;
-        transition: opacity 0.2s;
-    }
-    .badge-isolir:hover { opacity: 0.8; }
+    .badge-isolir { font-size: 0.67rem; cursor: pointer; transition: opacity 0.15s; }
+    .badge-isolir:hover { opacity: 0.75; }
     /* Filter bar */
-    .filter-bar { background: #f8f9fa; border-radius: 8px; padding: 14px 16px; margin-bottom: 14px; border: 1px solid #e9ecef; }
-    #searchInput { border-right: none; }
+    .filter-bar {
+        background: white; border: 1px solid #dde3ec; border-radius: 10px;
+        padding: 14px 16px; margin-bottom: 14px; box-shadow: 0 1px 5px rgba(0,0,0,0.04);
+    }
+    #searchInput { border-right: none; border-radius: 6px 0 0 6px; }
     #searchInput:focus { box-shadow: none; border-color: #80bdff; }
-    .search-input-group .input-group-text { background: white; border-left: none; color: #6c757d; }
-    .filter-tag { display: inline-flex; align-items: center; background: #e8f4ff; color: #1565c0; border-radius: 20px; padding: 2px 10px; font-size: 0.75rem; font-weight: 500; margin: 2px 3px; }
-    .filter-tag .remove { cursor: pointer; margin-left: 5px; font-size: 0.85rem; }
-    .filter-tag .remove:hover { color: #c0392b; }
+    .search-input-group .input-group-text {
+        background: white; border-left: none; color: #6c757d;
+        border-radius: 0 6px 6px 0; cursor: pointer;
+    }
+    .filter-tag {
+        display: inline-flex; align-items: center; background: #e8f1ff;
+        color: #2c5fb3; border: 1px solid #c0d6f9; border-radius: 20px;
+        padding: 2px 10px; font-size: 0.73rem; font-weight: 500; margin: 2px 3px;
+    }
 </style>
 @endpush
 
@@ -148,23 +174,23 @@
 </div>
 
 <!-- Customer List -->
-<div class="card">
+<div class="card card-customers shadow-sm">
     <div class="card-header">
         <h3 class="card-title">
             <i class="fas fa-users mr-2"></i>Daftar Pelanggan
         </h3>
         <div class="card-tools">
             @can('customers.create')
-            <a href="{{ route('admin.customers.import') }}" class="btn btn-success btn-sm mr-1">
-                <i class="fas fa-file-import mr-1"></i> Import Excel
+            <a href="{{ route('admin.customers.import') }}" class="btn btn-light btn-sm mr-1">
+                <i class="fas fa-file-import mr-1"></i> Import
             </a>
-            <a href="{{ route('admin.customers.create') }}" class="btn btn-primary btn-sm">
+            <a href="{{ route('admin.customers.create') }}" class="btn btn-warning btn-sm">
                 <i class="fas fa-plus mr-1"></i> Tambah Pelanggan
             </a>
             @endcan
         </div>
     </div>
-    <div class="card-body">
+    <div class="card-body p-3">
         <!-- Filter Bar -->
         <div class="filter-bar">
             {{-- Baris 1: Live Search --}}
