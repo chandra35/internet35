@@ -12,10 +12,11 @@
 @push('css')
 <style>
     .customer-photo {
-        width: 40px;
-        height: 40px;
+        width: 38px;
+        height: 38px;
         border-radius: 50%;
         object-fit: cover;
+        flex-shrink: 0;
     }
     .stat-card {
         transition: all 0.3s ease;
@@ -46,6 +47,14 @@
         transition: opacity 0.2s;
     }
     .badge-isolir:hover { opacity: 0.8; }
+    /* Filter bar */
+    .filter-bar { background: #f8f9fa; border-radius: 8px; padding: 14px 16px; margin-bottom: 14px; border: 1px solid #e9ecef; }
+    #searchInput { border-right: none; }
+    #searchInput:focus { box-shadow: none; border-color: #80bdff; }
+    .search-input-group .input-group-text { background: white; border-left: none; color: #6c757d; }
+    .filter-tag { display: inline-flex; align-items: center; background: #e8f4ff; color: #1565c0; border-radius: 20px; padding: 2px 10px; font-size: 0.75rem; font-weight: 500; margin: 2px 3px; }
+    .filter-tag .remove { cursor: pointer; margin-left: 5px; font-size: 0.85rem; }
+    .filter-tag .remove:hover { color: #c0392b; }
 </style>
 @endpush
 
@@ -156,56 +165,93 @@
         </div>
     </div>
     <div class="card-body">
-        <!-- Filters -->
-        <form action="{{ route('admin.customers.index') }}" method="GET" class="mb-3">
-            @if($popId && auth()->user()->hasRole('superadmin'))
-            <input type="hidden" name="pop_id" value="{{ $popId }}">
-            @endif
-            <div class="row">
-                <div class="col-md-3">
-                    <div class="form-group">
-                        <input type="text" name="search" class="form-control" placeholder="Cari nama, ID, telepon..." value="{{ request('search') }}">
+        <!-- Filter Bar -->
+        <div class="filter-bar">
+            {{-- Baris 1: Live Search --}}
+            <div class="row mb-2">
+                <div class="col-12">
+                    <div class="input-group search-input-group">
+                        <input type="text" id="searchInput" class="form-control form-control"
+                               placeholder="&#xf002;  Cari nama, panggilan, ID pelanggan, telepon, email, PPPoE..."
+                               value="{{ request('search') }}" autocomplete="off">
+                        <div class="input-group-append">
+                            <span class="input-group-text" id="searchStatusIcon">
+                                @if(request('search'))
+                                <i class="fas fa-times text-muted" id="iconClear" style="cursor:pointer;" title="Hapus pencarian"></i>
+                                @else
+                                <i class="fas fa-search" id="iconSearch"></i>
+                                @endif
+                            </span>
+                        </div>
                     </div>
-                </div>
-                <div class="col-md-2">
-                    <div class="form-group">
-                        <select name="status" class="form-control select2">
-                            <option value="">Semua Status</option>
-                            @foreach(\App\Models\Customer::statusLabels() as $key => $label)
-                            <option value="{{ $key }}" {{ request('status') == $key ? 'selected' : '' }}>{{ $label }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                </div>
-                <div class="col-md-2">
-                    <div class="form-group">
-                        <select name="router_id" class="form-control select2">
-                            <option value="">Semua Router</option>
-                            @foreach($routers as $router)
-                            <option value="{{ $router->id }}" {{ request('router_id') == $router->id ? 'selected' : '' }}>{{ $router->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                </div>
-                <div class="col-md-2">
-                    <div class="form-group">
-                        <select name="auto_isolir" class="form-control">
-                            <option value="">Auto Isolir</option>
-                            <option value="1" {{ request('auto_isolir') === '1' ? 'selected' : '' }}>Aktif</option>
-                            <option value="0" {{ request('auto_isolir') === '0' ? 'selected' : '' }}>Nonaktif</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="col-md-auto">
-                    <button type="submit" class="btn btn-secondary">
-                        <i class="fas fa-search mr-1"></i> Cari
-                    </button>
-                    <a href="{{ route('admin.customers.index', $popId ? ['pop_id' => $popId] : []) }}" class="btn btn-outline-secondary">
-                        <i class="fas fa-undo"></i> Reset
-                    </a>
                 </div>
             </div>
-        </form>
+            {{-- Baris 2: Dropdown Filters --}}
+            <div class="row g-2 align-items-center">
+                <div class="col-6 col-sm-4 col-md-2">
+                    <select id="filterStatus" class="form-control form-control-sm select2" data-param="status" title="Status">
+                        <option value="">Semua Status</option>
+                        @foreach(\App\Models\Customer::statusLabels() as $key => $label)
+                        <option value="{{ $key }}" {{ request('status') == $key ? 'selected' : '' }}>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-6 col-sm-4 col-md-2">
+                    <select id="filterPackage" class="form-control form-control-sm select2" data-param="package_id" title="Paket">
+                        <option value="">Semua Paket</option>
+                        @foreach($packages as $pkg)
+                        <option value="{{ $pkg->id }}" {{ request('package_id') == $pkg->id ? 'selected' : '' }}>{{ $pkg->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-6 col-sm-4 col-md-2">
+                    <select id="filterCity" class="form-control form-control-sm select2" data-param="city_code" title="Wilayah">
+                        <option value="">Semua Wilayah</option>
+                        @foreach($filterCities as $city)
+                        <option value="{{ $city->code }}" {{ request('city_code') == $city->code ? 'selected' : '' }}>{{ $city->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-6 col-sm-4 col-md-2">
+                    <select id="filterRouter" class="form-control form-control-sm select2" data-param="router_id" title="Router">
+                        <option value="">Semua Router</option>
+                        @foreach($routers as $router)
+                        <option value="{{ $router->id }}" {{ request('router_id') == $router->id ? 'selected' : '' }}>{{ $router->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-6 col-sm-4 col-md-2">
+                    <select id="filterAutoIsolir" class="form-control form-control-sm" data-param="auto_isolir" title="Auto Isolir">
+                        <option value="">Auto Isolir</option>
+                        <option value="1" {{ request('auto_isolir') === '1' ? 'selected' : '' }}>Aktif</option>
+                        <option value="0" {{ request('auto_isolir') === '0' ? 'selected' : '' }}>Nonaktif</option>
+                    </select>
+                </div>
+                @php $hasFilter = request()->hasAny(['search','status','package_id','city_code','router_id','auto_isolir']); @endphp
+                @if($hasFilter)
+                <div class="col-auto">
+                    <a href="{{ route('admin.customers.index', $popId ? ['pop_id' => $popId] : []) }}" class="btn btn-outline-secondary btn-sm">
+                        <i class="fas fa-undo mr-1"></i> Reset
+                    </a>
+                </div>
+                @endif
+            </div>
+            {{-- Active filter tags --}}
+            @if($hasFilter)
+            <div class="mt-2" style="font-size:0.78rem;">
+                <span class="text-muted mr-1">Filter aktif:</span>
+                @if(request('search'))<span class="filter-tag"><i class="fas fa-search mr-1"></i>{{ request('search') }}</span>@endif
+                @if(request('status'))<span class="filter-tag"><i class="fas fa-circle mr-1"></i>{{ \App\Models\Customer::statusLabels()[request('status')] ?? request('status') }}</span>@endif
+                @if(request('package_id'))<span class="filter-tag"><i class="fas fa-box mr-1"></i>{{ $packages->firstWhere('id', request('package_id'))?->name ?? '-' }}</span>@endif
+                @if(request('city_code'))<span class="filter-tag"><i class="fas fa-map-marker-alt mr-1"></i>{{ $filterCities->firstWhere('code', request('city_code'))?->name ?? request('city_code') }}</span>@endif
+                @if(request('router_id'))<span class="filter-tag"><i class="fas fa-network-wired mr-1"></i>{{ $routers->firstWhere('id', request('router_id'))?->name ?? '-' }}</span>@endif
+                @if(request('auto_isolir') !== null && request('auto_isolir') !== '')<span class="filter-tag"><i class="fas fa-shield-alt mr-1"></i>Auto Isolir: {{ request('auto_isolir') === '1' ? 'Aktif' : 'Nonaktif' }}</span>@endif
+            </div>
+            @endif
+        </div>
+        @if($popId && auth()->user()->hasRole('superadmin'))
+        <input type="hidden" id="hiddenPopId" value="{{ $popId }}">
+        @endif
 
         <!-- Bulk Action Toolbar -->
         <div class="bulk-toolbar align-items-center justify-content-between" id="bulkToolbar">
@@ -450,9 +496,44 @@ function changePop(popId) {
 }
 
 $(function() {
-    // Select2 sudah diinisialisasi secara global di layout admin
+    // ========== Live Search & Filter ==========
+    function updateFilter(param, value) {
+        const url = new URL(window.location.href);
+        if (value === '' || value === null || value === undefined) {
+            url.searchParams.delete(param);
+        } else {
+            url.searchParams.set(param, value);
+        }
+        url.searchParams.delete('page');
+        @if($popId && auth()->user()->hasRole('superadmin'))
+        url.searchParams.set('pop_id', '{{ $popId }}');
+        @endif
+        window.location.href = url.toString();
+    }
 
-    // ========== Checkbox & Bulk Actions ==========
+    // Debounced live search
+    let searchTimer;
+    $('#searchInput').on('input', function() {
+        clearTimeout(searchTimer);
+        const val = this.value;
+        // Show spinner
+        $('#searchStatusIcon').html('<i class="fas fa-spinner fa-spin text-muted"></i>');
+        searchTimer = setTimeout(() => {
+            updateFilter('search', val.trim());
+        }, 450);
+    }).on('keydown', function(e) {
+        if (e.key === 'Escape') { updateFilter('search', ''); }
+    });
+
+    // Clear search icon click
+    $(document).on('click', '#iconClear', function() {
+        updateFilter('search', '');
+    });
+
+    // Dropdown filters — instant on change
+    $('select[data-param]').on('change', function() {
+        updateFilter($(this).data('param'), $(this).val());
+    });
     const bulkToolbar = document.getElementById('bulkToolbar');
     const selectedCount = document.getElementById('selectedCount');
     const totalAll = {{ $customers->total() }};
@@ -516,6 +597,8 @@ $(function() {
             const urlParams = new URLSearchParams(window.location.search);
             if (urlParams.get('status')) data.filter_status = urlParams.get('status');
             if (urlParams.get('router_id')) data.filter_router_id = urlParams.get('router_id');
+            if (urlParams.get('package_id')) data.filter_package_id = urlParams.get('package_id');
+            if (urlParams.get('city_code')) data.filter_city_code = urlParams.get('city_code');
         } else {
             data.customer_ids = getSelectedIds();
         }

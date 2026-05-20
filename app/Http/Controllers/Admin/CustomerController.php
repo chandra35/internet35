@@ -88,6 +88,8 @@ class CustomerController extends Controller implements HasMiddleware
             ->when($popId, fn($q) => $q->where('pop_id', $popId))
             ->when($request->status, fn($q, $s) => $q->where('status', $s))
             ->when($request->router_id, fn($q, $r) => $q->where('router_id', $r))
+            ->when($request->package_id, fn($q, $p) => $q->where('package_id', $p))
+            ->when($request->city_code, fn($q, $c) => $q->where('city_code', $c))
             ->when($request->has('auto_isolir') && $request->auto_isolir !== '', fn($q) => $q->where('auto_isolir', $request->boolean('auto_isolir')))
             ->when($request->search, function($q, $s) {
                 $q->where(function($sq) use ($s) {
@@ -107,6 +109,20 @@ class CustomerController extends Controller implements HasMiddleware
             ->where('is_active', true)
             ->orderBy('name')
             ->get();
+
+        // Get packages for filter
+        $packages = Package::when($popId, fn($q) => $q->where('pop_id', $popId))
+            ->orderBy('name')
+            ->get();
+
+        // Get distinct cities used by customers in this POP
+        $usedCityCodes = Customer::when($popId, fn($q) => $q->where('pop_id', $popId))
+            ->whereNotNull('city_code')
+            ->distinct()
+            ->pluck('city_code');
+        $filterCities = \Laravolt\Indonesia\Models\City::whereIn('code', $usedCityCodes)
+            ->orderBy('name')
+            ->get();
         
         // Statistics
         $stats = [
@@ -116,7 +132,7 @@ class CustomerController extends Controller implements HasMiddleware
             'suspended' => Customer::when($popId, fn($q) => $q->where('pop_id', $popId))->where('status', 'suspended')->count(),
         ];
         
-        return view('admin.customers.index', compact('customers', 'popUsers', 'popId', 'routers', 'stats'));
+        return view('admin.customers.index', compact('customers', 'popUsers', 'popId', 'routers', 'packages', 'filterCities', 'stats'));
     }
 
     /**
@@ -967,6 +983,12 @@ class CustomerController extends Controller implements HasMiddleware
             }
             if ($request->filled('filter_router_id')) {
                 $query->where('router_id', $request->filter_router_id);
+            }
+            if ($request->filled('filter_package_id')) {
+                $query->where('package_id', $request->filter_package_id);
+            }
+            if ($request->filled('filter_city_code')) {
+                $query->where('city_code', $request->filter_city_code);
             }
             return $query;
         }
