@@ -11,17 +11,34 @@
 
 @push('css')
 <style>
+    /* Portal-style stat cards (matches customers page) */
     .stat-card {
-        transition: all 0.3s ease;
+        border-radius: 10px; padding: 14px 16px 12px; color: #fff;
+        position: relative; overflow: hidden;
+        transition: transform 0.18s, box-shadow 0.18s;
+        display: block;
     }
-    .stat-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    .stat-card:hover { transform: translateY(-3px); box-shadow: 0 7px 22px rgba(0,0,0,0.22); }
+    .stat-card .sc-icon { position: absolute; right: 12px; top: 10px; font-size: 32px; opacity: 0.14; pointer-events: none; }
+    .stat-card .sc-value { font-size: 1.6rem; font-weight: 700; line-height: 1.2; }
+    .stat-card .sc-label { font-size: 0.7rem; opacity: 0.88; margin-top: 2px; }
+    .stat-blue   { background: linear-gradient(135deg, #1565c0, #1976d2); }
+    .stat-green  { background: linear-gradient(135deg, #1aaa55, #17c671); }
+    .stat-grey   { background: linear-gradient(135deg, #495057, #6c757d); }
+    .stat-indigo { background: linear-gradient(135deg, #3949ab, #5c6bc0); }
+    .stat-red    { background: linear-gradient(135deg, #dc3545, #c82333); }
+    .stat-teal   { background: linear-gradient(135deg, #00838f, #0097a7); }
+    /* Scheduler card headers — dark blue gradient (matches customers page .card-customers) */
+    .card-scheduler { border: none !important; border-radius: 10px !important; overflow: hidden; }
+    .card-scheduler > .card-header {
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        border-bottom: none; padding: 14px 20px;
     }
-    /* Cron Monitor Card — tools page style */
+    .card-scheduler > .card-header .card-title { color: white; font-size: 1rem; font-weight: 600; }
+    .card-scheduler > .card-header .btn { background: transparent; border-color: rgba(255,255,255,0.5); color: white; }
+    .card-scheduler > .card-header .btn:hover { background: rgba(255,255,255,0.15); }
+    /* Cron Monitor Card */
     .cron-card {
-        border: none;
-        border-radius: 10px;
         box-shadow: 0 2px 10px rgba(0,0,0,0.08);
         transition: box-shadow 0.2s, transform 0.2s;
     }
@@ -227,74 +244,47 @@
 @endif
 
 <!-- Statistics -->
-<div class="row">
-    <div class="col-lg-2 col-6">
-        <div class="small-box bg-info stat-card">
-            <div class="inner">
-                <h3>{{ $stats['total'] }}</h3>
-                <p>Total Task</p>
-            </div>
-            <div class="icon">
-                <i class="fas fa-tasks"></i>
-            </div>
+<div class="row mb-3">
+    <div class="col-6 col-lg-2 mb-2 mb-lg-0">
+        <div class="stat-card stat-blue">
+            <i class="fas fa-tasks sc-icon"></i>
+            <div class="sc-value">{{ $stats['total'] }}</div>
+            <div class="sc-label">Total Task</div>
         </div>
     </div>
-    <div class="col-lg-2 col-6">
-        <div class="small-box bg-success stat-card">
-            <div class="inner">
-                <h3>{{ $stats['enabled'] }}</h3>
-                <p>Aktif</p>
-            </div>
-            <div class="icon">
-                <i class="fas fa-check-circle"></i>
-            </div>
+    <div class="col-6 col-lg-2 mb-2 mb-lg-0">
+        <div class="stat-card stat-green">
+            <i class="fas fa-check-circle sc-icon"></i>
+            <div class="sc-value">{{ $stats['enabled'] }}</div>
+            <div class="sc-label">Aktif</div>
         </div>
     </div>
-    <div class="col-lg-2 col-6">
-        <div class="small-box bg-secondary stat-card">
-            <div class="inner">
-                <h3>{{ $stats['disabled'] }}</h3>
-                <p>Nonaktif</p>
-            </div>
-            <div class="icon">
-                <i class="fas fa-pause-circle"></i>
-            </div>
+    <div class="col-6 col-lg-2 mb-2 mb-lg-0">
+        <div class="stat-card stat-grey">
+            <i class="fas fa-pause-circle sc-icon"></i>
+            <div class="sc-value">{{ $stats['disabled'] }}</div>
+            <div class="sc-label">Nonaktif</div>
         </div>
     </div>
-    <div class="col-lg-2 col-6">
-        <div class="small-box bg-primary stat-card">
-            <div class="inner">
-                <h3>{{ $stats['running'] }}</h3>
-                <p>Berjalan</p>
-            </div>
-            <div class="icon">
-                <i class="fas fa-spinner"></i>
-            </div>
+    <div class="col-6 col-lg-2 mb-2 mb-lg-0">
+        <div class="stat-card stat-indigo">
+            <i class="fas fa-spinner sc-icon"></i>
+            <div class="sc-value">{{ $stats['running'] }}</div>
+            <div class="sc-label">Berjalan</div>
         </div>
     </div>
-    <div class="col-lg-2 col-6">
-        <div class="small-box bg-danger stat-card">
-            <div class="inner">
-                <h3>{{ $stats['failed'] }}</h3>
-                <p>Gagal</p>
-            </div>
-            <div class="icon">
-                <i class="fas fa-exclamation-triangle"></i>
-            </div>
+    <div class="col-6 col-lg-2 mb-2 mb-lg-0">
+        <div class="stat-card stat-red">
+            <i class="fas fa-exclamation-triangle sc-icon"></i>
+            <div class="sc-value">{{ $stats['failed'] }}</div>
+            <div class="sc-label">Gagal</div>
         </div>
     </div>
-    <div class="col-lg-2 col-6">
-        <div class="small-box bg-teal stat-card">
-            <div class="inner">
-                <h3><i class="fas fa-plus"></i></h3>
-                <p>Tambah Task</p>
-            </div>
-            <div class="icon">
-                <i class="fas fa-plus-circle"></i>
-            </div>
-            <a href="#" class="small-box-footer" data-toggle="modal" data-target="#createModal">
-                Tambah <i class="fas fa-arrow-circle-right"></i>
-            </a>
+    <div class="col-6 col-lg-2 mb-2 mb-lg-0">
+        <div class="stat-card stat-teal" style="cursor:pointer;" data-toggle="modal" data-target="#createModal">
+            <i class="fas fa-plus-circle sc-icon"></i>
+            <div class="sc-value"><i class="fas fa-plus"></i></div>
+            <div class="sc-label">Tambah Task</div>
         </div>
     </div>
 </div>
@@ -315,13 +305,13 @@
 <div class="row">
     <!-- Tasks List -->
     <div class="col-md-8">
-        <div class="card">
+        <div class="card card-scheduler shadow-sm">
             <div class="card-header">
                 <h3 class="card-title">
                     <i class="fas fa-clock mr-2"></i>Scheduled Tasks
                 </h3>
                 <div class="card-tools">
-                    <a href="{{ route('admin.scheduler.logs') }}" class="btn btn-info btn-sm">
+                    <a href="{{ route('admin.scheduler.logs') }}" class="btn btn-sm">
                         <i class="fas fa-history mr-1"></i> Semua Log
                     </a>
                 </div>
@@ -420,7 +410,7 @@
     
     <!-- Recent Logs -->
     <div class="col-md-4">
-        <div class="card">
+        <div class="card card-scheduler shadow-sm">
             <div class="card-header">
                 <h3 class="card-title">
                     <i class="fas fa-history mr-2"></i>Log Terbaru
@@ -464,7 +454,12 @@
         </div>
         
         <!-- Cron Job Monitor -->
-        <div class="card cron-card">
+        <div class="card card-scheduler cron-card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="fas fa-heartbeat mr-2"></i>Cron Job Monitor
+                </h3>
+            </div>
             <div class="card-body" style="padding: 18px 20px;">
 
                 {{-- Icon + Status --}}
