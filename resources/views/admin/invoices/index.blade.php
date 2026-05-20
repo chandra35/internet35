@@ -11,13 +11,39 @@
 
 @push('css')
 <style>
+    /* Portal-style stat cards */
     .stat-card {
-        transition: all 0.3s ease;
+        border-radius: 10px; padding: 12px 14px 10px; color: #fff;
+        position: relative; overflow: hidden; cursor: pointer;
+        transition: transform 0.18s, box-shadow 0.18s;
+        text-decoration: none; display: block; height: 100%;
     }
-    .stat-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    .stat-card:hover { transform: translateY(-3px); box-shadow: 0 7px 22px rgba(0,0,0,0.22); color: #fff; text-decoration: none; }
+    .stat-card .sc-icon  { position: absolute; right: 10px; top: 8px; font-size: 28px; opacity: 0.14; pointer-events: none; }
+    .stat-card .sc-value { font-size: 1.2rem; font-weight: 700; line-height: 1.2; word-break: break-word; margin-top: 2px; }
+    .stat-card .sc-label { font-size: 0.67rem; opacity: 0.88; margin-top: 2px; line-height: 1.3; }
+    .stat-card .sc-link  { display: block; color: rgba(255,255,255,0.72); font-size: 0.63rem; margin-top: 6px; border-top: 1px solid rgba(255,255,255,0.18); padding-top: 4px; }
+    .stat-card .sc-link:hover { color: #fff; }
+    .stat-blue  { background: linear-gradient(135deg, #1565c0, #1976d2); }
+    .stat-green { background: linear-gradient(135deg, #1aaa55, #17c671); }
+    .stat-yellow{ background: linear-gradient(135deg, #e0871a, #f4a721); }
+    .stat-red   { background: linear-gradient(135deg, #dc3545, #c82333); }
+    .stat-teal  { background: linear-gradient(135deg, #00838f, #0097a7); }
+    .stat-indigo{ background: linear-gradient(135deg, #3949ab, #5c6bc0); }
+    /* Invoice card header */
+    .card-invoice > .card-header {
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        border-bottom: 1px solid rgba(255,255,255,0.12);
+        border-radius: 0;
     }
+    .card-invoice > .card-header .card-title { color: #fff; font-weight: 600; }
+    .card-invoice { border: none !important; border-radius: 10px !important; overflow: hidden; box-shadow: 0 1px 8px rgba(0,0,0,0.09) !important; }
+    /* Row status border */
+    .row-inv-pending  { box-shadow: inset 3px 0 0 #f4a721; }
+    .row-inv-paid     { box-shadow: inset 3px 0 0 #1aaa55; }
+    .row-inv-overdue  { box-shadow: inset 3px 0 0 #dc3545; }
+    .row-inv-cancelled{ box-shadow: inset 3px 0 0 #868e96; }
+    .row-inv-void     { box-shadow: inset 3px 0 0 #868e96; }
 </style>
 @endpush
 
@@ -54,86 +80,56 @@
 @else
 
 <!-- Statistics -->
-<div class="row">
-    <div class="col-lg-2 col-6">
-        <div class="small-box bg-info stat-card">
-            <div class="inner">
-                <h3>{{ number_format($stats['total'] ?? 0) }}</h3>
-                <p>Total Invoice</p>
-            </div>
-            <div class="icon">
-                <i class="fas fa-file-invoice"></i>
-            </div>
+<div class="row mb-3">
+    <div class="col-6 col-md-4 col-lg-2 mb-2">
+        <a href="{{ route('admin.invoices.index', $popId ? ['pop_id' => $popId] : []) }}" class="stat-card stat-teal">
+            <i class="fas fa-file-invoice sc-icon"></i>
+            <div class="sc-value">{{ number_format($stats['total'] ?? 0) }}</div>
+            <div class="sc-label">Total Invoice</div>
+        </a>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2 mb-2">
+        <a href="{{ route('admin.invoices.index', array_merge($popId ? ['pop_id' => $popId] : [], ['status' => 'pending'])) }}" class="stat-card stat-yellow">
+            <i class="fas fa-clock sc-icon"></i>
+            <div class="sc-value">{{ number_format($stats['pending'] ?? 0) }}</div>
+            <div class="sc-label">Belum Dibayar</div>
+            <span class="sc-link">Lihat →</span>
+        </a>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2 mb-2">
+        <a href="{{ route('admin.invoices.index', array_merge($popId ? ['pop_id' => $popId] : [], ['status' => 'paid'])) }}" class="stat-card stat-green">
+            <i class="fas fa-check-circle sc-icon"></i>
+            <div class="sc-value">{{ number_format($stats['paid'] ?? 0) }}</div>
+            <div class="sc-label">Lunas</div>
+            <span class="sc-link">Lihat →</span>
+        </a>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2 mb-2">
+        <a href="{{ route('admin.invoices.index', array_merge($popId ? ['pop_id' => $popId] : [], ['status' => 'overdue'])) }}" class="stat-card stat-red">
+            <i class="fas fa-exclamation-triangle sc-icon"></i>
+            <div class="sc-value">{{ number_format($stats['overdue'] ?? 0) }}</div>
+            <div class="sc-label">Jatuh Tempo</div>
+            <span class="sc-link">Lihat →</span>
+        </a>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2 mb-2">
+        <div class="stat-card stat-blue">
+            <i class="fas fa-money-bill-wave sc-icon"></i>
+            <div class="sc-value">Rp {{ number_format($stats['total_pending_amount'] ?? 0, 0, ',', '.') }}</div>
+            <div class="sc-label">Total Belum Bayar</div>
         </div>
     </div>
-    <div class="col-lg-2 col-6">
-        <div class="small-box bg-warning stat-card">
-            <div class="inner">
-                <h3>{{ number_format($stats['pending'] ?? 0) }}</h3>
-                <p>Belum Dibayar</p>
-            </div>
-            <div class="icon">
-                <i class="fas fa-clock"></i>
-            </div>
-            <a href="{{ route('admin.invoices.index', ['status' => 'pending']) }}" class="small-box-footer">
-                Lihat <i class="fas fa-arrow-circle-right"></i>
-            </a>
-        </div>
-    </div>
-    <div class="col-lg-2 col-6">
-        <div class="small-box bg-success stat-card">
-            <div class="inner">
-                <h3>{{ number_format($stats['paid'] ?? 0) }}</h3>
-                <p>Lunas</p>
-            </div>
-            <div class="icon">
-                <i class="fas fa-check-circle"></i>
-            </div>
-            <a href="{{ route('admin.invoices.index', ['status' => 'paid']) }}" class="small-box-footer">
-                Lihat <i class="fas fa-arrow-circle-right"></i>
-            </a>
-        </div>
-    </div>
-    <div class="col-lg-2 col-6">
-        <div class="small-box bg-danger stat-card">
-            <div class="inner">
-                <h3>{{ number_format($stats['overdue'] ?? 0) }}</h3>
-                <p>Jatuh Tempo</p>
-            </div>
-            <div class="icon">
-                <i class="fas fa-exclamation-triangle"></i>
-            </div>
-            <a href="{{ route('admin.invoices.index', ['status' => 'overdue']) }}" class="small-box-footer">
-                Lihat <i class="fas fa-arrow-circle-right"></i>
-            </a>
-        </div>
-    </div>
-    <div class="col-lg-2 col-6">
-        <div class="small-box bg-primary stat-card">
-            <div class="inner">
-                <h4>Rp {{ number_format($stats['total_pending_amount'] ?? 0, 0, ',', '.') }}</h4>
-                <p>Total Belum Bayar</p>
-            </div>
-            <div class="icon">
-                <i class="fas fa-money-bill-wave"></i>
-            </div>
-        </div>
-    </div>
-    <div class="col-lg-2 col-6">
-        <div class="small-box bg-teal stat-card">
-            <div class="inner">
-                <h4>Rp {{ number_format($stats['total_paid_amount'] ?? 0, 0, ',', '.') }}</h4>
-                <p>Pendapatan Bulan Ini</p>
-            </div>
-            <div class="icon">
-                <i class="fas fa-wallet"></i>
-            </div>
+    <div class="col-6 col-md-4 col-lg-2 mb-2">
+        <div class="stat-card stat-indigo">
+            <i class="fas fa-wallet sc-icon"></i>
+            <div class="sc-value">Rp {{ number_format($stats['total_paid_amount'] ?? 0, 0, ',', '.') }}</div>
+            <div class="sc-label">Pendapatan Bulan Ini</div>
         </div>
     </div>
 </div>
 
 <!-- Filters & Actions -->
-<div class="card">
+<div class="card card-invoice">
     <div class="card-header">
         <h3 class="card-title">
             <i class="fas fa-file-invoice mr-2"></i>
@@ -239,7 +235,7 @@
                 </thead>
                 <tbody>
                     @forelse($invoices as $invoice)
-                    <tr>
+                    <tr class="row-inv-{{ $invoice->status }}">
                         <td>
                             <a href="{{ route('admin.invoices.show', $invoice) }}">
                                 <strong>{{ $invoice->invoice_number }}</strong>
