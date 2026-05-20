@@ -5,47 +5,130 @@
 @section('page-title', 'Tagihan Saya')
 
 @section('content')
+@php
+    $unpaidCount  = $invoices->getCollection()->whereIn('status', ['unpaid','overdue','pending'])->count();
+    $unpaidAmount = $invoices->getCollection()->whereIn('status', ['unpaid','overdue','pending'])->sum('total_amount');
+    $paidCount    = $invoices->getCollection()->where('status','paid')->count();
+    $overdueCount = $invoices->getCollection()->where('status','overdue')->count();
+@endphp
+
+{{-- Summary strip --}}
+@if($invoices->total() > 0)
+<div class="row mb-2" style="margin-left:-5px;margin-right:-5px;">
+    <div class="col-6 col-sm-3" style="padding:0 5px;">
+        <div class="stat-card stat-blue mb-2">
+            <i class="fas fa-file-invoice stat-icon"></i>
+            <div class="stat-value">{{ $invoices->total() }}</div>
+            <div class="stat-label">Total Tagihan</div>
+        </div>
+    </div>
+    <div class="col-6 col-sm-3" style="padding:0 5px;">
+        <div class="stat-card {{ $unpaidAmount > 0 ? 'stat-red' : 'stat-green' }} mb-2">
+            <i class="fas fa-clock stat-icon"></i>
+            <div class="stat-value" style="font-size:0.82rem;">{{ $unpaidAmount > 0 ? 'Rp '.number_format($unpaidAmount,0,',','.') : 'Lunas' }}</div>
+            <div class="stat-label">Belum Dibayar</div>
+        </div>
+    </div>
+    <div class="col-6 col-sm-3" style="padding:0 5px;">
+        <div class="stat-card stat-green mb-2">
+            <i class="fas fa-check-circle stat-icon"></i>
+            <div class="stat-value">{{ $paidCount }}</div>
+            <div class="stat-label">Sudah Lunas</div>
+        </div>
+    </div>
+    <div class="col-6 col-sm-3" style="padding:0 5px;">
+        <div class="stat-card {{ $overdueCount > 0 ? 'stat-red' : 'stat-teal' }} mb-2">
+            <i class="fas fa-exclamation-triangle stat-icon"></i>
+            <div class="stat-value">{{ $overdueCount }}</div>
+            <div class="stat-label">Jatuh Tempo</div>
+        </div>
+    </div>
+</div>
+@endif
+
 <div class="card">
     <div class="card-header d-flex align-items-center justify-content-between">
-        <span class="card-title"><i class="fas fa-file-invoice-dollar mr-1"></i> Semua Tagihan</span>
+        <span class="card-title"><i class="fas fa-list mr-1"></i> Daftar Tagihan</span>
         @if($invoices->total() > 0)
         <small class="text-muted">{{ $invoices->total() }} tagihan</small>
         @endif
     </div>
     <div class="card-body p-0">
         @forelse($invoices as $invoice)
-        <div class="d-flex align-items-center px-3 py-3 border-bottom invoice-row">
-            <div class="flex-grow-1" style="min-width:0;">
-                <div class="d-flex align-items-center flex-wrap" style="gap:6px;">
-                    <code style="font-size:0.78rem;color:#1565c0;">{{ $invoice->invoice_number }}</code>
-                    <span class="badge badge-{{ $invoice->status_color }}" style="font-size:0.65rem;">{{ $invoice->status_label }}</span>
+        @php
+            $borderColor = match($invoice->status) {
+                'paid'      => '#28a745',
+                'overdue'   => '#dc3545',
+                'pending', 'unpaid' => '#ffc107',
+                'cancelled' => '#6c757d',
+                default     => '#17a2b8',
+            };
+            $bgColor = match($invoice->status) {
+                'overdue'   => '#fff8f8',
+                'pending', 'unpaid' => '#fffdf0',
+                default     => '#fff',
+            };
+        @endphp
+        <a href="{{ route('pelanggan.invoice', $invoice) }}" class="text-decoration-none invoice-row d-block"
+           style="border-left:4px solid {{ $borderColor }}; background:{{ $bgColor }}; border-bottom:1px solid #f0f0f0;">
+            <div class="d-flex align-items-center px-3 py-3">
+                {{-- Left icon --}}
+                <div class="mr-3 flex-shrink-0" style="width:34px;height:34px;border-radius:8px;background:{{ $borderColor }}20;display:flex;align-items:center;justify-content:center;">
+                    <i class="fas fa-{{ $invoice->status === 'paid' ? 'check' : ($invoice->status === 'overdue' ? 'exclamation' : 'file-invoice') }} fa-sm" style="color:{{ $borderColor }};"></i>
                 </div>
-                <div class="text-muted mt-1" style="font-size:0.75rem;">
-                    <i class="fas fa-calendar-alt mr-1"></i>{{ $invoice->period_start?->format('M Y') ?? '-' }}
-                    @if($invoice->due_date)
-                    · Jatuh tempo <strong class="{{ $invoice->due_date->isPast() && $invoice->status !== 'paid' ? 'text-danger' : '' }}">{{ $invoice->due_date->format('d M Y') }}</strong>
-                    @if($invoice->status === 'overdue') <span class="text-danger">({{ $invoice->due_date->diffInDays(now()) }} hari)</span>@endif
+                {{-- Main info --}}
+                <div class="flex-grow-1" style="min-width:0;">
+                    <div class="d-flex align-items-center flex-wrap" style="gap:5px;">
+                        <span style="font-size:0.8rem;font-weight:600;color:#1565c0;">{{ $invoice->invoice_number }}</span>
+                        <span class="badge badge-{{ $invoice->status_color }}" style="font-size:0.62rem;">{{ $invoice->status_label }}</span>
+                        @if($invoice->status === 'overdue')
+                        <span class="badge badge-danger" style="font-size:0.6rem;">
+                            {{ $invoice->due_date->diffInDays(now()) }} hari terlambat
+                        </span>
+                        @endif
+                    </div>
+                    <div class="mt-1" style="font-size:0.72rem;color:#888;">
+                        <i class="fas fa-calendar-alt mr-1"></i>
+                        Periode {{ $invoice->period_start?->format('d M') ?? '-' }}–{{ $invoice->period_end?->format('d M Y') ?? '-' }}
+                        @if($invoice->due_date)
+                        &nbsp;·&nbsp;
+                        <span class="{{ ($invoice->due_date->isPast() && !in_array($invoice->status,['paid','cancelled'])) ? 'text-danger font-weight-600' : '' }}">
+                            Tempo {{ $invoice->due_date->format('d M Y') }}
+                        </span>
+                        @endif
+                    </div>
+                </div>
+                {{-- Amount + CTA --}}
+                <div class="text-right ml-2 flex-shrink-0">
+                    <div style="font-size:0.92rem;font-weight:700;color:#1a1a1a;">
+                        Rp {{ number_format($invoice->total_amount, 0, ',', '.') }}
+                    </div>
+                    @if($invoice->paid_amount > 0 && $invoice->status !== 'paid')
+                    <div style="font-size:0.68rem;color:#28a745;">
+                        Dibayar Rp {{ number_format($invoice->paid_amount, 0, ',', '.') }}
+                    </div>
+                    @endif
+                    @if(in_array($invoice->status, ['unpaid','overdue','pending']))
+                    <div class="mt-1">
+                        <span class="btn btn-xs btn-primary">
+                            <i class="fas fa-credit-card mr-1"></i>Bayar
+                        </span>
+                    </div>
+                    @else
+                    <div style="font-size:0.68rem;color:#aaa;margin-top:3px;">
+                        <i class="fas fa-chevron-right"></i>
+                    </div>
                     @endif
                 </div>
             </div>
-            <div class="text-right ml-3 flex-shrink-0">
-                <div style="font-size:0.9rem;font-weight:700;color:#1a1a1a;">Rp {{ number_format($invoice->total_amount, 0, ',', '.') }}</div>
-                @if(in_array($invoice->status, ['unpaid', 'overdue', 'pending']))
-                <a href="{{ route('pelanggan.invoice', $invoice) }}" class="btn btn-xs btn-primary mt-1">
-                    <i class="fas fa-credit-card mr-1"></i>Bayar
-                </a>
-                @else
-                <a href="{{ route('pelanggan.invoice', $invoice) }}" class="btn btn-xs btn-outline-secondary mt-1">
-                    <i class="fas fa-eye mr-1"></i>Detail
-                </a>
-                @endif
-            </div>
-        </div>
+        </a>
         @empty
         <div class="text-center py-5 text-muted">
-            <i class="fas fa-file-invoice fa-3x mb-3 d-block"></i>
-            <div style="font-size:0.88rem;">Belum ada tagihan</div>
-            <small>Tagihan akan muncul di sini saat periode penagihan dimulai.</small>
+            <div style="width:56px;height:56px;border-radius:50%;background:#f0f4ff;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;">
+                <i class="fas fa-file-invoice fa-lg" style="color:#90aad4;"></i>
+            </div>
+            <div style="font-size:0.85rem;font-weight:500;color:#666;">Belum ada tagihan</div>
+            <small class="text-muted">Tagihan akan muncul di sini saat periode penagihan dimulai.</small>
         </div>
         @endforelse
     </div>
