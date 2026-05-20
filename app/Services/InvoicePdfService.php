@@ -26,6 +26,7 @@ class InvoicePdfService
         ];
 
         $pdf = Pdf::loadView('pdf.invoice', $data);
+        $pdf->setOptions(['font_subsetting' => false]);
         $pdf->setPaper('A4', 'portrait');
 
         return $pdf;

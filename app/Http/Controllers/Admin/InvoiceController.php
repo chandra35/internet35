@@ -764,7 +764,7 @@ class InvoiceController extends Controller implements HasMiddleware
         $pdf = Pdf::loadView('admin.invoices.bulk-print-pdf', [
             'invoices' => collect([$invoice]),
             'popSetting' => $popSetting,
-        ])->setPaper('a4');
+        ])->setOptions(['font_subsetting' => false])->setPaper('a4');
 
         // Save path
         $filename = 'invoices/' . $invoice->invoice_number . '.pdf';
