@@ -110,8 +110,9 @@ class CustomerController extends Controller implements HasMiddleware
             ->orderBy('name')
             ->get();
 
-        // Get packages for filter
-        $packages = Package::when($popId, fn($q) => $q->where('pop_id', $popId))
+        // Get packages for filter (by routers milik POP ini)
+        $routerIds = $routers->pluck('id');
+        $packages = Package::whereIn('router_id', $routerIds)
             ->orderBy('name')
             ->get();
 
