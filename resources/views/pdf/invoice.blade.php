@@ -9,9 +9,9 @@
         .container { padding: 30px 40px; }
 
         /* Header */
-        .header { display: table; width: 100%; margin-bottom: 25px; border-bottom: 3px solid #007bff; padding-bottom: 15px; }
-        .header-left { display: table-cell; width: 60%; vertical-align: middle; }
-        .header-right { display: table-cell; width: 40%; text-align: right; vertical-align: middle; }
+        .header { overflow: hidden; width: 100%; margin-bottom: 25px; border-bottom: 3px solid #007bff; padding-bottom: 15px; }
+        .header-left { float: left; width: 58%; }
+        .header-right { float: right; width: 40%; text-align: right; }
         .isp-name { font-size: 20px; font-weight: bold; color: #007bff; }
         .isp-info { font-size: 9px; color: #777; margin-top: 4px; }
         .invoice-title { font-size: 24px; font-weight: bold; color: #333; }
@@ -26,8 +26,9 @@
         .status-cancelled { background: #6c757d; }
 
         /* Info row */
-        .info-row { display: table; width: 100%; margin-bottom: 20px; }
-        .info-col { display: table-cell; width: 50%; vertical-align: top; }
+        .info-row { overflow: hidden; width: 100%; margin-bottom: 20px; }
+        .info-col { float: left; width: 48%; vertical-align: top; }
+        .info-col-right { float: right; width: 48%; text-align: right; }
         .info-label { font-size: 9px; text-transform: uppercase; color: #999; letter-spacing: 1px; margin-bottom: 4px; }
         .info-value { font-size: 11px; }
 
@@ -111,7 +112,7 @@
                 @if($customer->email)<br>Email: {{ $customer->email }}@endif
             </div>
         </div>
-        <div class="info-col" style="text-align: right;">
+        <div class="info-col-right">
             <div class="info-label">Detail Invoice</div>
             <div class="info-value">
                 <strong>Tanggal Invoice:</strong> {{ $invoice->invoice_date?->format('d F Y') }}<br>
