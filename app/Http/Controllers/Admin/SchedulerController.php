@@ -307,7 +307,8 @@ class SchedulerController extends Controller implements HasMiddleware
     {
         $heartbeat = Cache::get('scheduler_heartbeat');
         $projectPath = base_path();
-        $phpBin = PHP_BINARY ?: 'php';
+        // PHP_BINARY returns FPM binary when running under web server — use 'php' for cron display
+        $phpBin = PHP_SAPI === 'cli' ? (PHP_BINARY ?: 'php') : 'php';
 
         if (!$heartbeat) {
             return [
