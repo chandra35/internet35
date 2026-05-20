@@ -214,6 +214,9 @@
                 <span id="selectedCount">0</span> pelanggan dipilih
             </div>
             <div class="btn-group">
+                <button type="button" class="btn btn-warning btn-sm" id="btnBulkActivate">
+                    <i class="fas fa-check-circle mr-1"></i> Aktifkan Terpilih
+                </button>
                 <button type="button" class="btn btn-info btn-sm" id="btnBulkSyncMikrotik">
                     <i class="fas fa-sync mr-1"></i> Sync ke Mikrotik
                 </button>
@@ -470,6 +473,43 @@ $(function() {
     function getSelectedIds() {
         return Array.from(document.querySelectorAll('.customer-check:checked')).map(cb => cb.value);
     }
+
+    // Bulk activate pending customers
+    $('#btnBulkActivate').on('click', function() {
+        const ids = getSelectedIds();
+        if (ids.length === 0) return;
+        Swal.fire({
+            title: 'Aktifkan Pelanggan?',
+            html: `<p>Aktifkan <strong>${ids.length}</strong> pelanggan terpilih?</p>
+                   <small class="text-muted">Hanya pelanggan berstatus <strong>Pending</strong> yang akan diproses. Setelah aktif, pelanggan akan mendapat invoice pada hari tagihan berikutnya.</small>`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: '<i class="fas fa-check-circle mr-1"></i> Ya, Aktifkan',
+            cancelButtonText: 'Batal',
+            confirmButtonColor: '#e6a817',
+        }).then(result => {
+            if (result.isConfirmed) {
+                Swal.fire({ title: 'Memproses...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                $.ajax({
+                    url: '{{ route("admin.customers.bulk-activate") }}',
+                    method: 'POST',
+                    data: { _token: '{{ csrf_token() }}', customer_ids: ids },
+                    success: function(response) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Berhasil!',
+                            text: response.message,
+                            timer: 2000,
+                            showConfirmButton: false,
+                        }).then(() => location.reload());
+                    },
+                    error: function(xhr) {
+                        Swal.fire('Error', xhr.responseJSON?.message || 'Gagal mengaktifkan pelanggan', 'error');
+                    }
+                });
+            }
+        });
+    });
 
     // Bulk enable auto isolir
     $('#btnBulkEnableIsolir').on('click', function() {

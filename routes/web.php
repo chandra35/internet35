@@ -284,6 +284,7 @@ Route::prefix('admin')->middleware(['auth', 'role:superadmin|admin|admin-pop|tek
         Route::post('/bulk-auto-isolir', [CustomerController::class, 'bulkToggleAutoIsolir'])->name('bulk-auto-isolir');
         Route::post('/bulk-sync-mikrotik', [CustomerController::class, 'bulkSyncMikrotik'])->name('bulk-sync-mikrotik');
         Route::post('/bulk-generate-portal', [CustomerController::class, 'bulkGeneratePortalAccount'])->name('bulk-generate-portal');
+        Route::post('/bulk-activate', [CustomerController::class, 'bulkActivate'])->name('bulk-activate');
         Route::get('/packages/{router}', [CustomerController::class, 'getPackagesByRouter'])->name('packages-by-router');
         Route::post('/check-username', [CustomerController::class, 'checkUsername'])->name('check-username');
     });

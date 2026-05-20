@@ -976,6 +976,35 @@ class CustomerController extends Controller implements HasMiddleware
     }
 
     /**
+     * Bulk activate pending customers
+     */
+    public function bulkActivate(Request $request)
+    {
+        $request->validate([
+            'customer_ids' => 'required|array|min:1',
+            'customer_ids.*' => 'required|uuid|exists:customers,id',
+        ]);
+
+        $user = auth()->user();
+        $customerIds = $request->customer_ids;
+
+        $query = Customer::whereIn('id', $customerIds)->where('status', 'pending');
+        if (!$user->hasRole('superadmin')) {
+            $query->where('pop_id', $user->id);
+        }
+
+        $affected = $query->update(['status' => 'active']);
+
+        $this->activityLog->log('customers', "Mengaktifkan {$affected} pelanggan (bulk activate)");
+
+        return response()->json([
+            'success' => true,
+            'message' => "Berhasil mengaktifkan {$affected} pelanggan.",
+            'affected' => $affected,
+        ]);
+    }
+
+    /**
      * Bulk sync customers to Mikrotik
      */
     public function bulkSyncMikrotik(Request $request)
@@ -1364,7 +1393,8 @@ class CustomerController extends Controller implements HasMiddleware
 
         try {
             $defaultPackageId = $request->default_package_id ?: null;
-            $import = new CustomerImport($popId, false, $defaultPackageId);
+            $activateNow = $request->boolean('activate_now');
+            $import = new CustomerImport($popId, false, $defaultPackageId, $activateNow);
             Excel::import($import, $request->file('file'));
 
             $results = $import->getResults();

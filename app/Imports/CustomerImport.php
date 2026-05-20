@@ -24,12 +24,14 @@ class CustomerImport implements ToCollection, WithHeadingRow, SkipsEmptyRows
     protected bool $previewMode = false;
     protected array $previewRows = [];
     protected ?string $defaultPackageId = null;
+    protected bool $activateNow = false;
 
-    public function __construct(string $popId, bool $previewMode = false, ?string $defaultPackageId = null)
+    public function __construct(string $popId, bool $previewMode = false, ?string $defaultPackageId = null, bool $activateNow = false)
     {
         $this->popId = $popId;
         $this->previewMode = $previewMode;
         $this->defaultPackageId = $defaultPackageId;
+        $this->activateNow = $activateNow;
     }
 
     /**
@@ -259,10 +261,11 @@ class CustomerImport implements ToCollection, WithHeadingRow, SkipsEmptyRows
             'installation_date' => $installationDate,
             'monthly_fee' => is_numeric($monthlyFee) ? $monthlyFee : ($package->price ?? 0),
             'installation_fee' => is_numeric($installationFee) ? $installationFee : 0,
-            'billing_day' => is_numeric($billingDay) && $billingDay >= 1 && $billingDay <= 28 ? (int)$billingDay : 1,
-            'status' => 'pending',
+            'billing_day' => is_numeric($billingDay) && $billingDay >= 1 && $billingDay <= 28 ? (int)$billingDay : (int)now()->format('j'),
+            'status' => $this->activateNow ? 'active' : 'pending',
             'notes' => $notes ?: null,
             'internal_notes' => '[IMPORT] Diimport dari file Excel pada ' . now()->format('d/m/Y H:i')
+                . ($this->activateNow ? ' — ✅ Langsung diaktifkan' : '')
                 . ($needsCredentials ? ' — ⚠️ Username/password belum diisi, perlu sync ke Mikrotik' : ''),
             'registered_by' => auth()->id(),
             'created_by' => auth()->id(),

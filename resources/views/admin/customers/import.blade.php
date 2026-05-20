@@ -183,9 +183,17 @@
                         <button type="button" class="btn btn-default" id="btnBackToUpload">
                             <i class="fas fa-arrow-left mr-1"></i> Ganti File
                         </button>
-                        <button type="button" class="btn btn-primary btn-lg" id="btnStartImport" disabled>
-                            <i class="fas fa-file-import mr-1"></i> Import <span id="importCount">0</span> Pelanggan
-                        </button>
+                        <div class="d-flex align-items-center">
+                            <div class="custom-control custom-switch mr-3">
+                                <input type="checkbox" class="custom-control-input" id="activateNowCheck">
+                                <label class="custom-control-label" for="activateNowCheck">
+                                    Langsung aktifkan pelanggan
+                                </label>
+                            </div>
+                            <button type="button" class="btn btn-primary btn-lg" id="btnStartImport" disabled>
+                                <i class="fas fa-file-import mr-1"></i> Import <span id="importCount">0</span> Pelanggan
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -344,7 +352,7 @@
                         <i class="fas fa-exclamation-triangle mr-1"></i>
                         <strong>Catatan:</strong>
                         <ul class="mb-0 pl-3">
-                            <li>Status import: <strong>Pending</strong></li>
+                            <li>Default status: <strong>Pending</strong> (aktifkan via toggle)</li>
                             <li>Tidak otomatis sync ke Mikrotik</li>
                             <li>Telepon duplikat di POP sama dilewati</li>
                             <li>Username PPPoE harus unik (jika diisi)</li>
@@ -612,6 +620,10 @@ $(function() {
         const defaultPkgId = $('#defaultPackageId').val();
         if (defaultPkgId) {
             formData.append('default_package_id', defaultPkgId);
+        }
+        // Include activate_now flag
+        if ($('#activateNowCheck').is(':checked')) {
+            formData.append('activate_now', '1');
         }
 
         $.ajax({
