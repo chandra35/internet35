@@ -30,6 +30,7 @@ use App\Http\Controllers\Admin\InvoiceController;
 use App\Http\Controllers\Admin\SchedulerController;
 use App\Http\Controllers\Admin\DataMaintenanceController;
 use App\Http\Controllers\Admin\ResidentController;
+use App\Http\Controllers\Admin\ToolsController;
 use App\Http\Controllers\Admin\OdcController;
 use App\Http\Controllers\Admin\OdpController;
 use App\Http\Controllers\Admin\NetworkMapController;
@@ -477,6 +478,16 @@ Route::prefix('admin')->middleware(['auth', 'role:superadmin|admin|admin-pop|tek
         Route::post('/bulk-destroy', [ResidentController::class, 'bulkDestroy'])->name('bulk-destroy');
         Route::post('/clear-all', [ResidentController::class, 'clearAll'])->name('clear-all');
         Route::delete('/{resident}', [ResidentController::class, 'destroy'])->name('destroy');
+    });
+
+    // Tools - Data Management (for admin-pop to clean transactional data)
+    Route::prefix('tools')->name('tools.')->middleware('role:superadmin|admin|admin-pop')->group(function () {
+        Route::get('/', [ToolsController::class, 'index'])->name('index');
+        Route::post('/clear-invoices', [ToolsController::class, 'clearInvoices'])->name('clear-invoices');
+        Route::post('/clear-payments', [ToolsController::class, 'clearPayments'])->name('clear-payments');
+        Route::post('/clear-notification-logs', [ToolsController::class, 'clearNotificationLogs'])->name('clear-notification-logs');
+        Route::post('/clear-activity-logs', [ToolsController::class, 'clearActivityLogs'])->name('clear-activity-logs');
+        Route::post('/reset-billing', [ToolsController::class, 'resetBilling'])->name('reset-billing');
     });
 
     // Data Maintenance (dangerous operations)

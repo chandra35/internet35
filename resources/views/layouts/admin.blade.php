@@ -633,6 +633,16 @@
                     </li>
                     @endcanany
 
+                    {{-- ============ TOOLS ============ --}}
+                    @role('superadmin|admin|admin-pop')
+                    <li class="nav-item">
+                        <a href="{{ route('admin.tools.index') }}" class="nav-link {{ request()->routeIs('admin.tools.*') ? 'active' : '' }}">
+                            <i class="nav-icon fas fa-tools text-warning"></i>
+                            <p>Tools</p>
+                        </a>
+                    </li>
+                    @endrole
+
                     {{-- ============ SUPERADMIN ============ --}}
                     @role('superadmin')
                     @php $saOpen = request()->routeIs('admin.pop-settings.*') || request()->routeIs('admin.payment-gateways.sandbox-requests') || request()->routeIs('admin.residents.*') || request()->routeIs('admin.data-maintenance.*'); @endphp
