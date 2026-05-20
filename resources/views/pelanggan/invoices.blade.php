@@ -78,37 +78,28 @@
                 </div>
                 {{-- Main info --}}
                 <div class="flex-grow-1" style="min-width:0;">
-                    {{-- Row 1: nomor invoice + nominal --}}
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div class="d-flex align-items-center flex-wrap" style="gap:4px;">
-                            <span style="font-size:0.8rem;font-weight:600;color:#1565c0;">{{ $invoice->invoice_number }}</span>
-                            <span class="badge badge-{{ $invoice->status_color }}" style="font-size:0.6rem;">{{ $invoice->status_label }}</span>
-                            @if($invoice->status === 'overdue')
-                            <span class="badge badge-danger" style="font-size:0.58rem;">{{ $invoice->due_date->diffInDays(now()) }}h terlambat</span>
-                            @endif
-                        </div>
-                        <div class="ml-2 text-right flex-shrink-0">
-                            <span style="font-size:0.9rem;font-weight:700;color:#1a1a1a;">Rp {{ number_format($invoice->total_amount, 0, ',', '.') }}</span>
-                        </div>
+                    {{-- Baris 1: nomor · badge · nominal inline --}}
+                    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:5px;">
+                        <span style="font-size:0.8rem;font-weight:600;color:#1565c0;">{{ $invoice->invoice_number }}</span>
+                        <span class="badge badge-{{ $invoice->status_color }}" style="font-size:0.6rem;">{{ $invoice->status_label }}</span>
+                        @if($invoice->status === 'overdue')
+                        <span class="badge badge-danger" style="font-size:0.58rem;">{{ $invoice->due_date->diffInDays(now()) }}h terlambat</span>
+                        @endif
+                        <span style="font-size:0.9rem;font-weight:700;color:#1a1a1a;">Rp&nbsp;{{ number_format($invoice->total_amount, 0, ',', '.') }}</span>
+                        @if($invoice->paid_amount > 0 && $invoice->status !== 'paid')
+                        <span style="font-size:0.68rem;color:#28a745;">(+Rp&nbsp;{{ number_format($invoice->paid_amount,0,',','.') }})</span>
+                        @endif
+                        @if(in_array($invoice->status, ['unpaid','overdue','pending']))
+                        <span class="btn btn-xs btn-primary" style="padding:1px 8px;font-size:0.68rem;"><i class="fas fa-credit-card mr-1"></i>Bayar</span>
+                        @endif
                     </div>
-                    {{-- Row 2: periode + aksi --}}
-                    <div class="d-flex align-items-center justify-content-between mt-1">
-                        <div style="font-size:0.71rem;color:#888;">
-                            <i class="fas fa-calendar-alt mr-1"></i>
-                            {{ $invoice->period_start?->format('d M') ?? '-' }}–{{ $invoice->period_end?->format('d M Y') ?? '-' }}
-                            @if($invoice->due_date)
-                            &nbsp;·&nbsp;<span class="{{ ($invoice->due_date->isPast() && !in_array($invoice->status,['paid','cancelled'])) ? 'text-danger' : '' }}">Tempo {{ $invoice->due_date->format('d M Y') }}</span>
-                            @endif
-                        </div>
-                        <div class="ml-2 flex-shrink-0">
-                            @if($invoice->paid_amount > 0 && $invoice->status !== 'paid')
-                            <span style="font-size:0.65rem;color:#28a745;">+Rp {{ number_format($invoice->paid_amount,0,',','.') }}</span>
-                            @elseif(in_array($invoice->status, ['unpaid','overdue','pending']))
-                            <span class="btn btn-xs btn-primary" style="padding:1px 7px;font-size:0.67rem;"><i class="fas fa-credit-card mr-1"></i>Bayar</span>
-                            @else
-                            <i class="fas fa-chevron-right" style="font-size:0.68rem;color:#ccc;"></i>
-                            @endif
-                        </div>
+                    {{-- Baris 2: periode + tempo --}}
+                    <div style="font-size:0.71rem;color:#888;margin-top:4px;">
+                        <i class="fas fa-calendar-alt mr-1"></i>
+                        {{ $invoice->period_start?->format('d M') ?? '-' }}–{{ $invoice->period_end?->format('d M Y') ?? '-' }}
+                        @if($invoice->due_date)
+                        &nbsp;·&nbsp;<span class="{{ ($invoice->due_date->isPast() && !in_array($invoice->status,['paid','cancelled'])) ? 'text-danger' : '' }}">Tempo {{ $invoice->due_date->format('d M Y') }}</span>
+                        @endif
                     </div>
                 </div>
             </div>

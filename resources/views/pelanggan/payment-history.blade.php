@@ -75,36 +75,22 @@
                 </div>
                 {{-- Info --}}
                 <div class="flex-grow-1" style="min-width:0;">
-                    {{-- Row 1: nama gateway + nominal --}}
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div class="d-flex align-items-center flex-wrap" style="gap:4px;">
-                            <span style="font-size:0.78rem;font-weight:600;color:#333;">
-                                {{ $payment->paymentGateway?->name ?? ucfirst(str_replace('_',' ',$payment->payment_method ?? 'Pembayaran')) }}
-                            </span>
-                            <span class="badge badge-{{ $payment->status_color }}" style="font-size:0.58rem;">{{ $payment->status_label }}</span>
-                        </div>
-                        <div class="ml-2 flex-shrink-0">
-                            <span style="font-size:0.9rem;font-weight:700;color:{{ $payment->status === 'success' ? '#28a745' : '#1a1a1a' }};">
-                                Rp {{ number_format($payment->amount, 0, ',', '.') }}
-                            </span>
-                        </div>
+                    {{-- Baris 1: gateway · badge · nominal inline --}}
+                    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:5px;">
+                        <span style="font-size:0.78rem;font-weight:600;color:#333;">{{ $payment->paymentGateway?->name ?? ucfirst(str_replace('_',' ',$payment->payment_method ?? 'Pembayaran')) }}</span>
+                        <span class="badge badge-{{ $payment->status_color }}" style="font-size:0.58rem;">{{ $payment->status_label }}</span>
+                        <span style="font-size:0.9rem;font-weight:700;color:{{ $payment->status === 'success' ? '#28a745' : '#1a1a1a' }};">Rp&nbsp;{{ number_format($payment->amount, 0, ',', '.') }}</span>
                     </div>
-                    {{-- Row 2: tanggal + invoice + status konfirmasi --}}
-                    <div class="d-flex align-items-center justify-content-between mt-1">
-                        <div style="font-size:0.7rem;color:#888;">
-                            <i class="fas fa-calendar mr-1"></i>{{ $payment->created_at->format('d M Y, H:i') }}
-                            @if($payment->invoice)
-                            &nbsp;·&nbsp;<a href="{{ route('pelanggan.invoice', $payment->invoice) }}" class="text-muted" style="font-size:0.68rem;"><i class="fas fa-file-invoice mr-1"></i>{{ $payment->invoice->invoice_number }}</a>
-                            @endif
-                        </div>
+                    {{-- Baris 2: tanggal · invoice · konfirmasi --}}
+                    <div style="font-size:0.7rem;color:#888;margin-top:4px;">
+                        <i class="fas fa-calendar mr-1"></i>{{ $payment->created_at->format('d M Y, H:i') }}
+                        @if($payment->invoice)
+                        &nbsp;·&nbsp;<a href="{{ route('pelanggan.invoice', $payment->invoice) }}" class="text-muted"><i class="fas fa-file-invoice mr-1"></i>{{ $payment->invoice->invoice_number }}</a>
+                        @endif
                         @if($payment->status === 'success' && $payment->paid_at)
-                        <div style="font-size:0.65rem;color:#28a745;margin-left:8px;flex-shrink:0;">
-                            <i class="fas fa-check-circle mr-1"></i>{{ $payment->paid_at->format('d M Y') }}
-                        </div>
+                        &nbsp;·&nbsp;<span style="color:#28a745;"><i class="fas fa-check-circle mr-1"></i>{{ $payment->paid_at->format('d M Y') }}</span>
                         @elseif(in_array($payment->status, ['pending','processing']))
-                        <div style="font-size:0.65rem;color:#e67e22;margin-left:8px;flex-shrink:0;">
-                            <i class="fas fa-hourglass-half mr-1"></i>Menunggu
-                        </div>
+                        &nbsp;·&nbsp;<span style="color:#e67e22;"><i class="fas fa-hourglass-half mr-1"></i>Menunggu konfirmasi</span>
                         @endif
                     </div>
                     @if($payment->external_id)
