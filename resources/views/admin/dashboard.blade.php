@@ -105,6 +105,10 @@
                         <strong>Rp {{ number_format($paidThisMonthAmount, 0, ',', '.') }}</strong>
                     </div>
                     <div class="sc-row">
+                        <span>Seharusnya Diterima</span>
+                        <strong>Rp {{ number_format($expectedRevenue, 0, ',', '.') }}</strong>
+                    </div>
+                    <div class="sc-row">
                         <span>Sudah Terbayar</span>
                         <strong>{{ number_format($paidThisMonthCount) }} invoice</strong>
                     </div>

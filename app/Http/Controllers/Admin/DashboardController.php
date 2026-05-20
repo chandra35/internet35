@@ -33,6 +33,7 @@ class DashboardController extends Controller implements HasMiddleware
         $totalCustomers     = (clone $custQ)->count();
         $activeCustomers    = (clone $custQ)->where('status', 'active')->count();
         $suspendedCustomers = (clone $custQ)->where('status', 'suspended')->count();
+        $expectedRevenue    = (clone $custQ)->where('status', 'active')->sum('monthly_fee');
 
         // ── Invoice stats ────────────────────────────────────────────
         $invQ = CustomerInvoice::whereHas(
@@ -78,7 +79,7 @@ class DashboardController extends Controller implements HasMiddleware
         return view('admin.dashboard', compact(
             'totalUsers', 'activeUsers', 'totalRoles', 'todayLogins',
             'recentActivities', 'usersByRole', 'activityChart',
-            'totalCustomers', 'activeCustomers', 'suspendedCustomers',
+            'totalCustomers', 'activeCustomers', 'suspendedCustomers', 'expectedRevenue',
             'pendingInvoicesCount', 'pendingInvoicesAmount',
             'paidThisMonthCount', 'paidThisMonthAmount'
         ));
