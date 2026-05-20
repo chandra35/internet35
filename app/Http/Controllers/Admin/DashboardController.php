@@ -51,6 +51,21 @@ class DashboardController extends Controller implements HasMiddleware
             ->whereYear('updated_at', now()->year)
             ->sum('paid_amount');
 
+        // ── Invoice recap this month (for sidebar panel) ─────────────
+        $monthInvQ = (clone $invQ)
+            ->whereMonth('invoice_date', now()->month)
+            ->whereYear('invoice_date', now()->year);
+        $invoiceRecap = [
+            'total_count'    => (clone $monthInvQ)->count(),
+            'total_amount'   => (clone $monthInvQ)->sum('total_amount'),
+            'paid_count'     => (clone $monthInvQ)->where('status', 'paid')->count(),
+            'paid_amount'    => (clone $monthInvQ)->where('status', 'paid')->sum('paid_amount'),
+            'pending_count'  => (clone $monthInvQ)->where('status', 'pending')->count(),
+            'pending_amount' => (clone $monthInvQ)->where('status', 'pending')->sum('total_amount'),
+            'overdue_count'  => (clone $monthInvQ)->where('status', 'overdue')->count(),
+            'overdue_amount' => (clone $monthInvQ)->where('status', 'overdue')->sum('total_amount'),
+        ];
+
         // ── Activity / roles (unchanged) ─────────────────────────────
         $totalUsers = User::count();
         $activeUsers = User::where('is_active', true)->count();
@@ -60,19 +75,21 @@ class DashboardController extends Controller implements HasMiddleware
             ->count();
 
         $recentActivities = ActivityLog::with('user')
+            ->when($popId, fn($q) => $q->where('user_id', $popId))
             ->latest()
-            ->take(10)
+            ->take(15)
             ->get();
 
         $usersByRole = Role::withCount('users')->get();
 
-        // Activity chart data (last 7 days)
+        // Activity chart data (last 7 days) — scoped to POP
         $activityChart = [];
         for ($i = 6; $i >= 0; $i--) {
             $date = now()->subDays($i);
             $activityChart[] = [
                 'date'  => $date->format('d M'),
-                'count' => ActivityLog::whereDate('created_at', $date)->count(),
+                'count' => ActivityLog::when($popId, fn($q) => $q->where('user_id', $popId))
+                    ->whereDate('created_at', $date)->count(),
             ];
         }
 
@@ -81,7 +98,7 @@ class DashboardController extends Controller implements HasMiddleware
             'recentActivities', 'usersByRole', 'activityChart',
             'totalCustomers', 'activeCustomers', 'suspendedCustomers', 'expectedRevenue',
             'pendingInvoicesCount', 'pendingInvoicesAmount',
-            'paidThisMonthCount', 'paidThisMonthAmount'
+            'paidThisMonthCount', 'paidThisMonthAmount', 'invoiceRecap'
         ));
     }
 }

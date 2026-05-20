@@ -182,34 +182,60 @@
             </div>
         </div>
 
-        <!-- Users by Role -->
+        <!-- Rekap Invoice -->
         <div class="col-lg-4">
-            <div class="card">
+            <div class="card h-100">
                 <div class="card-header">
                     <h3 class="card-title">
-                        <i class="fas fa-users mr-1"></i>
-                        Users per Role
+                        <i class="fas fa-file-invoice mr-1"></i>
+                        Rekap Invoice {{ now()->translatedFormat('F Y') }}
                     </h3>
+                    <div class="card-tools">
+                        <a href="{{ route('admin.invoices.index') }}" class="btn btn-xs btn-primary">Lihat Semua</a>
+                    </div>
                 </div>
-                <div class="card-body">
-                    @forelse($usersByRole as $role)
-                        @php
-                            $colors = ['superadmin' => 'danger', 'admin' => 'primary', 'admin-pop' => 'info', 'client' => 'success'];
-                            $color = $colors[$role->name] ?? 'secondary';
-                            $percentage = $totalUsers > 0 ? ($role->users_count / $totalUsers) * 100 : 0;
-                        @endphp
-                        <div class="mb-3">
-                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                <span class="badge badge-{{ $color }}">{{ ucfirst($role->name) }}</span>
-                                <span class="text-muted">{{ $role->users_count }} users</span>
-                            </div>
-                            <div class="progress" style="height: 8px;">
-                                <div class="progress-bar bg-{{ $color }}" style="width: {{ $percentage }}%"></div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush" style="font-size:0.82rem;">
+                        <div class="list-group-item d-flex justify-content-between align-items-center py-2">
+                            <span class="text-muted"><i class="fas fa-hashtag mr-1"></i> Total Generated</span>
+                            <strong>{{ number_format($invoiceRecap['total_count']) }} inv</strong>
+                        </div>
+                        <div class="list-group-item d-flex justify-content-between align-items-center py-2">
+                            <span class="text-success"><i class="fas fa-check-circle mr-1"></i> Lunas</span>
+                            <div class="text-right">
+                                <div><strong class="text-success">{{ number_format($invoiceRecap['paid_count']) }} inv</strong></div>
+                                <small class="text-muted">Rp {{ number_format($invoiceRecap['paid_amount'], 0, ',', '.') }}</small>
                             </div>
                         </div>
-                    @empty
-                        <p class="text-muted text-center">Belum ada data role</p>
-                    @endforelse
+                        <div class="list-group-item d-flex justify-content-between align-items-center py-2">
+                            <span class="text-warning"><i class="fas fa-clock mr-1"></i> Belum Bayar</span>
+                            <div class="text-right">
+                                <div><strong class="text-warning">{{ number_format($invoiceRecap['pending_count']) }} inv</strong></div>
+                                <small class="text-muted">Rp {{ number_format($invoiceRecap['pending_amount'], 0, ',', '.') }}</small>
+                            </div>
+                        </div>
+                        <div class="list-group-item d-flex justify-content-between align-items-center py-2">
+                            <span class="text-danger"><i class="fas fa-exclamation-circle mr-1"></i> Jatuh Tempo</span>
+                            <div class="text-right">
+                                <div><strong class="text-danger">{{ number_format($invoiceRecap['overdue_count']) }} inv</strong></div>
+                                <small class="text-muted">Rp {{ number_format($invoiceRecap['overdue_amount'], 0, ',', '.') }}</small>
+                            </div>
+                        </div>
+                        @php
+                            $collected = $invoiceRecap['total_amount'] > 0
+                                ? round($invoiceRecap['paid_amount'] / $invoiceRecap['total_amount'] * 100)
+                                : 0;
+                        @endphp
+                        <div class="list-group-item py-2">
+                            <div class="d-flex justify-content-between mb-1">
+                                <small class="text-muted">Terkumpul</small>
+                                <small class="text-muted">{{ $collected }}%</small>
+                            </div>
+                            <div class="progress" style="height:6px;">
+                                <div class="progress-bar bg-success" style="width:{{ $collected }}%"></div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -223,6 +249,9 @@
                     <h3 class="card-title">
                         <i class="fas fa-history mr-1"></i>
                         Aktivitas Terbaru
+                        @if(!auth()->user()->hasRole('superadmin'))
+                            <small class="text-muted ml-1">(POP saya)</small>
+                        @endif
                     </h3>
                     <div class="card-tools">
                         @can('activity-logs.view')
