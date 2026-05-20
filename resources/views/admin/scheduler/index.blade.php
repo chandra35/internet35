@@ -18,6 +18,49 @@
         transform: translateY(-3px);
         box-shadow: 0 5px 15px rgba(0,0,0,0.1);
     }
+    /* Cron Monitor Card — tools page style */
+    .cron-card {
+        border: none;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        transition: box-shadow 0.2s, transform 0.2s;
+    }
+    .cron-card:hover {
+        box-shadow: 0 6px 20px rgba(0,0,0,0.13);
+    }
+    .cron-icon {
+        width: 52px; height: 52px; border-radius: 12px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 22px; color: #fff; flex-shrink: 0;
+        margin-bottom: 14px;
+    }
+    .ci-success { background: linear-gradient(135deg, #28a745, #20c35d); }
+    .ci-warning { background: linear-gradient(135deg, #e0871a, #f4a721); }
+    .ci-danger  { background: linear-gradient(135deg, #dc3545, #c82333); }
+    .ci-unknown { background: linear-gradient(135deg, #6c757d, #868e96); }
+    .cron-status-label {
+        font-size: 1rem; font-weight: 700; margin-bottom: 4px;
+    }
+    .cron-status-detail {
+        font-size: 0.8rem; color: #6c757d; margin-bottom: 12px;
+    }
+    .cron-heartbeat-row {
+        display: flex; align-items: center; gap: 8px;
+        padding: 8px 10px; background: #f8f9fa; border-radius: 8px;
+        margin-bottom: 10px; font-size: 0.8rem;
+    }
+    .cron-heartbeat-dot {
+        width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+    }
+    .dot-success { background: #28a745; box-shadow: 0 0 0 3px rgba(40,167,69,0.25); }
+    .dot-warning { background: #e0871a; box-shadow: 0 0 0 3px rgba(224,135,26,0.25); }
+    .dot-danger  { background: #dc3545; box-shadow: 0 0 0 3px rgba(220,53,69,0.25); }
+    .dot-unknown { background: #6c757d; }
+    @keyframes dotPulse {
+        0%, 100% { box-shadow: 0 0 0 3px rgba(40,167,69,0.25); }
+        50% { box-shadow: 0 0 0 6px rgba(40,167,69,0.1); }
+    }
+    .dot-success { animation: dotPulse 2s infinite; }
     .task-card {
         border-left: 4px solid #6c757d;
         transition: all 0.2s ease;
@@ -420,55 +463,52 @@
             @endif
         </div>
         
-        <!-- Quick Info -->
-        <div class="card">
-            <div class="card-header bg-info">
-                <h3 class="card-title text-white">
-                    <i class="fas fa-info-circle mr-2"></i>Setup Scheduler
-                </h3>
-            </div>
-            <div class="card-body">
-                @php
-                    $isWindows = strtoupper(substr(PHP_OS, 0, 3)) === 'WIN';
-                    $projectPath = base_path();
-                    $phpBin = PHP_BINARY ?: 'php';
-                @endphp
+        <!-- Cron Job Monitor -->
+        <div class="card cron-card">
+            <div class="card-body" style="padding: 18px 20px;">
 
+                {{-- Icon + Status --}}
+                <div class="d-flex align-items-start">
+                    <div class="cron-icon ci-{{ $cronStatus['color'] === 'success' ? 'success' : ($cronStatus['color'] === 'warning' ? 'warning' : ($cronStatus['color'] === 'danger' ? 'danger' : 'unknown')) }}"
+                         id="cronIconWrapper">
+                        <i class="fas {{ $cronStatus['icon'] }}" id="cronIcon"></i>
+                    </div>
+                    <div class="ml-3 flex-grow-1">
+                        <div class="cron-status-label" id="cronStatusLabel">{{ $cronStatus['label'] }}</div>
+                        <div class="cron-status-detail" id="cronStatusDetail">{{ $cronStatus['detail'] }}</div>
+                    </div>
+                </div>
+
+                {{-- Heartbeat row --}}
+                <div class="cron-heartbeat-row" id="cronHeartbeatRow">
+                    <div class="cron-heartbeat-dot dot-{{ $cronStatus['color'] === 'success' ? 'success' : ($cronStatus['color'] === 'warning' ? 'warning' : ($cronStatus['color'] === 'danger' ? 'danger' : 'unknown')) }}"
+                         id="cronDot"></div>
+                    <div>
+                        @if($cronStatus['last_heartbeat'])
+                            <span id="cronLastText">Heartbeat: <strong>{{ $cronStatus['last_heartbeat_full'] }}</strong></span>
+                            <span class="text-muted ml-2" id="cronAgoText">{{ $cronStatus['last_heartbeat_human'] }}</span>
+                        @else
+                            <span id="cronLastText" class="text-muted">Belum ada data heartbeat</span>
+                        @endif
+                    </div>
+                </div>
+
+                {{-- Cron command --}}
                 <div class="mb-2">
-                    <span class="badge badge-{{ $isWindows ? 'primary' : 'success' }}">
-                        <i class="fas fa-{{ $isWindows ? 'windows' : 'linux' }} mr-1"></i>
-                        {{ PHP_OS }}
-                    </span>
-                    <small class="text-muted ml-1">Terdeteksi otomatis</small>
+                    <div class="small text-muted mb-1"><i class="fas fa-terminal mr-1"></i> Crontab server:</div>
+                    <pre class="bg-dark text-white p-2 rounded" style="font-size: 0.72rem; white-space: pre-wrap; word-break: break-all; margin-bottom:0;">{{ $cronStatus['cron_command'] }}</pre>
                 </div>
 
-                @if($isWindows)
-                    <p class="small mb-2"><strong>Windows Task Scheduler:</strong></p>
-                    <pre class="bg-dark text-white p-2 rounded small mb-2" style="white-space: pre-wrap; word-break: break-all;">schtasks /create /sc minute /mo 1 /tn "LaravelScheduler" /tr "\"{{ $phpBin }}\" \"{{ $projectPath }}\artisan\" schedule:run"</pre>
-
-                    <p class="small mb-2"><strong>Atau jalankan langsung (development):</strong></p>
-                    <pre class="bg-dark text-white p-2 rounded small mb-2">cd "{{ $projectPath }}"
-php artisan schedule:work</pre>
-
-                    <p class="small mb-2"><strong>Atau di PowerShell (background):</strong></p>
-                    <pre class="bg-dark text-white p-2 rounded small mb-0" style="white-space: pre-wrap; word-break: break-all;">Start-Process -NoNewWindow -FilePath "{{ $phpBin }}" -ArgumentList "\"{{ $projectPath }}\artisan\", schedule:work"</pre>
-                @else
-                    <p class="small mb-2"><strong>Tambahkan di crontab:</strong></p>
-                    <pre class="bg-dark text-white p-2 rounded small mb-2" style="white-space: pre-wrap; word-break: break-all;">* * * * * cd {{ $projectPath }} && {{ $phpBin }} artisan schedule:run >> /dev/null 2>&1</pre>
-
-                    <p class="small mb-2"><strong>Perintah edit crontab:</strong></p>
-                    <pre class="bg-dark text-white p-2 rounded small mb-2">crontab -e</pre>
-
-                    <p class="small mb-2"><strong>Atau untuk development:</strong></p>
-                    <pre class="bg-dark text-white p-2 rounded small mb-0">cd {{ $projectPath }} && php artisan schedule:work</pre>
-                @endif
-
-                <hr>
-                <div class="small text-muted">
-                    <i class="fas fa-lightbulb text-warning mr-1"></i>
-                    Task yang dibuat di halaman ini otomatis terdaftar di Laravel Scheduler.
-                    Pastikan <code>schedule:run</code> aktif di server production.
+                {{-- Footer: refresh info + button --}}
+                <div class="d-flex justify-content-between align-items-center mt-2">
+                    <small class="text-muted" id="cronRefreshText">
+                        <i class="fas fa-sync-alt mr-1"></i> Auto-refresh 60 detik
+                    </small>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="refreshCronStatus()" id="cronRefreshBtn">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
                 </div>
+
             </div>
         </div>
     </div>
@@ -894,5 +934,69 @@ function doFix(action, data) {
         }
     });
 }
+
+/**
+ * Cron Status Monitor
+ */
+var cronRefreshTimer = null;
+var cronCountdown = 60;
+
+const CRON_ICON_MAP = {
+    success: { iconClass: 'ci-success', dotClass: 'dot-success', icon: 'fa-check-circle' },
+    warning: { iconClass: 'ci-warning', dotClass: 'dot-warning', icon: 'fa-exclamation-triangle' },
+    error:   { iconClass: 'ci-danger',  dotClass: 'dot-danger',  icon: 'fa-times-circle' },
+    danger:  { iconClass: 'ci-danger',  dotClass: 'dot-danger',  icon: 'fa-times-circle' },
+    unknown: { iconClass: 'ci-unknown', dotClass: 'dot-unknown', icon: 'fa-question-circle' },
+};
+
+function applyCronStatus(data) {
+    const map = CRON_ICON_MAP[data.status] || CRON_ICON_MAP['unknown'];
+    $('#cronIconWrapper').removeClass('ci-success ci-warning ci-danger ci-unknown').addClass(map.iconClass);
+    $('#cronIcon').attr('class', 'fas ' + map.icon);
+    $('#cronDot').removeClass('dot-success dot-warning dot-danger dot-unknown').addClass(map.dotClass);
+    $('#cronStatusLabel').text(data.label);
+    $('#cronStatusDetail').text(data.detail);
+    if (data.last_heartbeat) {
+        $('#cronLastText').html('Heartbeat: <strong>' + (data.last_heartbeat_full || data.last_heartbeat) + '</strong>');
+        $('#cronAgoText').text(data.last_heartbeat_human || '');
+    } else {
+        $('#cronLastText').text('Belum ada data heartbeat');
+        $('#cronAgoText').text('');
+    }
+    $('#cronRefreshBtn').html('<i class="fas fa-sync-alt"></i>').prop('disabled', false);
+}
+
+function refreshCronStatus() {
+    clearInterval(cronRefreshTimer);
+    $('#cronRefreshBtn').html('<i class="fas fa-spinner fa-spin"></i>').prop('disabled', true);
+    $('#cronRefreshText').html('<i class="fas fa-sync-alt fa-spin mr-1"></i> Memperbarui...');
+
+    $.get('{{ route("admin.scheduler.cron-status") }}', function(data) {
+        applyCronStatus(data);
+        startCronCountdown();
+    }).fail(function() {
+        $('#cronRefreshText').html('<i class="fas fa-exclamation-triangle text-danger mr-1"></i> Gagal memuat');
+        $('#cronRefreshBtn').html('<i class="fas fa-sync-alt"></i>').prop('disabled', false);
+        startCronCountdown();
+    });
+}
+
+function startCronCountdown() {
+    cronCountdown = 60;
+    clearInterval(cronRefreshTimer);
+    cronRefreshTimer = setInterval(function() {
+        cronCountdown--;
+        if (cronCountdown <= 0) {
+            refreshCronStatus();
+        } else {
+            $('#cronRefreshText').html('<i class="fas fa-clock mr-1"></i> Refresh dalam <strong>' + cronCountdown + 's</strong>');
+        }
+    }, 1000);
+}
+
+// Start auto-refresh countdown on page load
+$(function() {
+    startCronCountdown();
+});
 </script>
 @endpush

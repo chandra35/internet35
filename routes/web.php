@@ -318,6 +318,7 @@ Route::prefix('admin')->middleware(['auth', 'role:superadmin|admin|admin-pop|tek
         Route::post('/clear-logs', [SchedulerController::class, 'clearLogs'])->name('clear-logs');
         Route::get('/smart-check', [SchedulerController::class, 'smartCheck'])->name('smart-check');
         Route::post('/smart-check/fix', [SchedulerController::class, 'autoFix'])->name('smart-check.fix');
+        Route::get('/cron-status', [SchedulerController::class, 'cronStatus'])->name('cron-status');
         Route::get('/{task}', [SchedulerController::class, 'show'])->name('show');
         Route::get('/{task}/edit', [SchedulerController::class, 'edit'])->name('edit');
         Route::put('/{task}', [SchedulerController::class, 'update'])->name('update');

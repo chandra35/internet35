@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\ActivityLogService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
@@ -75,6 +76,9 @@ class SchedulerController extends Controller implements HasMiddleware
             ->orderBy('name')
             ->get();
         
+        // Cron heartbeat status
+        $cronStatus = $this->buildCronStatus();
+
         // Statistics
         $stats = [
             'total' => $tasks->count(),
@@ -104,7 +108,7 @@ class SchedulerController extends Controller implements HasMiddleware
         
         return view('admin.scheduler.index', compact(
             'tasks', 'stats', 'recentLogs', 'popUsers', 'popId',
-            'availableCommands', 'schedulePresets'
+            'availableCommands', 'schedulePresets', 'cronStatus'
         ));
     }
 
@@ -294,6 +298,76 @@ class SchedulerController extends Controller implements HasMiddleware
             ->get();
         
         return view('admin.scheduler.logs', compact('logs', 'tasks'));
+    }
+
+    /**
+     * Build cron heartbeat status data
+     */
+    private function buildCronStatus(): array
+    {
+        $heartbeat = Cache::get('scheduler_heartbeat');
+        $projectPath = base_path();
+        $phpBin = PHP_BINARY ?: 'php';
+
+        if (!$heartbeat) {
+            return [
+                'status' => 'unknown',
+                'label' => 'Belum Terdeteksi',
+                'detail' => 'Cron job belum pernah berjalan atau cache sudah expired.',
+                'color' => 'warning',
+                'color_hex' => '#e0871a',
+                'icon' => 'fa-question-circle',
+                'last_heartbeat' => null,
+                'last_heartbeat_human' => null,
+                'minutes_ago' => null,
+                'cron_command' => "* * * * * cd {$projectPath} && {$phpBin} artisan schedule:run >> /dev/null 2>&1",
+            ];
+        }
+
+        $lastRun = \Carbon\Carbon::parse($heartbeat);
+        $minutesAgo = (int) abs(now()->diffInMinutes($lastRun, false));
+
+        if ($minutesAgo <= 2) {
+            $status  = 'ok';
+            $label   = 'Berjalan Normal';
+            $color   = 'success';
+            $colorHex = '#28a745';
+            $icon    = 'fa-check-circle';
+        } elseif ($minutesAgo <= 30) {
+            $status  = 'warning';
+            $label   = 'Mungkin Tertunda';
+            $color   = 'warning';
+            $colorHex = '#e0871a';
+            $icon    = 'fa-exclamation-triangle';
+        } else {
+            $status  = 'error';
+            $label   = 'Tidak Aktif';
+            $color   = 'danger';
+            $colorHex = '#dc3545';
+            $icon    = 'fa-times-circle';
+        }
+
+        return [
+            'status'              => $status,
+            'label'               => $label,
+            'detail'              => 'Terakhir aktif ' . $lastRun->diffForHumans(),
+            'color'               => $color,
+            'color_hex'           => $colorHex,
+            'icon'                => $icon,
+            'last_heartbeat'      => $heartbeat,
+            'last_heartbeat_human' => $lastRun->diffForHumans(),
+            'last_heartbeat_full'  => $lastRun->format('d M Y H:i:s'),
+            'minutes_ago'         => $minutesAgo,
+            'cron_command'        => "* * * * * cd {$projectPath} && {$phpBin} artisan schedule:run >> /dev/null 2>&1",
+        ];
+    }
+
+    /**
+     * AJAX endpoint — return live cron heartbeat status
+     */
+    public function cronStatus(): \Illuminate\Http\JsonResponse
+    {
+        return response()->json($this->buildCronStatus());
     }
 
     /**
@@ -558,24 +632,25 @@ class SchedulerController extends Controller implements HasMiddleware
     {
         $checks = [];
 
-        $anyTaskRan = ScheduledTask::where('is_enabled', true)->whereNotNull('last_run_at')->exists();
-        $latestRun = ScheduledTask::where('is_enabled', true)->max('last_run_at');
+        // Use cache heartbeat (updated every minute by Schedule::call) for accurate cron detection
+        $heartbeat = Cache::get('scheduler_heartbeat');
+        $minutesAgo = $heartbeat ? (int) abs(now()->diffInMinutes(\Carbon\Carbon::parse($heartbeat), false)) : null;
 
-        if (!$anyTaskRan) {
+        if (!$heartbeat) {
             $checks[] = [
                 'id' => 'schedule_run',
                 'category' => 'Server',
-                'label' => 'schedule:run belum pernah berjalan',
-                'detail' => 'Tidak ada task yang pernah dijalankan oleh scheduler. Pastikan <code>php artisan schedule:run</code> sudah disetup di server.',
+                'label' => 'Cron job belum terdeteksi',
+                'detail' => 'Heartbeat scheduler belum ada di cache. Pastikan <code>php artisan schedule:run</code> sudah disetup di crontab server.',
                 'status' => 'danger',
                 'fixable' => false,
             ];
-        } elseif ($latestRun && now()->diffInHours($latestRun) > 25) {
+        } elseif ($minutesAgo > 5) {
             $checks[] = [
                 'id' => 'schedule_run',
                 'category' => 'Server',
-                'label' => 'schedule:run mungkin tidak aktif',
-                'detail' => 'Task terakhir berjalan ' . \Carbon\Carbon::parse($latestRun)->diffForHumans() . '. Scheduler mungkin berhenti.',
+                'label' => 'Cron job mungkin berhenti',
+                'detail' => 'Heartbeat terakhir ' . \Carbon\Carbon::parse($heartbeat)->diffForHumans() . ' (' . $minutesAgo . ' menit lalu). Cron seharusnya jalan setiap menit.',
                 'status' => 'warning',
                 'fixable' => false,
             ];
@@ -583,8 +658,8 @@ class SchedulerController extends Controller implements HasMiddleware
             $checks[] = [
                 'id' => 'schedule_run',
                 'category' => 'Server',
-                'label' => 'Scheduler aktif',
-                'detail' => 'Task terakhir berjalan ' . \Carbon\Carbon::parse($latestRun)->diffForHumans() . '.',
+                'label' => 'Cron job aktif',
+                'detail' => 'Heartbeat terakhir ' . \Carbon\Carbon::parse($heartbeat)->diffForHumans() . '. Scheduler berjalan normal.',
                 'status' => 'success',
                 'fixable' => false,
             ];

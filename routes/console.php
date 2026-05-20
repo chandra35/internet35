@@ -3,6 +3,7 @@
 use App\Models\ScheduledTask;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Schedule;
@@ -10,6 +11,16 @@ use Illuminate\Support\Facades\Schedule;
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
+
+/*
+|--------------------------------------------------------------------------
+| Scheduler Heartbeat
+|--------------------------------------------------------------------------
+| Update cache every minute so the admin UI can monitor cron health.
+*/
+Schedule::call(function () {
+    Cache::put('scheduler_heartbeat', now()->toIso8601String(), 300);
+})->everyMinute()->name('scheduler-heartbeat');
 
 /*
 |--------------------------------------------------------------------------
