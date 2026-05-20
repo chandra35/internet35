@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
+use App\Models\Customer;
+use App\Models\CustomerInvoice;
 use App\Models\User;
 use App\Models\Role;
 use Illuminate\Http\Request;
@@ -21,6 +23,34 @@ class DashboardController extends Controller implements HasMiddleware
 
     public function index()
     {
+        $user = auth()->user();
+
+        // POP scoping: superadmin sees all, admin-pop sees own POP
+        $popId = $user->hasRole('superadmin') ? null : $user->id;
+
+        // ── Customer stats ───────────────────────────────────────────
+        $custQ = Customer::when($popId, fn($q) => $q->where('pop_id', $popId));
+        $totalCustomers     = (clone $custQ)->count();
+        $activeCustomers    = (clone $custQ)->where('status', 'active')->count();
+        $suspendedCustomers = (clone $custQ)->where('status', 'suspended')->count();
+
+        // ── Invoice stats ────────────────────────────────────────────
+        $invQ = CustomerInvoice::whereHas(
+            'customer',
+            fn($q) => $q->when($popId, fn($q2) => $q2->where('pop_id', $popId))
+        );
+        $pendingInvoicesCount  = (clone $invQ)->where('status', 'pending')->count();
+        $pendingInvoicesAmount = (clone $invQ)->where('status', 'pending')->sum('total_amount');
+        $paidThisMonthCount    = (clone $invQ)->where('status', 'paid')
+            ->whereMonth('updated_at', now()->month)
+            ->whereYear('updated_at', now()->year)
+            ->count();
+        $paidThisMonthAmount   = (clone $invQ)->where('status', 'paid')
+            ->whereMonth('updated_at', now()->month)
+            ->whereYear('updated_at', now()->year)
+            ->sum('paid_amount');
+
+        // ── Activity / roles (unchanged) ─────────────────────────────
         $totalUsers = User::count();
         $activeUsers = User::where('is_active', true)->count();
         $totalRoles = Role::count();
@@ -40,19 +70,17 @@ class DashboardController extends Controller implements HasMiddleware
         for ($i = 6; $i >= 0; $i--) {
             $date = now()->subDays($i);
             $activityChart[] = [
-                'date' => $date->format('d M'),
+                'date'  => $date->format('d M'),
                 'count' => ActivityLog::whereDate('created_at', $date)->count(),
             ];
         }
 
         return view('admin.dashboard', compact(
-            'totalUsers',
-            'activeUsers',
-            'totalRoles',
-            'todayLogins',
-            'recentActivities',
-            'usersByRole',
-            'activityChart'
+            'totalUsers', 'activeUsers', 'totalRoles', 'todayLogins',
+            'recentActivities', 'usersByRole', 'activityChart',
+            'totalCustomers', 'activeCustomers', 'suspendedCustomers',
+            'pendingInvoicesCount', 'pendingInvoicesAmount',
+            'paidThisMonthCount', 'paidThisMonthAmount'
         ));
     }
 }

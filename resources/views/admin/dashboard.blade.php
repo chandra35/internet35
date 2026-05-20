@@ -7,6 +7,33 @@
     <li class="breadcrumb-item active">Dashboard</li>
 @endsection
 
+@push('css')
+<style>
+    /* Portal-style stat cards */
+    .stat-card {
+        border-radius: 10px; padding: 14px 16px 12px; color: #fff;
+        position: relative; overflow: hidden; cursor: default;
+        transition: transform 0.18s, box-shadow 0.18s;
+        text-decoration: none; display: block; height: 100%;
+    }
+    a.stat-card { cursor: pointer; }
+    a.stat-card:hover { transform: translateY(-3px); box-shadow: 0 7px 22px rgba(0,0,0,0.22); color: #fff; text-decoration: none; }
+    .stat-card .sc-icon  { position: absolute; right: 12px; top: 10px; font-size: 32px; opacity: 0.14; pointer-events: none; }
+    .stat-card .sc-value { font-size: 1.7rem; font-weight: 700; line-height: 1.2; }
+    .stat-card .sc-label { font-size: 0.7rem; opacity: 0.88; margin-top: 2px; }
+    .stat-card .sc-divider { border-top: 1px solid rgba(255,255,255,0.2); margin-top: 8px; padding-top: 7px; }
+    .stat-card .sc-row { display: flex; justify-content: space-between; font-size: 0.63rem; opacity: 0.9; line-height: 1.75; }
+    .stat-card .sc-row strong { font-weight: 600; opacity: 1; }
+    .stat-card .sc-link { display: block; color: rgba(255,255,255,0.72); font-size: 0.65rem; margin-top: 6px; border-top: 1px solid rgba(255,255,255,0.18); padding-top: 5px; }
+    .stat-card .sc-link:hover { color: #fff; }
+    .stat-blue   { background: linear-gradient(135deg, #1565c0, #1976d2); }
+    .stat-green  { background: linear-gradient(135deg, #1aaa55, #17c671); }
+    .stat-yellow { background: linear-gradient(135deg, #e0871a, #f4a721); }
+    .stat-red    { background: linear-gradient(135deg, #dc3545, #c82333); }
+    .stat-teal   { background: linear-gradient(135deg, #00838f, #0097a7); }
+</style>
+@endpush
+
 @section('content')
     <!-- Welcome & Info Cards -->
     <div class="row">
@@ -65,81 +92,68 @@
     </div>
 
     <!-- Statistics Cards -->
-    <div class="row">
-        <div class="col-lg-3 col-md-6 col-sm-6">
-            <div class="small-box bg-info">
-                <div class="inner">
-                    <h3>{{ number_format($totalUsers) }}</h3>
-                    <p>Total Users</p>
+    <div class="row mb-3">
+        <!-- Total Pelanggan -->
+        <div class="col-lg-4 col-md-6 mb-3">
+            <a href="{{ route('admin.customers.index') }}" class="stat-card stat-blue">
+                <i class="fas fa-users sc-icon"></i>
+                <div class="sc-value">{{ number_format($totalCustomers) }}</div>
+                <div class="sc-label">Total Pelanggan</div>
+                <div class="sc-divider">
+                    <div class="sc-row">
+                        <span>Pendapatan Bulan Ini</span>
+                        <strong>Rp {{ number_format($paidThisMonthAmount, 0, ',', '.') }}</strong>
+                    </div>
+                    <div class="sc-row">
+                        <span>Sudah Terbayar</span>
+                        <strong>{{ number_format($paidThisMonthCount) }} invoice</strong>
+                    </div>
+                    <div class="sc-row">
+                        <span>Belum Bayar</span>
+                        <strong>{{ number_format($pendingInvoicesCount) }} invoice</strong>
+                    </div>
                 </div>
-                <div class="icon">
-                    <i class="fas fa-users"></i>
-                </div>
-                @can('users.view')
-                <a href="{{ route('admin.users.index') }}" class="small-box-footer">
-                    Lihat Detail <i class="fas fa-arrow-circle-right"></i>
-                </a>
-                @else
-                <span class="small-box-footer">&nbsp;</span>
-                @endcan
-            </div>
+            </a>
         </div>
-        
-        <div class="col-lg-3 col-md-6 col-sm-6">
-            <div class="small-box bg-success">
-                <div class="inner">
-                    <h3>{{ number_format($activeUsers) }}</h3>
-                    <p>Users Aktif</p>
+
+        <!-- Belum Bayar -->
+        <div class="col-lg-4 col-md-6 mb-3">
+            <a href="{{ route('admin.invoices.index', ['status' => 'pending']) }}" class="stat-card stat-yellow">
+                <i class="fas fa-file-invoice-dollar sc-icon"></i>
+                <div class="sc-value">{{ number_format($pendingInvoicesCount) }}</div>
+                <div class="sc-label">Invoice Belum Dibayar</div>
+                <div class="sc-divider">
+                    <div class="sc-row">
+                        <span>Total Tagihan</span>
+                        <strong>Rp {{ number_format($pendingInvoicesAmount, 0, ',', '.') }}</strong>
+                    </div>
+                    <div class="sc-row">
+                        <span>Pelanggan Aktif</span>
+                        <strong>{{ number_format($activeCustomers) }} pelanggan</strong>
+                    </div>
                 </div>
-                <div class="icon">
-                    <i class="fas fa-user-check"></i>
-                </div>
-                @can('users.view')
-                <a href="{{ route('admin.users.index') }}?status=active" class="small-box-footer">
-                    Lihat Detail <i class="fas fa-arrow-circle-right"></i>
-                </a>
-                @else
-                <span class="small-box-footer">&nbsp;</span>
-                @endcan
-            </div>
+                <span class="sc-link">Lihat semua invoice →</span>
+            </a>
         </div>
-        
-        <div class="col-lg-3 col-md-6 col-sm-6">
-            <div class="small-box bg-warning">
-                <div class="inner">
-                    <h3>{{ number_format($totalRoles) }}</h3>
-                    <p>Total Roles</p>
+
+        <!-- Isolir -->
+        <div class="col-lg-4 col-md-6 mb-3">
+            <a href="{{ route('admin.customers.index', ['status' => 'suspended']) }}" class="stat-card stat-red">
+                <i class="fas fa-ban sc-icon"></i>
+                <div class="sc-value">{{ number_format($suspendedCustomers) }}</div>
+                <div class="sc-label">Pelanggan Isolir</div>
+                <div class="sc-divider">
+                    <div class="sc-row">
+                        <span>Dari total pelanggan</span>
+                        <strong>{{ $totalCustomers > 0 ? number_format($suspendedCustomers / $totalCustomers * 100, 1) : 0 }}%</strong>
+                    </div>
+                    <div class="sc-row">
+                        <span>Aktif</span>
+                        <strong>{{ number_format($activeCustomers) }} pelanggan</strong>
+                    </div>
                 </div>
-                <div class="icon">
-                    <i class="fas fa-user-tag"></i>
-                </div>
-                @can('roles.view')
-                <a href="{{ route('admin.roles.index') }}" class="small-box-footer">
-                    Lihat Detail <i class="fas fa-arrow-circle-right"></i>
-                </a>
-                @else
-                <span class="small-box-footer">&nbsp;</span>
-                @endcan
-            </div>
-        </div>
-        
-        <div class="col-lg-3 col-md-6 col-sm-6">
-            <div class="small-box bg-danger">
-                <div class="inner">
-                    <h3>{{ number_format($todayLogins) }}</h3>
-                    <p>Login Hari Ini</p>
-                </div>
-                <div class="icon">
-                    <i class="fas fa-sign-in-alt"></i>
-                </div>
-                @can('activity-logs.view')
-                <a href="{{ route('admin.activity-logs.index') }}" class="small-box-footer">
-                    Lihat Detail <i class="fas fa-arrow-circle-right"></i>
-                </a>
-                @else
-                <span class="small-box-footer">&nbsp;</span>
-                @endcan
-            </div>
+                <span class="sc-link">Lihat pelanggan isolir →</span>
+            </a>
         </div>
     </div>
 
