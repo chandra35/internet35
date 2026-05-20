@@ -297,6 +297,9 @@
                                 @endif
                                 <div>
                                     <strong>{{ $customer->name }}</strong>
+                                    @if($customer->nickname)
+                                    <br><small class="text-muted"><i class="fas fa-tag fa-xs mr-1"></i>{{ $customer->nickname }}</small>
+                                    @endif
                                     @if($customer->city)
                                     <br><small class="text-muted">{{ $customer->city->name }}</small>
                                     @endif

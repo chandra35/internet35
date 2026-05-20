@@ -26,9 +26,21 @@ clear("InternetGatewayDevice", now);
 
 
 // ── Auto-provision (Huawei only) ─────────────────────────────────────────────
-// DeviceID tidak ikut ter-clear — selalu tersedia dari Inform message.
-const serial = declare("DeviceID.SerialNumber", { value: 1 }).value[0];
-const brand  = declare("DeviceID.Manufacturer", { value: 1 }).value[0] || "";
+// DeviceID.SerialNumber di GenieACS = hex-encoded bytes, misal "48575443840472AE".
+// Untuk Huawei GPON: 4 byte pertama = ASCII vendor ID, 4 byte terakhir = hex unit serial.
+// Konversi ke format billing: "48575443" → "HWTC", lalu gabung "840472AE" = "HWTC840472AE"
+const rawSerial = declare("DeviceID.SerialNumber", { value: 1 }).value[0] || "";
+const brand     = declare("DeviceID.Manufacturer", { value: 1 }).value[0] || "";
+
+let serial = rawSerial;
+if (rawSerial.length === 16 && /^[0-9A-Fa-f]+$/.test(rawSerial)) {
+  const vendorHex  = rawSerial.substr(0, 8);
+  let vendorText = "";
+  for (let _i = 0; _i < 8; _i += 2) {
+    vendorText += String.fromCharCode(parseInt(vendorHex.substr(_i, 2), 16));
+  }
+  serial = vendorText + rawSerial.substr(8).toUpperCase();
+}
 
 // Hanya jalankan untuk Huawei.
 // Cek substring karena beberapa firmware kirim "Huawei Technologies Co., Ltd"

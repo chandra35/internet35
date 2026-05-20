@@ -92,6 +92,7 @@ class CustomerController extends Controller implements HasMiddleware
             ->when($request->search, function($q, $s) {
                 $q->where(function($sq) use ($s) {
                     $sq->where('name', 'like', "%{$s}%")
+                       ->orWhere('nickname', 'like', "%{$s}%")
                        ->orWhere('customer_id', 'like', "%{$s}%")
                        ->orWhere('phone', 'like', "%{$s}%")
                        ->orWhere('email', 'like', "%{$s}%")
@@ -226,6 +227,7 @@ class CustomerController extends Controller implements HasMiddleware
         $request->validate([
             // Required fields - hanya data minimal
             'name' => 'required|string|max:255',
+            'nickname' => 'nullable|string|max:100',
             'phone' => 'required|string|max:20',
             'router_id' => 'required|uuid|exists:routers,id',
             'package_id' => 'required|uuid|exists:packages,id',
@@ -318,6 +320,7 @@ class CustomerController extends Controller implements HasMiddleware
                 'pop_id' => $popId,
                 'customer_id' => Customer::generateCustomerId($popId),
                 'name' => $request->name,
+                'nickname' => $request->nickname,
                 'email' => $request->email,
                 'phone' => $request->phone,
                 'phone_alt' => $request->phone_alt,
@@ -612,6 +615,7 @@ class CustomerController extends Controller implements HasMiddleware
         $request->validate([
             // Required fields
             'name' => 'required|string|max:255',
+            'nickname' => 'nullable|string|max:100',
             'phone' => 'required|string|max:20',
             'router_id' => 'required|uuid|exists:routers,id',
             'package_id' => 'required|uuid|exists:packages,id',
@@ -657,7 +661,7 @@ class CustomerController extends Controller implements HasMiddleware
         DB::beginTransaction();
         try {
             $data = $request->only([
-                'name', 'email', 'phone', 'phone_alt', 'nik', 'birth_date', 'gender',
+                'name', 'nickname', 'email', 'phone', 'phone_alt', 'nik', 'birth_date', 'gender',
                 'address', 'province_code', 'city_code', 'district_code', 'village_code',
                 'postal_code', 'latitude', 'longitude', 'router_id', 'package_id',
                 'pppoe_username', 'service_type', 'monthly_fee', 'billing_day', 

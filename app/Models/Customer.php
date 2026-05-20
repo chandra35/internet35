@@ -18,6 +18,7 @@ class Customer extends Model
         'pop_id',
         'customer_id',
         'name',
+        'nickname',
         'email',
         'phone',
         'phone_alt',

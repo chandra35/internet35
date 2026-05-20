@@ -137,7 +137,10 @@
                                 </div>
                                 <div class="col-md-6">
                                     <div class="form-group">
-                                        <label>NIK (No. KTP)</label>
+                                        <label>Nama Panggilan <span class="text-muted" style="font-size:0.78rem;font-weight:400;">(opsional &mdash; untuk pencarian admin)</span></label>
+                                        <input type="text" name="nickname" class="form-control" placeholder="mis. Pak Budi, Warung Pojok..." maxlength="100">
+                                    </div>
+                                </div>
                                         <div class="input-group">
                                             <input type="text" name="nik" id="nik" class="form-control" maxlength="16" placeholder="16 digit NIK">
                                             @if($hasResidentAccess ?? false)

@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HG8145V5 Hidden Page Bookmarks</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 40px;
+      line-height: 1.5;
+      color: #202124;
+    }
+
+    a.bookmarklet {
+      display: inline-block;
+      padding: 10px 14px;
+      border: 1px solid #1a73e8;
+      border-radius: 6px;
+      color: #fff;
+      background: #1a73e8;
+      text-decoration: none;
+      font-weight: 700;
+    }
+
+    code {
+      display: block;
+      margin-top: 14px;
+      padding: 12px;
+      border-radius: 6px;
+      background: #f1f3f4;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+  <h1>HG8145V5 Hidden Page Bookmarks</h1>
+  <p>Drag tombol ini ke bookmark bar browser untuk membuka WAN:</p>
+  <p>
+    <a class="bookmarklet" href="javascript:(()=>{const p='html/bbsp/wan/wan.asp';if(location.hostname!=='192.168.100.1'){location.href='http://192.168.100.1/'+p;return;}const f=document.getElementById('menuIframe');if(f){f.src=p;}else{location.href='/'+p;}})()">HG8145V5 WAN</a>
+  </p>
+  <p>Kalau browser tidak mengizinkan drag, buat bookmark baru lalu isi URL-nya dengan kode ini:</p>
+  <code>javascript:(()=>{const p='html/bbsp/wan/wan.asp';if(location.hostname!=='192.168.100.1'){location.href='http://192.168.100.1/'+p;return;}const f=document.getElementById('menuIframe');if(f){f.src=p;}else{location.href='/'+p;}})()</code>
+
+  <p>Drag tombol ini untuk mencari dan membuka halaman firmware/software upgrade:</p>
+  <p>
+    <a id="fwBookmark" class="bookmarklet" href="#">HG8145V5 Firmware Upgrade</a>
+  </p>
+  <p>Kalau browser tidak mengizinkan drag, buat bookmark baru lalu isi URL-nya dengan kode ini:</p>
+  <code id="fwCode"></code>
+
+  <script>
+    const fwBookmarklet = `javascript:(async()=>{const paths=['html/ssmp/upgrade/upgrade.asp','html/ssmp/upgrade/firmware.asp','html/ssmp/upgrade/softupgrade.asp','html/ssmp/upgrade/software.asp','html/ssmp/upgrade/upgradecommon.asp','html/ssmp/upgrade/firmwareupgrade.asp','html/ssmp/softupgrade/softupgrade.asp','html/ssmp/softwareupgrade/softwareupgrade.asp','html/ssmp/firmwareupgrade/firmwareupgrade.asp','html/ssmp/maintain/upgrade.asp','html/ssmp/maintain/firmware.asp','html/ssmp/maintain/softwareupgrade.asp','html/bbsp/maintenance/upgrade.asp','html/bbsp/maintenance/firmware.asp','html/bbsp/maintenance/softwareupgrade.asp','html/amp/upgrade/upgrade.asp','html/amp/maintain/upgrade.asp'];const base=location.hostname==='192.168.100.1'?'':'http://192.168.100.1/';async function ok(p){try{const r=await fetch(base+p,{credentials:'include',cache:'no-store'});if(!r.ok)return false;const t=await r.text();return !/requested URL was not found|404 Not Found/i.test(t)}catch(e){return false}}for(const p of paths){if(await ok(p)){if(location.hostname!=='192.168.100.1'){location.href=base+p;return}const f=document.getElementById('menuIframe');if(f){f.src=p}else{location.href='/'+p}return}}alert('Halaman firmware/software upgrade tidak ditemukan di build Web UI ini. Kemungkinan fitur upgrade dihapus/dikunci firmware ISP.');})()`;
+    document.getElementById('fwBookmark').href = fwBookmarklet;
+    document.getElementById('fwCode').textContent = fwBookmarklet;
+  </script>
+</body>
+</html>

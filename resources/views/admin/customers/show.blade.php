@@ -91,6 +91,9 @@
         </div>
         <div class="col">
             <h2 class="mb-1">{{ $customer->name }}</h2>
+            @if($customer->nickname)
+            <p class="mb-1"><span style="font-size:0.82rem;color:rgba(255,255,255,0.65);"><i class="fas fa-tag mr-1"></i>{{ $customer->nickname }}</span></p>
+            @endif
             <p class="mb-2">
                 <code class="bg-light text-dark px-2 py-1 rounded">{{ $customer->customer_id }}</code>
                 <span class="badge badge-{{ $customer->status_color }} ml-2">{{ $customer->status_label }}</span>
