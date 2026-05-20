@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\MessageTemplate;
 use App\Models\PopSetting;
+use App\Models\User;
 use App\Services\ActivityLogService;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -36,7 +37,20 @@ class MessageTemplateController extends Controller implements HasMiddleware
     public function index(Request $request)
     {
         $user = auth()->user();
-        $popId = $user->hasRole('superadmin') ? null : $user->id;
+
+        // Get POP context for superadmin
+        $popUsers = null;
+        if ($user->hasRole('superadmin')) {
+            $popUsers = User::role('admin-pop')->orderBy('name')->get();
+            if ($request->has('pop_id')) {
+                $request->session()->put('manage_pop_id', $request->input('pop_id'));
+                $popId = $request->input('pop_id') ?: null;
+            } else {
+                $popId = $request->session()->get('manage_pop_id');
+            }
+        } else {
+            $popId = $user->id;
+        }
 
         // Get POP settings for SMTP/WA config status
         $popSetting = null;
@@ -83,7 +97,7 @@ class MessageTemplateController extends Controller implements HasMiddleware
             ];
         }
 
-        return view('admin.message-templates.index', compact('templates', 'channel', 'popSetting', 'popId'));
+        return view('admin.message-templates.index', compact('templates', 'channel', 'popSetting', 'popId', 'popUsers'));
     }
 
     /**

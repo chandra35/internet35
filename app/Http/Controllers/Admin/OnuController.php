@@ -8,6 +8,7 @@ use App\Models\Olt;
 use App\Models\Odp;
 use App\Models\Customer;
 use App\Models\OltProfile;
+use App\Models\User;
 use App\Helpers\Olt\OltFactory;
 use App\Services\ActivityLogService;
 use Illuminate\Http\Request;
@@ -38,11 +39,15 @@ class OnuController extends Controller implements HasMiddleware
     protected function getPopId(Request $request)
     {
         $user = auth()->user();
-        
+
         if ($user->hasRole('superadmin')) {
-            return $request->input('pop_id') ?: $request->session()->get('manage_pop_id');
+            if ($request->has('pop_id')) {
+                $request->session()->put('manage_pop_id', $request->input('pop_id'));
+                return $request->input('pop_id') ?: null;
+            }
+            return $request->session()->get('manage_pop_id');
         }
-        
+
         return $user->id;
     }
 
@@ -52,6 +57,12 @@ class OnuController extends Controller implements HasMiddleware
     public function index(Request $request)
     {
         $popId = $this->getPopId($request);
+
+        // Get popUsers for superadmin selector
+        $popUsers = null;
+        if (auth()->user()->hasRole('superadmin')) {
+            $popUsers = User::role('admin-pop')->orderBy('name')->get();
+        }
         
         $query = Onu::with(['olt', 'customer', 'odp'])
             ->whereHas('olt', function($q) use ($popId) {
@@ -102,7 +113,7 @@ class OnuController extends Controller implements HasMiddleware
             'los' => (clone $baseQuery)->where('status', 'los')->count(),
         ];
         
-        return view('admin.onus.index', compact('onus', 'olts', 'stats', 'popId'));
+        return view('admin.onus.index', compact('onus', 'olts', 'stats', 'popId', 'popUsers'));
     }
 
     /**

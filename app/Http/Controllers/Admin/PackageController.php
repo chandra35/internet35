@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Package;
 use App\Models\PppProfile;
 use App\Models\Router;
+use App\Models\User;
 use App\Services\ActivityLogService;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -36,17 +37,36 @@ class PackageController extends Controller implements HasMiddleware
     public function index(Request $request)
     {
         $user = auth()->user();
-        
+
+        // Get POP context for superadmin
+        $popId = null;
+        $popUsers = null;
+        if ($user->hasRole('superadmin')) {
+            $popUsers = User::role('admin-pop')->orderBy('name')->get();
+            if ($request->has('pop_id')) {
+                $request->session()->put('manage_pop_id', $request->input('pop_id'));
+                $popId = $request->input('pop_id') ?: null;
+            } else {
+                $popId = $request->session()->get('manage_pop_id');
+            }
+        }
+
         // Get routers for filter
         $routersQuery = Router::where('is_active', true);
         if ($user->hasRole('admin-pop')) {
             $routersQuery->where('pop_id', $user->id);
+        } elseif ($user->hasRole('superadmin')) {
+            if ($popId) {
+                $routersQuery->where('pop_id', $popId);
+            } else {
+                $routersQuery->whereRaw('1=0');
+            }
         }
         $routers = $routersQuery->orderBy('name')->get();
 
         // Query packages
         $query = Package::with(['router']);
-        
+
         // Filter by router
         if ($request->filled('router_id')) {
             $query->where('router_id', $request->router_id);
@@ -54,6 +74,13 @@ class PackageController extends Controller implements HasMiddleware
             // Admin-pop can only see packages from their routers
             $routerIds = $routers->pluck('id');
             $query->whereIn('router_id', $routerIds);
+        } elseif ($user->hasRole('superadmin')) {
+            if ($popId) {
+                $routerIds = $routers->pluck('id');
+                $query->whereIn('router_id', $routerIds);
+            } else {
+                $query->whereRaw('1=0');
+            }
         }
 
         // Filter by status
@@ -72,7 +99,7 @@ class PackageController extends Controller implements HasMiddleware
 
         $packages = $query->orderBy('sort_order')->orderBy('name')->get();
 
-        return view('admin.packages.index', compact('packages', 'routers'));
+        return view('admin.packages.index', compact('packages', 'routers', 'popUsers', 'popId'));
     }
 
     /**

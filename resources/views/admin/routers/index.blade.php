@@ -9,6 +9,14 @@
 @endsection
 
 @section('content')
+    @include('admin.partials.pop-selector', ['popUsers' => $popUsers ?? null, 'popId' => $popId ?? null])
+
+    @if(!($popId ?? null) && auth()->user()->hasRole('superadmin'))
+    <div class="alert alert-warning">
+        <i class="fas fa-exclamation-triangle mr-2"></i>
+        Pilih POP terlebih dahulu untuk menampilkan data router.
+    </div>
+    @else
     <!-- Statistics Cards -->
     <div class="row">
         <div class="col-lg-3 col-md-6 col-sm-6">
@@ -193,6 +201,7 @@
             </div>
         </div>
     </div>
+    @endif
 @endsection
 
 @push('js')

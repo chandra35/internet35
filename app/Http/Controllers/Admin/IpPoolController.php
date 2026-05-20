@@ -37,8 +37,12 @@ class IpPoolController extends Controller implements HasMiddleware
     {
         $user = auth()->user();
         
-        if ($user->hasRole('superadmin') && $request->filled('pop_id')) {
-            return $request->pop_id;
+        if ($user->hasRole('superadmin')) {
+            if ($request->has('pop_id')) {
+                $request->session()->put('manage_pop_id', $request->input('pop_id'));
+                return $request->input('pop_id') ?: null;
+            }
+            return $request->session()->get('manage_pop_id');
         }
         
         return $user->hasRole('admin-pop') ? $user->id : null;

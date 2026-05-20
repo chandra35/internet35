@@ -10,6 +10,14 @@
 @endsection
 
 @section('content')
+@include('admin.partials.pop-selector', ['popUsers' => $popUsers ?? null, 'popId' => $popId ?? null])
+
+@if(!($popId ?? null) && auth()->user()->hasRole('superadmin'))
+<div class="alert alert-warning">
+    <i class="fas fa-exclamation-triangle mr-2"></i>
+    Pilih POP terlebih dahulu untuk menampilkan data ONU.
+</div>
+@else
 <!-- Stats -->
 <div class="row">
     <div class="col-lg-3 col-6">
@@ -251,6 +259,7 @@
     </div>
     @endif
 </div>
+@endif
 @endsection
 
 @push('js')

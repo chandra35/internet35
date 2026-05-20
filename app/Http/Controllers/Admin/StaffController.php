@@ -45,13 +45,34 @@ class StaffController extends Controller implements HasMiddleware
     public function index(Request $request)
     {
         $user = auth()->user();
-        
+
+        // Get POP context for superadmin
+        $popId = null;
+        $popUsers = null;
+        if ($user->hasRole('superadmin')) {
+            $popUsers = User::role('admin-pop')->orderBy('name')->get();
+            if ($request->has('pop_id')) {
+                $request->session()->put('manage_pop_id', $request->input('pop_id'));
+                $popId = $request->input('pop_id') ?: null;
+            } else {
+                $popId = $request->session()->get('manage_pop_id');
+            }
+        } else {
+            $popId = $user->id;
+        }
+
         // Get staff users belonging to this admin-pop
         $query = User::with('roles')
-            ->where('parent_id', $user->id)
             ->whereHas('roles', function ($q) {
                 $q->whereIn('name', $this->getStaffRoles());
             });
+
+        if ($popId) {
+            $query->where('parent_id', $popId);
+        } else {
+            // Superadmin without POP selected: show nothing
+            $query->whereRaw('1=0');
+        }
 
         // Search
         if ($search = $request->input('search')) {
@@ -77,7 +98,7 @@ class StaffController extends Controller implements HasMiddleware
         $staff = $query->orderBy('created_at', 'desc')->paginate(15);
         $roles = Role::whereIn('name', $this->getStaffRoles())->get();
 
-        return view('admin.staff.index', compact('staff', 'roles'));
+        return view('admin.staff.index', compact('staff', 'roles', 'popUsers', 'popId'));
     }
 
     /**

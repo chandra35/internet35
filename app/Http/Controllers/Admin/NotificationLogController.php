@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\NotificationLog;
 use App\Models\MessageTemplate;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
@@ -22,11 +23,29 @@ class NotificationLogController extends Controller implements HasMiddleware
     public function index(Request $request)
     {
         $user = auth()->user();
-        $popId = $user->hasRole('admin') ? $request->get('user_id', $user->id) : $user->id;
 
-        $query = NotificationLog::where('pop_id', $popId)
-            ->with('customer')
-            ->latest();
+        // Get POP context
+        $popUsers = null;
+        if ($user->hasRole('superadmin')) {
+            $popUsers = User::role('admin-pop')->orderBy('name')->get();
+            if ($request->has('pop_id')) {
+                $request->session()->put('manage_pop_id', $request->input('pop_id'));
+                $popId = $request->input('pop_id') ?: null;
+            } else {
+                $popId = $request->session()->get('manage_pop_id');
+            }
+        } else {
+            $popId = $user->hasRole('admin') ? $request->get('user_id', $user->id) : $user->id;
+        }
+
+        $query = NotificationLog::with('customer')->latest();
+
+        if ($popId) {
+            $query->where('pop_id', $popId);
+        } else {
+            // Superadmin without POP selected: show nothing
+            $query->whereRaw('1=0');
+        }
 
         // Filters
         if ($request->filled('channel')) {
@@ -60,10 +79,10 @@ class NotificationLogController extends Controller implements HasMiddleware
         }
 
         $logs = $query->paginate(25)->appends($request->query());
-        $stats = NotificationLog::statsForPop($popId);
+        $stats = $popId ? NotificationLog::statsForPop($popId) : [];
         $templateCodes = MessageTemplate::templateCodes();
 
-        return view('admin.notification-logs.index', compact('logs', 'stats', 'templateCodes', 'popId'));
+        return view('admin.notification-logs.index', compact('logs', 'stats', 'templateCodes', 'popId', 'popUsers'));
     }
 
     public function show(NotificationLog $notificationLog)

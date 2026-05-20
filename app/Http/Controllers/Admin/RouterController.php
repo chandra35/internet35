@@ -37,21 +37,39 @@ class RouterController extends Controller implements HasMiddleware
     public function index(Request $request)
     {
         $user = auth()->user();
-        
+
+        // Get POP context for superadmin
+        $popId = null;
+        $popUsers = null;
+        if ($user->hasRole('superadmin')) {
+            $popUsers = User::role('admin-pop')->orderBy('name')->get();
+            if ($request->has('pop_id')) {
+                $request->session()->put('manage_pop_id', $request->input('pop_id'));
+                $popId = $request->input('pop_id') ?: null;
+            } else {
+                $popId = $request->session()->get('manage_pop_id');
+            }
+        }
+
         // Query routers based on user role
         $query = Router::with(['pop', 'creator']);
-        
-        // Admin-pop can only see their own routers
+
         if ($user->hasRole('admin-pop')) {
             $query->where('pop_id', $user->id);
+        } elseif ($user->hasRole('superadmin')) {
+            if ($popId) {
+                $query->where('pop_id', $popId);
+            } else {
+                $query->whereRaw('1=0');
+            }
         }
 
         $routers = $query->orderBy('created_at', 'desc')->get();
-        
-        // Get POPs for filter (admin-pop users)
+
+        // Get POPs for create/edit form dropdown
         $pops = User::role('admin-pop')->get();
 
-        return view('admin.routers.index', compact('routers', 'pops'));
+        return view('admin.routers.index', compact('routers', 'pops', 'popUsers', 'popId'));
     }
 
     /**
