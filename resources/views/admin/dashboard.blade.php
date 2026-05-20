@@ -105,8 +105,11 @@
                         <strong>Rp {{ number_format($paidThisMonthAmount, 0, ',', '.') }}</strong>
                     </div>
                     <div class="sc-row">
-                        <span>Seharusnya Diterima</span>
-                        <strong>Rp {{ number_format($expectedRevenue, 0, ',', '.') }}</strong>
+                        <span>
+                            Seharusnya Diterima
+                            <i id="toggleRevIcon" class="fas fa-eye-slash ml-1" style="opacity:0.7; cursor:pointer; font-size:0.7rem;" onclick="event.preventDefault(); toggleExpectedRevenue();"></i>
+                        </span>
+                        <strong id="expectedRevVal">Rp {{ number_format($expectedRevenue, 0, ',', '.') }}</strong>
                     </div>
                     <div class="sc-row">
                         <span>Sudah Terbayar</span>
@@ -276,6 +279,20 @@
 
 @push('js')
 <script>
+var revealedRev = false;
+var revActual = 'Rp {{ number_format($expectedRevenue, 0, ',', '.') }}';
+function toggleExpectedRevenue() {
+    revealedRev = !revealedRev;
+    document.getElementById('expectedRevVal').textContent = revealedRev ? revActual : '••••••••';
+    var icon = document.getElementById('toggleRevIcon');
+    icon.classList.toggle('fa-eye-slash', !revealedRev);
+    icon.classList.toggle('fa-eye', revealedRev);
+}
+// Hidden by default on load
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('expectedRevVal').textContent = '••••••••';
+});
+</script>
 $(document).ready(function() {
     // Activity Chart
     const ctx = document.getElementById('activityChart');
