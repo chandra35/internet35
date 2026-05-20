@@ -293,6 +293,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('expectedRevVal').textContent = '••••••••';
 });
 </script>
+<script>
 $(document).ready(function() {
     // Activity Chart
     const ctx = document.getElementById('activityChart');
