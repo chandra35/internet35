@@ -133,7 +133,50 @@ class CustomerController extends Controller implements HasMiddleware
             'suspended' => Customer::when($popId, fn($q) => $q->where('pop_id', $popId))->where('status', 'suspended')->count(),
         ];
         
+        if ($request->ajax()) {
+            return view('admin.customers._table', compact('customers', 'popId', 'routers', 'packages', 'filterCities'));
+        }
         return view('admin.customers.index', compact('customers', 'popUsers', 'popId', 'routers', 'packages', 'filterCities', 'stats'));
+    }
+
+    /**
+     * Return table partial for AJAX requests (live search / filter)
+     * @deprecated — AJAX detection is now in index(); remove this method later.
+     */
+    public function getTableData(Request $request)
+    {
+        $user = auth()->user();
+        $popId = $this->getPopId($request);
+
+        $query = Customer::with(['router', 'package', 'province', 'city'])
+            ->when($popId, fn($q) => $q->where('pop_id', $popId))
+            ->when($request->status, fn($q, $s) => $q->where('status', $s))
+            ->when($request->router_id, fn($q, $r) => $q->where('router_id', $r))
+            ->when($request->package_id, fn($q, $p) => $q->where('package_id', $p))
+            ->when($request->city_code, fn($q, $c) => $q->where('city_code', $c))
+            ->when($request->has('auto_isolir') && $request->auto_isolir !== '', fn($q) => $q->where('auto_isolir', $request->boolean('auto_isolir')))
+            ->when($request->search, function($q, $s) {
+                $q->where(function($sq) use ($s) {
+                    $sq->where('name', 'like', "%{$s}%")
+                       ->orWhere('nickname', 'like', "%{$s}%")
+                       ->orWhere('customer_id', 'like', "%{$s}%")
+                       ->orWhere('phone', 'like', "%{$s}%")
+                       ->orWhere('email', 'like', "%{$s}%")
+                       ->orWhere('pppoe_username', 'like', "%{$s}%");
+                });
+            });
+
+        $customers = $query->orderBy('created_at', 'desc')->paginate(20);
+
+        $routers = Router::when($popId, fn($q) => $q->where('pop_id', $popId))
+            ->where('is_active', true)->orderBy('name')->get();
+        $routerIds = $routers->pluck('id');
+        $packages = Package::whereIn('router_id', $routerIds)->orderBy('name')->get();
+        $usedCityCodes = Customer::when($popId, fn($q) => $q->where('pop_id', $popId))
+            ->whereNotNull('city_code')->distinct()->pluck('city_code');
+        $filterCities = \Laravolt\Indonesia\Models\City::whereIn('code', $usedCityCodes)->orderBy('name')->get();
+
+        return view('admin.customers._table', compact('customers', 'popId', 'routers', 'packages', 'filterCities'));
     }
 
     /**
