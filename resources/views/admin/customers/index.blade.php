@@ -33,7 +33,7 @@
         margin-bottom: 15px;
         animation: slideDown 0.2s ease;
     }
-    .bulk-toolbar.show { display: flex; }
+    .bulk-toolbar.show { display: flex; flex-wrap: wrap; }
     @keyframes slideDown {
         from { opacity: 0; transform: translateY(-10px); }
         to { opacity: 1; transform: translateY(0); }
@@ -229,6 +229,15 @@
                 <button type="button" class="btn btn-success btn-sm" id="btnBulkGeneratePortal">
                     <i class="fas fa-user-plus mr-1"></i> Buat Akun Portal
                 </button>
+            </div>
+            <div class="w-100 text-center mt-2 pt-2" id="selectAllBanner" style="display:none;border-top:1px solid rgba(255,255,255,.2);font-size:.82rem;">
+                Semua <strong>{{ $customers->count() }}</strong> pelanggan di halaman ini dipilih.
+                <a href="#" id="btnSelectAllPages" class="text-warning font-weight-bold ml-1">Pilih semua <strong>{{ $customers->total() }}</strong> pelanggan</a>
+            </div>
+            <div class="w-100 text-center mt-2 pt-2" id="selectAllActiveNotice" style="display:none;border-top:1px solid rgba(255,255,255,.2);font-size:.82rem;">
+                <i class="fas fa-check-circle text-warning mr-1"></i>
+                Semua <strong>{{ $customers->total() }}</strong> pelanggan dipilih.
+                <a href="#" id="btnClearSelectAll" class="text-warning font-weight-bold ml-1">Batalkan</a>
             </div>
         </div>
 
@@ -443,27 +452,46 @@ $(function() {
     // ========== Checkbox & Bulk Actions ==========
     const bulkToolbar = document.getElementById('bulkToolbar');
     const selectedCount = document.getElementById('selectedCount');
-    
+    const totalAll = {{ $customers->total() }};
+    let selectAll = false;
+
+    function resetSelectAll() {
+        selectAll = false;
+        document.getElementById('selectAllBanner').style.display = 'none';
+        document.getElementById('selectAllActiveNotice').style.display = 'none';
+    }
+
     function updateBulkToolbar() {
         const checked = document.querySelectorAll('.customer-check:checked');
+        const total = document.querySelectorAll('.customer-check').length;
         const count = checked.length;
-        selectedCount.textContent = count;
-        if (count > 0) {
+        if (!selectAll) selectedCount.textContent = count;
+        if (count > 0 || selectAll) {
             bulkToolbar.classList.add('show');
         } else {
             bulkToolbar.classList.remove('show');
+            resetSelectAll();
+        }
+        if (!selectAll) {
+            if (count === total && total > 0 && totalAll > total) {
+                document.getElementById('selectAllBanner').style.display = 'block';
+                document.getElementById('selectAllActiveNotice').style.display = 'none';
+            } else {
+                document.getElementById('selectAllBanner').style.display = 'none';
+            }
         }
     }
 
-    // Check all
+    // Check all on page
     $(document).on('change', '#checkAll', function() {
-        const isChecked = this.checked;
-        document.querySelectorAll('.customer-check').forEach(cb => { cb.checked = isChecked; });
+        if (!this.checked) resetSelectAll();
+        document.querySelectorAll('.customer-check').forEach(cb => { cb.checked = this.checked; });
         updateBulkToolbar();
     });
 
     // Individual checkbox
     $(document).on('change', '.customer-check', function() {
+        if (!this.checked) resetSelectAll();
         const total = document.querySelectorAll('.customer-check').length;
         const checked = document.querySelectorAll('.customer-check:checked').length;
         document.getElementById('checkAll').checked = (total === checked && total > 0);
@@ -474,13 +502,53 @@ $(function() {
         return Array.from(document.querySelectorAll('.customer-check:checked')).map(cb => cb.value);
     }
 
+    // Build AJAX data: handles both page-selection and select-all-pages mode
+    function buildBulkData(extra) {
+        const data = Object.assign({ _token: '{{ csrf_token() }}' }, extra || {});
+        if (selectAll) {
+            data.select_all = 1;
+            @if(auth()->user()->hasRole('superadmin') && isset($popId) && $popId)
+            data.pop_id = '{{ $popId }}';
+            @endif
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('status')) data.filter_status = urlParams.get('status');
+            if (urlParams.get('router_id')) data.filter_router_id = urlParams.get('router_id');
+        } else {
+            data.customer_ids = getSelectedIds();
+        }
+        return data;
+    }
+
+    function getDisplayCount() {
+        return selectAll ? totalAll : getSelectedIds().length;
+    }
+
+    // Select all pages
+    $(document).on('click', '#btnSelectAllPages', function(e) {
+        e.preventDefault();
+        selectAll = true;
+        selectedCount.textContent = 'Semua ' + totalAll;
+        document.getElementById('selectAllBanner').style.display = 'none';
+        document.getElementById('selectAllActiveNotice').style.display = 'block';
+    });
+
+    // Cancel select all
+    $(document).on('click', '#btnClearSelectAll', function(e) {
+        e.preventDefault();
+        resetSelectAll();
+        document.querySelectorAll('.customer-check').forEach(cb => { cb.checked = false; });
+        document.getElementById('checkAll').checked = false;
+        selectedCount.textContent = '0';
+        bulkToolbar.classList.remove('show');
+    });
+
     // Bulk activate pending customers
     $('#btnBulkActivate').on('click', function() {
-        const ids = getSelectedIds();
-        if (ids.length === 0) return;
+        const count = getDisplayCount();
+        if (!selectAll && count === 0) return;
         Swal.fire({
             title: 'Aktifkan Pelanggan?',
-            html: `<p>Aktifkan <strong>${ids.length}</strong> pelanggan terpilih?</p>
+            html: `<p>Aktifkan <strong>${count}</strong> pelanggan terpilih?</p>
                    <small class="text-muted">Hanya pelanggan berstatus <strong>Pending</strong> yang akan diproses. Setelah aktif, pelanggan akan mendapat invoice pada hari tagihan berikutnya.</small>`,
             icon: 'question',
             showCancelButton: true,
@@ -493,7 +561,7 @@ $(function() {
                 $.ajax({
                     url: '{{ route("admin.customers.bulk-activate") }}',
                     method: 'POST',
-                    data: { _token: '{{ csrf_token() }}', customer_ids: ids },
+                    data: buildBulkData(),
                     success: function(response) {
                         Swal.fire({
                             icon: 'success',
@@ -513,11 +581,11 @@ $(function() {
 
     // Bulk enable auto isolir
     $('#btnBulkEnableIsolir').on('click', function() {
-        const ids = getSelectedIds();
-        if (ids.length === 0) return;
+        const count = getDisplayCount();
+        if (!selectAll && count === 0) return;
         Swal.fire({
             title: 'Aktifkan Auto Isolir?',
-            html: `<p>Aktifkan auto-isolir untuk <strong>${ids.length}</strong> pelanggan?</p>
+            html: `<p>Aktifkan auto-isolir untuk <strong>${count}</strong> pelanggan?</p>
                    <small class="text-muted">Pelanggan akan otomatis diisolir saat jatuh tempo dan belum ada pembayaran.</small>`,
             icon: 'question',
             showCancelButton: true,
@@ -525,33 +593,33 @@ $(function() {
             cancelButtonText: 'Batal',
             confirmButtonColor: '#17a2b8',
         }).then(result => {
-            if (result.isConfirmed) bulkAutoIsolir(ids, true);
+            if (result.isConfirmed) bulkAutoIsolir(true);
         });
     });
 
     // Bulk disable auto isolir
     $('#btnBulkDisableIsolir').on('click', function() {
-        const ids = getSelectedIds();
-        if (ids.length === 0) return;
+        const count = getDisplayCount();
+        if (!selectAll && count === 0) return;
         Swal.fire({
             title: 'Nonaktifkan Auto Isolir?',
-            html: `<p>Nonaktifkan auto-isolir untuk <strong>${ids.length}</strong> pelanggan?</p>`,
+            html: `<p>Nonaktifkan auto-isolir untuk <strong>${count}</strong> pelanggan?</p>`,
             icon: 'warning',
             showCancelButton: true,
             confirmButtonText: '<i class="fas fa-unlock mr-1"></i> Ya, Nonaktifkan',
             cancelButtonText: 'Batal',
         }).then(result => {
-            if (result.isConfirmed) bulkAutoIsolir(ids, false);
+            if (result.isConfirmed) bulkAutoIsolir(false);
         });
     });
 
     // Bulk sync to Mikrotik
     $('#btnBulkSyncMikrotik').on('click', function() {
-        const ids = getSelectedIds();
-        if (ids.length === 0) return;
+        const count = getDisplayCount();
+        if (!selectAll && count === 0) return;
         Swal.fire({
             title: 'Sync ke Mikrotik?',
-            html: `<p>Sync <strong>${ids.length}</strong> pelanggan ke Mikrotik?</p>
+            html: `<p>Sync <strong>${count}</strong> pelanggan ke Mikrotik?</p>
                    <small class="text-muted">PPP Secret akan dibuat di router masing-masing pelanggan. Pelanggan yang sudah tersinkronisasi akan dilewati.</small>`,
             icon: 'question',
             showCancelButton: true,
@@ -559,19 +627,16 @@ $(function() {
             cancelButtonText: 'Batal',
             confirmButtonColor: '#17a2b8',
         }).then(result => {
-            if (result.isConfirmed) bulkSyncMikrotik(ids);
+            if (result.isConfirmed) bulkSyncMikrotik();
         });
     });
 
-    function bulkSyncMikrotik(ids) {
+    function bulkSyncMikrotik() {
         Swal.fire({ title: 'Memproses sync...', html: 'Mohon tunggu, proses sync ke Mikrotik sedang berjalan...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
         $.ajax({
             url: '{{ route("admin.customers.bulk-sync-mikrotik") }}',
             method: 'POST',
-            data: {
-                _token: '{{ csrf_token() }}',
-                customer_ids: ids,
-            },
+            data: buildBulkData(),
             success: function(response) {
                 let html = `<p>${response.message}</p>`;
                 if (response.details) {
@@ -594,16 +659,12 @@ $(function() {
         });
     }
 
-    function bulkAutoIsolir(ids, enable) {
+    function bulkAutoIsolir(enable) {
         Swal.fire({ title: 'Memproses...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
         $.ajax({
             url: '{{ route("admin.customers.bulk-auto-isolir") }}',
             method: 'POST',
-            data: {
-                _token: '{{ csrf_token() }}',
-                customer_ids: ids,
-                auto_isolir: enable ? 1 : 0,
-            },
+            data: buildBulkData({ auto_isolir: enable ? 1 : 0 }),
             success: function(response) {
                 Swal.fire({
                     icon: 'success',
@@ -621,11 +682,11 @@ $(function() {
 
     // Bulk generate portal account
     $('#btnBulkGeneratePortal').on('click', function() {
-        const ids = getSelectedIds();
-        if (ids.length === 0) return;
+        const count = getDisplayCount();
+        if (!selectAll && count === 0) return;
         Swal.fire({
             title: 'Buat Akun Portal?',
-            html: `<p>Buat akun portal untuk <strong>${ids.length}</strong> pelanggan?</p>
+            html: `<p>Buat akun portal untuk <strong>${count}</strong> pelanggan?</p>
                    <small class="text-muted">Hanya pelanggan yang sudah punya email dan belum punya akun yang akan diproses. Password menggunakan password PPPoE atau di-generate otomatis.</small>`,
             icon: 'question',
             showCancelButton: true,
@@ -633,16 +694,16 @@ $(function() {
             cancelButtonText: 'Batal',
             confirmButtonColor: '#28a745',
         }).then(result => {
-            if (result.isConfirmed) bulkGeneratePortal(ids);
+            if (result.isConfirmed) bulkGeneratePortal();
         });
     });
 
-    function bulkGeneratePortal(ids) {
+    function bulkGeneratePortal() {
         Swal.fire({ title: 'Membuat akun portal...', html: 'Mohon tunggu...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
         $.ajax({
             url: '{{ route("admin.customers.bulk-generate-portal") }}',
             method: 'POST',
-            data: { _token: '{{ csrf_token() }}', customer_ids: ids },
+            data: buildBulkData(),
             success: function(response) {
                 let html = `<p>${response.message}</p>`;
                 if (response.details) {

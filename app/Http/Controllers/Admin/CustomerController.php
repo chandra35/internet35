@@ -945,25 +945,43 @@ class CustomerController extends Controller implements HasMiddleware
     /**
      * Bulk toggle auto-isolir for multiple customers
      */
-    public function bulkToggleAutoIsolir(Request $request)
+    /**
+     * Resolve customer query from either specific IDs or select-all-pages mode with optional filters.
+     */
+    private function resolveCustomerQuery(Request $request): \Illuminate\Database\Eloquent\Builder
     {
-        $request->validate([
-            'customer_ids' => 'required|array|min:1',
-            'customer_ids.*' => 'required|uuid|exists:customers,id',
-            'auto_isolir' => 'required|boolean',
-        ]);
-
         $user = auth()->user();
-        $customerIds = $request->customer_ids;
-        $autoIsolir = $request->boolean('auto_isolir');
-
-        // Scope to POP for non-superadmin
-        $query = Customer::whereIn('id', $customerIds);
+        if ($request->boolean('select_all')) {
+            $query = Customer::query();
+            if (!$user->hasRole('superadmin')) {
+                $query->where('pop_id', $user->id);
+            } elseif ($request->filled('pop_id')) {
+                $query->where('pop_id', $request->pop_id);
+            }
+            if ($request->filled('filter_status')) {
+                $query->where('status', $request->filter_status);
+            }
+            if ($request->filled('filter_router_id')) {
+                $query->where('router_id', $request->filter_router_id);
+            }
+            return $query;
+        }
+        $query = Customer::whereIn('id', $request->customer_ids ?? []);
         if (!$user->hasRole('superadmin')) {
             $query->where('pop_id', $user->id);
         }
+        return $query;
+    }
 
-        $affected = $query->update(['auto_isolir' => $autoIsolir]);
+    public function bulkToggleAutoIsolir(Request $request)
+    {
+        $request->validate([
+            'customer_ids' => 'required_without:select_all|array',
+            'auto_isolir' => 'required|boolean',
+        ]);
+
+        $autoIsolir = $request->boolean('auto_isolir');
+        $affected = $this->resolveCustomerQuery($request)->update(['auto_isolir' => $autoIsolir]);
 
         $action = $autoIsolir ? 'Mengaktifkan' : 'Menonaktifkan';
         $this->activityLog->log('customers', "{$action} auto-isolir untuk {$affected} pelanggan");
@@ -981,19 +999,12 @@ class CustomerController extends Controller implements HasMiddleware
     public function bulkActivate(Request $request)
     {
         $request->validate([
-            'customer_ids' => 'required|array|min:1',
-            'customer_ids.*' => 'required|uuid|exists:customers,id',
+            'customer_ids' => 'required_without:select_all|array',
         ]);
 
-        $user = auth()->user();
-        $customerIds = $request->customer_ids;
-
-        $query = Customer::whereIn('id', $customerIds)->where('status', 'pending');
-        if (!$user->hasRole('superadmin')) {
-            $query->where('pop_id', $user->id);
-        }
-
-        $affected = $query->update(['status' => 'active']);
+        $affected = $this->resolveCustomerQuery($request)
+            ->where('status', 'pending')
+            ->update(['status' => 'active']);
 
         $this->activityLog->log('customers', "Mengaktifkan {$affected} pelanggan (bulk activate)");
 
@@ -1009,19 +1020,13 @@ class CustomerController extends Controller implements HasMiddleware
      */
     public function bulkSyncMikrotik(Request $request)
     {
-        $user = auth()->user();
-        $customerIds = $request->customer_ids ?? [];
-
-        if (empty($customerIds)) {
+        if (!$request->boolean('select_all') && empty($request->customer_ids)) {
             return response()->json(['success' => false, 'message' => 'Tidak ada pelanggan dipilih'], 422);
         }
 
-        $query = Customer::with(['router', 'package'])->whereIn('id', $customerIds);
-        if (!$user->hasRole('superadmin')) {
-            $query->where('pop_id', $user->id);
-        }
-
-        $customers = $query->get();
+        $customers = $this->resolveCustomerQuery($request)
+            ->with(['router', 'package'])
+            ->get();
         $details = [];
         $successCount = 0;
         $failCount = 0;
@@ -1804,16 +1809,9 @@ class CustomerController extends Controller implements HasMiddleware
      */
     public function bulkGeneratePortalAccount(Request $request)
     {
-        $request->validate(['customer_ids' => 'required|array', 'customer_ids.*' => 'string']);
+        $request->validate(['customer_ids' => 'required_without:select_all|array']);
 
-        $user = auth()->user();
-        $query = Customer::whereIn('id', $request->customer_ids);
-
-        if (!$user->hasRole('superadmin')) {
-            $query->where('pop_id', $user->id);
-        }
-
-        $customers = $query->get();
+        $customers = $this->resolveCustomerQuery($request)->get();
 
         if ($customers->isEmpty()) {
             return response()->json(['success' => false, 'message' => 'Tidak ada pelanggan yang ditemukan.'], 422);
