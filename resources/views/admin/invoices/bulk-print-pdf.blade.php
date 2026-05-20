@@ -163,7 +163,7 @@
             <tr>
                 <td style="width:58%; vertical-align:top;">
                     @if($popSetting?->isp_logo)
-                    <img src="{{ public_path('storage/' . $popSetting->isp_logo) }}" alt="Logo" style="max-height:50px; max-width:160px; margin-bottom:6px;"><br>
+                    <img src="{{ storage_path('app/public/' . $popSetting->isp_logo) }}" alt="Logo" style="max-height:50px; max-width:160px; margin-bottom:6px;"><br>
                     @endif
                     <div class="company-name">{{ $popSetting?->isp_name ?? 'ISP Provider' }}</div>
                     <div class="company-details">

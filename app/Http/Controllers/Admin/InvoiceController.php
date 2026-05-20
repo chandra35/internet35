@@ -773,7 +773,7 @@ class InvoiceController extends Controller implements HasMiddleware
         $invoice->update(['pdf_path' => $filename]);
         $invoice->recordPrint();
 
-        return $pdf->download($invoice->invoice_number . '.pdf');
+        return $pdf->stream($invoice->invoice_number . '.pdf');
     }
 
     /**
