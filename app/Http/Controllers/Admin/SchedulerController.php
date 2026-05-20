@@ -344,7 +344,7 @@ class SchedulerController extends Controller implements HasMiddleware
     {
         $checks = [];
         $requiredTasks = ScheduledTask::availableCommands();
-        $criticalCommands = ['billing:generate', 'billing:reminder', 'billing:auto-suspend'];
+        $criticalCommands = ['billing:generate', 'billing:reminder', 'billing:auto-suspend', 'billing:auto-unsuspend'];
 
         foreach ($criticalCommands as $cmd) {
             $info = $requiredTasks[$cmd] ?? null;
@@ -689,7 +689,7 @@ class SchedulerController extends Controller implements HasMiddleware
                 $messages = [];
 
                 // Create missing critical tasks
-                foreach (['billing:generate', 'billing:reminder', 'billing:auto-suspend'] as $cmd) {
+                foreach (['billing:generate', 'billing:reminder', 'billing:auto-suspend', 'billing:auto-unsuspend'] as $cmd) {
                     if (!ScheduledTask::where('command', $cmd)->exists()) {
                         $info = ScheduledTask::availableCommands()[$cmd] ?? null;
                         if ($info) {
@@ -709,7 +709,7 @@ class SchedulerController extends Controller implements HasMiddleware
                 }
 
                 // Enable disabled tasks
-                $enabled = ScheduledTask::whereIn('command', ['billing:generate', 'billing:reminder', 'billing:auto-suspend'])
+                $enabled = ScheduledTask::whereIn('command', ['billing:generate', 'billing:reminder', 'billing:auto-suspend', 'billing:auto-unsuspend'])
                     ->where('is_enabled', false)->update(['is_enabled' => true]);
                 if ($enabled) { $fixed += $enabled; $messages[] = "{$enabled} task diaktifkan"; }
 

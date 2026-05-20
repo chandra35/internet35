@@ -9,6 +9,7 @@ use App\Models\CustomerPayment;
 use App\Models\PopSetting;
 use App\Models\User;
 use App\Services\ActivityLogService;
+use App\Services\CustomerUnsuspendService;
 use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -406,10 +407,40 @@ class InvoiceController extends Controller implements HasMiddleware
             ]);
             
             DB::commit();
-            
+
             $this->activityLog->logUpdate('invoices', "Marked invoice {$invoice->invoice_number} as paid");
-            
-            return back()->with('success', 'Invoice berhasil ditandai lunas!');
+
+            // Auto-unsuspend if customer is suspended and has no more overdue/pending invoices
+            $customer = $invoice->customer;
+            $unsuspendMsg = '';
+            if ($customer && $customer->status === 'suspended') {
+                $remainingOverdue = $customer->invoices()
+                    ->whereIn('status', ['pending', 'overdue'])
+                    ->where('id', '!=', $invoice->id)
+                    ->exists();
+
+                if (!$remainingOverdue) {
+                    try {
+                        $result = app(CustomerUnsuspendService::class)->unsuspend($customer);
+                        $unsuspendMsg = $result === 'unsuspended'
+                            ? ' Isolir pelanggan berhasil dibuka otomatis.'
+                            : ' Isolir dibuka di sistem (Mikrotik: ' . $result . ').';
+
+                        try {
+                            app(NotificationService::class)->sendActivated($customer, [
+                                'activate_date' => now()->format('d F Y H:i'),
+                                'reason' => 'Tagihan telah dilunasi',
+                            ]);
+                        } catch (\Exception $notifErr) {
+                            Log::warning("Auto-unsuspend notification failed for {$customer->customer_id}: " . $notifErr->getMessage());
+                        }
+                    } catch (\Exception $e) {
+                        Log::error("Auto-unsuspend after markPaid failed for {$customer->customer_id}: " . $e->getMessage());
+                    }
+                }
+            }
+
+            return back()->with('success', 'Invoice berhasil ditandai lunas!' . $unsuspendMsg);
             
         } catch (\Exception $e) {
             DB::rollBack();

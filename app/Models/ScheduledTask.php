@@ -83,6 +83,11 @@ class ScheduledTask extends Model
                 'description' => 'Suspend pelanggan yang belum bayar setelah jatuh tempo',
                 'recommended_schedule' => 'daily',
             ],
+            'billing:auto-unsuspend' => [
+                'name' => 'Auto Buka Isolir',
+                'description' => 'Otomatis buka isolir pelanggan yang sudah melunasi semua tagihan',
+                'recommended_schedule' => 'daily',
+            ],
             'onu:sync-power' => [
                 'name' => 'Sync Optical Power',
                 'description' => 'Sinkronisasi data optical power ONU',
