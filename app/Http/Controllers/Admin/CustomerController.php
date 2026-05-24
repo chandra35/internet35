@@ -1357,6 +1357,25 @@ class CustomerController extends Controller implements HasMiddleware
     }
 
     /**
+     * Check if portal email is available.
+     */
+    public function checkEmail(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email|max:255',
+        ]);
+
+        $user = User::where('email', $request->email)->first();
+
+        return response()->json([
+            'available' => !$user,
+            'message' => $user
+                ? "Email {$request->email} sudah digunakan oleh akun lain."
+                : 'Email tersedia untuk akun portal.',
+        ]);
+    }
+
+    /**
      * Authorize customer belongs to current POP
      */
     protected function authorizeCustomer(Customer $customer): void

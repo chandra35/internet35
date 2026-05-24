@@ -289,6 +289,7 @@ Route::prefix('admin')->middleware(['auth', 'role:superadmin|admin|admin-pop|tek
         Route::post('/bulk-activate', [CustomerController::class, 'bulkActivate'])->name('bulk-activate');
         Route::get('/packages/{router}', [CustomerController::class, 'getPackagesByRouter'])->name('packages-by-router');
         Route::post('/check-username', [CustomerController::class, 'checkUsername'])->name('check-username');
+        Route::post('/check-email', [CustomerController::class, 'checkEmail'])->name('check-email');
     });
 
     // Invoice Management
@@ -546,4 +547,3 @@ Route::prefix('pelanggan')->middleware(['auth', 'role:client'])->name('pelanggan
     Route::get('/payment/{payment}/demo', [PelangganPaymentController::class, 'demoProcess'])->name('payment.demo-process');
     Route::post('/payment/{payment}/demo-execute', [PelangganPaymentController::class, 'demoExecute'])->name('payment.demo-execute');
 });
-

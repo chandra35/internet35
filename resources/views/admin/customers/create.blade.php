@@ -177,6 +177,7 @@
                                         <label>Email</label>
                                         <input type="email" name="email" class="form-control" placeholder="email@example.com">
                                         <small class="text-muted">Diperlukan jika ingin membuat akun portal</small>
+                                        <small class="d-block mt-1" id="emailStatus" data-email-state="unchecked"></small>
                                     </div>
                                 </div>
                                 <div class="col-md-6">
@@ -898,6 +899,9 @@ function validateForm() {
     const importedFromMikrotik = $('#imported_from_mikrotik').val() === '1';
     const pppoeUsername = $('#pppoe_username').val()?.trim();
     const usernameState = $('#usernameStatus').data('username-state');
+    const createPortal = $('#create_user_account').is(':checked');
+    const email = $('input[name="email"]').val()?.trim();
+    const emailState = $('#emailStatus').data('email-state');
     
     let missing = [];
     if (!name) missing.push('Nama Lengkap');
@@ -909,10 +913,22 @@ function validateForm() {
     if ((syncMikrotik || importedFromMikrotik) && !pppoeUsername) {
         missing.push('Username PPPoE');
     }
+    if (createPortal && !email) {
+        missing.push('Email akun portal');
+    }
     
     // Check username availability state
     if (usernameState === 'unavailable') {
         missing.push('Username tersedia (username saat ini sudah digunakan)');
+    }
+    if (createPortal && emailState === 'unavailable') {
+        missing.push('Email akun portal tersedia');
+    }
+    if (createPortal && emailState === 'checking') {
+        missing.push('Pemeriksaan email selesai');
+    }
+    if (createPortal && emailState === 'invalid') {
+        missing.push('Format email valid');
     }
     
     const btn = $('#btnSubmit');
@@ -1219,6 +1235,22 @@ $(function() {
 
     // ── Form validation listeners ──
     $('input[name="name"], input[name="phone"], #pppoe_username').on('input', function() { validateForm(); });
+    $('#create_user_account').on('change', function() {
+        checkPortalEmail();
+        validateForm();
+    });
+    let emailTimeout;
+    $('input[name="email"]').on('input', function() {
+        clearTimeout(emailTimeout);
+        if ($('#create_user_account').is(':checked') && $(this).val().trim()) {
+            $('#emailStatus').html('<i class="fas fa-spinner fa-spin mr-1"></i>Menunggu pemeriksaan email...')
+                .removeClass('text-danger text-success text-warning')
+                .addClass('text-info')
+                .data('email-state', 'checking');
+        }
+        emailTimeout = setTimeout(checkPortalEmail, 500);
+        validateForm();
+    });
     $('#router_id, #package_id').on('change', function() { validateForm(); });
     $('#sync_mikrotik').on('change', function() { validateForm(); });
     
@@ -1867,6 +1899,65 @@ function checkUsername(username) {
         $('#usernameStatus').html('<i class="fas fa-exclamation-triangle text-warning"></i> Gagal memeriksa username (tidak memblokir penyimpanan)')
             .removeClass('text-danger text-success text-info').addClass('text-warning')
             .data('username-state', 'error');
+        validateForm();
+    });
+}
+
+function checkPortalEmail() {
+    const email = $('input[name="email"]').val()?.trim();
+    const createPortal = $('#create_user_account').is(':checked');
+    const status = $('#emailStatus');
+
+    if (!createPortal) {
+        status.html('').removeClass('text-danger text-success text-warning text-info').data('email-state', 'unchecked');
+        validateForm();
+        return;
+    }
+
+    if (!email) {
+        status.html('<i class="fas fa-info-circle mr-1"></i>Email wajib diisi untuk membuat akun portal')
+            .removeClass('text-danger text-success text-info')
+            .addClass('text-warning')
+            .data('email-state', 'missing');
+        validateForm();
+        return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        status.html('<i class="fas fa-exclamation-triangle mr-1"></i>Format email belum valid')
+            .removeClass('text-success text-info')
+            .addClass('text-warning')
+            .data('email-state', 'invalid');
+        validateForm();
+        return;
+    }
+
+    status.html('<i class="fas fa-spinner fa-spin mr-1"></i>Memeriksa email...')
+        .removeClass('text-danger text-success text-warning')
+        .addClass('text-info')
+        .data('email-state', 'checking');
+
+    $.post('{{ route("admin.customers.check-email") }}', {
+        _token: '{{ csrf_token() }}',
+        email: email
+    }, function(response) {
+        if (response.available) {
+            status.html('<i class="fas fa-check-circle mr-1"></i>' + response.message)
+                .removeClass('text-danger text-warning text-info')
+                .addClass('text-success')
+                .data('email-state', 'available');
+        } else {
+            status.html('<i class="fas fa-times-circle mr-1"></i>' + response.message + ' Gunakan email lain atau matikan opsi akun portal.')
+                .removeClass('text-success text-warning text-info')
+                .addClass('text-danger')
+                .data('email-state', 'unavailable');
+        }
+        validateForm();
+    }).fail(function() {
+        status.html('<i class="fas fa-exclamation-triangle mr-1"></i>Gagal memeriksa email')
+            .removeClass('text-success text-info')
+            .addClass('text-warning')
+            .data('email-state', 'error');
         validateForm();
     });
 }
