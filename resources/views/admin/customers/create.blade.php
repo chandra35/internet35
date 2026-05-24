@@ -886,6 +886,7 @@ let currentPhotoTarget = null;
 let cameraStream = null;
 let packagesData = [];
 let pppSecretsData = []; // Store PPP Secrets from Mikrotik
+let lastGeocodeQuery = '';
 
 // Validate form completeness - enable/disable submit button
 function validateForm() {
@@ -932,7 +933,13 @@ $(function() {
     // Initialize Map with multiple layers (same as ODP)
     var defaultLat = -6.2088;
     var defaultLng = 106.8456;
-    map = L.map('map').setView([defaultLat, defaultLng], 13);
+    var initialLat = parseFloat($('#latitude').val());
+    var initialLng = parseFloat($('#longitude').val());
+    var hasInitialCoords = isValidCoordinate(initialLat, initialLng);
+    map = L.map('map').setView(
+        hasInitialCoords ? [initialLat, initialLng] : [defaultLat, defaultLng],
+        hasInitialCoords ? 18 : 13
+    );
 
     // Google tile layers
     const googleSat = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
@@ -974,6 +981,10 @@ $(function() {
     map.on('click', function(e) {
         setMarker(e.latlng.lat, e.latlng.lng);
     });
+
+    if (hasInitialCoords) {
+        setMarker(initialLat, initialLng);
+    }
 
     // Update marker when coordinates change manually
     $('#latitude, #longitude').on('change', function() {
@@ -1025,7 +1036,10 @@ $(function() {
     // Fix map rendering when Alamat tab is shown (Leaflet in hidden tabs)
     $('a[data-toggle="pill"]').on('shown.bs.tab', function(e) {
         if ($(e.target).attr('href') === '#tab-address') {
-            setTimeout(function() { map.invalidateSize(); }, 100);
+            setTimeout(function() {
+                map.invalidateSize();
+                focusMapFromCoordinatesOrRegion();
+            }, 100);
         }
     });
 
@@ -1251,6 +1265,11 @@ $(function() {
         if (val) {
             loadVillages(val);
         }
+    });
+
+    $('#village_code').on('change', function() {
+        if (_skipCascade) return;
+        focusMapFromCoordinatesOrRegion();
     });
 
     // Router change - load packages & re-check username
@@ -1549,6 +1568,81 @@ function setMarker(lat, lng) {
     }
     $('#latitude').val(lat.toFixed(8));
     $('#longitude').val(lng.toFixed(8));
+}
+
+function isValidCoordinate(lat, lng) {
+    return !isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+}
+
+function focusMapFromCoordinatesOrRegion() {
+    if (!map) return;
+
+    const lat = parseFloat($('#latitude').val());
+    const lng = parseFloat($('#longitude').val());
+
+    if (isValidCoordinate(lat, lng)) {
+        setMarker(lat, lng);
+        map.setView([lat, lng], 18);
+        return;
+    }
+
+    geocodeSelectedRegion();
+}
+
+function selectedOptionText(selector) {
+    const value = $(selector).val();
+    if (!value) return '';
+    const text = $(`${selector} option:selected`).text().trim();
+    if (!text || text.includes('Pilih') || text === 'Memuat...') return '';
+    return text;
+}
+
+function buildRegionSearchQuery() {
+    const village = selectedOptionText('#village_code');
+    const district = selectedOptionText('#district_code');
+    const city = selectedOptionText('#city_code');
+    const province = selectedOptionText('#province_code');
+    const parts = [village, district, city, province].filter(Boolean);
+
+    if (parts.length === 0) return '';
+    return parts.join(', ') + ', Indonesia';
+}
+
+function geocodeSelectedRegion() {
+    const query = buildRegionSearchQuery();
+    if (!query || query === lastGeocodeQuery) return;
+
+    lastGeocodeQuery = query;
+
+    $.ajax({
+        url: 'https://nominatim.openstreetmap.org/search',
+        method: 'GET',
+        dataType: 'json',
+        data: {
+            format: 'json',
+            limit: 1,
+            countrycodes: 'id',
+            q: query
+        },
+        success: function(results) {
+            if (!results || results.length === 0) {
+                lastGeocodeQuery = '';
+                return;
+            }
+
+            const lat = parseFloat(results[0].lat);
+            const lng = parseFloat(results[0].lon);
+
+            if (isValidCoordinate(lat, lng) && !$('#latitude').val() && !$('#longitude').val()) {
+                setMarker(lat, lng);
+                map.setView([lat, lng], 15);
+                toastr.info('Peta disesuaikan berdasarkan Kelurahan/Desa yang dipilih.');
+            }
+        },
+        error: function() {
+            lastGeocodeQuery = '';
+        }
+    });
 }
 
 // Load PPP Secrets into modal from Mikrotik
@@ -2013,6 +2107,7 @@ $(document).on('click', '.btn-assign-resident', function() {
                         $.get(`{{ url('admin/pop-settings/villages') }}/${r.district_code}`, function(villages) {
                             fillSelect('#village_code', villages, r.village_code, '-- Pilih Kelurahan --');
                             _skipCascade = false;
+                            focusMapFromCoordinatesOrRegion();
                         });
                     } else { _skipCascade = false; }
                 });
