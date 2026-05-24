@@ -1528,10 +1528,13 @@ function doSubmit() {
                     text: 'Request memakan waktu terlalu lama. Silakan cek apakah pelanggan sudah tersimpan.',
                 });
             } else if (xhr.status === 422) {
-                const errors = xhr.responseJSON.errors;
+                const errors = xhr.responseJSON?.errors || {};
                 let errorMsg = '';
                 for (const key in errors) {
                     errorMsg += errors[key].join('<br>') + '<br>';
+                }
+                if (!errorMsg) {
+                    errorMsg = xhr.responseJSON?.message || 'Data tidak valid. Silakan periksa kembali form pelanggan.';
                 }
                 Swal.fire({
                     icon: 'error',
