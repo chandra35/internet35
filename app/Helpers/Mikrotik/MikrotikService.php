@@ -470,32 +470,6 @@ class MikrotikService
     }
 
     /**
-     * Add IP address
-     */
-    public function addIpAddress(array $params): array
-    {
-        return $this->api->exec('/ip/address/add', $params);
-    }
-
-    /**
-     * Update IP address
-     */
-    public function updateIpAddress(string $id, array $params): bool
-    {
-        $params['.id'] = $id;
-        $result = $this->api->exec('/ip/address/set', $params);
-        return !isset($result[0]['_error']);
-    }
-
-    /**
-     * Get IP addresses
-     */
-    public function getIpAddresses(): array
-    {
-        return $this->api->exec('/ip/address/print');
-    }
-
-    /**
      * Get firewall mangle rules
      */
     public function getFirewallMangle(): array
