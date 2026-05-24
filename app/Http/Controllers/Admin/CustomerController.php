@@ -326,26 +326,24 @@ class CustomerController extends Controller implements HasMiddleware
             'odp_port' => 'nullable|integer|min:1',
         ]);
 
-        if ($request->boolean('create_user_account')) {
-            if (!$request->filled('email')) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Email wajib diisi jika ingin membuat akun portal pelanggan.',
-                    'errors' => [
-                        'email' => ['Email wajib diisi jika ingin membuat akun portal pelanggan.'],
-                    ],
-                ], 422);
-            }
+        if ($request->boolean('create_user_account') && !$request->filled('email')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Email wajib diisi jika ingin membuat akun portal pelanggan.',
+                'errors' => [
+                    'email' => ['Email wajib diisi jika ingin membuat akun portal pelanggan.'],
+                ],
+            ], 422);
+        }
 
-            if (User::where('email', $request->email)->exists()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Email {$request->email} sudah digunakan oleh akun lain. Gunakan email lain atau matikan opsi buat akun portal.",
-                    'errors' => [
-                        'email' => ["Email {$request->email} sudah digunakan oleh akun lain. Gunakan email lain atau matikan opsi buat akun portal."],
-                    ],
-                ], 422);
-            }
+        if ($request->filled('email') && User::where('email', $request->email)->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => "Email {$request->email} sudah digunakan oleh akun lain. Gunakan email lain.",
+                'errors' => [
+                    'email' => ["Email {$request->email} sudah digunakan oleh akun lain. Gunakan email lain."],
+                ],
+            ], 422);
         }
         
         // Validate ODP port is not already used (server-side protection)
@@ -1371,7 +1369,7 @@ class CustomerController extends Controller implements HasMiddleware
             'available' => !$user,
             'message' => $user
                 ? "Email {$request->email} sudah digunakan oleh akun lain."
-                : 'Email tersedia untuk akun portal.',
+                : 'Email tersedia.',
         ]);
     }
 

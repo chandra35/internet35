@@ -921,13 +921,13 @@ function validateForm() {
     if (usernameState === 'unavailable') {
         missing.push('Username tersedia (username saat ini sudah digunakan)');
     }
-    if (createPortal && emailState === 'unavailable') {
-        missing.push('Email akun portal tersedia');
+    if (email && emailState === 'unavailable') {
+        missing.push('Email tersedia');
     }
-    if (createPortal && emailState === 'checking') {
+    if (email && emailState === 'checking') {
         missing.push('Pemeriksaan email selesai');
     }
-    if (createPortal && emailState === 'invalid') {
+    if (email && emailState === 'invalid') {
         missing.push('Format email valid');
     }
     
@@ -1242,7 +1242,7 @@ $(function() {
     let emailTimeout;
     $('input[name="email"]').on('input', function() {
         clearTimeout(emailTimeout);
-        if ($('#create_user_account').is(':checked') && $(this).val().trim()) {
+        if ($(this).val().trim()) {
             $('#emailStatus').html('<i class="fas fa-spinner fa-spin mr-1"></i>Menunggu pemeriksaan email...')
                 .removeClass('text-danger text-success text-warning')
                 .addClass('text-info')
@@ -1908,7 +1908,7 @@ function checkPortalEmail() {
     const createPortal = $('#create_user_account').is(':checked');
     const status = $('#emailStatus');
 
-    if (!createPortal) {
+    if (!email && !createPortal) {
         status.html('').removeClass('text-danger text-success text-warning text-info').data('email-state', 'unchecked');
         validateForm();
         return;
@@ -1947,7 +1947,7 @@ function checkPortalEmail() {
                 .addClass('text-success')
                 .data('email-state', 'available');
         } else {
-            status.html('<i class="fas fa-times-circle mr-1"></i>' + response.message + ' Gunakan email lain atau matikan opsi akun portal.')
+            status.html('<i class="fas fa-times-circle mr-1"></i>' + response.message + ' Gunakan email lain.')
                 .removeClass('text-success text-warning text-info')
                 .addClass('text-danger')
                 .data('email-state', 'unavailable');
