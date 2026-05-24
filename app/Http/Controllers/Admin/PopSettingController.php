@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Helpers\ActivityLogger;
 use App\Helpers\Mikrotik\MikrotikService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Laravolt\Indonesia\Models\Province;
@@ -25,7 +26,7 @@ class PopSettingController extends Controller implements HasMiddleware
     public static function middleware(): array
     {
         return [
-            new Middleware('permission:pop-settings.view', only: ['index', 'ispInfo', 'invoiceSettings', 'previewInvoice', 'livePreviewInvoice', 'integration', 'getCities', 'getDistricts', 'getVillages', 'unregNotif']),
+            new Middleware('permission:pop-settings.view', only: ['index', 'ispInfo', 'invoiceSettings', 'previewInvoice', 'livePreviewInvoice', 'integration', 'getCities', 'getDistricts', 'getVillages', 'geocodeRegion', 'unregNotif']),
             new Middleware('permission:pop-settings.edit', only: ['updateIspInfo', 'updateInvoiceSettings', 'removeLogo', 'updateIntegration', 'testRadiusConnection', 'syncIsolirProfile', 'updateUnregNotif']),
             new Middleware('role:superadmin', only: ['monitoring', 'viewPopDetail', 'copySettingsForm', 'preview', 'copySettings']),
         ];
@@ -291,6 +292,103 @@ class PopSettingController extends Controller implements HasMiddleware
     {
         $villages = Village::where('district_code', $districtCode)->orderBy('name')->get();
         return response()->json($villages);
+    }
+
+    /**
+     * Resolve selected Indonesia region to map coordinates.
+     */
+    public function geocodeRegion(Request $request)
+    {
+        $data = $request->validate([
+            'province_code' => 'nullable|string',
+            'city_code' => 'nullable|string',
+            'district_code' => 'nullable|string',
+            'village_code' => 'nullable|string',
+        ]);
+
+        $province = !empty($data['province_code'])
+            ? Province::where('code', $data['province_code'])->first()
+            : null;
+        $city = !empty($data['city_code'])
+            ? City::where('code', $data['city_code'])->first()
+            : null;
+        $district = !empty($data['district_code'])
+            ? District::where('code', $data['district_code'])->first()
+            : null;
+        $village = !empty($data['village_code'])
+            ? Village::where('code', $data['village_code'])->first()
+            : null;
+
+        $provinceName = $this->normalizeGeocodeName($province?->name);
+        $cityName = $this->normalizeGeocodeName($city?->name);
+        $districtName = $this->normalizeGeocodeName($district?->name);
+        $villageName = $this->normalizeGeocodeName($village?->name);
+
+        $queries = collect([
+            [$villageName, $districtName, $cityName, $provinceName, 'Indonesia'],
+            [$villageName, $districtName, $cityName, $provinceName, 'Indonesia', 'compact'],
+            [$districtName, $cityName, $provinceName, 'Indonesia'],
+            [$districtName, $cityName, $provinceName, 'Indonesia', 'compact'],
+            [$cityName, $provinceName, 'Indonesia'],
+        ])
+            ->map(function ($parts) {
+                $compact = in_array('compact', $parts, true);
+                $parts = collect($parts)->reject(fn($part) => $part === 'compact')->filter();
+
+                return $parts->implode($compact ? ' ' : ', ');
+            })
+            ->filter()
+            ->unique()
+            ->values();
+
+        foreach ($queries as $query) {
+            try {
+                $response = Http::withHeaders([
+                        'User-Agent' => config('app.name', 'Internet35') . '/1.0',
+                    ])
+                    ->timeout(8)
+                    ->retry(1, 300)
+                    ->get('https://nominatim.openstreetmap.org/search', [
+                        'format' => 'json',
+                        'limit' => 1,
+                        'countrycodes' => 'id',
+                        'q' => $query,
+                    ]);
+
+                if (!$response->ok()) {
+                    continue;
+                }
+
+                $result = collect($response->json())->first();
+                if (!$result || !isset($result['lat'], $result['lon'])) {
+                    continue;
+                }
+
+                return response()->json([
+                    'success' => true,
+                    'latitude' => (float) $result['lat'],
+                    'longitude' => (float) $result['lon'],
+                    'query' => $query,
+                    'display_name' => $result['display_name'] ?? null,
+                ]);
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Koordinat wilayah tidak ditemukan.',
+        ], 404);
+    }
+
+    protected function normalizeGeocodeName(?string $name): ?string
+    {
+        if (!$name) {
+            return null;
+        }
+
+        return trim(preg_replace('/^(KABUPATEN|KOTA)\s+/i', '', $name));
     }
 
     /**

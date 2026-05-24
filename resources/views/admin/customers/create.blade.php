@@ -886,7 +886,7 @@ let currentPhotoTarget = null;
 let cameraStream = null;
 let packagesData = [];
 let pppSecretsData = []; // Store PPP Secrets from Mikrotik
-let lastGeocodeQuery = '';
+let lastGeocodeKey = '';
 
 // Validate form completeness - enable/disable submit button
 function validateForm() {
@@ -1589,49 +1589,32 @@ function focusMapFromCoordinatesOrRegion() {
     geocodeSelectedRegion();
 }
 
-function selectedOptionText(selector) {
-    const value = $(selector).val();
-    if (!value) return '';
-    const text = $(`${selector} option:selected`).text().trim();
-    if (!text || text.includes('Pilih') || text === 'Memuat...') return '';
-    return text;
-}
-
-function buildRegionSearchQuery() {
-    const village = selectedOptionText('#village_code');
-    const district = selectedOptionText('#district_code');
-    const city = selectedOptionText('#city_code');
-    const province = selectedOptionText('#province_code');
-    const parts = [village, district, city, province].filter(Boolean);
-
-    if (parts.length === 0) return '';
-    return parts.join(', ') + ', Indonesia';
-}
-
 function geocodeSelectedRegion() {
-    const query = buildRegionSearchQuery();
-    if (!query || query === lastGeocodeQuery) return;
+    const params = {
+        province_code: $('#province_code').val(),
+        city_code: $('#city_code').val(),
+        district_code: $('#district_code').val(),
+        village_code: $('#village_code').val()
+    };
+    const geocodeKey = JSON.stringify(params);
 
-    lastGeocodeQuery = query;
+    if (!params.province_code || geocodeKey === lastGeocodeKey) return;
+
+    lastGeocodeKey = geocodeKey;
 
     $.ajax({
-        url: 'https://nominatim.openstreetmap.org/search',
+        url: '{{ route("admin.pop-settings.geocode-region") }}',
         method: 'GET',
         dataType: 'json',
-        data: {
-            format: 'json',
-            limit: 1,
-            countrycodes: 'id',
-            q: query
-        },
-        success: function(results) {
-            if (!results || results.length === 0) {
-                lastGeocodeQuery = '';
+        data: params,
+        success: function(response) {
+            if (!response.success) {
+                lastGeocodeKey = '';
                 return;
             }
 
-            const lat = parseFloat(results[0].lat);
-            const lng = parseFloat(results[0].lon);
+            const lat = parseFloat(response.latitude);
+            const lng = parseFloat(response.longitude);
 
             if (isValidCoordinate(lat, lng) && !$('#latitude').val() && !$('#longitude').val()) {
                 setMarker(lat, lng);
@@ -1640,7 +1623,7 @@ function geocodeSelectedRegion() {
             }
         },
         error: function() {
-            lastGeocodeQuery = '';
+            lastGeocodeKey = '';
         }
     });
 }

@@ -194,6 +194,7 @@ Route::prefix('admin')->middleware(['auth', 'role:superadmin|admin|admin-pop|tek
         Route::get('/cities/{province}', [PopSettingController::class, 'getCities']);
         Route::get('/districts/{city}', [PopSettingController::class, 'getDistricts']);
         Route::get('/villages/{district}', [PopSettingController::class, 'getVillages']);
+        Route::get('/geocode-region', [PopSettingController::class, 'geocodeRegion'])->name('geocode-region');
     });
 
     // In-app notification bell (per-user, all roles)
@@ -545,5 +546,4 @@ Route::prefix('pelanggan')->middleware(['auth', 'role:client'])->name('pelanggan
     Route::get('/payment/{payment}/demo', [PelangganPaymentController::class, 'demoProcess'])->name('payment.demo-process');
     Route::post('/payment/{payment}/demo-execute', [PelangganPaymentController::class, 'demoExecute'])->name('payment.demo-execute');
 });
-
 
