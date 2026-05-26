@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Services\ActivityLogService;
 use App\Helpers\Mikrotik\MikrotikService;
 use App\Services\CustomerUnsuspendService;
+use App\Services\CustomerConnectivityService;
 use App\Services\NotificationService;
 use App\Services\RadiusService;
 use Illuminate\Http\Request;
@@ -37,7 +38,7 @@ class CustomerController extends Controller implements HasMiddleware
         return [
             new Middleware('permission:customers.view', only: ['index', 'show', 'getData']),
             new Middleware('permission:customers.create', only: ['create', 'store', 'import', 'processImport', 'previewImport', 'downloadTemplate']),
-            new Middleware('permission:customers.edit', only: ['edit', 'update', 'syncMikrotik', 'bulkToggleAutoIsolir', 'isolir', 'bukaIsolir']),
+            new Middleware('permission:customers.edit', only: ['edit', 'update', 'syncMikrotik', 'bulkToggleAutoIsolir', 'isolir', 'bukaIsolir', 'matchAcsDevice', 'updateWifi']),
             new Middleware('permission:customers.delete', only: ['destroy']),
         ];
     }
@@ -621,9 +622,39 @@ class CustomerController extends Controller implements HasMiddleware
     {
         $this->authorizeCustomer($customer);
         
-        $customer->load(['router', 'package', 'province', 'city', 'district', 'village', 'user', 'invoices', 'payments']);
+        $customer->load(['router', 'package', 'province', 'city', 'district', 'village', 'user', 'invoices', 'payments', 'onu']);
         
         return view('admin.customers.show', compact('customer'));
+    }
+
+    public function connectivity(Customer $customer, CustomerConnectivityService $connectivity)
+    {
+        $this->authorizeCustomer($customer);
+
+        return response()->json([
+            'success' => true,
+            'data' => $connectivity->summary($customer, true),
+        ]);
+    }
+
+    public function matchAcsDevice(Customer $customer, CustomerConnectivityService $connectivity)
+    {
+        $this->authorizeCustomer($customer);
+
+        return response()->json($connectivity->autoMatchAcsDevice($customer));
+    }
+
+    public function updateWifi(Customer $customer, Request $request, CustomerConnectivityService $connectivity)
+    {
+        $this->authorizeCustomer($customer);
+
+        $validated = $request->validate([
+            'wlan_path' => 'required|string|max:500',
+            'ssid' => 'required|string|min:1|max:32',
+            'password' => 'nullable|string|min:8|max:63',
+        ]);
+
+        return response()->json($connectivity->updateWifi($customer, $validated));
     }
 
     /**

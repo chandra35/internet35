@@ -39,6 +39,46 @@
     {{-- LEFT: PPPoE + Package --}}
     <div class="col-lg-8">
 
+        {{-- Live Connection Status --}}
+        <div class="card">
+            <div class="card-header"><span class="card-title"><i class="fas fa-signal mr-1"></i> Status Live</span></div>
+            <div class="card-body py-3">
+                <div class="row" style="row-gap:10px;">
+                    <div class="col-sm-4">
+                        <div class="text-muted" style="font-size:0.7rem;">PPPoE</div>
+                        @if(($connectionStatus['ppp']['online'] ?? false))
+                        <span class="badge badge-success">Online</span>
+                        <small class="d-block text-muted mt-1">{{ $connectionStatus['ppp']['address'] ?? '-' }} · {{ $connectionStatus['ppp']['uptime'] ?? '-' }}</small>
+                        @else
+                        <span class="badge badge-secondary">Offline</span>
+                        <small class="d-block text-muted mt-1">{{ $connectionStatus['ppp']['message'] ?? '-' }}</small>
+                        @endif
+                    </div>
+                    <div class="col-sm-4">
+                        <div class="text-muted" style="font-size:0.7rem;">ACS</div>
+                        @if(($connectionStatus['acs']['online'] ?? false))
+                        <span class="badge badge-success">Online</span>
+                        @elseif(($connectionStatus['acs']['found'] ?? false))
+                        <span class="badge badge-warning">Tidak realtime</span>
+                        @else
+                        <span class="badge badge-secondary">Belum terhubung</span>
+                        @endif
+                        <small class="d-block text-muted mt-1">{{ $connectionStatus['acs']['last_inform_human'] ?? '-' }}</small>
+                    </div>
+                    <div class="col-sm-4">
+                        <div class="text-muted" style="font-size:0.7rem;">ONU</div>
+                        @if($connectionStatus['onu'] ?? null)
+                        <span class="badge badge-{{ ($connectionStatus['onu']['status'] ?? '') === 'online' ? 'success' : 'secondary' }}">{{ $connectionStatus['onu']['status_label'] ?? '-' }}</span>
+                        <small class="d-block text-muted mt-1">RX {{ $connectionStatus['onu']['rx_power'] ?? '-' }} dBm</small>
+                        @else
+                        <span class="badge badge-secondary">Belum assign</span>
+                        <small class="d-block text-muted mt-1">Menunggu migrasi ONU</small>
+                        @endif
+                    </div>
+                </div>
+            </div>
+        </div>
+
         {{-- PPPoE Credentials --}}
         <div class="card">
             <div class="card-header"><span class="card-title"><i class="fas fa-user-circle mr-1"></i> Kredensial PPPoE</span></div>

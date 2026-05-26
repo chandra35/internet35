@@ -109,6 +109,87 @@ class GenieAcsService
     }
 
     /**
+     * Find a device by PPPoE username exposed in WANPPPConnection.
+     * GenieACS stores WAN instances under dynamic numeric keys, so this does a
+     * projected scan and walks the WAN tree instead of relying on a fixed path.
+     */
+    public function findDeviceByPppoeUsername(string $username): ?array
+    {
+        $username = trim($username);
+        if ($username === '') {
+            return null;
+        }
+
+        try {
+            $response = Http::timeout(30)->get("{$this->nbiUrl}/devices", [
+                'projection' => implode(',', [
+                    '_id',
+                    '_lastInform',
+                    '_registered',
+                    'InternetGatewayDevice.DeviceInfo',
+                    'InternetGatewayDevice.WANDevice',
+                    'Device.DeviceInfo',
+                    'Device.WANDevice',
+                ]),
+            ]);
+
+            if (!$response->ok()) {
+                return null;
+            }
+
+            foreach ($response->json() as $device) {
+                $igd = $device['InternetGatewayDevice'] ?? $device['Device'] ?? [];
+                if ($this->deviceHasPppoeUsername($igd['WANDevice'] ?? [], $username)) {
+                    return $this->parseDevice($device);
+                }
+            }
+
+            return null;
+        } catch (Exception $e) {
+            Log::error("GenieACS findDeviceByPppoeUsername error: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Add searchable ownership tags to a GenieACS device.
+     */
+    public function tagDevice(string $deviceId, array $tags): array
+    {
+        $deviceId = $this->safeDeviceId($deviceId);
+        $created = [];
+        $failed = [];
+
+        foreach ($tags as $tag) {
+            $tag = strtolower(preg_replace('/[^a-zA-Z0-9_.:-]+/', '-', (string) $tag));
+            $tag = trim($tag, '-');
+            if ($tag === '') {
+                continue;
+            }
+
+            try {
+                $response = Http::timeout($this->timeout)
+                    ->post("{$this->nbiUrl}/devices/{$deviceId}/tags/{$tag}");
+
+                if ($response->successful() || $response->status() === 409) {
+                    $created[] = $tag;
+                } else {
+                    $failed[] = $tag;
+                }
+            } catch (Exception $e) {
+                $failed[] = $tag;
+                Log::warning("GenieACS tagDevice failed for {$tag}: " . $e->getMessage());
+            }
+        }
+
+        return [
+            'success' => empty($failed),
+            'tags' => $created,
+            'failed' => $failed,
+        ];
+    }
+
+    /**
      * Get device by GenieACS device ID.
      */
     public function getDevice(string $deviceId): ?array
@@ -2011,6 +2092,34 @@ class GenieAcsService
         }
 
         return null;
+    }
+
+    protected function deviceHasPppoeUsername(array $wanTree, string $username): bool
+    {
+        foreach ($wanTree as $key => $value) {
+            if (!is_array($value) || str_starts_with((string) $key, '_')) {
+                continue;
+            }
+
+            if (isset($value['WANPPPConnection']) && is_array($value['WANPPPConnection'])) {
+                foreach ($value['WANPPPConnection'] as $ppp) {
+                    if (!is_array($ppp)) {
+                        continue;
+                    }
+
+                    $pppUsername = $this->getValue($ppp, 'Username');
+                    if ($pppUsername && strcasecmp(trim((string) $pppUsername), $username) === 0) {
+                        return true;
+                    }
+                }
+            }
+
+            if ($this->deviceHasPppoeUsername($value, $username)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Pelanggan;
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Models\CustomerInvoice;
+use App\Services\CustomerConnectivityService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -126,7 +127,7 @@ class DashboardController extends Controller
     /**
      * Show connection info
      */
-    public function connection()
+    public function connection(CustomerConnectivityService $connectivity)
     {
         $user = Auth::user();
         $customer = $user->customerProfile;
@@ -135,7 +136,8 @@ class DashboardController extends Controller
             return redirect()->route('pelanggan.dashboard');
         }
         
-        $customer->load(['router', 'package']);
+        $customer->load(['router', 'package', 'onu']);
+        $connectionStatus = $connectivity->summary($customer, true);
 
         // Billing period
         $billingDay = $customer->billing_day ?? 1;
@@ -158,7 +160,35 @@ class DashboardController extends Controller
         $latestPayment = $customer->payments()->where('status', 'success')->latest('paid_at')->first();
         $pendingInvoiceCount = $customer->invoices()->whereIn('status', ['pending', 'overdue'])->count();
         
-        return view('pelanggan.connection', compact('customer', 'billingPeriod', 'latestInvoice', 'latestPayment', 'pendingInvoiceCount'));
+        return view('pelanggan.connection', compact('customer', 'billingPeriod', 'latestInvoice', 'latestPayment', 'pendingInvoiceCount', 'connectionStatus'));
+    }
+
+    public function wifi()
+    {
+        $customer = Auth::user()->customerProfile;
+        if (!$customer) {
+            return redirect()->route('pelanggan.dashboard');
+        }
+
+        $status = app(CustomerConnectivityService::class)->summary($customer, true);
+
+        return view('pelanggan.wifi', compact('customer', 'status'));
+    }
+
+    public function updateWifi(Request $request, CustomerConnectivityService $connectivity)
+    {
+        $customer = Auth::user()->customerProfile;
+        if (!$customer) {
+            return response()->json(['success' => false, 'message' => 'Pelanggan tidak ditemukan'], 404);
+        }
+
+        $validated = $request->validate([
+            'wlan_path' => 'required|string|max:500',
+            'ssid' => 'required|string|min:1|max:32',
+            'password' => 'required|string|min:8|max:63',
+        ]);
+
+        return response()->json($connectivity->updateWifi($customer, $validated, true));
     }
 
     /**

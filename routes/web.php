@@ -283,6 +283,9 @@ Route::prefix('admin')->middleware(['auth', 'role:superadmin|admin|admin-pop|tek
         Route::post('/{customer}/portal-reset-password', [CustomerController::class, 'resetPortalPassword'])->name('portal-reset-password');
         Route::post('/{customer}/portal-toggle-status', [CustomerController::class, 'togglePortalStatus'])->name('portal-toggle-status');
         Route::delete('/{customer}/portal-delete', [CustomerController::class, 'deletePortalAccount'])->name('portal-delete');
+        Route::get('/{customer}/connectivity', [CustomerController::class, 'connectivity'])->name('connectivity');
+        Route::post('/{customer}/acs-match', [CustomerController::class, 'matchAcsDevice'])->name('acs-match');
+        Route::post('/{customer}/wifi', [CustomerController::class, 'updateWifi'])->name('wifi');
         Route::post('/bulk-auto-isolir', [CustomerController::class, 'bulkToggleAutoIsolir'])->name('bulk-auto-isolir');
         Route::post('/bulk-sync-mikrotik', [CustomerController::class, 'bulkSyncMikrotik'])->name('bulk-sync-mikrotik');
         Route::post('/bulk-generate-portal', [CustomerController::class, 'bulkGeneratePortalAccount'])->name('bulk-generate-portal');
@@ -523,6 +526,8 @@ Route::prefix('pelanggan')->middleware(['auth', 'role:client'])->name('pelanggan
     Route::get('/', [PelangganDashboardController::class, 'index'])->name('dashboard');
     Route::get('/connection', [PelangganDashboardController::class, 'connection'])->name('connection');
     Route::get('/credentials', [PelangganDashboardController::class, 'credentials'])->name('credentials');
+    Route::get('/wifi', [PelangganDashboardController::class, 'wifi'])->name('wifi');
+    Route::post('/wifi', [PelangganDashboardController::class, 'updateWifi'])->name('wifi.update');
     
     // Profile
     Route::get('/profile', [PelangganProfileController::class, 'index'])->name('profile');

@@ -212,6 +212,12 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a href="{{ route('pelanggan.wifi') }}" class="nav-link {{ request()->routeIs('pelanggan.wifi') ? 'active' : '' }}">
+                            <i class="nav-icon fas fa-broadcast-tower"></i>
+                            <p>WiFi Saya</p>
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a href="{{ route('pelanggan.invoices') }}" class="nav-link {{ request()->routeIs('pelanggan.invoices*') ? 'active' : '' }}">
                             <i class="nav-icon fas fa-file-invoice-dollar"></i>
                             <p>Tagihan</p>

@@ -73,6 +73,40 @@
         border-radius: 50%;
         background: #007bff;
     }
+    .connectivity-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+    }
+    .connectivity-tile {
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 12px;
+        min-height: 92px;
+        background: #fff;
+    }
+    .connectivity-label {
+        color: #6c757d;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        font-weight: 700;
+    }
+    .connectivity-value {
+        font-size: 1rem;
+        font-weight: 700;
+        margin-top: 4px;
+    }
+    .wifi-row {
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 10px;
+    }
+    @media (max-width: 991.98px) {
+        .connectivity-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
 </style>
 @endpush
 
@@ -284,6 +318,66 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Connectivity Status -->
+        <div class="card">
+            <div class="card-header d-flex align-items-center">
+                <h3 class="card-title mb-0"><i class="fas fa-network-wired mr-2"></i>Status Koneksi Live</h3>
+                <div class="card-tools ml-auto">
+                    <button type="button" class="btn btn-sm btn-outline-info" id="btnAcsMatch">
+                        <i class="fas fa-link mr-1"></i> Match ACS
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="btnRefreshConnectivity">
+                        <i class="fas fa-sync mr-1"></i> Refresh
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="connectivityLoading" class="text-muted">
+                    <i class="fas fa-spinner fa-spin mr-1"></i>Memuat status koneksi...
+                </div>
+                <div id="connectivityContent" style="display:none">
+                    <div class="connectivity-grid">
+                        <div class="connectivity-tile">
+                            <div class="connectivity-label">Overall</div>
+                            <div class="connectivity-value" id="connOverall">-</div>
+                            <small class="text-muted" id="connOverallHint">-</small>
+                        </div>
+                        <div class="connectivity-tile">
+                            <div class="connectivity-label">PPPoE MikroTik</div>
+                            <div class="connectivity-value" id="connPpp">-</div>
+                            <small class="text-muted" id="connPppDetail">-</small>
+                        </div>
+                        <div class="connectivity-tile">
+                            <div class="connectivity-label">ACS / TR-069</div>
+                            <div class="connectivity-value" id="connAcs">-</div>
+                            <small class="text-muted" id="connAcsDetail">-</small>
+                        </div>
+                        <div class="connectivity-tile">
+                            <div class="connectivity-label">ONU / Optik</div>
+                            <div class="connectivity-value" id="connOnu">-</div>
+                            <small class="text-muted" id="connOnuDetail">-</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- WiFi ACS -->
+        <div class="card">
+            <div class="card-header d-flex align-items-center">
+                <h3 class="card-title mb-0"><i class="fas fa-broadcast-tower mr-2"></i>WiFi via ACS</h3>
+                <div class="card-tools ml-auto">
+                    <span class="badge badge-light" id="wifiCount">0 SSID</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="wifiEmpty" class="text-muted">
+                    <i class="fas fa-info-circle mr-1"></i>Belum ada data WiFi. Klik Refresh atau Match ACS jika device belum terhubung.
+                </div>
+                <div id="wifiList"></div>
             </div>
         </div>
 
@@ -898,6 +992,145 @@ $(function() {
             }
         });
     });
+
+    function badge(label, color) {
+        return '<span class="badge badge-' + color + '">' + label + '</span>';
+    }
+
+    function loadConnectivity() {
+        $('#connectivityLoading').show();
+        $.get('{{ route("admin.customers.connectivity", $customer) }}', function(res) {
+            const data = res.data || {};
+            const overall = data.overall || {};
+            const ppp = data.ppp || {};
+            const acs = data.acs || {};
+            const onu = data.onu || null;
+
+            $('#connOverall').html(badge(overall.label || '-', overall.color || 'secondary'));
+            $('#connOverallHint').text(overall.status || '-');
+
+            $('#connPpp').html(ppp.online ? badge('Online', 'success') : badge('Offline', ppp.status === 'error' ? 'danger' : 'secondary'));
+            $('#connPppDetail').text(ppp.online ? ((ppp.address || '-') + ' · ' + (ppp.uptime || '-')) : (ppp.message || '-'));
+
+            $('#connAcs').html(acs.found ? (acs.online ? badge('Online', 'success') : badge('Stale/Offline', 'warning')) : badge('Belum match', 'secondary'));
+            $('#connAcsDetail').html(acs.found
+                ? ((acs.model || acs.serial_number || acs.device_id || '-') + (acs.last_inform_human ? ' · ' + acs.last_inform_human : ''))
+                : 'Device ACS belum terhubung');
+
+            $('#connOnu').html(onu ? badge(onu.status_label || onu.status, onu.status === 'online' ? 'success' : 'secondary') : badge('Belum assign', 'secondary'));
+            $('#connOnuDetail').text(onu ? ('RX ' + (onu.rx_power || '-') + ' dBm · WAN ' + (onu.wan_ip || '-')) : 'Belum ada ONU di pelanggan');
+
+            renderWifi(data.wifi || []);
+            $('#connectivityContent').show();
+        }).fail(function(xhr) {
+            toastr.error(xhr.responseJSON?.message || 'Gagal memuat status koneksi');
+        }).always(function() {
+            $('#connectivityLoading').hide();
+        });
+    }
+
+    function renderWifi(wifis) {
+        $('#wifiCount').text(wifis.length + ' SSID');
+        if (!wifis.length) {
+            $('#wifiEmpty').show();
+            $('#wifiList').empty();
+            return;
+        }
+
+        $('#wifiEmpty').hide();
+        let html = '';
+        wifis.forEach(function(wifi, idx) {
+            const canEdit = !wifi.system;
+            html += '<div class="wifi-row" data-path="' + $('<div>').text(wifi.path || '').html() + '">'
+                + '<div class="d-flex align-items-start justify-content-between">'
+                + '<div>'
+                + '<div class="font-weight-bold">' + $('<div>').text(wifi.ssid || ('SSID ' + (idx + 1))).html() + '</div>'
+                + '<div class="text-muted small">' + (wifi.band || '-') + ' · ' + (wifi.enabled ? 'Aktif' : 'Nonaktif') + ' · ' + (wifi.path || '-') + '</div>'
+                + '</div>'
+                + (canEdit ? '<button type="button" class="btn btn-sm btn-outline-primary btnEditWifi" data-path="' + $('<div>').text(wifi.path || '').html() + '" data-ssid="' + $('<div>').text(wifi.ssid || '').html() + '"><i class="fas fa-edit mr-1"></i>Edit</button>' : '<span class="badge badge-dark">System</span>')
+                + '</div>'
+                + '</div>';
+        });
+        $('#wifiList').html(html);
+    }
+
+    $('#btnRefreshConnectivity').on('click', loadConnectivity);
+
+    $('#btnAcsMatch').on('click', function() {
+        const btn = $(this);
+        btn.prop('disabled', true).find('i').removeClass('fa-link').addClass('fa-spinner fa-spin');
+        $.post('{{ route("admin.customers.acs-match", $customer) }}', {
+            _token: '{{ csrf_token() }}'
+        }, function(res) {
+            if (res.success) {
+                toastr.success(res.message);
+                loadConnectivity();
+            } else {
+                toastr.warning(res.message || 'Device ACS belum ditemukan');
+            }
+        }).fail(function(xhr) {
+            toastr.error(xhr.responseJSON?.message || 'Gagal match ACS');
+        }).always(function() {
+            btn.prop('disabled', false).find('i').removeClass('fa-spinner fa-spin').addClass('fa-link');
+        });
+    });
+
+    $(document).on('click', '.btnEditWifi', function() {
+        const path = $(this).data('path');
+        const currentSsid = $(this).data('ssid') || '';
+        Swal.fire({
+            title: 'Ubah SSID',
+            html: '<div class="form-group text-left">'
+                + '<label>SSID</label>'
+                + '<input id="wifiSsid" class="form-control" maxlength="32" value="' + $('<div>').text(currentSsid).html() + '">'
+                + '</div>'
+                + '<div class="form-group text-left mb-0">'
+                + '<label>Password WiFi</label>'
+                + '<input id="wifiPassword" type="password" class="form-control" minlength="8" maxlength="63" placeholder="Isi jika ingin mengganti password">'
+                + '<small class="text-muted">Kosongkan password jika hanya mengganti nama SSID.</small>'
+                + '</div>',
+            showCancelButton: true,
+            confirmButtonText: '<i class="fas fa-save mr-1"></i>Simpan',
+            cancelButtonText: 'Batal',
+            showLoaderOnConfirm: true,
+            preConfirm: () => {
+                const ssid = $('#wifiSsid').val().trim();
+                const password = $('#wifiPassword').val();
+                if (!ssid) {
+                    Swal.showValidationMessage('SSID wajib diisi');
+                    return false;
+                }
+                if (password && password.length < 8) {
+                    Swal.showValidationMessage('Password minimal 8 karakter');
+                    return false;
+                }
+                return $.ajax({
+                    url: '{{ route("admin.customers.wifi", $customer) }}',
+                    method: 'POST',
+                    data: {
+                        _token: '{{ csrf_token() }}',
+                        wlan_path: path,
+                        ssid: ssid,
+                        password: password
+                    },
+                }).then(r => r).catch(xhr => {
+                    Swal.showValidationMessage(xhr.responseJSON?.message || 'Gagal mengubah WiFi');
+                });
+            },
+            allowOutsideClick: () => !Swal.isLoading()
+        }).then((result) => {
+            if (result.isConfirmed && result.value) {
+                if (result.value.success) {
+                    toastr.success(result.value.completed ? 'WiFi berhasil diubah' : 'Perintah WiFi dikirim ke ACS');
+                    loadConnectivity();
+                } else {
+                    toastr.error(result.value.message || 'Gagal mengubah WiFi');
+                }
+            }
+        });
+    });
+
+    loadConnectivity();
 });
 </script>
 @endpush
