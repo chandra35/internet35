@@ -47,7 +47,7 @@ class NewOnuDetected extends Notification
             'vendor'        => $this->onuData['vendor'] ?? null,
             'description'   => $this->onuData['description'] ?? null,
             'detected_at'   => now()->toIso8601String(),
-            'target_url'    => url('admin/olts/' . $this->olt->id) . '#unregistered',
+            'target_url'    => '/admin/olts/' . $this->olt->id . '#unregistered',
         ];
     }
 }

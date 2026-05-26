@@ -202,7 +202,7 @@
                         </div>
                     </div>
                     <div class="dropdown-divider"></div>
-                    <a href="{{ route('admin.notifications.index') }}" class="dropdown-item dropdown-footer">
+                    <a href="/admin/notifications" class="dropdown-item dropdown-footer">
                         Lihat semua notifikasi
                     </a>
                 </div>
@@ -974,7 +974,7 @@
         const port   = d.port != null ? d.port : '-';
         const vendor = d.vendor ? ` <span class="badge badge-secondary">${escapeHtml(d.vendor)}</span>` : '';
         const unread = !n.read_at;
-        const targetUrl = n.target_url || d.target_url || "{{ route('admin.notifications.index') }}";
+        const targetUrl = n.target_url || d.target_url || "/admin/notifications";
         const itemBg = unread ? 'background-color:#f4f8ff;' : '';
 
         return `

@@ -27,7 +27,13 @@
                 @foreach($items as $n)
                     @php
                         $d = $n->data;
-                        $targetUrl = $d['target_url'] ?? (!empty($d['olt_id']) ? url('admin/olts/'.$d['olt_id']).'#unregistered' : route('admin.notifications.index'));
+                        $targetUrl = $d['target_url'] ?? (!empty($d['olt_id']) ? '/admin/olts/'.$d['olt_id'].'#unregistered' : '/admin/notifications');
+                        if (str_starts_with($targetUrl, 'http://') || str_starts_with($targetUrl, 'https://')) {
+                            $parts = parse_url($targetUrl);
+                            $targetUrl = ($parts['path'] ?? '/admin/notifications')
+                                . (!empty($parts['query']) ? '?'.$parts['query'] : '')
+                                . (!empty($parts['fragment']) ? '#'.$parts['fragment'] : '');
+                        }
                     @endphp
                     <div class="list-group-item {{ $n->read_at ? '' : 'bg-light' }}">
                         <div class="d-flex justify-content-between">

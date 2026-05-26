@@ -85,21 +85,35 @@ class UserNotificationController extends Controller
     protected function targetUrl(array $data): string
     {
         if (!empty($data['target_url'])) {
-            return $data['target_url'];
+            return $this->relativeUrl($data['target_url']);
         }
 
         if (!empty($data['olt_id'])) {
-            return url('admin/olts/' . $data['olt_id']) . '#unregistered';
+            return '/admin/olts/' . $data['olt_id'] . '#unregistered';
         }
 
         if (!empty($data['onu_id'])) {
-            return url('admin/onus/' . $data['onu_id']);
+            return '/admin/onus/' . $data['onu_id'];
         }
 
         if (!empty($data['customer_id'])) {
-            return url('admin/customers/' . $data['customer_id']);
+            return '/admin/customers/' . $data['customer_id'];
         }
 
-        return route('admin.notifications.index');
+        return '/admin/notifications';
+    }
+
+    protected function relativeUrl(string $targetUrl): string
+    {
+        if (!str_starts_with($targetUrl, 'http://') && !str_starts_with($targetUrl, 'https://')) {
+            return $targetUrl;
+        }
+
+        $parts = parse_url($targetUrl);
+        $path = $parts['path'] ?? '/admin/notifications';
+        $query = !empty($parts['query']) ? '?' . $parts['query'] : '';
+        $fragment = !empty($parts['fragment']) ? '#' . $parts['fragment'] : '';
+
+        return $path . $query . $fragment;
     }
 }
