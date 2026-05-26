@@ -403,6 +403,7 @@ class GenieAcsService
         bool $connectionRequest = false,
         int $crTimeoutMs = 0
     ): array {
+        $rawDeviceId = $deviceId;
         $deviceId = $this->safeDeviceId($deviceId);
         $params = [];
         foreach ($parameterValues as $name => $value) {
@@ -434,6 +435,27 @@ class GenieAcsService
                 'status'    => $response->status(),
             ];
         } catch (Exception $e) {
+            if ($connectionRequest && !str_contains($rawDeviceId, '%') && preg_match('/cURL error (28|52|7)/', $e->getMessage())) {
+                Log::warning("GenieACS setParameterValues CR failed ({$e->getMessage()}), queuing without connection_request");
+                try {
+                    $queued = Http::timeout(10)->asJson()
+                        ->post("{$this->nbiUrl}/devices/{$deviceId}/tasks", $payload);
+
+                    if ($queued->status() === 200 || $queued->status() === 202) {
+                        return [
+                            'success' => true,
+                            'completed' => false,
+                            'pending' => true,
+                            'task_id' => $queued->json('_id'),
+                            'status' => $queued->status(),
+                            'message' => 'Device lambat merespons. Perintah sudah diantrikan dan akan diproses saat device inform berikutnya.',
+                        ];
+                    }
+                } catch (Exception $queueException) {
+                    Log::error("GenieACS setParameterValues queue fallback error: " . $queueException->getMessage());
+                }
+            }
+
             // NOTE: Do NOT fall back to queuing without connection_request.
             // For devices with %2D in their ID (e.g. HG8145X6-10), CWMP calculates
             // the device ID with a literal hyphen during periodic informs, so MongoDB
@@ -878,8 +900,9 @@ class GenieAcsService
             return ['success' => false, 'message' => 'No parameters to set'];
         }
 
-        // Always use connection_request so device is woken immediately
-        return $this->setParameterValues($deviceId, $params, true);
+        // Use a longer connection_request window for WiFi updates. Some CPEs
+        // need more than the default 10s to answer the ACS wake-up request.
+        return $this->setParameterValues($deviceId, $params, true, 30000);
     }
 
     /**

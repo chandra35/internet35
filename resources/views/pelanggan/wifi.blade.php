@@ -38,8 +38,21 @@
                     </div>
                     <div class="form-group">
                         <label>Password WiFi Baru</label>
-                        <input type="password" name="password" class="form-control" minlength="8" maxlength="63" required>
+                        <div class="input-group">
+                            <input type="password" name="password" id="wifiPassword" class="form-control" minlength="8" maxlength="63" autocomplete="new-password" required>
+                            <div class="input-group-append">
+                                <button class="btn btn-outline-secondary" type="button" id="btnToggleWifiPassword" title="Tampilkan password">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                        </div>
                         <small class="text-muted">Minimal 8 karakter. Perangkat yang sedang terhubung perlu memasukkan password baru.</small>
+                    </div>
+                    <div id="wifiUpdateProgress" class="mb-3 d-none">
+                        <div class="progress" style="height:6px;">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" style="width:100%"></div>
+                        </div>
+                        <small class="text-muted d-block mt-2">Mengirim perintah ke GenieACS dan menunggu response perangkat...</small>
                     </div>
                     <button type="submit" class="btn btn-primary">
                         <i class="fas fa-save mr-1"></i> Simpan Perubahan
@@ -99,9 +112,18 @@
 
 @push('js')
 <script>
+$('#btnToggleWifiPassword').on('click', function() {
+    const input = $('#wifiPassword');
+    const hidden = input.attr('type') === 'password';
+    input.attr('type', hidden ? 'text' : 'password');
+    $(this).find('i').toggleClass('fa-eye', !hidden).toggleClass('fa-eye-slash', hidden);
+    $(this).attr('title', hidden ? 'Sembunyikan password' : 'Tampilkan password');
+});
+
 $('#wifiForm').on('submit', function(e) {
     e.preventDefault();
     const btn = $(this).find('button[type="submit"]');
+    $('#wifiUpdateProgress').removeClass('d-none');
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Menyimpan...');
     $.post('{{ route("pelanggan.wifi.update") }}', $(this).serialize(), function(res) {
         if (res.success) {
@@ -113,6 +135,7 @@ $('#wifiForm').on('submit', function(e) {
     }).fail(function(xhr) {
         toastr.error(xhr.responseJSON?.message || 'Gagal mengubah WiFi');
     }).always(function() {
+        $('#wifiUpdateProgress').addClass('d-none');
         btn.prop('disabled', false).html('<i class="fas fa-save mr-1"></i> Simpan Perubahan');
     });
 });

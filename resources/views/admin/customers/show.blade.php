@@ -1086,13 +1086,31 @@ $(function() {
                 + '</div>'
                 + '<div class="form-group text-left mb-0">'
                 + '<label>Password WiFi</label>'
-                + '<input id="wifiPassword" type="password" class="form-control" minlength="8" maxlength="63" placeholder="Isi jika ingin mengganti password">'
+                + '<div class="input-group">'
+                + '<input id="wifiPassword" type="password" class="form-control" minlength="8" maxlength="63" autocomplete="new-password" placeholder="Isi jika ingin mengganti password">'
+                + '<div class="input-group-append">'
+                + '<button class="btn btn-outline-secondary" type="button" id="btnToggleWifiPassword" title="Tampilkan password"><i class="fas fa-eye"></i></button>'
+                + '</div>'
+                + '</div>'
                 + '<small class="text-muted">Kosongkan password jika hanya mengganti nama SSID.</small>'
+                + '<div id="wifiUpdateProgress" class="mt-3 d-none">'
+                + '<div class="progress" style="height:6px;"><div class="progress-bar progress-bar-striped progress-bar-animated" style="width:100%"></div></div>'
+                + '<small class="text-muted d-block mt-2" id="wifiUpdateProgressText">Mengirim perintah ke GenieACS...</small>'
+                + '</div>'
                 + '</div>',
             showCancelButton: true,
             confirmButtonText: '<i class="fas fa-save mr-1"></i>Simpan',
             cancelButtonText: 'Batal',
             showLoaderOnConfirm: true,
+            didOpen: () => {
+                $('#btnToggleWifiPassword').on('click', function() {
+                    const input = $('#wifiPassword');
+                    const hidden = input.attr('type') === 'password';
+                    input.attr('type', hidden ? 'text' : 'password');
+                    $(this).find('i').toggleClass('fa-eye', !hidden).toggleClass('fa-eye-slash', hidden);
+                    $(this).attr('title', hidden ? 'Sembunyikan password' : 'Tampilkan password');
+                });
+            },
             preConfirm: () => {
                 const ssid = $('#wifiSsid').val().trim();
                 const password = $('#wifiPassword').val();
@@ -1104,6 +1122,8 @@ $(function() {
                     Swal.showValidationMessage('Password minimal 8 karakter');
                     return false;
                 }
+                $('#wifiUpdateProgress').removeClass('d-none');
+                $('#wifiUpdateProgressText').text('Menghubungi GenieACS dan menunggu response device...');
                 return $.ajax({
                     url: '{{ route("admin.customers.wifi", $customer) }}',
                     method: 'POST',
