@@ -138,7 +138,7 @@ class CustomerConnectivityService
 
     public function wifiInfo(Customer $customer): array
     {
-        $device = $this->resolveAcsDevice($customer);
+        $device = $this->resolveOrMatchAcsDevice($customer);
         if (!$device) {
             return ['success' => false, 'message' => 'Device ACS belum terhubung'];
         }
@@ -153,7 +153,7 @@ class CustomerConnectivityService
 
     public function updateWifi(Customer $customer, array $data, bool $mainOnly = false): array
     {
-        $device = $this->resolveAcsDevice($customer);
+        $device = $this->resolveOrMatchAcsDevice($customer);
         if (!$device) {
             return ['success' => false, 'message' => 'Device ACS belum terhubung'];
         }
@@ -202,6 +202,24 @@ class CustomerConnectivityService
         }
 
         return null;
+    }
+
+    protected function resolveOrMatchAcsDevice(Customer $customer): ?array
+    {
+        $device = $this->resolveAcsDevice($customer);
+        if ($device) {
+            return $device;
+        }
+
+        $match = $this->autoMatchAcsDevice($customer);
+        if (!empty($match['success']) && !empty($match['device'])) {
+            return $match['device'];
+        }
+
+        $customer->refresh();
+        $customer->loadMissing(['router', 'package', 'onu']);
+
+        return $this->resolveAcsDevice($customer);
     }
 
     protected function pppStatus(Customer $customer): array
