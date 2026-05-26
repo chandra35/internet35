@@ -25,7 +25,10 @@
         @else
             <div class="list-group list-group-flush">
                 @foreach($items as $n)
-                    @php $d = $n->data; @endphp
+                    @php
+                        $d = $n->data;
+                        $targetUrl = $d['target_url'] ?? (!empty($d['olt_id']) ? url('admin/olts/'.$d['olt_id']).'#unregistered' : route('admin.notifications.index'));
+                    @endphp
                     <div class="list-group-item {{ $n->read_at ? '' : 'bg-light' }}">
                         <div class="d-flex justify-content-between">
                             <div>
@@ -46,12 +49,10 @@
                                 </div>
                             </div>
                             <div>
-                                @if(!empty($d['olt_id']))
-                                    <a href="{{ url('admin/olts/'.$d['olt_id']).'#unregistered' }}"
-                                       class="btn btn-sm btn-success notif-go" data-id="{{ $n->id }}">
-                                        <i class="fas fa-arrow-right mr-1"></i> Buka
-                                    </a>
-                                @endif
+                                <a href="{{ $targetUrl }}"
+                                   class="btn btn-sm btn-success notif-go" data-id="{{ $n->id }}">
+                                    <i class="fas fa-arrow-right mr-1"></i> Buka
+                                </a>
                                 <button class="btn btn-sm btn-outline-danger notif-del" data-id="{{ $n->id }}">
                                     <i class="fas fa-trash"></i>
                                 </button>

@@ -974,11 +974,11 @@
         const port   = d.port != null ? d.port : '-';
         const vendor = d.vendor ? ` <span class="badge badge-secondary">${escapeHtml(d.vendor)}</span>` : '';
         const unread = !n.read_at;
-        const oltUrl = "{{ url('admin/olts') }}/" + encodeURIComponent(d.olt_id || '') + "#unregistered";
+        const targetUrl = n.target_url || d.target_url || "{{ route('admin.notifications.index') }}";
         const itemBg = unread ? 'background-color:#f4f8ff;' : '';
 
         return `
-        <a href="${oltUrl}"
+        <a href="${escapeHtml(targetUrl)}"
            class="dropdown-item notif-item"
            data-id="${n.id}"
            style="white-space:normal; padding:0.6rem 1rem; border-bottom:1px solid #eee; ${itemBg}">
@@ -1044,11 +1044,19 @@
         });
     }
 
-    // Click on notification item => mark as read (then default link nav happens)
-    $(document).on('click', '.notif-item', function () {
+    // Click on notification item => mark as read, then navigate to target page.
+    $(document).on('click', '.notif-item', function (e) {
+        e.preventDefault();
         const id = $(this).data('id');
-        if (!id) return;
-        $.post(URL_READ + '/' + encodeURIComponent(id) + '/read');
+        const href = $(this).attr('href');
+        if (!id) {
+            window.location.href = href;
+            return;
+        }
+        $.post(URL_READ + '/' + encodeURIComponent(id) + '/read')
+            .always(function () {
+                window.location.href = href;
+            });
     });
 
     // Mark all as read

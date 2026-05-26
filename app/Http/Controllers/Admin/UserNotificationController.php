@@ -35,6 +35,7 @@ class UserNotificationController extends Controller
                 'id'         => $n->id,
                 'type'       => class_basename($n->type),
                 'data'       => $n->data,
+                'target_url' => $this->targetUrl($n->data ?? []),
                 'read_at'    => optional($n->read_at)?->toIso8601String(),
                 'created_at' => $n->created_at->toIso8601String(),
                 'age'        => $n->created_at->diffForHumans(),
@@ -79,5 +80,26 @@ class UserNotificationController extends Controller
     {
         $items = $request->user()->notifications()->paginate(25);
         return view('admin.notifications.index', compact('items'));
+    }
+
+    protected function targetUrl(array $data): string
+    {
+        if (!empty($data['target_url'])) {
+            return $data['target_url'];
+        }
+
+        if (!empty($data['olt_id'])) {
+            return url('admin/olts/' . $data['olt_id']) . '#unregistered';
+        }
+
+        if (!empty($data['onu_id'])) {
+            return url('admin/onus/' . $data['onu_id']);
+        }
+
+        if (!empty($data['customer_id'])) {
+            return url('admin/customers/' . $data['customer_id']);
+        }
+
+        return route('admin.notifications.index');
     }
 }
