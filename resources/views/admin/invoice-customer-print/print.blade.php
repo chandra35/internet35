@@ -150,35 +150,6 @@
             color: #666;
             font-size: 10px;
         }
-        .placeholder-box {
-            border: 2px dashed #c7d2e2;
-            background: #f8fbff;
-            border-radius: 8px;
-            padding: 28px 20px;
-            text-align: center;
-            margin-bottom: 18px;
-        }
-        .placeholder-title {
-            font-size: 18px;
-            font-weight: 700;
-            color: #35507a;
-            margin-bottom: 6px;
-        }
-        .placeholder-sub {
-            font-size: 12px;
-            color: #5b6f8f;
-            margin-bottom: 12px;
-        }
-        .placeholder-chip {
-            display: inline-block;
-            padding: 6px 12px;
-            border-radius: 16px;
-            font-size: 11px;
-            background: #e6eef9;
-            color: #2f4f79;
-            font-weight: 600;
-            letter-spacing: .2px;
-        }
         @media print {
             body {
                 background: #fff;
@@ -190,7 +161,7 @@
                 margin: 0 auto;
                 padding: 20px 30px;
             }
-            .print-toolbar, .alert, .no-print { display: none !important; }
+            .print-toolbar, .no-print { display: none !important; }
         }
     </style>
 </head>
@@ -204,13 +175,6 @@
         <button onclick="window.close()" class="toolbar-btn btn-close">Tutup</button>
     </div>
 </div>
-
-@if($missingMonths->isNotEmpty())
-<div class="alert no-print">
-    Tidak ditemukan invoice untuk bulan:
-    {{ $missingMonths->map(fn($m) => \Carbon\Carbon::create()->month($m)->translatedFormat('F'))->implode(', ') }}.
-</div>
-@endif
 
 @foreach($printRows as $row)
 @php
@@ -237,11 +201,7 @@
         </div>
         <div class="invoice-title">
             <h1>INVOICE</h1>
-            @if($invoice)
             <div class="invoice-number">{{ $invoice->invoice_number }}</div>
-            @else
-            <div class="invoice-number">{{ strtoupper($monthName) }} {{ $selectedYear }}</div>
-            @endif
         </div>
     </div>
 
@@ -258,11 +218,6 @@
         <div class="invoice-details">
             <table>
                 <tr>
-                    <td>Periode Cetak</td>
-                    <td>{{ $monthName }} {{ $selectedYear }}</td>
-                </tr>
-                @if($invoice)
-                <tr>
                     <td>Tanggal Invoice</td>
                     <td>{{ $invoice->invoice_date?->format('d F Y') }}</td>
                 </tr>
@@ -276,12 +231,9 @@
                     <td>Periode Layanan</td>
                     <td>{{ $invoice->period_start?->format('d M Y') }} - {{ $invoice->period_end?->format('d M Y') }}</td>
                 </tr>
-                @endif
             </table>
         </div>
     </div>
-
-    @if($invoice)
 
     <table class="items-table">
         <thead>
@@ -326,32 +278,6 @@
         </tfoot>
     </table>
 
-    @else
-    <div class="placeholder-box">
-        <div class="placeholder-title">Invoice Belum Tersedia</div>
-        <div class="placeholder-sub">
-            Periode {{ $monthName }} {{ $selectedYear }} belum memiliki invoice yang diterbitkan.
-        </div>
-        <span class="placeholder-chip">Dokumen Placeholder Periode</span>
-    </div>
-    <table class="items-table">
-        <tbody>
-        <tr>
-            <td style="width: 35%;"><strong>Periode</strong></td>
-            <td>{{ $monthName }} {{ $selectedYear }}</td>
-        </tr>
-        <tr>
-            <td><strong>Pelanggan</strong></td>
-            <td>{{ $customer->name }} ({{ $customer->customer_id }})</td>
-        </tr>
-        <tr>
-            <td><strong>Status Dokumen</strong></td>
-            <td>Menunggu penerbitan invoice periode ini</td>
-        </tr>
-        </tbody>
-    </table>
-    @endif
-
     @if($popSetting?->bank_accounts && count($popSetting->bank_accounts) > 0)
     <div class="bank-info">
         <h4>Informasi Pembayaran</h4>
@@ -365,7 +291,7 @@
     </div>
     @endif
 
-    @if($invoice && $invoice->notes)
+    @if($invoice->notes)
     <div class="notes-section">
         <h4>Catatan</h4>
         <p>{{ $invoice->notes }}</p>

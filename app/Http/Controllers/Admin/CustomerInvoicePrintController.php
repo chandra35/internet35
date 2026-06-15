@@ -7,6 +7,7 @@ use App\Models\Customer;
 use App\Models\CustomerInvoice;
 use App\Models\PopSetting;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
@@ -80,7 +81,11 @@ class CustomerInvoicePrintController extends Controller implements HasMiddleware
 
         $customer = Customer::where('id', $validated['customer_id'])
             ->where('pop_id', $popId)
+            ->with('package')
             ->firstOrFail();
+
+        $popSetting = PopSetting::where('user_id', $popId)->first();
+        $dueDays = $popSetting?->invoice_due_days ?? 7;
 
         $months = collect($validated['months'])
             ->map(fn ($m) => (int) $m)
@@ -88,37 +93,71 @@ class CustomerInvoicePrintController extends Controller implements HasMiddleware
             ->sort()
             ->values();
 
-        $invoices = CustomerInvoice::with('customer')
-            ->where('pop_id', $popId)
-            ->where('customer_id', $customer->id)
-            ->whereYear('invoice_date', $validated['year'])
-            ->whereIn(DB::raw('MONTH(invoice_date)'), $months->all())
-            ->orderBy('invoice_date')
-            ->orderBy('id')
-            ->get();
+        DB::beginTransaction();
+        try {
+            $printRows = $months->map(function (int $month) use ($validated, $popId, $customer, $popSetting, $dueDays) {
+                $periodStart = Carbon::create((int) $validated['year'], $month, 1)->startOfMonth();
+                $periodEnd = (clone $periodStart)->endOfMonth();
 
-        $invoicesByMonth = $invoices
-            ->groupBy(fn ($inv) => (int) optional($inv->invoice_date)->format('n'));
+                $invoice = CustomerInvoice::where('pop_id', $popId)
+                    ->where('customer_id', $customer->id)
+                    ->whereDate('period_start', $periodStart->toDateString())
+                    ->whereDate('period_end', $periodEnd->toDateString())
+                    ->orderBy('created_at')
+                    ->first();
 
-        $printRows = $months->map(function (int $month) use ($invoicesByMonth) {
-            $invoice = optional($invoicesByMonth->get($month))->first();
+                if (!$invoice) {
+                    if (!$customer->package) {
+                        abort(422, 'Pelanggan tidak memiliki paket aktif untuk generate invoice.');
+                    }
 
-            return [
-                'month' => $month,
-                'invoice' => $invoice,
-            ];
-        });
+                    $subtotal = (float) $customer->package->price;
+                    $taxAmount = 0.0;
 
-        $foundMonths = $invoices
-            ->map(fn ($inv) => (int) optional($inv->invoice_date)->format('n'))
-            ->filter()
-            ->unique()
-            ->sort()
-            ->values();
+                    if ($popSetting?->ppn_enabled) {
+                        $taxAmount = $subtotal * ((float) $popSetting->ppn_percentage / 100);
+                    }
 
-        $missingMonths = $months->diff($foundMonths)->values();
+                    $totalAmount = $subtotal + $taxAmount;
 
-        $popSetting = PopSetting::where('user_id', $popId)->first();
+                    $invoice = CustomerInvoice::create([
+                        'customer_id' => $customer->id,
+                        'pop_id' => $popId,
+                        'invoice_number' => CustomerInvoice::generateInvoiceNumber($popId),
+                        'invoice_date' => now(),
+                        'due_date' => now()->addDays($dueDays),
+                        'period_start' => $periodStart->toDateString(),
+                        'period_end' => $periodEnd->toDateString(),
+                        'items' => [
+                            [
+                                'description' => 'Layanan Internet ' . $customer->package->name,
+                                'amount' => $subtotal,
+                            ],
+                        ],
+                        'subtotal' => $subtotal,
+                        'discount_amount' => 0,
+                        'tax_amount' => $taxAmount,
+                        'total_amount' => $totalAmount,
+                        'paid_amount' => 0,
+                        'status' => 'pending',
+                        'notes' => $popSetting?->invoice_notes,
+                        'created_by' => Auth::id(),
+                    ]);
+                }
+
+                return [
+                    'month' => $month,
+                    'invoice' => $invoice->loadMissing('customer'),
+                ];
+            });
+
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            return redirect()->route('admin.invoice-customer-print.index', ['pop_id' => $popId])
+                ->with('error', 'Gagal menyiapkan invoice cetak: ' . $e->getMessage());
+        }
 
         return view('admin.invoice-customer-print.print', [
             'customer' => $customer,
@@ -126,7 +165,6 @@ class CustomerInvoicePrintController extends Controller implements HasMiddleware
             'popSetting' => $popSetting,
             'selectedYear' => (int) $validated['year'],
             'selectedMonths' => $months,
-            'missingMonths' => $missingMonths,
         ]);
     }
 }
