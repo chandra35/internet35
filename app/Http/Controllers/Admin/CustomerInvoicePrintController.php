@@ -146,6 +146,11 @@ class CustomerInvoicePrintController extends Controller implements HasMiddleware
                         abort(422, 'Pelanggan tidak memiliki paket aktif untuk generate invoice.');
                     }
 
+                    $invoiceDay = random_int(1, 10);
+                    $dueDay = random_int(10, 15);
+                    $invoiceDate = Carbon::create((int) $validated['year'], $month, $invoiceDay)->startOfDay();
+                    $dueDate = Carbon::create((int) $validated['year'], $month, $dueDay)->startOfDay();
+
                     $amounts = $this->calculateFromPackagePrice((float) $customer->package->price, $popSetting);
                     $subtotal = $amounts['subtotal'];
                     $taxAmount = $amounts['tax_amount'];
@@ -155,8 +160,8 @@ class CustomerInvoicePrintController extends Controller implements HasMiddleware
                         'customer_id' => $customer->id,
                         'pop_id' => $popId,
                         'invoice_number' => CustomerInvoice::generateInvoiceNumber($popId),
-                        'invoice_date' => now(),
-                        'due_date' => now()->addDays($dueDays),
+                        'invoice_date' => $invoiceDate,
+                        'due_date' => $dueDate,
                         'period_start' => $periodStart->toDateString(),
                         'period_end' => $periodEnd->toDateString(),
                         'items' => [

@@ -306,7 +306,7 @@
     @endif
 
     <div class="footer">
-        {{ $popSetting?->invoice_footer ?? 'Terima kasih atas kepercayaan Anda menggunakan layanan kami.' }}
+        Note : Invoice ini adalah sah tanpa adanya tanda tangan
     </div>
 </div>
 @endforeach
