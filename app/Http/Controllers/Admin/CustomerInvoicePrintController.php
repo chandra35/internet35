@@ -16,6 +16,41 @@ use Illuminate\Support\Facades\DB;
 
 class CustomerInvoicePrintController extends Controller implements HasMiddleware
 {
+    /**
+     * Package prices are stored as final prices; split base and tax when PPN is enabled.
+     */
+    private function calculateFromPackagePrice(float $packagePrice, ?PopSetting $popSetting): array
+    {
+        $packagePrice = max(0, $packagePrice);
+
+        if (!$popSetting?->ppn_enabled) {
+            return [
+                'subtotal' => round($packagePrice, 2),
+                'tax_amount' => 0.0,
+                'total_amount' => round($packagePrice, 2),
+            ];
+        }
+
+        $rate = (float) ($popSetting->ppn_percentage ?? 0);
+        if ($rate <= 0) {
+            return [
+                'subtotal' => round($packagePrice, 2),
+                'tax_amount' => 0.0,
+                'total_amount' => round($packagePrice, 2),
+            ];
+        }
+
+        $divisor = 1 + ($rate / 100);
+        $subtotal = $packagePrice / $divisor;
+        $taxAmount = $packagePrice - $subtotal;
+
+        return [
+            'subtotal' => round($subtotal, 2),
+            'tax_amount' => round($taxAmount, 2),
+            'total_amount' => round($packagePrice, 2),
+        ];
+    }
+
     public static function middleware(): array
     {
         return [
@@ -111,14 +146,10 @@ class CustomerInvoicePrintController extends Controller implements HasMiddleware
                         abort(422, 'Pelanggan tidak memiliki paket aktif untuk generate invoice.');
                     }
 
-                    $subtotal = (float) $customer->package->price;
-                    $taxAmount = 0.0;
-
-                    if ($popSetting?->ppn_enabled) {
-                        $taxAmount = $subtotal * ((float) $popSetting->ppn_percentage / 100);
-                    }
-
-                    $totalAmount = $subtotal + $taxAmount;
+                    $amounts = $this->calculateFromPackagePrice((float) $customer->package->price, $popSetting);
+                    $subtotal = $amounts['subtotal'];
+                    $taxAmount = $amounts['tax_amount'];
+                    $totalAmount = $amounts['total_amount'];
 
                     $invoice = CustomerInvoice::create([
                         'customer_id' => $customer->id,

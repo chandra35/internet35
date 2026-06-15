@@ -221,8 +221,10 @@
                             @foreach($customersWithoutInvoices as $customer)
                                 @php
                                     $price = $customer->package?->price ?? 0;
-                                    $tax = ($popSetting?->ppn_enabled) ? $price * ($popSetting->ppn_percentage / 100) : 0;
-                                    $total = $price + $tax;
+                                    $tax = ($popSetting?->ppn_enabled && ($popSetting?->ppn_percentage ?? 0) > 0)
+                                        ? ($price - ($price / (1 + (($popSetting->ppn_percentage ?? 0) / 100))))
+                                        : 0;
+                                    $total = $price;
                                 @endphp
                                 <tr class="customer-row" data-name="{{ strtolower($customer->name) }}" data-id="{{ strtolower($customer->customer_id) }}">
                                     <td class="table-check">

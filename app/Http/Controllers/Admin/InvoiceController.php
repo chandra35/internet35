@@ -23,6 +23,42 @@ class InvoiceController extends Controller implements HasMiddleware
 {
     protected ActivityLogService $activityLog;
 
+    /**
+     * Package prices in this app are entered as final prices.
+     * When PPN is enabled, back-calculate base amount and tax component.
+     */
+    private function calculateFromPackagePrice(float $packagePrice, ?PopSetting $popSetting): array
+    {
+        $packagePrice = max(0, $packagePrice);
+
+        if (!$popSetting?->ppn_enabled) {
+            return [
+                'subtotal' => round($packagePrice, 2),
+                'tax_amount' => 0.0,
+                'total_amount' => round($packagePrice, 2),
+            ];
+        }
+
+        $rate = (float) ($popSetting->ppn_percentage ?? 0);
+        if ($rate <= 0) {
+            return [
+                'subtotal' => round($packagePrice, 2),
+                'tax_amount' => 0.0,
+                'total_amount' => round($packagePrice, 2),
+            ];
+        }
+
+        $divisor = 1 + ($rate / 100);
+        $subtotal = $packagePrice / $divisor;
+        $taxAmount = $packagePrice - $subtotal;
+
+        return [
+            'subtotal' => round($subtotal, 2),
+            'tax_amount' => round($taxAmount, 2),
+            'total_amount' => round($packagePrice, 2),
+        ];
+    }
+
     public static function middleware(): array
     {
         return [
@@ -508,15 +544,11 @@ class InvoiceController extends Controller implements HasMiddleware
             
             foreach ($customers as $customer) {
                 if (!$customer->package) continue;
-                
-                $subtotal = $customer->package->price;
-                $taxAmount = 0;
-                
-                if ($popSetting?->ppn_enabled) {
-                    $taxAmount = $subtotal * ($popSetting->ppn_percentage / 100);
-                }
-                
-                $totalAmount = $subtotal + $taxAmount;
+
+                $amounts = $this->calculateFromPackagePrice((float) $customer->package->price, $popSetting);
+                $subtotal = $amounts['subtotal'];
+                $taxAmount = $amounts['tax_amount'];
+                $totalAmount = $amounts['total_amount'];
                 
                 CustomerInvoice::create([
                     'customer_id' => $customer->id,
@@ -697,14 +729,10 @@ class InvoiceController extends Controller implements HasMiddleware
                         continue;
                     }
 
-                    $subtotal = $customer->package->price;
-                    $taxAmount = 0;
-
-                    if ($popSetting?->ppn_enabled) {
-                        $taxAmount = $subtotal * ($popSetting->ppn_percentage / 100);
-                    }
-
-                    $totalAmount = $subtotal + $taxAmount;
+                    $amounts = $this->calculateFromPackagePrice((float) $customer->package->price, $popSetting);
+                    $subtotal = $amounts['subtotal'];
+                    $taxAmount = $amounts['tax_amount'];
+                    $totalAmount = $amounts['total_amount'];
 
                     $invoice = CustomerInvoice::create([
                         'customer_id' => $customer->id,
