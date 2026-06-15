@@ -150,6 +150,35 @@
             color: #666;
             font-size: 10px;
         }
+        .placeholder-box {
+            border: 2px dashed #c7d2e2;
+            background: #f8fbff;
+            border-radius: 8px;
+            padding: 28px 20px;
+            text-align: center;
+            margin-bottom: 18px;
+        }
+        .placeholder-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #35507a;
+            margin-bottom: 6px;
+        }
+        .placeholder-sub {
+            font-size: 12px;
+            color: #5b6f8f;
+            margin-bottom: 12px;
+        }
+        .placeholder-chip {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 16px;
+            font-size: 11px;
+            background: #e6eef9;
+            color: #2f4f79;
+            font-weight: 600;
+            letter-spacing: .2px;
+        }
         @media print {
             body {
                 background: #fff;
@@ -298,17 +327,26 @@
     </table>
 
     @else
+    <div class="placeholder-box">
+        <div class="placeholder-title">Invoice Belum Tersedia</div>
+        <div class="placeholder-sub">
+            Periode {{ $monthName }} {{ $selectedYear }} belum memiliki invoice yang diterbitkan.
+        </div>
+        <span class="placeholder-chip">Dokumen Placeholder Periode</span>
+    </div>
     <table class="items-table">
-        <thead>
-        <tr>
-            <th>Deskripsi</th>
-            <th class="text-right" style="width: 220px;">Keterangan</th>
-        </tr>
-        </thead>
         <tbody>
         <tr>
-            <td>Invoice bulan {{ $monthName }} {{ $selectedYear }}</td>
-            <td class="text-right">Belum tersedia</td>
+            <td style="width: 35%;"><strong>Periode</strong></td>
+            <td>{{ $monthName }} {{ $selectedYear }}</td>
+        </tr>
+        <tr>
+            <td><strong>Pelanggan</strong></td>
+            <td>{{ $customer->name }} ({{ $customer->customer_id }})</td>
+        </tr>
+        <tr>
+            <td><strong>Status Dokumen</strong></td>
+            <td>Menunggu penerbitan invoice periode ini</td>
         </tr>
         </tbody>
     </table>
