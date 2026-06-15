@@ -27,6 +27,7 @@ use App\Http\Controllers\Admin\NotificationLogController;
 use App\Http\Controllers\Admin\MessageTemplateController;
 use App\Http\Controllers\Admin\CustomerController;
 use App\Http\Controllers\Admin\InvoiceController;
+use App\Http\Controllers\Admin\CustomerInvoicePrintController;
 use App\Http\Controllers\Admin\SchedulerController;
 use App\Http\Controllers\Admin\DataMaintenanceController;
 use App\Http\Controllers\Admin\ResidentController;
@@ -312,6 +313,12 @@ Route::prefix('admin')->middleware(['auth', 'role:superadmin|admin|admin-pop|tek
         Route::post('/{invoice}/mark-paid', [InvoiceController::class, 'markPaid'])->name('mark-paid');
         Route::post('/{invoice}/cancel', [InvoiceController::class, 'cancel'])->name('cancel');
         Route::post('/{invoice}/send-reminder', [InvoiceController::class, 'sendReminder'])->name('send-reminder');
+    });
+
+    // Customer Multi-Month Invoice Print (new feature, separate from existing invoice flow)
+    Route::prefix('invoice-customer-print')->name('invoice-customer-print.')->group(function () {
+        Route::get('/', [CustomerInvoicePrintController::class, 'index'])->name('index');
+        Route::post('/print', [CustomerInvoicePrintController::class, 'print'])->name('print');
     });
 
     // Scheduler Management

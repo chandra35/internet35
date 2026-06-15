@@ -137,6 +137,9 @@
         </h3>
         <div class="card-tools">
             @can('invoices.view')
+            <a href="{{ route('admin.invoice-customer-print.index') }}" class="btn btn-secondary btn-sm mr-2">
+                <i class="fas fa-user-check mr-1"></i> Cetak Per Pelanggan
+            </a>
             <a href="{{ route('admin.invoices.bulk-print-select') }}" class="btn btn-info btn-sm mr-2">
                 <i class="fas fa-print mr-1"></i> Cetak Massal
             </a>
