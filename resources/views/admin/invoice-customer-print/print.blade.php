@@ -168,7 +168,7 @@
 <body>
 <div class="print-toolbar no-print">
     <div>
-        <strong>{{ $invoices->count() }} invoice</strong> untuk {{ $customer->name }} ({{ $selectedYear }})
+        <strong>{{ $selectedMonths->count() }} bulan</strong> dipilih untuk {{ $customer->name }} ({{ $selectedYear }})
     </div>
     <div>
         <button onclick="window.print()" class="toolbar-btn btn-print">Cetak Semua</button>
@@ -183,7 +183,12 @@
 </div>
 @endif
 
-@foreach($invoices as $invoice)
+@foreach($printRows as $row)
+@php
+    $month = $row['month'];
+    $invoice = $row['invoice'];
+    $monthName = \Carbon\Carbon::create()->month($month)->translatedFormat('F');
+@endphp
 <div class="invoice-page">
     <div class="header">
         <div class="company-info">
@@ -203,22 +208,31 @@
         </div>
         <div class="invoice-title">
             <h1>INVOICE</h1>
+            @if($invoice)
             <div class="invoice-number">{{ $invoice->invoice_number }}</div>
+            @else
+            <div class="invoice-number">{{ strtoupper($monthName) }} {{ $selectedYear }}</div>
+            @endif
         </div>
     </div>
 
     <div class="info-section">
         <div class="bill-to">
             <div class="section-title">Ditagihkan Kepada</div>
-            <div class="customer-name">{{ $invoice->customer?->name }}</div>
+            <div class="customer-name">{{ $customer->name }}</div>
             <div class="customer-details">
-                ID Pelanggan: {{ $invoice->customer?->customer_id }}<br>
-                {{ $invoice->customer?->phone }}<br>
-                {{ $invoice->customer?->address }}
+                ID Pelanggan: {{ $customer->customer_id }}<br>
+                {{ $customer->phone }}<br>
+                {{ $customer->address }}
             </div>
         </div>
         <div class="invoice-details">
             <table>
+                <tr>
+                    <td>Periode Cetak</td>
+                    <td>{{ $monthName }} {{ $selectedYear }}</td>
+                </tr>
+                @if($invoice)
                 <tr>
                     <td>Tanggal Invoice</td>
                     <td>{{ $invoice->invoice_date?->format('d F Y') }}</td>
@@ -233,9 +247,12 @@
                     <td>Periode Layanan</td>
                     <td>{{ $invoice->period_start?->format('d M Y') }} - {{ $invoice->period_end?->format('d M Y') }}</td>
                 </tr>
+                @endif
             </table>
         </div>
     </div>
+
+    @if($invoice)
 
     <table class="items-table">
         <thead>
@@ -280,6 +297,23 @@
         </tfoot>
     </table>
 
+    @else
+    <table class="items-table">
+        <thead>
+        <tr>
+            <th>Deskripsi</th>
+            <th class="text-right" style="width: 220px;">Keterangan</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+            <td>Invoice bulan {{ $monthName }} {{ $selectedYear }}</td>
+            <td class="text-right">Belum tersedia</td>
+        </tr>
+        </tbody>
+    </table>
+    @endif
+
     @if($popSetting?->bank_accounts && count($popSetting->bank_accounts) > 0)
     <div class="bank-info">
         <h4>Informasi Pembayaran</h4>
@@ -293,7 +327,7 @@
     </div>
     @endif
 
-    @if($invoice->notes)
+    @if($invoice && $invoice->notes)
     <div class="notes-section">
         <h4>Catatan</h4>
         <p>{{ $invoice->notes }}</p>

@@ -97,10 +97,17 @@ class CustomerInvoicePrintController extends Controller implements HasMiddleware
             ->orderBy('id')
             ->get();
 
-        if ($invoices->isEmpty()) {
-            return redirect()->route('admin.invoice-customer-print.index', ['pop_id' => $popId])
-                ->with('error', 'Tidak ada invoice untuk pelanggan dan periode yang dipilih.');
-        }
+        $invoicesByMonth = $invoices
+            ->groupBy(fn ($inv) => (int) optional($inv->invoice_date)->format('n'));
+
+        $printRows = $months->map(function (int $month) use ($invoicesByMonth) {
+            $invoice = optional($invoicesByMonth->get($month))->first();
+
+            return [
+                'month' => $month,
+                'invoice' => $invoice,
+            ];
+        });
 
         $foundMonths = $invoices
             ->map(fn ($inv) => (int) optional($inv->invoice_date)->format('n'))
@@ -115,7 +122,7 @@ class CustomerInvoicePrintController extends Controller implements HasMiddleware
 
         return view('admin.invoice-customer-print.print', [
             'customer' => $customer,
-            'invoices' => $invoices,
+            'printRows' => $printRows,
             'popSetting' => $popSetting,
             'selectedYear' => (int) $validated['year'],
             'selectedMonths' => $months,
