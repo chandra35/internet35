@@ -58,6 +58,31 @@ class CustomerInvoicePrintController extends Controller implements HasMiddleware
         ];
     }
 
+    /**
+     * Generate random invoice number for this feature so numbers are not sequential.
+     * Keeps uniqueness across active + soft-deleted invoices.
+     */
+    private function generateRandomInvoiceNumber(string $popId, Carbon $periodStart, ?PopSetting $popSetting): string
+    {
+        $prefix = rtrim($popSetting?->invoice_prefix ?? 'INV', '-');
+        $ym = $periodStart->format('Ym');
+
+        for ($i = 0; $i < 100; $i++) {
+            $random = str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT);
+            $invoiceNumber = $prefix . '-' . $ym . '-' . $random;
+
+            $exists = CustomerInvoice::withTrashed()
+                ->where('invoice_number', $invoiceNumber)
+                ->exists();
+
+            if (!$exists) {
+                return $invoiceNumber;
+            }
+        }
+
+        throw new \RuntimeException('Gagal membuat nomor invoice acak yang unik.');
+    }
+
     protected function getPopId(Request $request)
     {
         $user = Auth::user();
@@ -112,6 +137,7 @@ class CustomerInvoicePrintController extends Controller implements HasMiddleware
             'year' => 'required|integer|min:2020|max:2100',
             'months' => 'required|array|min:1',
             'months.*' => 'required|integer|min:1|max:12',
+            'regenerate' => 'nullable|boolean',
         ]);
 
         $customer = Customer::where('id', $validated['customer_id'])
@@ -120,7 +146,7 @@ class CustomerInvoicePrintController extends Controller implements HasMiddleware
             ->firstOrFail();
 
         $popSetting = PopSetting::where('user_id', $popId)->first();
-        $dueDays = $popSetting?->invoice_due_days ?? 7;
+        $regenerate = (bool) ($validated['regenerate'] ?? false);
 
         $months = collect($validated['months'])
             ->map(fn ($m) => (int) $m)
@@ -130,7 +156,7 @@ class CustomerInvoicePrintController extends Controller implements HasMiddleware
 
         DB::beginTransaction();
         try {
-            $printRows = $months->map(function (int $month) use ($validated, $popId, $customer, $popSetting, $dueDays) {
+            $printRows = $months->map(function (int $month) use ($validated, $popId, $customer, $popSetting, $regenerate) {
                 $periodStart = Carbon::create((int) $validated['year'], $month, 1)->startOfMonth();
                 $periodEnd = (clone $periodStart)->endOfMonth();
 
@@ -140,6 +166,15 @@ class CustomerInvoicePrintController extends Controller implements HasMiddleware
                     ->whereDate('period_end', $periodEnd->toDateString())
                     ->orderBy('created_at')
                     ->first();
+
+                if ($regenerate && $invoice) {
+                    if ($invoice->status === 'paid') {
+                        throw new \RuntimeException('Tidak bisa regenerate invoice yang sudah lunas (' . $invoice->invoice_number . ').');
+                    }
+
+                    $invoice->delete();
+                    $invoice = null;
+                }
 
                 if (!$invoice) {
                     if (!$customer->package) {
@@ -159,7 +194,7 @@ class CustomerInvoicePrintController extends Controller implements HasMiddleware
                     $invoice = CustomerInvoice::create([
                         'customer_id' => $customer->id,
                         'pop_id' => $popId,
-                        'invoice_number' => CustomerInvoice::generateInvoiceNumber($popId),
+                        'invoice_number' => $this->generateRandomInvoiceNumber($popId, $periodStart, $popSetting),
                         'invoice_date' => $invoiceDate,
                         'due_date' => $dueDate,
                         'period_start' => $periodStart->toDateString(),

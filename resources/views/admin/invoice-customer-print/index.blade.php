@@ -79,6 +79,18 @@
                 <small class="text-muted">Sistem akan mencetak semua invoice yang ditemukan sesuai bulan terpilih.</small>
             </div>
 
+            <div class="form-group">
+                <div class="custom-control custom-checkbox">
+                    <input class="custom-control-input" type="checkbox" id="regenerate" name="regenerate" value="1" {{ old('regenerate') ? 'checked' : '' }}>
+                    <label class="custom-control-label" for="regenerate">
+                        Regenerate invoice periode terpilih (hapus invoice lama yang belum lunas lalu buat ulang)
+                    </label>
+                </div>
+                <small class="text-muted d-block mt-1">
+                    Aktifkan ini jika ingin tanggal/nomor invoice dibuat ulang. Nomor invoice fitur ini akan acak dan tetap unik.
+                </small>
+            </div>
+
             <div class="mt-4">
                 <button type="submit" class="btn btn-primary">
                     <i class="fas fa-print mr-1"></i>Cetak Invoice
