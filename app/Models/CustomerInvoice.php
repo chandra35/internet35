@@ -112,6 +112,7 @@ class CustomerInvoice extends Model
         $month = date('m');
         
         $lastInvoice = static::where('pop_id', $popId)
+            ->withTrashed()
             ->whereYear('created_at', $year)
             ->whereMonth('created_at', $month)
             ->orderBy('invoice_number', 'desc')
