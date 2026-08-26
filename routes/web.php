@@ -320,9 +320,10 @@ Route::prefix('admin')->middleware(['auth', 'role:superadmin|admin|admin-pop|tek
     Route::prefix('payments')->name('payments.')->group(function () {
         Route::get('/', [PaymentController::class, 'index'])->name('index');
         Route::get('/data', [PaymentController::class, 'data'])->name('data');
+        Route::post('/{customer}/generate-missing-periods', [PaymentController::class, 'generateMissingPeriods'])->name('generate-missing-periods');
+        Route::post('/{customer}/print', [PaymentController::class, 'print'])->name('print');
         Route::get('/{customer}', [PaymentController::class, 'show'])->name('show');
         Route::post('/{customer}', [PaymentController::class, 'store'])->name('store');
-        Route::post('/{customer}/print', [PaymentController::class, 'print'])->name('print');
     });
 
     // Customer Multi-Month Invoice Print (new feature, separate from existing invoice flow)

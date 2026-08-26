@@ -27,7 +27,7 @@ class PaymentController extends Controller implements HasMiddleware
     {
         return [
             new Middleware('permission:invoices.view', only: ['index', 'data', 'show', 'print']),
-            new Middleware('permission:invoices.edit', only: ['store']),
+            new Middleware('permission:invoices.edit', only: ['store', 'generateMissingPeriods']),
         ];
     }
 
@@ -124,8 +124,117 @@ class PaymentController extends Controller implements HasMiddleware
 
         $invoices = $this->unpaidInvoices($customer)->get();
         $popSetting = PopSetting::where('user_id', $popId)->first();
+        $missingPeriodCount = $this->missingPeriodStarts($customer)->count();
 
-        return view('admin.payments.show', compact('customer', 'invoices', 'popId', 'popSetting'));
+        return view('admin.payments.show', compact('customer', 'invoices', 'popId', 'popSetting', 'missingPeriodCount'));
+    }
+
+    /**
+     * Create only the missing monthly periods after the last real invoice.
+     * This is intentionally an explicit admin action: opening a payment page
+     * must never create a financial transaction by itself.
+     */
+    public function generateMissingPeriods(Request $request, Customer $customer)
+    {
+        $popId = $this->getPopId($request);
+        $this->ensureCustomerInPop($customer, $popId);
+
+        if (!$this->unpaidInvoices($customer)->exists()) {
+            return back()->with('error', 'Tidak ada tunggakan yang perlu dilengkapi.');
+        }
+
+        $periodStarts = $this->missingPeriodStarts($customer);
+        if ($periodStarts->isEmpty()) {
+            return back()->with('info', 'Periode tagihan pelanggan sudah lengkap sampai bulan berjalan.');
+        }
+
+        $popSetting = PopSetting::where('user_id', $popId)->first();
+        $dueDays = $popSetting?->invoice_due_days ?? 7;
+        $created = 0;
+
+        try {
+            DB::transaction(function () use ($customer, $popId, $popSetting, $dueDays, $periodStarts, &$created) {
+                $customer->loadMissing('package');
+                if (!$customer->package) {
+                    abort(422, 'Pelanggan belum memiliki paket internet.');
+                }
+
+                $subtotal = (float) ($customer->monthly_fee ?: $customer->package->price);
+                $taxAmount = $popSetting?->ppn_enabled
+                    ? $subtotal * ((float) $popSetting->ppn_percentage / 100)
+                    : 0;
+
+                foreach ($periodStarts as $periodStart) {
+                    $periodEnd = $periodStart->copy()->addMonth()->subDay();
+                    $exists = CustomerInvoice::where('customer_id', $customer->id)
+                        ->whereDate('period_start', $periodStart)
+                        ->whereDate('period_end', $periodEnd)
+                        ->exists();
+                    if ($exists) {
+                        continue;
+                    }
+
+                    CustomerInvoice::create([
+                        'customer_id' => $customer->id,
+                        'pop_id' => $popId,
+                        'invoice_number' => CustomerInvoice::generateInvoiceNumber($popId),
+                        'invoice_date' => $periodStart,
+                        'due_date' => $periodStart->copy()->addDays($dueDays),
+                        'period_start' => $periodStart,
+                        'period_end' => $periodEnd,
+                        'items' => [[
+                            'description' => 'Layanan Internet ' . $customer->package->name,
+                            'amount' => $subtotal,
+                        ]],
+                        'subtotal' => $subtotal,
+                        'discount_amount' => 0,
+                        'tax_amount' => $taxAmount,
+                        'total_amount' => $subtotal + $taxAmount,
+                        'paid_amount' => 0,
+                        'status' => 'pending',
+                        'notes' => $popSetting?->invoice_notes,
+                        'created_by' => auth()->id(),
+                    ]);
+                    $created++;
+                }
+            });
+
+            $this->activityLog->logCreate('invoices', "Melengkapi {$created} periode tagihan untuk {$customer->customer_id}");
+
+            return back()->with('success', "{$created} periode tagihan berhasil dilengkapi.");
+        } catch (\Throwable $exception) {
+            Log::error("Failed to backfill invoices for {$customer->customer_id}: " . $exception->getMessage());
+
+            return back()->with('error', 'Gagal melengkapi periode tagihan: ' . $exception->getMessage());
+        }
+    }
+
+    /** Missing billing-period starts between the last invoice and this period. */
+    protected function missingPeriodStarts(Customer $customer)
+    {
+        $lastInvoice = $customer->invoices()
+            ->where('status', '!=', 'cancelled')
+            ->whereNotNull('period_start')
+            ->orderByDesc('period_start')
+            ->first();
+        if (!$lastInvoice?->period_start) {
+            return collect();
+        }
+
+        $billingDay = min(28, max(1, (int) ($customer->billing_day ?: 1)));
+        $currentPeriodStart = now()->startOfMonth()->setDay($billingDay);
+        if ($billingDay > now()->day) {
+            $currentPeriodStart->subMonth();
+        }
+
+        $period = $lastInvoice->period_start->copy()->addMonth()->startOfDay();
+        $periods = collect();
+        while ($period->lessThanOrEqualTo($currentPeriodStart)) {
+            $periods->push($period->copy());
+            $period->addMonthNoOverflow();
+        }
+
+        return $periods;
     }
 
     /** Mark selected outstanding invoices as paid in one transaction. */

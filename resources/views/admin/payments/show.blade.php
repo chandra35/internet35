@@ -17,6 +17,16 @@
             <div class="card card-outline card-primary">
                 <div class="card-header">
                     <h3 class="card-title"><i class="fas fa-file-invoice-dollar mr-2"></i>Tunggakan {{ $customer->name }}</h3>
+                    @if($missingPeriodCount > 0)
+                    <div class="card-tools">
+                        @can('invoices.edit')
+                        <form method="POST" action="{{ route('admin.payments.generate-missing-periods', $customer) }}" class="d-inline" onsubmit="return confirm('Buat {{ $missingPeriodCount }} invoice periode yang belum ada? Invoice akan menjadi tagihan nyata.');">
+                            @csrf
+                            <button class="btn btn-warning btn-sm"><i class="fas fa-calendar-plus mr-1"></i>Lengkapi {{ $missingPeriodCount }} Bulan</button>
+                        </form>
+                        @endcan
+                    </div>
+                    @endif
                 </div>
                 <div class="card-body p-0">
                     @if($invoices->isEmpty())
