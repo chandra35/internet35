@@ -296,6 +296,57 @@
     </div>
 </div>
 
+<!-- Automatic Invoice Generation Configuration -->
+<div class="card card-outline {{ $billingGenerateTask?->is_enabled ? 'card-success' : 'card-warning' }} mb-3">
+    <div class="card-header">
+        <h3 class="card-title">
+            <i class="fas fa-file-invoice-dollar mr-2"></i>Invoice Otomatis
+        </h3>
+        <div class="card-tools">
+            @if($billingGenerateTask)
+                <span class="badge badge-{{ $billingGenerateTask->is_enabled ? 'success' : 'secondary' }}">
+                    {{ $billingGenerateTask->is_enabled ? 'Aktif' : 'Nonaktif' }}
+                </span>
+            @else
+                <span class="badge badge-warning">Belum dikonfigurasi</span>
+            @endif
+        </div>
+    </div>
+    <form action="{{ route('admin.scheduler.billing-generate.configure') }}" method="POST">
+        @csrf
+        <div class="card-body py-3">
+            <div class="row align-items-end">
+                <div class="col-md-5">
+                    <label class="mb-1">Waktu generate</label>
+                    <select name="schedule" class="form-control form-control-sm">
+                        @foreach($schedulePresets as $key => $label)
+                            <option value="{{ $key }}" {{ ($billingGenerateTask?->schedule ?? 'dailyAt:08:00') === $key ? 'selected' : '' }}>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-5 mt-2 mt-md-0">
+                    <div class="custom-control custom-switch pt-2">
+                        <input type="hidden" name="is_enabled" value="0">
+                        <input type="checkbox" class="custom-control-input" id="billingGenerateEnabled" name="is_enabled" value="1"
+                               {{ !$billingGenerateTask || $billingGenerateTask->is_enabled ? 'checked' : '' }}>
+                        <label class="custom-control-label" for="billingGenerateEnabled">Aktifkan invoice otomatis</label>
+                    </div>
+                    <small class="text-muted d-block mt-2">Setiap pelanggan aktif menerima invoice pada tanggal <code>billing_day</code>-nya. Periode invoice yang sama tidak dibuat dua kali.</small>
+                </div>
+                <div class="col-md-2 mt-3 mt-md-0 text-md-right">
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="fas fa-save mr-1"></i>Simpan
+                    </button>
+                </div>
+            </div>
+            <div class="alert alert-light border mb-0 mt-3 py-2 small">
+                <i class="fas fa-info-circle text-info mr-1"></i>
+                Rekomendasi: aktifkan pukul 08:00 WIB. Cron Laravel server tetap harus menjalankan <code>php artisan schedule:run</code> setiap menit.
+            </div>
+        </div>
+    </form>
+</div>
+
 <!-- Auto Isolir Configuration -->
 <div class="card card-outline {{ $autoSuspendTask?->is_enabled ? 'card-success' : 'card-warning' }} mb-3">
     <div class="card-header">

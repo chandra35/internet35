@@ -105,11 +105,12 @@ class SchedulerController extends Controller implements HasMiddleware
         // Available commands for creation
         $availableCommands = ScheduledTask::availableCommands();
         $schedulePresets = ScheduledTask::schedulePresets();
+        $billingGenerateTask = ScheduledTask::where('command', 'billing:generate')->first();
         $autoSuspendTask = ScheduledTask::where('command', 'billing:auto-suspend')->first();
         
         return view('admin.scheduler.index', compact(
             'tasks', 'stats', 'recentLogs', 'popUsers', 'popId',
-            'availableCommands', 'schedulePresets', 'cronStatus', 'autoSuspendTask'
+            'availableCommands', 'schedulePresets', 'cronStatus', 'billingGenerateTask', 'autoSuspendTask'
         ));
     }
 
@@ -200,6 +201,39 @@ class SchedulerController extends Controller implements HasMiddleware
         $this->activityLog->logUpdate('scheduler', "{$action} pengaturan auto isolir: {$task->schedule}, " . ($task->is_enabled ? 'aktif' : 'nonaktif'));
 
         return back()->with('success', 'Pengaturan cron Auto Isolir disimpan. Pastikan cron Laravel server berjalan setiap menit.');
+    }
+
+    /** Configure automatic monthly invoice generation. */
+    public function configureBillingGenerate(Request $request)
+    {
+        $schedulePresets = array_keys(ScheduledTask::schedulePresets());
+
+        $validated = $request->validate([
+            'schedule' => ['required', 'string', 'in:' . implode(',', $schedulePresets)],
+            'is_enabled' => ['nullable', 'boolean'],
+        ]);
+
+        $task = ScheduledTask::firstOrNew(['command' => 'billing:generate']);
+        $isNew = !$task->exists;
+
+        $task->fill([
+            'name' => 'Generate Invoice Otomatis',
+            'schedule' => $validated['schedule'],
+            'description' => 'Membuat invoice bulanan untuk pelanggan aktif sesuai billing_day. Invoice periode yang sama tidak dibuat dua kali.',
+            'timeout' => 3600,
+            'without_overlapping' => true,
+            'run_in_background' => false,
+            'is_enabled' => $request->boolean('is_enabled'),
+            'pop_id' => null,
+            'next_run_at' => now(),
+        ]);
+        $task->save();
+        $task->update(['next_run_at' => $task->calculateNextRun()]);
+
+        $action = $isNew ? 'membuat' : 'memperbarui';
+        $this->activityLog->logUpdate('scheduler', "{$action} pengaturan generate invoice: {$task->schedule}, " . ($task->is_enabled ? 'aktif' : 'nonaktif'));
+
+        return back()->with('success', 'Pengaturan Invoice Otomatis disimpan.');
     }
 
     /**

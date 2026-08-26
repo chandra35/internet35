@@ -35,6 +35,12 @@ Tanggal: 27 Agustus 2026 (WIB)
 - Menambahkan **Tools > Reset Data Transaksi (Siap Operasional)** untuk superadmin. Aksi ini menghapus invoice, pembayaran, log notifikasi, dan log scheduler; mereset counter task serta marker tanggal billing.
 - Reset gabungan tidak menghapus data pelanggan, user, paket, router, OLT/ONU, jaringan, PPP secret MikroTik, ataupun status layanan pelanggan.
 
+## Invoice Otomatis
+
+- Menambahkan panel **Invoice Otomatis** pada `Sistem > Scheduler`.
+- Superadmin dapat membuat, mengaktifkan/nonaktifkan, dan memilih jadwal task `billing:generate` tanpa membuat task generik secara manual.
+- Jadwal operasi yang dipilih: setiap hari pukul 08:00 WIB. Command membuat invoice berdasarkan `billing_day` masing-masing pelanggan dan mencegah invoice ganda untuk periode yang sama.
+
 ## Verifikasi sebelum deploy
 
 Berhasil dijalankan pada workspace:
