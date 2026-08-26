@@ -460,15 +460,17 @@ class InvoiceController extends Controller implements HasMiddleware
                         $result = app(CustomerUnsuspendService::class)->unsuspend($customer);
                         $unsuspendMsg = $result === 'unsuspended'
                             ? ' Isolir pelanggan berhasil dibuka otomatis.'
-                            : ' Isolir dibuka di sistem (Mikrotik: ' . $result . ').';
+                            : ' Pembayaran tercatat, tetapi isolir belum dapat dibuka di MikroTik (' . $result . '). Pelanggan tetap suspended.';
 
-                        try {
-                            app(NotificationService::class)->sendActivated($customer, [
-                                'activate_date' => now()->format('d F Y H:i'),
-                                'reason' => 'Tagihan telah dilunasi',
-                            ]);
-                        } catch (\Exception $notifErr) {
-                            Log::warning("Auto-unsuspend notification failed for {$customer->customer_id}: " . $notifErr->getMessage());
+                        if ($result === 'unsuspended') {
+                            try {
+                                app(NotificationService::class)->sendActivated($customer, [
+                                    'activate_date' => now()->format('d F Y H:i'),
+                                    'reason' => 'Tagihan telah dilunasi',
+                                ]);
+                            } catch (\Exception $notifErr) {
+                                Log::warning("Auto-unsuspend notification failed for {$customer->customer_id}: " . $notifErr->getMessage());
+                            }
                         }
                     } catch (\Exception $e) {
                         Log::error("Auto-unsuspend after markPaid failed for {$customer->customer_id}: " . $e->getMessage());

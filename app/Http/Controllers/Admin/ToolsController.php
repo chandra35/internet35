@@ -8,6 +8,8 @@ use App\Models\Customer;
 use App\Models\CustomerInvoice;
 use App\Models\CustomerPayment;
 use App\Models\NotificationLog;
+use App\Models\ScheduledTask;
+use App\Models\ScheduledTaskLog;
 use App\Services\ActivityLogService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -48,6 +50,9 @@ class ToolsController extends Controller
                 ->when($popId, fn($q) => $q->where('pop_id', $popId))
                 ->whereNotNull('active_until')
                 ->count(),
+            'scheduler_logs'    => ScheduledTaskLog::whereHas('task', function ($q) use ($popId) {
+                $q->when($popId, fn($taskQuery) => $taskQuery->where('pop_id', $popId));
+            })->count(),
         ];
 
         return view('admin.tools.index', compact('counts'));
@@ -149,5 +154,49 @@ class ToolsController extends Controller
         $this->activityLog->log('purge', 'tools', "Reset status billing semua pelanggan ke aktif $scope");
 
         return back()->with('success', 'Status billing semua pelanggan berhasil direset ke aktif.');
+    }
+
+    /**
+     * Reset transactional data before first operational use.
+     *
+     * Basic master data and the current MikroTik service state are deliberately
+     * retained. This action is restricted to superadmin because it resets
+     * global scheduler counters as well as billing records.
+     */
+    public function resetTransactionalData(Request $request)
+    {
+        abort_unless(auth()->user()->hasRole('superadmin'), 403);
+
+        $request->validate(['confirm_text' => 'required|in:RESET TRANSAKSI']);
+
+        $customerIds = Customer::withTrashed()->pluck('id');
+        $taskIds = ScheduledTask::pluck('id');
+
+        DB::transaction(function () use ($customerIds, $taskIds) {
+            CustomerPayment::withTrashed()->whereIn('customer_id', $customerIds)->forceDelete();
+            CustomerInvoice::withTrashed()->whereIn('customer_id', $customerIds)->forceDelete();
+            NotificationLog::query()->delete();
+            ScheduledTaskLog::whereIn('scheduled_task_id', $taskIds)->delete();
+
+            ScheduledTask::whereIn('id', $taskIds)->update([
+                'last_run_at' => null,
+                'last_status' => 'pending',
+                'last_output' => null,
+                'run_count' => 0,
+                'failure_count' => 0,
+                'next_run_at' => now(),
+            ]);
+
+            // Keep customers, packages, network links, and current service
+            // status intact. Only billing date markers are reset.
+            Customer::withTrashed()->update([
+                'active_until' => null,
+                'due_date' => null,
+            ]);
+        });
+
+        $this->activityLog->log('purge', 'tools', 'Reset data transaksi awal: invoice, pembayaran, log notifikasi, dan counter scheduler');
+
+        return back()->with('success', 'Data transaksi dan counter berhasil direset. Data pelanggan, jaringan, dan status layanan tidak diubah.');
     }
 }

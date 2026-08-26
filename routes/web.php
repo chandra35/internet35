@@ -502,6 +502,7 @@ Route::prefix('admin')->middleware(['auth', 'role:superadmin|admin|admin-pop|tek
         Route::post('/clear-notification-logs', [ToolsController::class, 'clearNotificationLogs'])->name('clear-notification-logs');
         Route::post('/clear-activity-logs', [ToolsController::class, 'clearActivityLogs'])->name('clear-activity-logs');
         Route::post('/reset-billing', [ToolsController::class, 'resetBilling'])->name('reset-billing');
+        Route::post('/reset-transactional-data', [ToolsController::class, 'resetTransactionalData'])->name('reset-transactional-data');
     });
 
     // Data Maintenance (dangerous operations)

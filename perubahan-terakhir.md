@@ -29,6 +29,12 @@ Tanggal: 27 Agustus 2026 (WIB)
 - Untuk pelanggan yang memiliki router dan PPPoE, status database hanya kembali `active` bila profile MikroTik berhasil dipulihkan dan secret berhasil di-enable. Bila router/secret/profile gagal, pelanggan tetap `suspended` agar status aplikasi tidak berbeda dengan layanan aktual.
 - Mapping paket produksi `10M_AB` untuk pelanggan `POP35153240` diselaraskan ke profile MikroTik `10M-35-AB`. Pelanggan tetap suspended sampai invoice ditandai lunas.
 
+## Pembayaran Manual dan Reset Go-Live
+
+- Pembayaran manual yang sudah ada pada detail Invoice dikoreksi: notifikasi aktivasi hanya dikirim bila buka-isolir MikroTik berhasil. Bila gagal, invoice tetap tercatat lunas tetapi pelanggan tetap suspended dan admin menerima pesan yang sesuai.
+- Menambahkan **Tools > Reset Data Transaksi (Siap Operasional)** untuk superadmin. Aksi ini menghapus invoice, pembayaran, log notifikasi, dan log scheduler; mereset counter task serta marker tanggal billing.
+- Reset gabungan tidak menghapus data pelanggan, user, paket, router, OLT/ONU, jaringan, PPP secret MikroTik, ataupun status layanan pelanggan.
+
 ## Verifikasi sebelum deploy
 
 Berhasil dijalankan pada workspace:

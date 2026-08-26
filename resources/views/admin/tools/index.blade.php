@@ -204,6 +204,30 @@
             </div>
         </div>
 
+        {{-- Reset data transaksi untuk go-live (superadmin only) --}}
+        @if(auth()->user()->hasRole('superadmin'))
+        <div class="col-lg-4 col-md-6 mb-4">
+            <div class="card tool-card border border-danger">
+                <div class="card-body">
+                    <div class="tool-icon ti-red"><i class="fas fa-power-off"></i></div>
+                    <h6>Reset Data Transaksi (Siap Operasional)</h6>
+                    <p>Mengosongkan invoice, pembayaran, log notifikasi, dan counter scheduler agar penomoran transaksi dimulai kembali dari awal.</p>
+                    <div class="count-badge">
+                        <i class="fas fa-database mr-1"></i>
+                        {{ number_format($counts['invoices']) }} invoice &bull;
+                        {{ number_format($counts['payments']) }} pembayaran &bull;
+                        {{ number_format($counts['scheduler_logs']) }} log task
+                    </div>
+                    <br>
+                    <button class="btn btn-danger btn-block btn-sm mt-2"
+                            data-toggle="modal" data-target="#modal-reset-transactional">
+                        <i class="fas fa-broom mr-1"></i> Reset Data Transaksi
+                    </button>
+                </div>
+            </div>
+        </div>
+        @endif
+
     </div>{{-- end .row --}}
 
 
@@ -412,6 +436,51 @@
         </div>
     </div>
 
+    {{-- Modal: Reset Data Transaksi --}}
+    @if(auth()->user()->hasRole('superadmin'))
+    <div class="modal fade" id="modal-reset-transactional" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content" style="border-radius:10px; overflow:hidden;">
+                <div class="warning-header">
+                    <h5 class="mb-1"><i class="fas fa-radiation-alt mr-2"></i>Konfirmasi Reset Data Transaksi</h5>
+                    <small style="opacity:.85;">Hanya lakukan sebelum aplikasi mulai digunakan</small>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger py-2 mb-3">
+                        <strong>Yang akan dihapus atau direset:</strong>
+                        <ul class="mb-0 mt-1 pl-3" style="font-size:.85rem;">
+                            <li>Invoice dan pembayaran</li>
+                            <li>Log notifikasi dan log eksekusi scheduler</li>
+                            <li>Counter invoice/pembayaran dan counter task scheduler</li>
+                            <li>Tanggal <code>active_until</code> dan <code>due_date</code></li>
+                        </ul>
+                        <small class="d-block mt-2"><strong>Tidak diubah:</strong> pelanggan, user, paket, router, OLT/ONU, jaringan, PPP secret MikroTik, dan status layanan pelanggan.</small>
+                    </div>
+                    <form id="form-reset-transactional" method="POST" action="{{ route('admin.tools.reset-transactional-data') }}">
+                        @csrf
+                        <p class="mb-2" style="font-size:.85rem;">Ketik <span class="confirm-phrase">RESET TRANSAKSI</span> untuk mengkonfirmasi:</p>
+                        <input type="text" name="confirm_text" id="inp-reset-transactional"
+                               class="form-control form-control-sm mb-3" placeholder="Ketik: RESET TRANSAKSI"
+                               autocomplete="off" spellcheck="false">
+                        <div class="form-check mb-3">
+                            <input type="checkbox" class="form-check-input" id="chk-reset-transactional">
+                            <label class="form-check-label" for="chk-reset-transactional" style="font-size:.82rem;">
+                                Saya sudah memiliki backup dan memahami transaksi tidak dapat dipulihkan dari aplikasi
+                            </label>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <button type="button" class="btn btn-sm btn-secondary" data-dismiss="modal">Batal</button>
+                            <button type="submit" id="btn-reset-transactional" class="btn btn-sm btn-danger" disabled>
+                                <i class="fas fa-broom mr-1"></i> Ya, Reset Transaksi
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
+
 @endsection
 
 @push('js')
@@ -424,11 +493,12 @@ $(function () {
         { inp: '#inp-clear-notif-logs',   chk: '#chk-clear-notif-logs',   btn: '#btn-clear-notif-logs' },
         { inp: '#inp-clear-activity-logs',chk: '#chk-clear-activity-logs',btn: '#btn-clear-activity-logs' },
         { inp: '#inp-reset-billing',      chk: '#chk-reset-billing',      btn: '#btn-reset-billing' },
+        { inp: '#inp-reset-transactional',chk: '#chk-reset-transactional',btn: '#btn-reset-transactional', phrase: 'RESET TRANSAKSI' },
     ];
 
     gates.forEach(function (g) {
         function check() {
-            var phraseOk = $(g.inp).val() === 'HAPUS DATA';
+            var phraseOk = $(g.inp).val() === (g.phrase || 'HAPUS DATA');
             var chkOk    = $(g.chk).is(':checked');
             $(g.btn).prop('disabled', !(phraseOk && chkOk));
         }
