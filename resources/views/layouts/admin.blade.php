@@ -287,19 +287,67 @@
                     @endcan
 
                     {{-- ============ LAYANAN ============ --}}
-                    @canany(['routers.view', 'packages.view', 'customers.view', 'invoices.view'])
-                    @php $layananOpen = request()->routeIs('admin.routers.*') || request()->routeIs('admin.ppp-profiles.*') || request()->routeIs('admin.ip-pools.*') || request()->routeIs('admin.packages.*') || request()->routeIs('admin.customers.*') || request()->routeIs('admin.invoices.*'); @endphp
+                    @canany(['packages.view', 'customers.view', 'invoices.view'])
+                    @php $layananOpen = request()->routeIs('admin.packages.*') || request()->routeIs('admin.customers.*') || request()->routeIs('admin.invoices.*'); @endphp
                     <li class="nav-item {{ $layananOpen ? 'menu-open' : '' }}">
                         <a href="#" class="nav-link {{ $layananOpen ? 'active' : '' }}">
                             <i class="nav-icon fas fa-hand-holding-usd"></i>
                             <p>Layanan<i class="right fas fa-angle-left"></i></p>
                         </a>
                         <ul class="nav nav-treeview">
+                            @can('packages.view')
+                            <li class="nav-item">
+                                <a href="{{ route('admin.packages.index') }}" class="nav-link {{ request()->routeIs('admin.packages.*') ? 'active' : '' }}">
+                                    <i class="far fa-circle nav-icon"></i>
+                                    <p>Paket Internet</p>
+                                </a>
+                            </li>
+                            @endcan
+                            @canany(['customers.view', 'invoices.view'])
+                            @php $pelangganBillingOpen = request()->routeIs('admin.customers.*') || request()->routeIs('admin.invoices.*'); @endphp
+                            <li class="nav-item {{ $pelangganBillingOpen ? 'menu-open' : '' }}">
+                                <a href="#" class="nav-link {{ $pelangganBillingOpen ? 'active' : '' }}">
+                                    <i class="far fa-circle nav-icon"></i>
+                                    <p>Pelanggan &amp; Tagihan<i class="right fas fa-angle-left"></i></p>
+                                </a>
+                                <ul class="nav nav-treeview">
+                                    @can('customers.view')
+                                    <li class="nav-item">
+                                        <a href="{{ route('admin.customers.index') }}" class="nav-link {{ request()->routeIs('admin.customers.*') ? 'active' : '' }}">
+                                            <i class="far fa-dot-circle nav-icon"></i>
+                                            <p>Pelanggan</p>
+                                        </a>
+                                    </li>
+                                    @endcan
+                                    @can('invoices.view')
+                                    <li class="nav-item">
+                                        <a href="{{ route('admin.invoices.index') }}" class="nav-link {{ request()->routeIs('admin.invoices.*') ? 'active' : '' }}">
+                                            <i class="far fa-dot-circle nav-icon"></i>
+                                            <p>Invoice</p>
+                                        </a>
+                                    </li>
+                                    @endcan
+                                </ul>
+                            </li>
+                            @endcanany
+                        </ul>
+                    </li>
+                    @endcanany
+
+                    {{-- ============ JARINGAN ============ --}}
+                    @canany(['routers.view', 'olts.view', 'onus.view', 'odcs.view', 'odps.view', 'network-map.view'])
+                    @php $jaringanOpen = request()->routeIs('admin.routers.*') || request()->routeIs('admin.ppp-profiles.*') || request()->routeIs('admin.ip-pools.*') || request()->routeIs('admin.olts.*') || request()->routeIs('admin.onus.*') || request()->routeIs('admin.odcs.*') || request()->routeIs('admin.odps.*') || request()->routeIs('admin.network-map.*'); @endphp
+                    <li class="nav-item {{ $jaringanOpen ? 'menu-open' : '' }}">
+                        <a href="#" class="nav-link {{ $jaringanOpen ? 'active' : '' }}">
+                            <i class="nav-icon fas fa-network-wired"></i>
+                            <p>Jaringan<i class="right fas fa-angle-left"></i></p>
+                        </a>
+                        <ul class="nav nav-treeview">
                             @can('routers.view')
                             @php $routerOpen = request()->routeIs('admin.routers.*') || request()->routeIs('admin.ppp-profiles.*') || request()->routeIs('admin.ip-pools.*'); @endphp
                             <li class="nav-item {{ $routerOpen ? 'menu-open' : '' }}">
                                 <a href="#" class="nav-link {{ $routerOpen ? 'active' : '' }}">
-                                    <i class="far fa-circle nav-icon"></i>
+                                    <i class="fas fa-router nav-icon"></i>
                                     <p>Router<i class="right fas fa-angle-left"></i></p>
                                 </a>
                                 <ul class="nav nav-treeview">
@@ -324,43 +372,6 @@
                                 </ul>
                             </li>
                             @endcan
-                            @can('packages.view')
-                            <li class="nav-item">
-                                <a href="{{ route('admin.packages.index') }}" class="nav-link {{ request()->routeIs('admin.packages.*') ? 'active' : '' }}">
-                                    <i class="far fa-circle nav-icon"></i>
-                                    <p>Paket Internet</p>
-                                </a>
-                            </li>
-                            @endcan
-                            @can('customers.view')
-                            <li class="nav-item">
-                                <a href="{{ route('admin.customers.index') }}" class="nav-link {{ request()->routeIs('admin.customers.*') ? 'active' : '' }}">
-                                    <i class="far fa-circle nav-icon"></i>
-                                    <p>Pelanggan</p>
-                                </a>
-                            </li>
-                            @endcan
-                            @can('invoices.view')
-                            <li class="nav-item">
-                                <a href="{{ route('admin.invoices.index') }}" class="nav-link {{ request()->routeIs('admin.invoices.*') ? 'active' : '' }}">
-                                    <i class="far fa-circle nav-icon"></i>
-                                    <p>Invoice</p>
-                                </a>
-                            </li>
-                            @endcan
-                        </ul>
-                    </li>
-                    @endcanany
-
-                    {{-- ============ JARINGAN ============ --}}
-                    @canany(['olts.view', 'onus.view', 'odcs.view', 'odps.view', 'network-map.view'])
-                    @php $jaringanOpen = request()->routeIs('admin.olts.*') || request()->routeIs('admin.onus.*') || request()->routeIs('admin.odcs.*') || request()->routeIs('admin.odps.*') || request()->routeIs('admin.network-map.*'); @endphp
-                    <li class="nav-item {{ $jaringanOpen ? 'menu-open' : '' }}">
-                        <a href="#" class="nav-link {{ $jaringanOpen ? 'active' : '' }}">
-                            <i class="nav-icon fas fa-network-wired"></i>
-                            <p>Jaringan<i class="right fas fa-angle-left"></i></p>
-                        </a>
-                        <ul class="nav nav-treeview">
                             @can('olts.view')
                             <li class="nav-item">
                                 <a href="{{ route('admin.olts.index') }}" class="nav-link {{ request()->routeIs('admin.olts.*') ? 'active' : '' }}">
