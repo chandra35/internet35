@@ -90,13 +90,22 @@ class BillingAutoSuspend extends Command
             try {
                 // Isolir in Mikrotik: change PPP profile to 'isolir' + disconnect
                 $mikrotikResult = $this->unsuspendService->isolir($customer);
+
+                // Do not change local billing/service state when the router was
+                // not actually changed. This makes a scheduler retry safe and
+                // prevents a DB-only suspension from hiding a MikroTik failure.
+                if ($mikrotikResult !== 'isolated') {
+                    throw new \RuntimeException("Mikrotik isolation was not completed ({$mikrotikResult})");
+                }
                 
                 // Update customer status
                 $customer->update([
                     'status' => 'suspended',
                     'suspended_at' => now(),
                     'suspend_reason' => 'Auto-isolir: tagihan belum dibayar',
-                    'mikrotik_status' => ($mikrotikResult === 'isolated') ? 'isolated' : $customer->mikrotik_status,
+                    // The PPP secret remains enabled; only its profile changes.
+                    // Keep this value within the database enum.
+                    'mikrotik_status' => 'enabled',
                 ]);
                 
                 // Update invoices status to overdue

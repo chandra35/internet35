@@ -115,12 +115,16 @@ class CustomerUnsuspendService
             }
 
             // Change profile back to the original package profile
-            $mikrotik->updatePppSecret($secretId, [
+            if (!$mikrotik->updatePppSecret($secretId, [
                 'profile' => $packageProfile,
-            ]);
+            ])) {
+                return 'error';
+            }
 
             // Also make sure the secret is enabled (in case it was also disabled)
-            $mikrotik->enablePppSecret($secretId);
+            if (!$mikrotik->enablePppSecret($secretId)) {
+                return 'error';
+            }
 
             // Delete from active connections to force reconnect with new profile
             $this->disconnectActiveSession($mikrotik, $customer->pppoe_username);
@@ -169,9 +173,11 @@ class CustomerUnsuspendService
 
             // Change profile to isolir
             $isolirProfile = $this->getIsolirProfileName($customer);
-            $mikrotik->updatePppSecret($secretId, [
+            if (!$mikrotik->updatePppSecret($secretId, [
                 'profile' => $isolirProfile,
-            ]);
+            ])) {
+                return 'error';
+            }
 
             // Delete from active connections to force reconnect with isolir profile
             $this->disconnectActiveSession($mikrotik, $customer->pppoe_username);

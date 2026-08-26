@@ -137,6 +137,11 @@
         </ul>
         
         <ul class="navbar-nav ml-auto">
+            <li class="nav-item d-none d-md-flex align-items-center">
+                <span class="nav-link text-muted" id="navbarClock" aria-label="Waktu Indonesia Barat">
+                    <i class="far fa-clock mr-1"></i><span>--:--:-- WIB</span>
+                </span>
+            </li>
             @php $customer = auth()->user()->customerProfile; @endphp
             @if($customer)
             <li class="nav-item">
@@ -315,6 +320,19 @@
         progressBar: true,
         positionClass: 'toast-top-right',
     };
+</script>
+<script>
+(() => {
+    const clock = document.querySelector('#navbarClock span');
+    if (!clock) return;
+
+    const formatter = new Intl.DateTimeFormat('id-ID', {
+        timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+    });
+    const updateClock = () => { clock.textContent = `${formatter.format(new Date())} WIB`; };
+    updateClock();
+    setInterval(updateClock, 1000);
+})();
 </script>
 @stack('js')
 </body>

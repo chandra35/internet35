@@ -105,10 +105,11 @@ class SchedulerController extends Controller implements HasMiddleware
         // Available commands for creation
         $availableCommands = ScheduledTask::availableCommands();
         $schedulePresets = ScheduledTask::schedulePresets();
+        $autoSuspendTask = ScheduledTask::where('command', 'billing:auto-suspend')->first();
         
         return view('admin.scheduler.index', compact(
             'tasks', 'stats', 'recentLogs', 'popUsers', 'popId',
-            'availableCommands', 'schedulePresets', 'cronStatus'
+            'availableCommands', 'schedulePresets', 'cronStatus', 'autoSuspendTask'
         ));
     }
 
@@ -160,6 +161,45 @@ class SchedulerController extends Controller implements HasMiddleware
         
         return redirect()->route('admin.scheduler.index')
             ->with('success', 'Task berhasil ditambahkan!');
+    }
+
+    /**
+     * Configure the automatic customer isolation task.
+     *
+     * The command is intentionally global: it evaluates each eligible customer
+     * using that customer's POP, router, invoice, grace period, and
+     * auto_isolir flag before making any MikroTik request.
+     */
+    public function configureAutoSuspend(Request $request)
+    {
+        $schedulePresets = array_keys(ScheduledTask::schedulePresets());
+
+        $validated = $request->validate([
+            'schedule' => ['required', 'string', 'in:' . implode(',', $schedulePresets)],
+            'is_enabled' => ['nullable', 'boolean'],
+        ]);
+
+        $task = ScheduledTask::firstOrNew(['command' => 'billing:auto-suspend']);
+        $isNew = !$task->exists;
+
+        $task->fill([
+            'name' => 'Auto Isolir Pelanggan',
+            'schedule' => $validated['schedule'],
+            'description' => 'Memindahkan PPP secret pelanggan terlambat ke profile isolir dan memutus sesi MikroTik. Hanya pelanggan dengan auto-isolir aktif yang diproses.',
+            'timeout' => 3600,
+            'without_overlapping' => true,
+            'run_in_background' => false,
+            'is_enabled' => $request->boolean('is_enabled'),
+            'pop_id' => null,
+            'next_run_at' => now(),
+        ]);
+        $task->save();
+        $task->update(['next_run_at' => $task->calculateNextRun()]);
+
+        $action = $isNew ? 'membuat' : 'memperbarui';
+        $this->activityLog->logUpdate('scheduler', "{$action} pengaturan auto isolir: {$task->schedule}, " . ($task->is_enabled ? 'aktif' : 'nonaktif'));
+
+        return back()->with('success', 'Pengaturan cron Auto Isolir disimpan. Pastikan cron Laravel server berjalan setiap menit.');
     }
 
     /**

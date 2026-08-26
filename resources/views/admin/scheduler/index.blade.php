@@ -296,6 +296,57 @@
     </div>
 </div>
 
+<!-- Auto Isolir Configuration -->
+<div class="card card-outline {{ $autoSuspendTask?->is_enabled ? 'card-success' : 'card-warning' }} mb-3">
+    <div class="card-header">
+        <h3 class="card-title">
+            <i class="fas fa-shield-alt mr-2"></i>Auto Isolir Pelanggan ke MikroTik
+        </h3>
+        <div class="card-tools">
+            @if($autoSuspendTask)
+                <span class="badge badge-{{ $autoSuspendTask->is_enabled ? 'success' : 'secondary' }}">
+                    {{ $autoSuspendTask->is_enabled ? 'Aktif' : 'Nonaktif' }}
+                </span>
+            @else
+                <span class="badge badge-warning">Belum dikonfigurasi</span>
+            @endif
+        </div>
+    </div>
+    <form action="{{ route('admin.scheduler.auto-suspend.configure') }}" method="POST">
+        @csrf
+        <div class="card-body py-3">
+            <div class="row align-items-end">
+                <div class="col-md-5">
+                    <label class="mb-1">Jadwal pemeriksaan</label>
+                    <select name="schedule" class="form-control form-control-sm">
+                        @foreach($schedulePresets as $key => $label)
+                            <option value="{{ $key }}" {{ ($autoSuspendTask?->schedule ?? 'daily') === $key ? 'selected' : '' }}>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-5 mt-2 mt-md-0">
+                    <div class="custom-control custom-switch pt-2">
+                        <input type="hidden" name="is_enabled" value="0">
+                        <input type="checkbox" class="custom-control-input" id="autoSuspendEnabled" name="is_enabled" value="1"
+                               {{ !$autoSuspendTask || $autoSuspendTask->is_enabled ? 'checked' : '' }}>
+                        <label class="custom-control-label" for="autoSuspendEnabled">Aktifkan auto isolir</label>
+                    </div>
+                    <small class="text-muted d-block mt-2">Hanya pelanggan aktif dengan flag <code>auto_isolir</code>, invoice terlambat, dan masa tenggang terlewati yang dikirim ke MikroTik.</small>
+                </div>
+                <div class="col-md-2 mt-3 mt-md-0 text-md-right">
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="fas fa-save mr-1"></i>Simpan
+                    </button>
+                </div>
+            </div>
+            <div class="alert alert-light border mb-0 mt-3 py-2 small">
+                <i class="fas fa-info-circle text-info mr-1"></i>
+                Saat memenuhi syarat, aplikasi mengubah profile PPP secret menjadi profile isolir lalu memutus sesi aktif agar perangkat login ulang. Secret tidak di-disable. Cron server Laravel tetap harus menjalankan <code>php artisan schedule:run</code> setiap menit.
+            </div>
+        </div>
+    </form>
+</div>
+
 <!-- Smart Check Trigger -->
 <div class="callout callout-primary mb-3" style="cursor:pointer;" onclick="openSmartCheck()">
     <div class="d-flex justify-content-between align-items-center">
