@@ -319,6 +319,7 @@ Route::prefix('admin')->middleware(['auth', 'role:superadmin|admin|admin-pop|tek
     // Manual payment desk: settle one or more outstanding customer invoices.
     Route::prefix('payments')->name('payments.')->group(function () {
         Route::get('/', [PaymentController::class, 'index'])->name('index');
+        Route::get('/data', [PaymentController::class, 'data'])->name('data');
         Route::get('/{customer}', [PaymentController::class, 'show'])->name('show');
         Route::post('/{customer}', [PaymentController::class, 'store'])->name('store');
         Route::post('/{customer}/print', [PaymentController::class, 'print'])->name('print');

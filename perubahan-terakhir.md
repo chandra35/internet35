@@ -58,6 +58,8 @@ Tanggal: 27 Agustus 2026 (WIB)
 - Admin dapat membuka pelanggan, melihat setiap bulan/periode tunggakan, memilih satu atau beberapa invoice, lalu mencatat pembayaran manual sekaligus dalam satu transaksi.
 - Setiap invoice yang dipilih memperoleh riwayat pembayaran manual tersendiri; invoice dilunasi sesuai sisa tagihannya. Jika seluruh tunggakan telah lunas, sistem mencoba membuka isolir pelanggan dengan alur MikroTik yang sama seperti pembayaran dari halaman Invoice.
 - Invoice dapat dicetak satuan atau sekaligus untuk invoice yang dipilih dari halaman pembayaran.
+- Daftar tunggakan memakai DataTable AJAX server-side: pencarian, pagination, dan jumlah data dimuat tanpa refresh. Pada layar ponsel tabel berubah menjadi kartu per pelanggan agar setiap nilai tetap terbaca.
+- Generator invoice tetap membuat satu invoice untuk setiap periode bulanan. Pelanggan berstatus `suspended` tetap memperoleh invoice pada siklus berikutnya, sehingga tunggakan dicatat dan dibayar per bulan, bukan berhenti atau dihitung sebagai satu tagihan mundur.
 
 ## Verifikasi sebelum deploy
 

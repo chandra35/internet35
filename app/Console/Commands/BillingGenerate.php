@@ -72,10 +72,12 @@ class BillingGenerate extends Command
             $popSetting = PopSetting::where('user_id', $pop->id)->first();
             $dueDays = $popSetting?->invoice_due_days ?? 7;
             
-            // Get active customers whose billing_day matches today
+            // Keep each monthly period running for active and suspended
+            // customers, so arrears are represented invoice-by-invoice per
+            // month instead of stopping at the first suspension.
             // Also include customers with billing_day=NULL when processing day 1 (treat NULL as 1)
             $customers = Customer::where('pop_id', $pop->id)
-                ->where('status', 'active')
+                ->whereIn('status', ['active', 'suspended'])
                 ->whereNotNull('package_id')
                 ->where(function ($q) use ($billingDay) {
                     $q->where('billing_day', $billingDay);

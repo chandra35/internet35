@@ -8,6 +8,24 @@
     <li class="breadcrumb-item active">Pembayaran</li>
 @endsection
 
+@push('css')
+<style>
+    #paymentsTable { width: 100% !important; }
+    #paymentsTable td, #paymentsTable th { vertical-align: middle; }
+    @media (max-width: 767.98px) {
+        .dataTables_wrapper .dataTables_filter, .dataTables_wrapper .dataTables_length { float: none; text-align: left; margin-bottom: .75rem; }
+        #paymentsTable thead { display: none; }
+        #paymentsTable, #paymentsTable tbody, #paymentsTable tr, #paymentsTable td { display: block; width: 100% !important; }
+        #paymentsTable tr { border: 1px solid #dee2e6; border-radius: .5rem; margin: .75rem .5rem; padding: .45rem; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+        #paymentsTable td { border: 0; padding: .3rem .45rem .3rem 42%; position: relative; min-height: 30px; text-align: left !important; }
+        #paymentsTable td::before { content: attr(data-label); position: absolute; left: .45rem; width: 38%; color: #6c757d; font-size: .76rem; font-weight: 700; }
+        #paymentsTable td:last-child { padding-left: .45rem; padding-top: .6rem; }
+        #paymentsTable td:last-child::before { display: none; }
+        #paymentsTable .btn { width: 100%; }
+    }
+</style>
+@endpush
+
 @section('content')
 @if($popUsers && auth()->user()->hasRole('superadmin'))
 <div class="card card-outline card-info mb-3">
@@ -29,49 +47,41 @@
 <div class="alert alert-warning"><i class="fas fa-exclamation-triangle mr-2"></i>Pilih POP terlebih dahulu.</div>
 @else
 <div class="card card-outline card-success">
-    <div class="card-header">
-        <h3 class="card-title"><i class="fas fa-cash-register mr-2"></i>Daftar Tunggakan Pelanggan</h3>
-    </div>
-    <div class="card-body pb-2">
-        <form method="GET" class="form-row">
-            @if(auth()->user()->hasRole('superadmin'))<input type="hidden" name="pop_id" value="{{ $popId }}">@endif
-            <div class="col-md-6 mb-2">
-                <input name="search" value="{{ request('search') }}" class="form-control" autofocus
-                    placeholder="Cari nama, ID pelanggan, telepon, atau PPPoE...">
-            </div>
-            <div class="col-auto mb-2">
-                <button class="btn btn-primary"><i class="fas fa-search mr-1"></i>Cari</button>
-                @if(request('search'))<a href="{{ route('admin.payments.index', auth()->user()->hasRole('superadmin') ? ['pop_id' => $popId] : []) }}" class="btn btn-outline-secondary">Reset</a>@endif
-            </div>
-        </form>
-        <p class="text-muted small mb-0">Pilih pelanggan untuk melihat bulan-bulan invoice yang belum lunas dan mencatat pembayaran sekaligus.</p>
-    </div>
+    <div class="card-header"><h3 class="card-title"><i class="fas fa-cash-register mr-2"></i>Daftar Tunggakan Pelanggan</h3></div>
     <div class="table-responsive">
-        <table class="table table-hover mb-0">
-            <thead class="thead-light">
-                <tr><th>Pelanggan</th><th>Kontak</th><th>Jumlah Invoice</th><th>Jatuh Tempo Terdekat</th><th class="text-right">Total Tunggakan</th><th class="text-right">Aksi</th></tr>
-            </thead>
-            <tbody>
-                @forelse($customers as $customer)
-                @php
-                    $firstInvoice = $customer->invoices->first();
-                    $totalOutstanding = $customer->invoices->sum(fn ($invoice) => $invoice->remaining_amount);
-                @endphp
-                <tr>
-                    <td><strong>{{ $customer->name }}</strong><br><small class="text-muted">{{ $customer->customer_id }}</small></td>
-                    <td>{{ $customer->phone ?: '—' }}<br><small class="text-muted">{{ $customer->pppoe_username ?: '—' }}</small></td>
-                    <td><span class="badge badge-warning">{{ $customer->invoices->count() }} invoice</span></td>
-                    <td class="{{ $firstInvoice?->due_date?->isPast() ? 'text-danger font-weight-bold' : '' }}">{{ $firstInvoice?->due_date?->format('d/m/Y') ?? '—' }}</td>
-                    <td class="text-right font-weight-bold text-danger">Rp {{ number_format($totalOutstanding, 0, ',', '.') }}</td>
-                    <td class="text-right"><a class="btn btn-success btn-sm" href="{{ route('admin.payments.show', $customer) }}"><i class="fas fa-cash-register mr-1"></i>Proses Bayar</a></td>
-                </tr>
-                @empty
-                <tr><td colspan="6" class="text-center text-muted py-4">Tidak ada invoice yang belum lunas.</td></tr>
-                @endforelse
-            </tbody>
+        <table id="paymentsTable" class="table table-hover mb-0">
+            <thead class="thead-light"><tr><th>Pelanggan</th><th>Kontak</th><th>Jumlah Invoice</th><th>Jatuh Tempo Terdekat</th><th class="text-right">Total Tunggakan</th><th class="text-right">Aksi</th></tr></thead>
+            <tbody></tbody>
         </table>
     </div>
-    @if($customers->hasPages())<div class="card-footer">{{ $customers->links() }}</div>@endif
+    <div class="card-footer text-muted small">Pilih pelanggan untuk melihat bulan/periode invoice yang belum lunas, lalu catat pembayaran satu atau beberapa bulan sekaligus.</div>
 </div>
 @endif
 @endsection
+
+@push('js')
+<script>
+$(function () {
+    if (!$('#paymentsTable').length) return;
+    const labels = ['Pelanggan', 'Kontak', 'Jumlah Invoice', 'Jatuh Tempo Terdekat', 'Total Tunggakan', ''];
+    $('#paymentsTable').DataTable({
+        processing: true, serverSide: true, searching: true, pageLength: 20,
+        lengthMenu: [[10, 20, 50, 100], [10, 20, 50, 100]],
+        ajax: {
+            url: '{{ route('admin.payments.data') }}',
+            data: function (data) { @if(auth()->user()->hasRole('superadmin')) data.pop_id = '{{ $popId }}'; @endif }
+        },
+        columns: [
+            {data: 'customer'}, {data: 'contact'}, {data: 'invoices'}, {data: 'due_date'},
+            {data: 'outstanding', className: 'text-right'}, {data: 'action', orderable: false, searchable: false, className: 'text-right'}
+        ],
+        createdRow: function (row) { $('td', row).each(function (index) { $(this).attr('data-label', labels[index]); }); },
+        language: {
+            search: 'Cari:', lengthMenu: 'Tampilkan _MENU_', info: 'Menampilkan _START_–_END_ dari _TOTAL_ pelanggan',
+            infoEmpty: 'Tidak ada tunggakan', processing: 'Memuat data...', zeroRecords: 'Tidak ada tunggakan yang sesuai',
+            paginate: {previous: 'Sebelumnya', next: 'Berikutnya'}
+        }
+    });
+});
+</script>
+@endpush
