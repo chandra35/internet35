@@ -6,7 +6,7 @@ HOST = '136.1.1.100'
 PORT = 23
 USER = b'zte'
 PASS = b'zte'
-OUR_IP = '172.10.10.253'
+OUR_IP = '172.16.2.4'
 
 # Trap add command (ZTE C320 syntax from configure terminal mode)
 ADD_TRAP_CMD = (

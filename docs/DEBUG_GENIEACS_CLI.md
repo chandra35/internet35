@@ -15,11 +15,11 @@ $script = @'
 '@
 
 $script | Out-File -FilePath "debug_temp.php" -Encoding UTF8
-pscp -pw kosongkosong debug_temp.php root@172.10.10.253:/www/wwwroot/internet35/
-plink -ssh root@172.10.10.253 -pw kosongkosong -batch "cd /www/wwwroot/internet35 && /www/server/php/83/bin/php debug_temp.php 2>&1"
+pscp -pw kosongkosong debug_temp.php root@172.16.2.4:/www/wwwroot/internet35/
+plink -ssh root@172.16.2.4 -pw kosongkosong -batch "cd /www/wwwroot/internet35 && /www/server/php/83/bin/php debug_temp.php 2>&1"
 
 # Setelah selesai, hapus file
-plink -ssh root@172.10.10.253 -pw kosongkosong -batch "rm /www/wwwroot/internet35/debug_temp.php"
+plink -ssh root@172.16.2.4 -pw kosongkosong -batch "rm /www/wwwroot/internet35/debug_temp.php"
 Remove-Item debug_temp.php -ErrorAction SilentlyContinue
 ```
 

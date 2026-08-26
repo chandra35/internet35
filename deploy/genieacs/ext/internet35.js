@@ -18,7 +18,7 @@
 const http = require("http");
 
 // URL dan key disesuaikan dengan deployment. Nilai default untuk VM internal.
-const APP_HOST = "172.10.10.253";
+const APP_HOST = "172.16.2.4";
 const APP_PORT = 80;
 // Key ini HARUS sama dengan GENIEACS_PROVISION_KEY di .env Laravel
 const ACS_KEY  = process.env.INTERNET35_PROVISION_KEY || "";

@@ -2,6 +2,12 @@
 
 Tanggal: 27 Agustus 2026 (WIB)
 
+## Perpindahan VM
+
+- VM aplikasi dipindahkan dari `172.10.10.253` ke `172.16.2.4`.
+- Referensi host aplikasi pada extension GenieACS, script SNMP trap ZTE, dan panduan debug CLI diperbarui ke alamat baru.
+- Detail akses VM tersimpan hanya pada `INTERNET.md` (dokumen internal yang diabaikan Git).
+
 ## Navbar
 
 - Menambahkan jam real-time WIB di navbar atas untuk layout admin dan portal pelanggan.
@@ -16,6 +22,11 @@ Tanggal: 27 Agustus 2026 (WIB)
 - Status pelanggan dan invoice hanya diperbarui setelah perintah perubahan profile di MikroTik sukses. Bila koneksi router/secret/perintah gagal, task mencatat kegagalan dan tidak membuat pelanggan menjadi suspended hanya di database.
 - Perbaikan kompatibilitas database: autoisolir tidak lagi menyimpan nilai `mikrotik_status=isolated` yang tidak didukung enum. Karena secret tetap enabled, status MikroTik disimpan sebagai `enabled`.
 - Service isolir/buka isolir kini memeriksa hasil update profile dan enable secret sebelum menyatakan operasi berhasil.
+
+## Buka Isolir Setelah Pembayaran
+
+- Buka isolir sekarang menggunakan `packages.mikrotik_profile_name`; nama paket hanya fallback untuk data lama.
+- Untuk pelanggan yang memiliki router dan PPPoE, status database hanya kembali `active` bila profile MikroTik berhasil dipulihkan dan secret berhasil di-enable. Bila router/secret/profile gagal, pelanggan tetap `suspended` agar status aplikasi tidak berbeda dengan layanan aktual.
 
 ## Verifikasi sebelum deploy
 
@@ -41,4 +52,3 @@ git diff --check
 ## Catatan keamanan
 
 `INTERNET.md` adalah pedoman internal yang memuat kredensial/topologi. File tersebut sengaja diabaikan Git dan tidak termasuk commit/push. Gunakan hanya dari workspace atau penyimpanan internal terenkripsi.
-

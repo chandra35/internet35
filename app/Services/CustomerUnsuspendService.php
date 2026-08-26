@@ -42,7 +42,17 @@ class CustomerUnsuspendService
             $mikrotikResult = $this->unsuspendInMikrotik($customer);
         }
 
-        // Update customer status regardless of Mikrotik result
+        // A customer with a router must not become active in the database when
+        // the PPP secret could not be restored. That would leave the customer
+        // on the isolir profile while the portal says the service is active.
+        if ($customer->router && $customer->pppoe_username && $mikrotikResult !== 'unsuspended') {
+            Log::warning("Customer {$customer->customer_id} remains suspended because MikroTik unsuspend failed [{$mikrotikResult}]");
+
+            return $mikrotikResult;
+        }
+
+        // Customers without a PPPoE/router integration can still be activated
+        // locally after a verified payment.
         $customer->update([
             'status' => 'active',
             'suspended_at' => null,
@@ -107,8 +117,10 @@ class CustomerUnsuspendService
                 return 'not_found';
             }
 
-            // Get the original package profile name
-            $packageProfile = $customer->package?->name;
+            // Restore the router-specific profile configured for the package.
+            // Name is kept as a fallback for legacy package records.
+            $packageProfile = $customer->package?->mikrotik_profile_name
+                ?: $customer->package?->name;
             if (!$packageProfile) {
                 Log::warning("Unsuspend: No package profile found for {$customer->customer_id}");
                 return 'error';
