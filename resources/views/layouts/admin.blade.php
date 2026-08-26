@@ -287,8 +287,8 @@
                     @endcan
 
                     {{-- ============ LAYANAN ============ --}}
-                    @canany(['packages.view', 'customers.view', 'invoices.view'])
-                    @php $layananOpen = request()->routeIs('admin.packages.*') || request()->routeIs('admin.customers.*') || request()->routeIs('admin.invoices.*'); @endphp
+                    @can('packages.view')
+                    @php $layananOpen = request()->routeIs('admin.packages.*'); @endphp
                     <li class="nav-item {{ $layananOpen ? 'menu-open' : '' }}">
                         <a href="#" class="nav-link {{ $layananOpen ? 'active' : '' }}">
                             <i class="nav-icon fas fa-hand-holding-usd"></i>
@@ -303,33 +303,41 @@
                                 </a>
                             </li>
                             @endcan
-                            @canany(['customers.view', 'invoices.view'])
-                            @php $pelangganBillingOpen = request()->routeIs('admin.customers.*') || request()->routeIs('admin.invoices.*'); @endphp
-                            <li class="nav-item {{ $pelangganBillingOpen ? 'menu-open' : '' }}">
-                                <a href="#" class="nav-link {{ $pelangganBillingOpen ? 'active' : '' }}">
+                        </ul>
+                    </li>
+                    @endcan
+
+                    {{-- ============ PELANGGAN & TAGIHAN ============ --}}
+                    @canany(['customers.view', 'invoices.view'])
+                    @php $pelangganBillingOpen = request()->routeIs('admin.customers.*') || request()->routeIs('admin.invoices.*') || request()->routeIs('admin.payments.*'); @endphp
+                    <li class="nav-item {{ $pelangganBillingOpen ? 'menu-open' : '' }}">
+                        <a href="#" class="nav-link {{ $pelangganBillingOpen ? 'active' : '' }}">
+                            <i class="nav-icon fas fa-user-friends"></i>
+                            <p>Pelanggan &amp; Tagihan<i class="right fas fa-angle-left"></i></p>
+                        </a>
+                        <ul class="nav nav-treeview">
+                            @can('customers.view')
+                            <li class="nav-item">
+                                <a href="{{ route('admin.customers.index') }}" class="nav-link {{ request()->routeIs('admin.customers.*') ? 'active' : '' }}">
                                     <i class="far fa-circle nav-icon"></i>
-                                    <p>Pelanggan &amp; Tagihan<i class="right fas fa-angle-left"></i></p>
+                                    <p>Pelanggan</p>
                                 </a>
-                                <ul class="nav nav-treeview">
-                                    @can('customers.view')
-                                    <li class="nav-item">
-                                        <a href="{{ route('admin.customers.index') }}" class="nav-link {{ request()->routeIs('admin.customers.*') ? 'active' : '' }}">
-                                            <i class="far fa-dot-circle nav-icon"></i>
-                                            <p>Pelanggan</p>
-                                        </a>
-                                    </li>
-                                    @endcan
-                                    @can('invoices.view')
-                                    <li class="nav-item">
-                                        <a href="{{ route('admin.invoices.index') }}" class="nav-link {{ request()->routeIs('admin.invoices.*') ? 'active' : '' }}">
-                                            <i class="far fa-dot-circle nav-icon"></i>
-                                            <p>Invoice</p>
-                                        </a>
-                                    </li>
-                                    @endcan
-                                </ul>
                             </li>
-                            @endcanany
+                            @endcan
+                            @can('invoices.view')
+                            <li class="nav-item">
+                                <a href="{{ route('admin.invoices.index') }}" class="nav-link {{ request()->routeIs('admin.invoices.*') ? 'active' : '' }}">
+                                    <i class="far fa-circle nav-icon"></i>
+                                    <p>Invoice</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{{ route('admin.payments.index') }}" class="nav-link {{ request()->routeIs('admin.payments.*') ? 'active' : '' }}">
+                                    <i class="far fa-circle nav-icon"></i>
+                                    <p>Pembayaran</p>
+                                </a>
+                            </li>
+                            @endcan
                         </ul>
                     </li>
                     @endcanany

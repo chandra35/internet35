@@ -27,6 +27,7 @@ use App\Http\Controllers\Admin\NotificationLogController;
 use App\Http\Controllers\Admin\MessageTemplateController;
 use App\Http\Controllers\Admin\CustomerController;
 use App\Http\Controllers\Admin\InvoiceController;
+use App\Http\Controllers\Admin\PaymentController;
 use App\Http\Controllers\Admin\CustomerInvoicePrintController;
 use App\Http\Controllers\Admin\SchedulerController;
 use App\Http\Controllers\Admin\DataMaintenanceController;
@@ -313,6 +314,14 @@ Route::prefix('admin')->middleware(['auth', 'role:superadmin|admin|admin-pop|tek
         Route::post('/{invoice}/mark-paid', [InvoiceController::class, 'markPaid'])->name('mark-paid');
         Route::post('/{invoice}/cancel', [InvoiceController::class, 'cancel'])->name('cancel');
         Route::post('/{invoice}/send-reminder', [InvoiceController::class, 'sendReminder'])->name('send-reminder');
+    });
+
+    // Manual payment desk: settle one or more outstanding customer invoices.
+    Route::prefix('payments')->name('payments.')->group(function () {
+        Route::get('/', [PaymentController::class, 'index'])->name('index');
+        Route::get('/{customer}', [PaymentController::class, 'show'])->name('show');
+        Route::post('/{customer}', [PaymentController::class, 'store'])->name('store');
+        Route::post('/{customer}/print', [PaymentController::class, 'print'])->name('print');
     });
 
     // Customer Multi-Month Invoice Print (new feature, separate from existing invoice flow)

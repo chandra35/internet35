@@ -50,6 +50,14 @@ Tanggal: 27 Agustus 2026 (WIB)
 
 - Menata menu berdasarkan fungsi: **Pelanggan & Tagihan** menjadi submenu di dalam **Layanan**, dengan tautan Pelanggan dan Invoice.
 - Menu **Router** (Daftar Router, PPP Profiles, dan IP Pools) dipindahkan ke dalam **Jaringan**.
+- **Pelanggan & Tagihan** sekarang merupakan modul tersendiri dengan fitur Pelanggan, Invoice, dan Pembayaran.
+
+## Modul Pembayaran
+
+- Menambahkan halaman **Pelanggan & Tagihan > Pembayaran** untuk menemukan pelanggan yang memiliki invoice belum lunas.
+- Admin dapat membuka pelanggan, melihat setiap bulan/periode tunggakan, memilih satu atau beberapa invoice, lalu mencatat pembayaran manual sekaligus dalam satu transaksi.
+- Setiap invoice yang dipilih memperoleh riwayat pembayaran manual tersendiri; invoice dilunasi sesuai sisa tagihannya. Jika seluruh tunggakan telah lunas, sistem mencoba membuka isolir pelanggan dengan alur MikroTik yang sama seperti pembayaran dari halaman Invoice.
+- Invoice dapat dicetak satuan atau sekaligus untuk invoice yang dipilih dari halaman pembayaran.
 
 ## Verifikasi sebelum deploy
 
