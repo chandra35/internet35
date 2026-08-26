@@ -110,7 +110,7 @@ class PaymentController extends Controller implements HasMiddleware
                     'invoices' => '<span class="badge badge-warning">' . $customer->invoices->count() . ' invoice</span>',
                     'due_date' => '<span class="' . $dueClass . '">' . e($dueDate) . '</span>',
                     'outstanding' => '<strong class="text-danger">Rp ' . number_format($outstanding, 0, ',', '.') . '</strong>',
-                    'action' => '<a class="btn btn-success btn-sm" href="' . route('admin.payments.show', $customer) . '"><i class="fas fa-cash-register mr-1"></i><span>Proses Bayar</span></a>',
+                    'action' => '<a class="btn btn-success btn-sm payment-action" href="' . route('admin.payments.show', $customer) . '"><i class="fas fa-cash-register mr-1"></i><span>Proses Bayar</span></a>',
                 ];
             })->values(),
         ]);

@@ -10,10 +10,22 @@
 
 @push('css')
 <style>
-    #paymentsTable { width: 100% !important; }
-    #paymentsTable td, #paymentsTable th { vertical-align: middle; }
+    .card-payments { border: none !important; border-radius: 10px !important; overflow: hidden; }
+    .card-payments > .card-header { background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); border-bottom: none; padding: 14px 20px; }
+    .card-payments > .card-header .card-title { color: white; font-size: 1rem; font-weight: 600; }
+    .payment-filter-bar { background: #fff; border: 1px solid #dde3ec; border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; box-shadow: 0 1px 5px rgba(0,0,0,.04); }
+    #paymentSearch { border-right: none; border-radius: 6px 0 0 6px; }
+    #paymentSearch:focus { box-shadow: none; border-color: #80bdff; }
+    .payment-search-icon { background: #fff; border-left: none; color: #6c757d; border-radius: 0 6px 6px 0; }
+    #paymentsTable { width: 100% !important; font-size: .875rem; }
+    #paymentsTable th { background: #f4f6fb; color: #5a6a7e; font-size: .69rem; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; border-top: none; border-bottom: 2px solid #dde3ec; padding: 10px 14px; white-space: nowrap; }
+    #paymentsTable td { padding: 12px 14px; vertical-align: middle; border-top: 1px solid #f0f2f8; }
+    #paymentsTable tbody tr:hover td { background: #f0f5ff; }
+    #paymentsTable_wrapper .dataTables_info { font-size: .78rem; color: #6c757d; padding-top: 0; }
+    #paymentsTable_wrapper .pagination { margin: 0; }
+    .payment-action { border-radius: 18px; white-space: nowrap; }
     @media (max-width: 767.98px) {
-        .dataTables_wrapper .dataTables_filter, .dataTables_wrapper .dataTables_length { float: none; text-align: left; margin-bottom: .75rem; }
+        #paymentsTable_wrapper .dataTables_info, #paymentsTable_wrapper .dataTables_paginate { float: none; text-align: center; margin: .5rem 0; }
         #paymentsTable thead { display: none; }
         #paymentsTable, #paymentsTable tbody, #paymentsTable tr, #paymentsTable td { display: block; width: 100% !important; }
         #paymentsTable tr { border: 1px solid #dee2e6; border-radius: .5rem; margin: .75rem .5rem; padding: .45rem; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
@@ -46,15 +58,23 @@
 @if(!$popId)
 <div class="alert alert-warning"><i class="fas fa-exclamation-triangle mr-2"></i>Pilih POP terlebih dahulu.</div>
 @else
-<div class="card card-outline card-success">
+<div class="card card-payments shadow-sm">
     <div class="card-header"><h3 class="card-title"><i class="fas fa-cash-register mr-2"></i>Daftar Tunggakan Pelanggan</h3></div>
-    <div class="table-responsive">
-        <table id="paymentsTable" class="table table-hover mb-0">
-            <thead class="thead-light"><tr><th>Pelanggan</th><th>Kontak</th><th>Jumlah Invoice</th><th>Jatuh Tempo Terdekat</th><th class="text-right">Total Tunggakan</th><th class="text-right">Aksi</th></tr></thead>
-            <tbody></tbody>
-        </table>
+    <div class="card-body p-3">
+        <div class="payment-filter-bar">
+            <div class="input-group">
+                <input type="search" id="paymentSearch" class="form-control" autocomplete="off" placeholder="&#xf002;  Cari nama, ID pelanggan, telepon, atau PPPoE...">
+                <div class="input-group-append"><span class="input-group-text payment-search-icon"><i class="fas fa-search"></i></span></div>
+            </div>
+            <p class="text-muted small mb-0 mt-2">Pilih pelanggan untuk melihat bulan/periode invoice yang belum lunas, lalu catat pembayaran satu atau beberapa bulan sekaligus.</p>
+        </div>
+        <div class="table-responsive">
+            <table id="paymentsTable" class="table table-hover mb-0">
+                <thead><tr><th>Pelanggan</th><th>Kontak</th><th>Jumlah Invoice</th><th>Jatuh Tempo Terdekat</th><th class="text-right">Total Tunggakan</th><th class="text-right">Aksi</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
     </div>
-    <div class="card-footer text-muted small">Pilih pelanggan untuk melihat bulan/periode invoice yang belum lunas, lalu catat pembayaran satu atau beberapa bulan sekaligus.</div>
 </div>
 @endif
 @endsection
@@ -64,8 +84,8 @@
 $(function () {
     if (!$('#paymentsTable').length) return;
     const labels = ['Pelanggan', 'Kontak', 'Jumlah Invoice', 'Jatuh Tempo Terdekat', 'Total Tunggakan', ''];
-    $('#paymentsTable').DataTable({
-        processing: true, serverSide: true, searching: true, pageLength: 20,
+    const table = $('#paymentsTable').DataTable({
+        processing: true, serverSide: true, searching: true, ordering: false, pageLength: 20,
         lengthMenu: [[10, 20, 50, 100], [10, 20, 50, 100]],
         ajax: {
             url: '{{ route('admin.payments.data') }}',
@@ -76,11 +96,18 @@ $(function () {
             {data: 'outstanding', className: 'text-right'}, {data: 'action', orderable: false, searchable: false, className: 'text-right'}
         ],
         createdRow: function (row) { $('td', row).each(function (index) { $(this).attr('data-label', labels[index]); }); },
+        dom: 'rt<"d-flex flex-column flex-md-row justify-content-between align-items-center mt-3 px-1"ip>',
         language: {
-            search: 'Cari:', lengthMenu: 'Tampilkan _MENU_', info: 'Menampilkan _START_–_END_ dari _TOTAL_ pelanggan',
+            info: 'Menampilkan _START_–_END_ dari _TOTAL_ pelanggan',
             infoEmpty: 'Tidak ada tunggakan', processing: 'Memuat data...', zeroRecords: 'Tidak ada tunggakan yang sesuai',
             paginate: {previous: 'Sebelumnya', next: 'Berikutnya'}
         }
+    });
+    let searchTimer;
+    $('#paymentSearch').on('input', function () {
+        const value = this.value;
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(function () { table.search(value).draw(); }, 350);
     });
 });
 </script>
