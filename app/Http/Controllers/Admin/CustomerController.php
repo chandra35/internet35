@@ -85,7 +85,7 @@ class CustomerController extends Controller implements HasMiddleware
         }
         
         // Build query
-        $query = Customer::with(['router', 'package', 'province', 'city'])
+        $query = Customer::with(['router', 'package', 'province', 'city', 'nextUnpaidInvoice'])
             ->when($popId, fn($q) => $q->where('pop_id', $popId))
             ->when($request->status, fn($q, $s) => $q->where('status', $s))
             ->when($request->router_id, fn($q, $r) => $q->where('router_id', $r))
@@ -149,7 +149,7 @@ class CustomerController extends Controller implements HasMiddleware
         $user = auth()->user();
         $popId = $this->getPopId($request);
 
-        $query = Customer::with(['router', 'package', 'province', 'city'])
+        $query = Customer::with(['router', 'package', 'province', 'city', 'nextUnpaidInvoice'])
             ->when($popId, fn($q) => $q->where('pop_id', $popId))
             ->when($request->status, fn($q, $s) => $q->where('status', $s))
             ->when($request->router_id, fn($q, $r) => $q->where('router_id', $r))

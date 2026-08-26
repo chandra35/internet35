@@ -41,6 +41,11 @@ Tanggal: 27 Agustus 2026 (WIB)
 - Superadmin dapat membuat, mengaktifkan/nonaktifkan, dan memilih jadwal task `billing:generate` tanpa membuat task generik secara manual.
 - Jadwal operasi yang dipilih: setiap hari pukul 08:00 WIB. Command membuat invoice berdasarkan `billing_day` masing-masing pelanggan dan mencegah invoice ganda untuk periode yang sama.
 
+## Daftar Pelanggan
+
+- Daftar pelanggan menggunakan pemuatan tabel AJAX: pencarian berjalan otomatis setelah jeda singkat saat mengetik, filter dan pagination juga dimuat tanpa submit atau refresh halaman.
+- Menambahkan kolom **Jatuh Tempo**. Nilainya diambil dari invoice aktif yang paling awal belum lunas (`pending`, `partial`, atau `overdue`), bukan field tanggal pelanggan lama, sehingga sama dengan tanggal penagihan yang dipakai auto-isolir.
+
 ## Verifikasi sebelum deploy
 
 Berhasil dijalankan pada workspace:

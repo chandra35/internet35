@@ -371,6 +371,19 @@ class Customer extends Model
     }
 
     /**
+     * Oldest unpaid invoice, used as the customer's current payment due date.
+     *
+     * The due date on an invoice is the billing source of truth. The legacy
+     * customers.due_date field is not updated by every invoice workflow.
+     */
+    public function nextUnpaidInvoice()
+    {
+        return $this->hasOne(CustomerInvoice::class)
+            ->whereIn('status', ['pending', 'partial', 'overdue'])
+            ->orderBy('due_date');
+    }
+
+    /**
      * Payments
      */
     public function payments()

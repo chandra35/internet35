@@ -85,6 +85,7 @@
                 <th>Paket</th>
                 <th>PPPoE</th>
                 <th>Status</th>
+                <th>Jatuh Tempo</th>
                 <th>Aktif s/d</th>
                 <th class="text-right">Aksi</th>
             </tr>
@@ -166,6 +167,25 @@
                     <span class="badge badge-isolir" data-id="{{ $customer->id }}" data-isolir="0" title="Auto-isolir nonaktif — klik untuk aktifkan" style="background:#e9ecef;color:#6c757d;">
                         <i class="fas fa-unlock mr-1"></i>No Isolir
                     </span>
+                    @endif
+                </td>
+                <td>
+                    @php($invoice = $customer->nextUnpaidInvoice)
+                    @if($invoice?->due_date)
+                    <div class="{{ $invoice->due_date->isPast() ? 'text-danger font-weight-bold' : '' }}" style="font-size:0.83rem;">
+                        <i class="fas fa-calendar-alt mr-1 text-muted" style="font-size:0.72rem;"></i>{{ $invoice->due_date->format('d/m/Y') }}
+                    </div>
+                    @if($invoice->due_date->isPast())
+                    <small class="text-danger" style="font-size:0.7rem;"><i class="fas fa-exclamation-circle mr-1"></i>Terlambat {{ $invoice->due_date->diffInDays(now()) }} hari</small>
+                    @elseif($invoice->due_date->isToday())
+                    <small class="text-warning" style="font-size:0.7rem;"><i class="fas fa-clock mr-1"></i>Jatuh tempo hari ini</small>
+                    @elseif($invoice->due_date->diffInDays(now()) <= 7)
+                    <small class="text-warning" style="font-size:0.7rem;"><i class="fas fa-clock mr-1"></i>{{ $invoice->due_date->diffInDays(now()) }} hari lagi</small>
+                    @else
+                    <small class="text-muted" style="font-size:0.7rem;">{{ $invoice->status_label }}</small>
+                    @endif
+                    @else
+                    <span class="text-muted">—</span>
                     @endif
                 </td>
                 <td>
