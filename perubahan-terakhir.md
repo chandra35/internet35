@@ -27,6 +27,7 @@ Tanggal: 27 Agustus 2026 (WIB)
 
 - Buka isolir sekarang menggunakan `packages.mikrotik_profile_name`; nama paket hanya fallback untuk data lama.
 - Untuk pelanggan yang memiliki router dan PPPoE, status database hanya kembali `active` bila profile MikroTik berhasil dipulihkan dan secret berhasil di-enable. Bila router/secret/profile gagal, pelanggan tetap `suspended` agar status aplikasi tidak berbeda dengan layanan aktual.
+- Mapping paket produksi `10M_AB` untuk pelanggan `POP35153240` diselaraskan ke profile MikroTik `10M-35-AB`. Pelanggan tetap suspended sampai invoice ditandai lunas.
 
 ## Verifikasi sebelum deploy
 
