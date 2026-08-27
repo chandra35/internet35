@@ -62,13 +62,13 @@
     <div class="card-header"><h3 class="card-title"><i class="fas fa-cash-register mr-2"></i>Daftar Tunggakan Pelanggan</h3></div>
     <div class="card-body p-3">
         <div class="payment-filter-bar">
-            @php($paymentPeriods = collect(range(0, 23))->map(fn ($monthsAgo) => now()->startOfMonth()->subMonths($monthsAgo)))
+            @php($paymentPeriods = collect(range(0, 11))->map(fn ($monthsAgo) => now()->startOfMonth()->subMonths($monthsAgo)))
             <div class="form-row align-items-end">
                 <div class="col-md-4 mb-2 mb-md-0">
                     <label for="paymentPeriod" class="small font-weight-bold text-muted mb-1"><i class="far fa-calendar-alt mr-1"></i>Bulan Tagihan</label>
                     <select id="paymentPeriod" class="form-control">
                         @foreach($paymentPeriods as $period)
-                        <option value="{{ $period->format('Y-m') }}">{{ $period->translatedFormat('F Y') }}</option>
+                        <option value="{{ $period->format('Y-m') }}">{{ ucfirst($period->translatedFormat('F')) }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -80,7 +80,7 @@
                     </div>
                 </div>
             </div>
-            <p class="text-muted small mb-0 mt-2">Menampilkan tunggakan pada bulan yang dipilih. Ubah ke bulan sebelumnya untuk menagih dan memproses pembayaran tunggakan lama.</p>
+            <p class="text-muted small mb-0 mt-2">Menampilkan tunggakan pada bulan yang dipilih. Pilih bulan sebelumnya untuk menagih dan memproses tunggakan lama; detail tahun tersedia pada Invoice.</p>
         </div>
         <div class="table-responsive">
             <table id="paymentsTable" class="table table-hover mb-0">
@@ -98,6 +98,7 @@
 $(function () {
     if (!$('#paymentsTable').length) return;
     const labels = ['Pelanggan', 'Kontak', 'Jumlah Invoice', 'Jatuh Tempo Terdekat', 'Total Tunggakan', ''];
+    $.fn.dataTable.ext.errMode = 'none';
     const table = $('#paymentsTable').DataTable({
         processing: true, serverSide: true, searching: true, ordering: false, pageLength: 20,
         lengthMenu: [[10, 20, 50, 100], [10, 20, 50, 100]],
@@ -116,6 +117,9 @@ $(function () {
             infoEmpty: 'Tidak ada tunggakan', processing: 'Memuat data...', zeroRecords: 'Tidak ada tunggakan yang sesuai',
             paginate: {previous: 'Sebelumnya', next: 'Berikutnya'}
         }
+    });
+    $('#paymentsTable').on('error.dt', function () {
+        toastr.error('Daftar tunggakan tidak dapat dimuat. Silakan muat ulang halaman atau coba lagi.');
     });
     let searchTimer;
     $('#paymentSearch').on('input', function () {

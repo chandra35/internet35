@@ -82,7 +82,7 @@ class PaymentController extends Controller implements HasMiddleware
         $period = preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $period) ? $period : now()->format('Y-m');
         [$periodYear, $periodMonth] = array_map('intval', explode('-', $period));
         $unpaid = function ($query) use ($periodYear, $periodMonth) {
-            $query->whereIn('status', ['pending', 'partial', 'overdue'])
+            return $query->whereIn('status', ['pending', 'partial', 'overdue'])
                 ->whereYear('period_start', $periodYear)
                 ->whereMonth('period_start', $periodMonth);
         };
@@ -98,7 +98,11 @@ class PaymentController extends Controller implements HasMiddleware
             });
         });
         $recordsFiltered = (clone $filteredQuery)->count();
-        $customers = $filteredQuery->with(['invoices' => fn ($query) => $unpaid($query)->orderBy('period_start')])
+        $customers = $filteredQuery->with(['invoices' => function ($query) use ($unpaid) {
+            $unpaid($query);
+
+            $query->orderBy('period_start');
+        }])
             ->orderBy('name')->skip($start)->take($length)->get();
 
         return response()->json([
