@@ -34,12 +34,28 @@
     }
     .photo-upload-box.has-image {
         padding: 5px;
+        position: relative;
+        border-style: solid;
+        border-color: #28a745;
+        background: #f5fff7;
     }
     .photo-upload-box img {
         max-width: 100%;
         max-height: 200px;
         border-radius: 4px;
     }
+    .photo-ready-badge {
+        position: absolute;
+        right: 10px;
+        bottom: 10px;
+        background: rgba(21, 128, 61, .94);
+        color: #fff;
+        border-radius: 14px;
+        padding: 3px 9px;
+        font-size: .72rem;
+        font-weight: 600;
+    }
+    .photo-upload-status { display: block; min-height: 19px; font-size: .76rem; margin-top: 6px; }
     .photo-upload-box .upload-icon {
         font-size: 2rem;
         color: #6c757d;
@@ -438,6 +454,7 @@
                                         </div>
                                         <input type="hidden" name="photo_ktp" id="photo_ktp">
                                         <small class="text-muted">Bisa dilengkapi nanti</small>
+                                        <small class="photo-upload-status text-muted" id="photo_ktp_status">Belum ada foto dipilih</small>
                                         <input type="file" class="d-none" id="file_photo_ktp" accept="image/*">
                                         <div class="mt-2">
                                             <button type="button" class="btn btn-sm btn-outline-primary btn-camera" data-target="photo_ktp">
@@ -460,6 +477,7 @@
                                             </div>
                                         </div>
                                         <input type="hidden" name="photo_selfie" id="photo_selfie">
+                                        <small class="photo-upload-status text-muted" id="photo_selfie_status">Belum ada foto dipilih</small>
                                         <input type="file" class="d-none" id="file_photo_selfie" accept="image/*">
                                         <div class="mt-2">
                                             <button type="button" class="btn btn-sm btn-outline-primary btn-camera" data-target="photo_selfie">
@@ -482,6 +500,7 @@
                                             </div>
                                         </div>
                                         <input type="hidden" name="photo_house" id="photo_house">
+                                        <small class="photo-upload-status text-muted" id="photo_house_status">Belum ada foto dipilih</small>
                                         <input type="file" class="d-none" id="file_photo_house" accept="image/*">
                                         <div class="mt-2">
                                             <button type="button" class="btn btn-sm btn-outline-primary btn-camera" data-target="photo_house">
@@ -1406,6 +1425,37 @@ $(function() {
 
     // Geolocation is now handled by Leaflet control on the map
 
+    function photoMeta(target) {
+        const photos = {
+            photo_ktp: { box: '#ktpUploadBox', icon: 'id-card', label: 'Foto KTP' },
+            photo_selfie: { box: '#selfieUploadBox', icon: 'user-circle', label: 'Foto Selfie' },
+            photo_house: { box: '#houseUploadBox', icon: 'home', label: 'Foto Depan Rumah' },
+        };
+        return photos[target];
+    }
+
+    function resetPhotoUi(target) {
+        const meta = photoMeta(target);
+        $(meta.box).removeClass('has-image').html(`
+            <i class="fas fa-${meta.icon} upload-icon"></i>
+            <div class="upload-text">Klik untuk upload<br><small>atau gunakan kamera</small></div>
+        `);
+        $(`#${target}_status`).html('Belum ada foto dipilih').removeClass('text-success text-info').addClass('text-muted');
+        $(`#file_${target}`).val('');
+        $(`.btn-remove-photo[data-target="${target}"]`).addClass('d-none');
+    }
+
+    function showPhotoPreview(target, base64, sourceLabel) {
+        const meta = photoMeta(target);
+        $(meta.box).addClass('has-image').html(`
+            <img src="${base64}" alt="Preview ${meta.label}">
+            <span class="photo-ready-badge"><i class="fas fa-check-circle mr-1"></i>Siap diunggah</span>
+        `);
+        $(`#${target}_status`).html(`<i class="fas fa-check-circle mr-1"></i>${sourceLabel || 'Foto siap diunggah'}`)
+            .removeClass('text-muted text-info').addClass('text-success');
+        $(`.btn-remove-photo[data-target="${target}"]`).removeClass('d-none');
+    }
+
     // Photo upload boxes
     $('.photo-upload-box').on('click', function() {
         const target = $(this).data('target');
@@ -1417,6 +1467,8 @@ $(function() {
         const target = $(this).attr('id').replace('file_', '');
         const file = this.files[0];
         if (file) {
+            $(`#${target}_status`).html(`<i class="fas fa-file-image mr-1"></i>${file.name} dipilih — atur area foto lalu simpan`)
+                .removeClass('text-muted text-success').addClass('text-info');
             openCropper(file, target);
         }
     });
@@ -1436,11 +1488,7 @@ $(function() {
     $('.btn-remove-photo').on('click', function() {
         const target = $(this).data('target');
         $(`#${target}`).val('');
-        $(`#${target}UploadBox`).removeClass('has-image').html(`
-            <i class="fas fa-${target === 'photo_ktp' ? 'id-card' : (target === 'photo_selfie' ? 'user-circle' : 'home')} upload-icon"></i>
-            <div class="upload-text">Klik untuk upload<br><small>atau gunakan kamera</small></div>
-        `);
-        $(this).addClass('d-none');
+        resetPhotoUi(target);
     });
 
     // Cropper buttons
@@ -1461,10 +1509,7 @@ $(function() {
             const base64 = canvas.toDataURL('image/jpeg', 0.8);
             
             $(`#${currentPhotoTarget}`).val(base64);
-            $(`#${currentPhotoTarget}UploadBox`)
-                .addClass('has-image')
-                .html(`<img src="${base64}" alt="Preview">`);
-            $(`.btn-remove-photo[data-target="${currentPhotoTarget}"]`).removeClass('d-none');
+            showPhotoPreview(currentPhotoTarget, base64, 'Foto siap diunggah');
             
             $('#cropperModal').modal('hide');
             cropper.destroy();
