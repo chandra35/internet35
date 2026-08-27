@@ -65,6 +65,12 @@ Tanggal: 27 Agustus 2026 (WIB)
 - Memperbaiki endpoint DataTable Pembayaran yang sebelumnya gagal saat memuat data. Jika terjadi gangguan pemuatan berikutnya, aplikasi menampilkan notifikasi yang jelas tanpa alert bawaan browser.
 - Generator invoice tetap membuat satu invoice untuk setiap periode bulanan. Pelanggan berstatus `suspended` tetap memperoleh invoice pada siklus berikutnya, sehingga tunggakan dicatat dan dibayar per bulan, bukan berhenti atau dihitung sebagai satu tagihan mundur.
 
+## Normalisasi Scheduler Isolir untuk Go-Live
+
+- Menambahkan konfigurasi **Auto Buka Isolir Pelanggan** pada `Sistem > Scheduler`. Task memeriksa pelanggan suspended tanpa invoice belum lunas, memulihkan profile PPP paket, memastikan secret enabled, dan memutus sesi agar pelanggan reconnect dengan layanan aktif.
+- Auto buka isolir dan auto isolir menggunakan jadwal mandiri serta dapat diaktifkan/nonaktifkan terpisah. Keduanya disetel nonaktif sementara selama persiapan reset data go-live agar invoice data uji tidak memengaruhi MikroTik.
+- Reset transaksi bawaan tetap hanya menghapus transaksi dan marker billing; status layanan/MikroTik sengaja tidak diubah. Sebelum reset go-live, pelanggan yang masih suspended harus dipulihkan melalui alur buka-isolir MikroTik yang berhasil, bukan hanya diubah status database-nya.
+
 ## Verifikasi sebelum deploy
 
 Berhasil dijalankan pada workspace:

@@ -107,10 +107,11 @@ class SchedulerController extends Controller implements HasMiddleware
         $schedulePresets = ScheduledTask::schedulePresets();
         $billingGenerateTask = ScheduledTask::where('command', 'billing:generate')->first();
         $autoSuspendTask = ScheduledTask::where('command', 'billing:auto-suspend')->first();
+        $autoUnsuspendTask = ScheduledTask::where('command', 'billing:auto-unsuspend')->first();
         
         return view('admin.scheduler.index', compact(
             'tasks', 'stats', 'recentLogs', 'popUsers', 'popId',
-            'availableCommands', 'schedulePresets', 'cronStatus', 'billingGenerateTask', 'autoSuspendTask'
+            'availableCommands', 'schedulePresets', 'cronStatus', 'billingGenerateTask', 'autoSuspendTask', 'autoUnsuspendTask'
         ));
     }
 
@@ -201,6 +202,39 @@ class SchedulerController extends Controller implements HasMiddleware
         $this->activityLog->logUpdate('scheduler', "{$action} pengaturan auto isolir: {$task->schedule}, " . ($task->is_enabled ? 'aktif' : 'nonaktif'));
 
         return back()->with('success', 'Pengaturan cron Auto Isolir disimpan. Pastikan cron Laravel server berjalan setiap menit.');
+    }
+
+    /** Configure the automatic MikroTik profile restoration task. */
+    public function configureAutoUnsuspend(Request $request)
+    {
+        $schedulePresets = array_keys(ScheduledTask::schedulePresets());
+
+        $validated = $request->validate([
+            'schedule' => ['required', 'string', 'in:' . implode(',', $schedulePresets)],
+            'is_enabled' => ['nullable', 'boolean'],
+        ]);
+
+        $task = ScheduledTask::firstOrNew(['command' => 'billing:auto-unsuspend']);
+        $isNew = ! $task->exists;
+
+        $task->fill([
+            'name' => 'Auto Buka Isolir Pelanggan',
+            'schedule' => $validated['schedule'],
+            'description' => 'Memulihkan profile PPP pelanggan suspended setelah seluruh invoice telah lunas, lalu memutus sesi agar profile layanan aktif kembali.',
+            'timeout' => 3600,
+            'without_overlapping' => true,
+            'run_in_background' => false,
+            'is_enabled' => $request->boolean('is_enabled'),
+            'pop_id' => null,
+            'next_run_at' => now(),
+        ]);
+        $task->save();
+        $task->update(['next_run_at' => $task->calculateNextRun()]);
+
+        $action = $isNew ? 'membuat' : 'memperbarui';
+        $this->activityLog->logUpdate('scheduler', "{$action} pengaturan auto buka isolir: {$task->schedule}, " . ($task->is_enabled ? 'aktif' : 'nonaktif'));
+
+        return back()->with('success', 'Pengaturan cron Auto Buka Isolir disimpan.');
     }
 
     /** Configure automatic monthly invoice generation. */

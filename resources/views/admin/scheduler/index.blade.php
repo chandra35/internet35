@@ -398,6 +398,57 @@
     </form>
 </div>
 
+<!-- Auto Buka Isolir Configuration -->
+<div class="card card-outline {{ $autoUnsuspendTask?->is_enabled ? 'card-success' : 'card-warning' }} mb-3">
+    <div class="card-header">
+        <h3 class="card-title">
+            <i class="fas fa-unlock-alt mr-2"></i>Auto Buka Isolir Pelanggan
+        </h3>
+        <div class="card-tools">
+            @if($autoUnsuspendTask)
+                <span class="badge badge-{{ $autoUnsuspendTask->is_enabled ? 'success' : 'secondary' }}">
+                    {{ $autoUnsuspendTask->is_enabled ? 'Aktif' : 'Nonaktif' }}
+                </span>
+            @else
+                <span class="badge badge-warning">Belum dikonfigurasi</span>
+            @endif
+        </div>
+    </div>
+    <form action="{{ route('admin.scheduler.auto-unsuspend.configure') }}" method="POST">
+        @csrf
+        <div class="card-body py-3">
+            <div class="row align-items-end">
+                <div class="col-md-5">
+                    <label class="mb-1">Jadwal pemeriksaan</label>
+                    <select name="schedule" class="form-control form-control-sm">
+                        @foreach($schedulePresets as $key => $label)
+                            <option value="{{ $key }}" {{ ($autoUnsuspendTask?->schedule ?? 'everyFiveMinutes') === $key ? 'selected' : '' }}>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-5 mt-2 mt-md-0">
+                    <div class="custom-control custom-switch pt-2">
+                        <input type="hidden" name="is_enabled" value="0">
+                        <input type="checkbox" class="custom-control-input" id="autoUnsuspendEnabled" name="is_enabled" value="1"
+                               {{ $autoUnsuspendTask?->is_enabled ? 'checked' : '' }}>
+                        <label class="custom-control-label" for="autoUnsuspendEnabled">Aktifkan auto buka isolir</label>
+                    </div>
+                    <small class="text-muted d-block mt-2">Hanya pelanggan <code>suspended</code> tanpa invoice <code>pending</code> atau <code>overdue</code> yang diproses.</small>
+                </div>
+                <div class="col-md-2 mt-3 mt-md-0 text-md-right">
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="fas fa-save mr-1"></i>Simpan
+                    </button>
+                </div>
+            </div>
+            <div class="alert alert-light border mb-0 mt-3 py-2 small">
+                <i class="fas fa-info-circle text-info mr-1"></i>
+                Sistem mengembalikan profile PPP sesuai paket, memastikan PPP secret enabled, lalu memutus sesi aktif. Status pelanggan hanya menjadi aktif bila MikroTik berhasil diperbarui.
+            </div>
+        </div>
+    </form>
+</div>
+
 <!-- Smart Check Trigger -->
 <div class="callout callout-primary mb-3" style="cursor:pointer;" onclick="openSmartCheck()">
     <div class="d-flex justify-content-between align-items-center">

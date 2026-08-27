@@ -344,6 +344,7 @@ Route::prefix('admin')->middleware(['auth', 'role:superadmin|admin|admin-pop|tek
         Route::get('/cron-status', [SchedulerController::class, 'cronStatus'])->name('cron-status');
         Route::post('/billing-generate/configure', [SchedulerController::class, 'configureBillingGenerate'])->name('billing-generate.configure');
         Route::post('/auto-suspend/configure', [SchedulerController::class, 'configureAutoSuspend'])->name('auto-suspend.configure');
+        Route::post('/auto-unsuspend/configure', [SchedulerController::class, 'configureAutoUnsuspend'])->name('auto-unsuspend.configure');
         Route::get('/{task}', [SchedulerController::class, 'show'])->name('show');
         Route::get('/{task}/edit', [SchedulerController::class, 'edit'])->name('edit');
         Route::put('/{task}', [SchedulerController::class, 'update'])->name('update');
