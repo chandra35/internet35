@@ -476,7 +476,7 @@
                                         @endif
                                     </div>
                                 </div>
-                                <input type="file" id="file_ktp" class="d-none" accept="image/*">
+                                <input type="file" id="file_ktp" class="d-none" accept="image/*" capture="environment">
                             </div>
                         </div>
                         <div class="col-md-4">
@@ -495,7 +495,7 @@
                                         @endif
                                     </div>
                                 </div>
-                                <input type="file" id="file_selfie" class="d-none" accept="image/*">
+                                <input type="file" id="file_selfie" class="d-none" accept="image/*" capture="user">
                             </div>
                         </div>
                         <div class="col-md-4">
@@ -514,7 +514,7 @@
                                         @endif
                                     </div>
                                 </div>
-                                <input type="file" id="file_house" class="d-none" accept="image/*">
+                                <input type="file" id="file_house" class="d-none" accept="image/*" capture="environment">
                             </div>
                         </div>
                         <div class="col-12">
@@ -560,6 +560,7 @@
                 <button type="button" class="close" data-dismiss="modal">&times;</button>
             </div>
             <div class="modal-body text-center">
+                <div id="cameraStatus" class="alert alert-info py-2 text-left"><i class="fas fa-spinner fa-spin mr-1"></i>Menghubungkan kamera...</div>
                 <video id="cameraPreview" autoplay playsinline></video>
                 <canvas id="cameraCanvas" class="d-none"></canvas>
             </div>
@@ -1034,7 +1035,33 @@ $(function() {
     // Camera
     let stream = null;
 
+    function chooseNativeCamera() {
+        Swal.fire({
+            title: 'Ambil Foto dari Perangkat',
+            text: 'Pilih jenis foto. Di ponsel, kamera perangkat akan dibuka; di desktop, pilih file foto atau gunakan halaman HTTPS untuk kamera langsung.',
+            input: 'select',
+            inputOptions: { ktp: 'Foto KTP', selfie: 'Foto Selfie', house: 'Foto Rumah' },
+            inputValue: 'ktp',
+            showCancelButton: true,
+            confirmButtonText: 'Lanjutkan',
+            cancelButtonText: 'Batal',
+        }).then(result => {
+            if (!result.isConfirmed) return;
+            currentTarget = result.value;
+            $(`#file_${currentTarget}`).trigger('click');
+        });
+    }
+
     $('#btnOpenCamera').on('click', function() {
+        // Browsers deliberately block getUserMedia on a plain HTTP origin.
+        // Use the native file/camera picker as a safe mobile fallback.
+        if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+            chooseNativeCamera();
+            return;
+        }
+
+        $('#cameraStatus').removeClass('alert-danger d-none').addClass('alert-info')
+            .html('<i class="fas fa-spinner fa-spin mr-1"></i>Menghubungkan kamera...');
         navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
             .then(s => {
                 stream = s;
@@ -1042,8 +1069,22 @@ $(function() {
                 $('#cameraModal').modal('show');
             })
             .catch(err => {
-                toastr.error('Tidak dapat mengakses kamera: ' + err.message);
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Kamera tidak dapat diakses',
+                    text: err.name === 'NotAllowedError'
+                        ? 'Izin kamera ditolak. Izinkan kamera di browser, atau pilih foto dari perangkat.'
+                        : 'Kamera tidak tersedia: ' + err.message,
+                    showCancelButton: true,
+                    confirmButtonText: 'Pilih Foto',
+                    cancelButtonText: 'Tutup',
+                }).then(result => { if (result.isConfirmed) chooseNativeCamera(); });
             });
+    });
+
+    $('#cameraPreview').on('loadedmetadata', function() {
+        $('#cameraStatus').removeClass('alert-info').addClass('alert-success')
+            .html('<i class="fas fa-check-circle mr-1"></i>Kamera siap. Atur posisi lalu tekan Ambil.');
     });
 
     $('#cameraModal').on('hidden.bs.modal', function() {
@@ -1055,6 +1096,10 @@ $(function() {
 
     $('#btnCapture').on('click', function() {
         const video = document.getElementById('cameraPreview');
+        if (!video.videoWidth || !video.videoHeight) {
+            toastr.warning('Kamera belum siap. Tunggu beberapa saat lalu coba lagi.');
+            return;
+        }
         const canvas = document.getElementById('cameraCanvas');
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;

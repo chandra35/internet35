@@ -825,14 +825,14 @@ class CustomerController extends Controller implements HasMiddleware
                     // User wants to remove the photo
                     if ($customer->$photoField) {
                         $folder = str_replace('photo_', '', $photoField);
-                        Storage::delete('public/customers/' . $folder . '/' . $customer->$photoField);
+                        Storage::disk('public')->delete('customers/' . $folder . '/' . $customer->$photoField);
                     }
                     $data[$photoField] = null;
                 } elseif ($photoValue && str_starts_with($photoValue, 'data:image')) {
                     // New base64 image uploaded
                     if ($customer->$photoField) {
                         $folder = str_replace('photo_', '', $photoField);
-                        Storage::delete('public/customers/' . $folder . '/' . $customer->$photoField);
+                        Storage::disk('public')->delete('customers/' . $folder . '/' . $customer->$photoField);
                     }
                     $folder = 'customers/' . str_replace('photo_', '', $photoField);
                     $data[$photoField] = $this->saveBase64Image($photoValue, $folder);
@@ -1785,7 +1785,10 @@ class CustomerController extends Controller implements HasMiddleware
 
         $filename = Str::uuid() . '.' . $extension;
         
-        Storage::put("public/{$path}/{$filename}", $image);
+        // Explicitly use the public disk. With Laravel 12, Storage::put()
+        // uses the default local/private disk, which makes the generated
+        // /storage URL point to a file that cannot be served by the browser.
+        Storage::disk('public')->put("{$path}/{$filename}", $image);
         
         return $filename;
     }
