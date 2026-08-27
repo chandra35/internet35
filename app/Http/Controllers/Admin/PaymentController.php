@@ -78,7 +78,14 @@ class PaymentController extends Controller implements HasMiddleware
         $start = max(0, (int) $request->input('start', 0));
         $length = min(100, max(10, (int) $request->input('length', 20)));
         $search = trim((string) $request->input('search.value', ''));
-        $unpaid = fn ($query) => $query->whereIn('status', ['pending', 'partial', 'overdue']);
+        $period = (string) $request->input('period', now()->format('Y-m'));
+        $period = preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $period) ? $period : now()->format('Y-m');
+        [$periodYear, $periodMonth] = array_map('intval', explode('-', $period));
+        $unpaid = function ($query) use ($periodYear, $periodMonth) {
+            $query->whereIn('status', ['pending', 'partial', 'overdue'])
+                ->whereYear('period_start', $periodYear)
+                ->whereMonth('period_start', $periodMonth);
+        };
 
         $baseQuery = Customer::query()->where('pop_id', $popId)->whereHas('invoices', $unpaid);
         $recordsTotal = (clone $baseQuery)->count();
@@ -98,7 +105,7 @@ class PaymentController extends Controller implements HasMiddleware
             'draw' => $draw,
             'recordsTotal' => $recordsTotal,
             'recordsFiltered' => $recordsFiltered,
-            'data' => $customers->map(function (Customer $customer) {
+            'data' => $customers->map(function (Customer $customer) use ($period) {
                 $firstInvoice = $customer->invoices->first();
                 $outstanding = $customer->invoices->sum(fn (CustomerInvoice $invoice) => $invoice->remaining_amount);
                 $dueDate = $firstInvoice?->due_date?->format('d/m/Y') ?? '—';
@@ -110,7 +117,7 @@ class PaymentController extends Controller implements HasMiddleware
                     'invoices' => '<span class="badge badge-warning">' . $customer->invoices->count() . ' invoice</span>',
                     'due_date' => '<span class="' . $dueClass . '">' . e($dueDate) . '</span>',
                     'outstanding' => '<strong class="text-danger">Rp ' . number_format($outstanding, 0, ',', '.') . '</strong>',
-                    'action' => '<a class="btn btn-success btn-sm payment-action" href="' . route('admin.payments.show', $customer) . '"><i class="fas fa-cash-register mr-1"></i><span>Proses Bayar</span></a>',
+                    'action' => '<a class="btn btn-success btn-sm payment-action" href="' . route('admin.payments.show', ['customer' => $customer, 'period' => $period]) . '"><i class="fas fa-cash-register mr-1"></i><span>Proses Bayar</span></a>',
                 ];
             })->values(),
         ]);
@@ -125,8 +132,10 @@ class PaymentController extends Controller implements HasMiddleware
         $invoices = $this->unpaidInvoices($customer)->get();
         $popSetting = PopSetting::where('user_id', $popId)->first();
         $missingPeriodCount = $this->missingPeriodStarts($customer)->count();
+        $selectedPeriod = (string) $request->input('period', '');
+        $selectedPeriod = preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $selectedPeriod) ? $selectedPeriod : null;
 
-        return view('admin.payments.show', compact('customer', 'invoices', 'popId', 'popSetting', 'missingPeriodCount'));
+        return view('admin.payments.show', compact('customer', 'invoices', 'popId', 'popSetting', 'missingPeriodCount', 'selectedPeriod'));
     }
 
     /**

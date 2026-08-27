@@ -62,11 +62,25 @@
     <div class="card-header"><h3 class="card-title"><i class="fas fa-cash-register mr-2"></i>Daftar Tunggakan Pelanggan</h3></div>
     <div class="card-body p-3">
         <div class="payment-filter-bar">
-            <div class="input-group">
-                <input type="search" id="paymentSearch" class="form-control" autocomplete="off" placeholder="&#xf002;  Cari nama, ID pelanggan, telepon, atau PPPoE...">
-                <div class="input-group-append"><span class="input-group-text payment-search-icon"><i class="fas fa-search"></i></span></div>
+            @php($paymentPeriods = collect(range(0, 23))->map(fn ($monthsAgo) => now()->startOfMonth()->subMonths($monthsAgo)))
+            <div class="form-row align-items-end">
+                <div class="col-md-4 mb-2 mb-md-0">
+                    <label for="paymentPeriod" class="small font-weight-bold text-muted mb-1"><i class="far fa-calendar-alt mr-1"></i>Bulan Tagihan</label>
+                    <select id="paymentPeriod" class="form-control">
+                        @foreach($paymentPeriods as $period)
+                        <option value="{{ $period->format('Y-m') }}">{{ $period->translatedFormat('F Y') }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-8">
+                    <label for="paymentSearch" class="small font-weight-bold text-muted mb-1">Cari Pelanggan</label>
+                    <div class="input-group">
+                        <input type="search" id="paymentSearch" class="form-control" autocomplete="off" placeholder="&#xf002;  Cari nama, ID pelanggan, telepon, atau PPPoE...">
+                        <div class="input-group-append"><span class="input-group-text payment-search-icon"><i class="fas fa-search"></i></span></div>
+                    </div>
+                </div>
             </div>
-            <p class="text-muted small mb-0 mt-2">Pilih pelanggan untuk melihat bulan/periode invoice yang belum lunas, lalu catat pembayaran satu atau beberapa bulan sekaligus.</p>
+            <p class="text-muted small mb-0 mt-2">Menampilkan tunggakan pada bulan yang dipilih. Ubah ke bulan sebelumnya untuk menagih dan memproses pembayaran tunggakan lama.</p>
         </div>
         <div class="table-responsive">
             <table id="paymentsTable" class="table table-hover mb-0">
@@ -89,7 +103,7 @@ $(function () {
         lengthMenu: [[10, 20, 50, 100], [10, 20, 50, 100]],
         ajax: {
             url: '{{ route('admin.payments.data') }}',
-            data: function (data) { @if(auth()->user()->hasRole('superadmin')) data.pop_id = '{{ $popId }}'; @endif }
+            data: function (data) { data.period = $('#paymentPeriod').val(); @if(auth()->user()->hasRole('superadmin')) data.pop_id = '{{ $popId }}'; @endif }
         },
         columns: [
             {data: 'customer'}, {data: 'contact'}, {data: 'invoices'}, {data: 'due_date'},
@@ -109,6 +123,7 @@ $(function () {
         clearTimeout(searchTimer);
         searchTimer = setTimeout(function () { table.search(value).draw(); }, 350);
     });
+    $('#paymentPeriod').on('change', function () { table.search('').draw(); });
 });
 </script>
 @endpush

@@ -84,7 +84,7 @@
                             <tbody>
                             @foreach($invoices as $invoice)
                             <tr>
-                                <td data-label="Pilih"><input class="invoice-check payment-checkbox" type="checkbox" name="invoice_ids[]" value="{{ $invoice->id }}" data-amount="{{ $invoice->remaining_amount }}"></td>
+                                <td data-label="Pilih"><input class="invoice-check payment-checkbox" type="checkbox" name="invoice_ids[]" value="{{ $invoice->id }}" data-amount="{{ $invoice->remaining_amount }}" {{ $selectedPeriod && $invoice->period_start?->format('Y-m') === $selectedPeriod ? 'checked' : '' }}></td>
                                 <td data-label="Periode" class="period-label">{{ $invoice->period_start?->translatedFormat('F Y') ?? '—' }}</td>
                                 <td data-label="Invoice"><a href="{{ route('admin.invoices.show', $invoice) }}" class="invoice-link">{{ $invoice->invoice_number }}</a></td>
                                 <td data-label="Jatuh tempo" class="{{ $invoice->due_date?->isPast() ? 'due-overdue' : '' }}">{{ $invoice->due_date?->format('d/m/Y') }}</td>
