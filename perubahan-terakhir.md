@@ -71,6 +71,13 @@ Tanggal: 27 Agustus 2026 (WIB)
 - Auto buka isolir dan auto isolir menggunakan jadwal mandiri serta dapat diaktifkan/nonaktifkan terpisah. Keduanya disetel nonaktif sementara selama persiapan reset data go-live agar invoice data uji tidak memengaruhi MikroTik.
 - Reset transaksi bawaan tetap hanya menghapus transaksi dan marker billing; status layanan/MikroTik sengaja tidak diubah. Sebelum reset go-live, pelanggan yang masih suspended harus dipulihkan melalui alur buka-isolir MikroTik yang berhasil, bukan hanya diubah status database-nya.
 
+## Kebijakan Tagihan per POP
+
+- `billing_day` setiap pelanggan menjadi tanggal jatuh tempo individual. Invoice otomatis dibuat berdasarkan tanggal tersebut, bukan serentak pada tanggal satu.
+- Menambahkan pengaturan per POP pada `Pengaturan Invoice & Pajak`: **Invoice Muncul Sebelum Jatuh Tempo** (default H-3), **Masa Tenggang Isolir** (default 0 hari), serta **Jam Auto Isolir** (default 20:00 WIB).
+- Dengan default baru: invoice dibuat H-3, reminder menggunakan konfigurasi notifikasi POP (default H-2 dan H-1), lalu pelanggan dengan `auto_isolir` aktif diisolir pukul 20:00 tepat pada hari jatuh tempo apabila belum melunasi tagihan.
+- Auto-isolir memakai kebijakan POP dan membandingkan jatuh tempo secara inklusif, sehingga konfigurasi masa tenggang 0 benar-benar dapat memproses tagihan pada hari jatuh tempo, bukan baru hari berikutnya.
+
 ## Verifikasi sebelum deploy
 
 Berhasil dijalankan pada workspace:

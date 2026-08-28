@@ -75,7 +75,7 @@ class BillingReminder extends Command
             
             // Check NotificationSetting reminder_days_before
             $notifSetting = NotificationSetting::where('user_id', $invoice->pop_id)->first();
-            $reminderDays = $notifSetting?->reminder_days_before ?? [1, 3, 7];
+            $reminderDays = $notifSetting?->reminder_days_before ?? [2, 1];
             $daysUntilDue = (int) now()->diffInDays($invoice->due_date, false);
             
             // Only send if today matches one of the reminder_days_before OR if overdue

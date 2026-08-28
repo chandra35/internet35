@@ -60,7 +60,7 @@ return new class extends Migration
             
             // Schedule Settings
             $table->string('reminder_time', 5)->default('09:00'); // HH:MM format
-            $table->json('reminder_days_before')->nullable(); // [1, 3, 7]
+            $table->json('reminder_days_before')->nullable(); // [2, 1]
             
             $table->timestamps();
             

@@ -166,7 +166,7 @@ class NotificationSetting extends Model
                 'whatsapp_enabled' => false,
                 'telegram_enabled' => false,
                 'reminder_time' => '09:00',
-                'reminder_days_before' => [1, 3, 7],
+                'reminder_days_before' => [2, 1],
                 'enabled_events' => self::defaultEnabledEvents(),
             ]
         );

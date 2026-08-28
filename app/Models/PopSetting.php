@@ -69,6 +69,9 @@ class PopSetting extends Model
         // Invoice
         'invoice_prefix',
         'invoice_due_days',
+        'invoice_generate_days_before_due',
+        'auto_isolir_grace_days',
+        'auto_isolir_time',
         'invoice_notes',
         'invoice_footer',
         'invoice_terms',
@@ -120,6 +123,8 @@ class PopSetting extends Model
         'ppn_enabled' => 'boolean',
         'ppn_percentage' => 'decimal:2',
         'invoice_due_days' => 'integer',
+        'invoice_generate_days_before_due' => 'integer',
+        'auto_isolir_grace_days' => 'integer',
         'latitude' => 'decimal:8',
         'longitude' => 'decimal:8',
         'business_permit_date' => 'date',

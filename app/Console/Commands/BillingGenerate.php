@@ -29,7 +29,7 @@ class BillingGenerate extends Command
      *
      * @var string
      */
-    protected $description = 'Generate monthly invoices for customers whose billing_day matches today (or specified day)';
+    protected $description = 'Generate monthly invoices H-n before each customer billing_day/due date';
 
     /**
      * Execute the console command.
@@ -40,23 +40,8 @@ class BillingGenerate extends Command
         
         $popId = $this->option('pop');
         $dryRun = $this->option('dry-run');
-        $billingDay = $this->option('billing-day') ? (int) $this->option('billing-day') : (int) now()->day;
-        
-        // Clamp billing day to 1-28
-        $billingDay = max(1, min(28, $billingDay));
-        
-        $this->info("Billing day: {$billingDay} | Date: " . now()->format('Y-m-d'));
-        
-        // Calculate period for this billing_day
-        // Period: from billing_day this month to (billing_day - 1) next month
-        $periodStart = Carbon::create(now()->year, now()->month, $billingDay);
-        // If billing_day is after today, it means the period started last month
-        if ($billingDay > now()->day) {
-            $periodStart->subMonth();
-        }
-        $periodEnd = $periodStart->copy()->addMonth()->subDay();
-        
-        $this->info("Period: {$periodStart->format('Y-m-d')} to {$periodEnd->format('Y-m-d')}");
+        $requestedBillingDay = $this->option('billing-day') ? max(1, min(28, (int) $this->option('billing-day'))) : null;
+        $this->info('Date: ' . now()->format('Y-m-d'));
         
         // Get POPs to process
         $pops = User::role('admin-pop')
@@ -70,7 +55,18 @@ class BillingGenerate extends Command
             $this->info("Processing POP: {$pop->name}");
             
             $popSetting = PopSetting::where('user_id', $pop->id)->first();
-            $dueDays = $popSetting?->invoice_due_days ?? 7;
+            $leadDays = max(0, (int) ($popSetting?->invoice_generate_days_before_due ?? 3));
+            $dueDate = $requestedBillingDay
+                ? Carbon::create(now()->year, now()->month, $requestedBillingDay)->startOfDay()
+                : now()->startOfDay()->addDays($leadDays);
+
+            if ($requestedBillingDay && $dueDate->lt(now()->startOfDay())) {
+                $dueDate->addMonth();
+            }
+
+            $billingDay = $dueDate->day;
+            $periodStart = $dueDate->copy();
+            $periodEnd = $periodStart->copy()->addMonth()->subDay();
             
             // Keep each monthly period running for active and suspended
             // customers, so arrears are represented invoice-by-invoice per
@@ -92,7 +88,7 @@ class BillingGenerate extends Command
                 })
                 ->get();
             
-            $this->info("Found {$customers->count()} customers (billing_day={$billingDay}) to process");
+            $this->info("POP {$pop->name}: due {$dueDate->format('Y-m-d')}, invoice H-{$leadDays}; found {$customers->count()} customers (billing_day={$billingDay})");
             
             if ($dryRun) {
                 foreach ($customers as $customer) {
@@ -120,14 +116,12 @@ class BillingGenerate extends Command
                     }
                     
                     $totalAmount = $subtotal + $taxAmount;
-                    $dueDate = $periodStart->copy()->addDays($dueDays);
-                    
                     $invoice = CustomerInvoice::create([
                         'customer_id' => $customer->id,
                         'pop_id' => $pop->id,
                         'invoice_number' => CustomerInvoice::generateInvoiceNumber($pop->id),
                         'invoice_date' => now(),
-                        'due_date' => $dueDate,
+                        'due_date' => $dueDate->copy(),
                         'period_start' => $periodStart,
                         'period_end' => $periodEnd,
                         'items' => [

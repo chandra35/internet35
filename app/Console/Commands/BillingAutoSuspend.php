@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Customer;
 use App\Models\CustomerInvoice;
+use App\Models\PopSetting;
 use App\Services\CustomerUnsuspendService;
 use App\Services\NotificationService;
 use Illuminate\Console\Command;
@@ -63,15 +64,28 @@ class BillingAutoSuspend extends Command
         $skipped = 0;
         $failed = 0;
         
+        $popSettings = PopSetting::whereIn('user_id', $customers->pluck('pop_id')->filter()->unique())
+            ->get()
+            ->keyBy('user_id');
+
         foreach ($customers as $customer) {
-            // Calculate grace period: use command option if > 0, otherwise per-customer setting
-            $graceDays = $globalGraceDays > 0 ? (int) $globalGraceDays : ($customer->grace_period_days ?? 3);
-            $cutoffDate = now()->subDays($graceDays)->toDateString();
+            $popSetting = $popSettings->get($customer->pop_id);
+            // The POP policy overrides legacy per-customer grace values. A
+            // zero grace means the customer becomes eligible on the due date.
+            $graceDays = $globalGraceDays > 0
+                ? (int) $globalGraceDays
+                : (int) ($popSetting?->auto_isolir_grace_days ?? $customer->grace_period_days ?? 0);
+            $isolirTime = substr((string) ($popSetting?->auto_isolir_time ?? '20:00'), 0, 5);
+            if (now()->format('H:i') < $isolirTime) {
+                $skipped++;
+                continue;
+            }
+            $cutoffDate = now()->startOfDay()->subDays($graceDays)->toDateString();
             
             // Get overdue invoices past grace period
             $overdueInvoices = $customer->invoices
                 ->whereIn('status', ['pending', 'overdue'])
-                ->filter(fn($inv) => $inv->due_date && $inv->due_date->toDateString() < $cutoffDate);
+                ->filter(fn($inv) => $inv->due_date && $inv->due_date->toDateString() <= $cutoffDate);
             
             if ($overdueInvoices->isEmpty()) {
                 $skipped++;

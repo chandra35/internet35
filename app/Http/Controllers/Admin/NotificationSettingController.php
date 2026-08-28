@@ -221,7 +221,7 @@ class NotificationSettingController extends Controller implements HasMiddleware
 
         $setting->enabled_events = $request->enabled_events ?? [];
         $setting->reminder_time = $request->reminder_time ?? '09:00';
-        $setting->reminder_days_before = $request->reminder_days_before ?? [1, 3, 7];
+        $setting->reminder_days_before = $request->reminder_days_before ?? [2, 1];
         $setting->save();
 
         $this->activityLog->logUpdate('notification_settings', "Updated notification events");

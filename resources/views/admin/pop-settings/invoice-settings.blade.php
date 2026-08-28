@@ -67,11 +67,44 @@
                                 </div>
                                 <div class="col-md-6">
                                     <div class="form-group">
-                                        <label>Jatuh Tempo (Hari)</label>
+                                        <label>Jatuh Tempo Setelah Invoice (Hari)</label>
                                         <input type="number" name="invoice_due_days" class="form-control preview-trigger" 
                                                value="{{ $popSetting->invoice_due_days ?? 7 }}" 
                                                min="1" max="30">
-                                        <small class="text-muted">Hari setelah invoice dibuat</small>
+                                        <small class="text-muted">Dipakai untuk pembuatan invoice manual</small>
+                                    </div>
+                                </div>
+                                <div class="col-12"><hr class="mt-0"></div>
+                                <div class="col-12"><h6 class="text-primary mb-3"><i class="fas fa-robot mr-1"></i>Otomasi Penagihan per POP</h6></div>
+                                <div class="col-md-4">
+                                    <div class="form-group">
+                                        <label>Invoice Muncul Sebelum Jatuh Tempo</label>
+                                        <div class="input-group">
+                                            <div class="input-group-prepend"><span class="input-group-text">H-</span></div>
+                                            <input type="number" name="invoice_generate_days_before_due" class="form-control"
+                                                   value="{{ $popSetting->invoice_generate_days_before_due ?? 3 }}" min="0" max="30">
+                                            <div class="input-group-append"><span class="input-group-text">hari</span></div>
+                                        </div>
+                                        <small class="text-muted">Default 3. Tanggal jatuh tempo tetap mengikuti <code>billing_day</code> pelanggan.</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-group">
+                                        <label>Masa Tenggang Isolir</label>
+                                        <div class="input-group">
+                                            <input type="number" name="auto_isolir_grace_days" class="form-control"
+                                                   value="{{ $popSetting->auto_isolir_grace_days ?? 0 }}" min="0" max="30">
+                                            <div class="input-group-append"><span class="input-group-text">hari</span></div>
+                                        </div>
+                                        <small class="text-muted">0 = isolir pada hari jatuh tempo.</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-group">
+                                        <label>Jam Auto Isolir</label>
+                                        <input type="time" name="auto_isolir_time" class="form-control"
+                                               value="{{ \Illuminate\Support\Str::of($popSetting->auto_isolir_time ?? '20:00')->substr(0, 5) }}">
+                                        <small class="text-muted">Default 20:00 WIB pada hari jatuh tempo.</small>
                                     </div>
                                 </div>
                                 <div class="col-12">
