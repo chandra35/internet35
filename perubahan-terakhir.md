@@ -77,6 +77,7 @@ Tanggal: 27 Agustus 2026 (WIB)
 - Menambahkan pengaturan per POP pada `Pengaturan Invoice & Pajak`: **Invoice Muncul Sebelum Jatuh Tempo** (default H-3), **Masa Tenggang Isolir** (default 0 hari), serta **Jam Auto Isolir** (default 20:00 WIB).
 - Dengan default baru: invoice dibuat H-3, reminder menggunakan konfigurasi notifikasi POP (default H-2 dan H-1), lalu pelanggan dengan `auto_isolir` aktif diisolir pukul 20:00 tepat pada hari jatuh tempo apabila belum melunasi tagihan.
 - Auto-isolir memakai kebijakan POP dan membandingkan jatuh tempo secara inklusif, sehingga konfigurasi masa tenggang 0 benar-benar dapat memproses tagihan pada hari jatuh tempo, bukan baru hari berikutnya.
+- Pada 28 Agustus 2026, `billing_day` POP 35 Wonosari dinormalisasi dari data pelanggan lama: 327 pelanggan diperbarui melalui pencocokan unik PPPoE/nama/telepon. Baris yang tidak cocok otomatis tidak diubah dan data transaksi belum di-reset.
 
 ## Verifikasi sebelum deploy
 
