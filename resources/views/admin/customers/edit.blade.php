@@ -1244,8 +1244,8 @@ function loadPPPSecrets(routerId) {
 
 function renderSecretsTable(secrets) {
     let html = '';
-    secrets.forEach(function(secret) {
-        const isDisabled = secret.disabled === 'true';
+    secrets.forEach(function(secret, index) {
+        const isDisabled = secret.disabled === true || String(secret.disabled).toLowerCase() === 'true';
         const statusBadge = isDisabled
             ? '<span class="badge badge-danger">Disabled</span>'
             : '<span class="badge badge-success">Aktif</span>';
@@ -1254,7 +1254,9 @@ function renderSecretsTable(secrets) {
         const profile = escapeHtml(secret.profile || '-');
         const comment = escapeHtml(secret.comment || '-');
 
-        html += '<tr class="' + rowClass + '" data-name="' + name.toLowerCase() + '" data-profile="' + profile.toLowerCase() + '" data-comment="' + comment.toLowerCase() + '" data-disabled="' + isDisabled + '">' +
+        // Keep the original secret in pppSecretsData. The rendered values are
+        // HTML-escaped and must not be used as the source for searching.
+        html += '<tr class="' + rowClass + '" data-secret-index="' + index + '">' +
             '<td><strong>' + name + '</strong></td>' +
             '<td><span class="badge badge-info">' + profile + '</span></td>' +
             '<td class="text-muted small">' + comment + '</td>' +
@@ -1266,14 +1268,15 @@ function renderSecretsTable(secrets) {
 }
 
 function filterSecretsTable() {
-    const search = $('#searchSecrets').val().toLowerCase();
+    const search = String($('#searchSecrets').val() || '').trim().toLowerCase();
     const statusFilter = $('#pppSecretsModal .btn-group .btn.active').data('filter') || 'all';
     let visible = 0;
     $('#secretsTableBody tr').each(function() {
-        const name = $(this).data('name') || '';
-        const profile = $(this).data('profile') || '';
-        const comment = $(this).data('comment') || '';
-        const isDisabled = $(this).data('disabled');
+        const secret = pppSecretsData[Number($(this).attr('data-secret-index'))] || {};
+        const name = String(secret.name || '').toLowerCase();
+        const profile = String(secret.profile || '').toLowerCase();
+        const comment = String(secret.comment || '').toLowerCase();
+        const isDisabled = secret.disabled === true || String(secret.disabled).toLowerCase() === 'true';
         const matchesSearch = !search || name.includes(search) || profile.includes(search) || comment.includes(search);
         let matchesStatus = true;
         if (statusFilter === 'active') matchesStatus = !isDisabled;

@@ -1751,8 +1751,8 @@ function renderSecretsTable(secrets) {
     const tbody = $('#secretsTableBody');
     let html = '';
     
-    secrets.forEach(secret => {
-        const isDisabled = secret.disabled === 'true';
+    secrets.forEach((secret, index) => {
+        const isDisabled = secret.disabled === true || String(secret.disabled).toLowerCase() === 'true';
         const statusBadge = isDisabled 
             ? '<span class="badge badge-danger">Disabled</span>'
             : '<span class="badge badge-success">Aktif</span>';
@@ -1762,7 +1762,7 @@ function renderSecretsTable(secrets) {
         const comment = escapeHtml(secret.comment || '-');
         
         html += `
-            <tr class="${rowClass}" data-name="${name.toLowerCase()}" data-profile="${profile.toLowerCase()}" data-comment="${comment.toLowerCase()}" data-disabled="${isDisabled}">
+            <tr class="${rowClass}" data-secret-index="${index}">
                 <td>
                     <strong>${name}</strong>
                 </td>
@@ -1782,15 +1782,16 @@ function renderSecretsTable(secrets) {
 
 // Filter secrets table by search & status
 function filterSecretsTable() {
-    const search = $('#searchSecrets').val().toLowerCase();
+    const search = String($('#searchSecrets').val() || '').trim().toLowerCase();
     const statusFilter = $('#pppSecretsModal .btn-group .btn.active').data('filter') || 'all';
     let visible = 0;
     
     $('#secretsTableBody tr').each(function() {
-        const name = $(this).data('name') || '';
-        const profile = $(this).data('profile') || '';
-        const comment = $(this).data('comment') || '';
-        const isDisabled = $(this).data('disabled');
+        const secret = pppSecretsData[Number($(this).attr('data-secret-index'))] || {};
+        const name = String(secret.name || '').toLowerCase();
+        const profile = String(secret.profile || '').toLowerCase();
+        const comment = String(secret.comment || '').toLowerCase();
+        const isDisabled = secret.disabled === true || String(secret.disabled).toLowerCase() === 'true';
         
         // Text match
         const matchesSearch = !search || 
