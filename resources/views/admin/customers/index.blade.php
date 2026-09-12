@@ -844,9 +844,18 @@ $(function() {
         renderAssignPppSecrets();
     });
 
-    $(document).on('click', '.btn-confirm-assign-ppp', function() {
-        const secret = assignPppSecrets[Number($(this).data('index'))];
+    $(document).on('click', '.btn-confirm-assign-ppp', function(e) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+
+        const $button = $(this);
+        if ($button.data('assign-busy')) return;
+
+        const index = parseInt($button.attr('data-index'), 10);
+        const secret = assignPppSecrets[index];
         if (!secret || !assignPppCustomerId) return;
+
+        $button.data('assign-busy', true).prop('disabled', true);
 
         Swal.fire({
             title: 'Assign PPP Secret?',
@@ -864,6 +873,7 @@ $(function() {
                 toastr.success(result.value.message);
                 setTimeout(() => location.reload(), 500);
             }
+            $button.data('assign-busy', false).prop('disabled', false);
         });
     });
 

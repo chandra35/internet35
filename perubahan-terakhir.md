@@ -21,6 +21,7 @@ Tanggal pembaruan: 12 September 2026 (WIB)
 - Sistem menyimpan username, password terenkripsi, ID secret, comment, status MikroTik, dan waktu sinkronisasi ke data pelanggan.
 - Assign ditolak jika PPP Secret sudah terhubung ke pelanggan lain; seluruh tindakan dicatat pada activity log.
 - Modal menyediakan pilihan router: admin POP hanya melihat router aktif milik POP-nya, sedangkan superadmin dapat memilih seluruh router aktif.
+- Memperbaiki tombol **Pilih** agar satu klik langsung membuka konfirmasi dan mencegah event klik ganda/bubbling memicu perilaku tidak konsisten.
 
 ## Perpindahan VM
 
