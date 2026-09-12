@@ -9,6 +9,7 @@ Tanggal pembaruan: 12 September 2026 (WIB)
 - Memperbaiki pencarian pada modal **Browse PPP Secret di Mikrotik** di halaman tambah dan edit pelanggan.
 - Filter kini mencocokkan data asli `name`, `profile`, dan `comment` dari router, bukan nilai HTML yang sudah di-escape, sehingga pencarian dengan karakter khusus tetap sesuai.
 - Menormalkan input pencarian dan status disabled agar nilai boolean maupun string `true` diproses konsisten.
+- Memperbaiki binding event pencarian agar tetap aktif pada modal yang dirender ulang, menormalkan karakter beraksen, dan mengurutkan username secara alfabetis/numerik.
 - Validasi: `php artisan view:cache` dan `git diff --check` berhasil.
 
 ## Perpindahan VM

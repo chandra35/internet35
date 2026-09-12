@@ -1173,7 +1173,9 @@ $('#btnRefreshSecrets, #btnRetrySecrets').on('click', function() {
     if (routerId) loadPPPSecrets(routerId);
 });
 
-$('#searchSecrets').on('input', filterSecretsTable);
+// Delegated binding also works when the modal is rendered/replaced after the
+// initial page-ready handler has run.
+$(document).on('input keyup change', '#searchSecrets', filterSecretsTable);
 
 $('#pppSecretsModal .btn-group .btn').on('click', function() {
     $(this).siblings().removeClass('active');
@@ -1220,7 +1222,7 @@ function loadPPPSecrets(routerId) {
         success: function(response) {
             $('#secretsLoading').addClass('d-none');
             if (response.success && response.secrets) {
-                pppSecretsData = response.secrets;
+                pppSecretsData = response.secrets.slice().sort(comparePPPSecrets);
                 if (response.secrets.length === 0) {
                     $('#secretsEmpty').removeClass('d-none');
                     $('#secretsCount').text('0 PPP Secret');
@@ -1268,7 +1270,7 @@ function renderSecretsTable(secrets) {
 }
 
 function filterSecretsTable() {
-    const search = String($('#searchSecrets').val() || '').trim().toLowerCase();
+    const search = normalizePPPSecretSearch($('#searchSecrets').val());
     const statusFilter = $('#pppSecretsModal .btn-group .btn.active').data('filter') || 'all';
     let visible = 0;
     $('#secretsTableBody tr').each(function() {
@@ -1284,6 +1286,21 @@ function filterSecretsTable() {
         if (matchesSearch && matchesStatus) { $(this).show(); visible++; } else { $(this).hide(); }
     });
     $('#secretsCount').text(visible + ' dari ' + pppSecretsData.length + ' PPP Secret');
+}
+
+function normalizePPPSecretSearch(value) {
+    return String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toLowerCase();
+}
+
+function comparePPPSecrets(a, b) {
+    return String(a.name || '').localeCompare(String(b.name || ''), undefined, {
+        numeric: true,
+        sensitivity: 'base'
+    });
 }
 
 function escapeHtml(text) {
