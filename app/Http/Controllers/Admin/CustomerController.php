@@ -111,6 +111,14 @@ class CustomerController extends Controller implements HasMiddleware
             ->orderBy('name')
             ->get();
 
+        // Router choices for PPP assignment: admin-pop is limited to its POP;
+        // superadmin can choose any active router.
+        $assignRouters = Router::with('pop')
+            ->when(!$user->hasRole('superadmin'), fn($q) => $q->where('pop_id', $user->id))
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
+
         // Get packages for filter (by routers milik POP ini)
         $routerIds = $routers->pluck('id');
         $packages = Package::whereIn('router_id', $routerIds)
@@ -137,7 +145,7 @@ class CustomerController extends Controller implements HasMiddleware
         if ($request->ajax()) {
             return view('admin.customers._table', compact('customers', 'popId', 'routers', 'packages', 'filterCities'));
         }
-        return view('admin.customers.index', compact('customers', 'popUsers', 'popId', 'routers', 'packages', 'filterCities', 'stats'));
+        return view('admin.customers.index', compact('customers', 'popUsers', 'popId', 'routers', 'assignRouters', 'packages', 'filterCities', 'stats'));
     }
 
     /**
@@ -945,14 +953,20 @@ class CustomerController extends Controller implements HasMiddleware
 
         $request->validate([
             'secret_name' => 'required|string|max:255',
+            'router_id' => 'required|uuid|exists:routers,id',
         ]);
 
-        $router = $customer->router;
+        $router = Router::with('pop')->whereKey($request->router_id)->where('is_active', true)->first();
         if (!$router) {
             return response()->json([
                 'success' => false,
-                'message' => 'Pelanggan belum memiliki router MikroTik.',
+                'message' => 'Router tidak ditemukan atau sedang nonaktif.',
             ], 422);
+        }
+
+        $user = auth()->user();
+        if ($user->hasRole('admin-pop') && $router->pop_id !== $user->id) {
+            abort(403, 'Anda tidak memiliki akses ke router tersebut.');
         }
 
         $mikrotik = new MikrotikService();

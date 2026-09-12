@@ -271,6 +271,14 @@
             <div class="modal-body p-0">
                 <div class="p-3 border-bottom bg-light">
                     <div class="small text-muted mb-2">Pelanggan: <strong id="assignPppCustomerName">-</strong></div>
+                    <div class="form-group mb-2">
+                        <label for="assignPppRouter" class="small font-weight-bold mb-1">Router MikroTik</label>
+                        <select class="form-control form-control-sm" id="assignPppRouter">
+                            @foreach($assignRouters as $assignRouter)
+                            <option value="{{ $assignRouter->id }}">{{ $assignRouter->name }}@if($assignRouter->pop) — {{ $assignRouter->pop->name }}@endif</option>
+                            @endforeach
+                        </select>
+                    </div>
                     <div class="input-group">
                         <div class="input-group-prepend"><span class="input-group-text"><i class="fas fa-search"></i></span></div>
                         <input type="text" class="form-control" id="assignPppSearch" placeholder="Cari username, profile, atau comment...">
@@ -812,7 +820,11 @@ $(function() {
 
     $(document).on('click', '.btn-assign-ppp-secret', function() {
         assignPppCustomerId = $(this).data('id');
-        assignPppRouterId = $(this).data('router');
+        const customerRouterId = $(this).data('router');
+        assignPppRouterId = $('#assignPppRouter option[value="' + customerRouterId + '"]').length
+            ? customerRouterId
+            : $('#assignPppRouter').val();
+        $('#assignPppRouter').val(assignPppRouterId);
         $('#assignPppCustomerName').text($(this).data('name') || '-');
         $('#assignPppSearch').val('');
         $('#assignPppStatusFilter .btn').removeClass('active').first().addClass('active');
@@ -821,6 +833,10 @@ $(function() {
     });
 
     $(document).on('input keyup change', '#assignPppSearch', renderAssignPppSecrets);
+    $(document).on('change', '#assignPppRouter', function() {
+        assignPppRouterId = $(this).val();
+        loadAssignPppSecrets();
+    });
     $(document).on('click', '#assignPppRefresh', loadAssignPppSecrets);
     $(document).on('click', '#assignPppStatusFilter .btn', function() {
         $('#assignPppStatusFilter .btn').removeClass('active');
@@ -839,7 +855,7 @@ $(function() {
             confirmButtonText: 'Ya, Assign', cancelButtonText: 'Batal',
             showLoaderOnConfirm: true,
             preConfirm: () => $.post(`{{ url('admin/customers') }}/${assignPppCustomerId}/assign-ppp-secret`, {
-                _token: '{{ csrf_token() }}', secret_name: secret.name
+                _token: '{{ csrf_token() }}', secret_name: secret.name, router_id: assignPppRouterId
             }).catch(xhr => Swal.showValidationMessage(xhr.responseJSON?.message || 'Gagal melakukan assign')),
             allowOutsideClick: () => !Swal.isLoading()
         }).then(function(result) {

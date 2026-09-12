@@ -20,6 +20,7 @@ Tanggal pembaruan: 12 September 2026 (WIB)
 - Admin dapat membuka daftar PPP Secret dari router pelanggan, mencari berdasarkan username/profile/comment, memfilter status, lalu mengaitkan secret yang sudah ada ke pelanggan tanpa membuat duplikat di MikroTik.
 - Sistem menyimpan username, password terenkripsi, ID secret, comment, status MikroTik, dan waktu sinkronisasi ke data pelanggan.
 - Assign ditolak jika PPP Secret sudah terhubung ke pelanggan lain; seluruh tindakan dicatat pada activity log.
+- Modal menyediakan pilihan router: admin POP hanya melihat router aktif milik POP-nya, sedangkan superadmin dapat memilih seluruh router aktif.
 
 ## Perpindahan VM
 
