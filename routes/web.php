@@ -278,6 +278,7 @@ Route::prefix('admin')->middleware(['auth', 'role:superadmin|admin|admin-pop|tek
         Route::get('/{customer}/password', [CustomerController::class, 'getPassword'])->name('password');
         Route::post('/{customer}/status', [CustomerController::class, 'changeStatus'])->name('change-status');
         Route::post('/{customer}/sync-mikrotik', [CustomerController::class, 'syncMikrotik'])->name('sync-mikrotik');
+        Route::post('/{customer}/assign-ppp-secret', [CustomerController::class, 'assignPppSecret'])->name('assign-ppp-secret');
         Route::post('/{customer}/isolir', [CustomerController::class, 'isolir'])->name('isolir');
         Route::post('/{customer}/buka-isolir', [CustomerController::class, 'bukaIsolir'])->name('buka-isolir');
         Route::post('/{customer}/generate-portal', [CustomerController::class, 'generatePortalAccount'])->name('generate-portal');

@@ -38,7 +38,7 @@ class CustomerController extends Controller implements HasMiddleware
         return [
             new Middleware('permission:customers.view', only: ['index', 'show', 'getData']),
             new Middleware('permission:customers.create', only: ['create', 'store', 'import', 'processImport', 'previewImport', 'downloadTemplate']),
-            new Middleware('permission:customers.edit', only: ['edit', 'update', 'syncMikrotik', 'bulkToggleAutoIsolir', 'isolir', 'bukaIsolir', 'matchAcsDevice', 'updateWifi']),
+            new Middleware('permission:customers.edit', only: ['edit', 'update', 'syncMikrotik', 'assignPppSecret', 'bulkToggleAutoIsolir', 'isolir', 'bukaIsolir', 'matchAcsDevice', 'updateWifi']),
             new Middleware('permission:customers.delete', only: ['destroy']),
         ];
     }
@@ -933,6 +933,91 @@ class CustomerController extends Controller implements HasMiddleware
         return response()->json([
             'success' => true,
             'message' => 'Status pelanggan berhasil diubah',
+        ]);
+    }
+
+    /**
+     * Assign an existing PPP Secret from the customer's MikroTik router.
+     */
+    public function assignPppSecret(Request $request, Customer $customer)
+    {
+        $this->authorizeCustomer($customer);
+
+        $request->validate([
+            'secret_name' => 'required|string|max:255',
+        ]);
+
+        $router = $customer->router;
+        if (!$router) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pelanggan belum memiliki router MikroTik.',
+            ], 422);
+        }
+
+        $mikrotik = new MikrotikService();
+        if (!$mikrotik->connectRouter($router)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tidak dapat terhubung ke router MikroTik.',
+            ], 502);
+        }
+
+        $secret = $mikrotik->getPppSecretByName($request->string('secret_name')->toString());
+        if (!$secret) {
+            return response()->json([
+                'success' => false,
+                'message' => 'PPP Secret tidak ditemukan di router.',
+            ], 404);
+        }
+
+        $username = (string) ($secret['name'] ?? '');
+        if ($username === '') {
+            return response()->json([
+                'success' => false,
+                'message' => 'PPP Secret tidak memiliki username yang valid.',
+            ], 422);
+        }
+
+        $alreadyAssigned = Customer::where('pppoe_username', $username)
+            ->where('id', '!=', $customer->getKey())
+            ->first();
+
+        if ($alreadyAssigned) {
+            return response()->json([
+                'success' => false,
+                'message' => "PPP Secret '{$username}' sudah dipakai pelanggan {$alreadyAssigned->name}.",
+            ], 409);
+        }
+
+        $disabled = ($secret['disabled'] ?? false) === true
+            || strtolower((string) ($secret['disabled'] ?? 'false')) === 'true';
+
+        $data = [
+            'pppoe_username' => $username,
+            'previous_pppoe_username' => null,
+            'service_type' => 'pppoe',
+            'mikrotik_secret_id' => $secret['.id'] ?? null,
+            'mikrotik_comment' => $secret['comment'] ?? null,
+            'mikrotik_status' => $disabled ? 'disabled' : 'enabled',
+            'mikrotik_synced' => true,
+            'mikrotik_synced_at' => now(),
+            'last_sync_error' => null,
+            'updated_by' => auth()->id(),
+        ];
+
+        if (array_key_exists('password', $secret)) {
+            $data['pppoe_password'] = $secret['password'] ?? '';
+        }
+
+        $customer->update($data);
+        $this->activityLog->log('customers', "Assign PPP Secret '{$username}' ke pelanggan {$customer->name} dari router {$router->name}");
+
+        return response()->json([
+            'success' => true,
+            'message' => "PPP Secret '{$username}' berhasil di-assign ke pelanggan.",
+            'username' => $username,
+            'router' => $router->name,
         ]);
     }
 

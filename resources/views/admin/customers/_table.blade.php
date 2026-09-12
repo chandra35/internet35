@@ -139,16 +139,30 @@
                     @endif
                 </td>
                 <td>
-                    @if($customer->pppoe_username)
                     <div class="d-flex align-items-center">
+                    @if($customer->pppoe_username)
                         <code style="font-size:0.76rem;background:transparent;color:#495057;">{{ $customer->pppoe_username }}</code>
                         <button type="button" class="btn btn-action btn-outline-warning ml-1 btn-show-password" data-id="{{ $customer->id }}" title="Lihat Password">
                             <i class="fas fa-key"></i>
                         </button>
-                    </div>
+                        @can('customers.edit')
+                        @if($customer->router_id)
+                            <button type="button" class="btn btn-action btn-outline-primary ml-1 btn-assign-ppp-secret" data-id="{{ $customer->id }}" data-name="{{ $customer->name }}" data-router="{{ $customer->router_id }}" title="Assign PPP Secret dari MikroTik">
+                                <i class="fas fa-link"></i>
+                            </button>
+                        @endif
+                        @endcan
                     @else
+                        @can('customers.edit')
+                        @if($customer->router_id)
+                            <button type="button" class="btn btn-action btn-outline-primary ml-1 btn-assign-ppp-secret" data-id="{{ $customer->id }}" data-name="{{ $customer->name }}" data-router="{{ $customer->router_id }}" title="Assign PPP Secret dari MikroTik">
+                                <i class="fas fa-link"></i>
+                            </button>
+                        @endif
+                        @endcan
                     <span class="text-muted">—</span>
                     @endif
+                    </div>
                 </td>
                 <td>
                     <span class="badge badge-pill badge-{{ $customer->status_color }}" style="font-size:0.71rem;padding:4px 9px;">{{ $customer->status_label }}</span>

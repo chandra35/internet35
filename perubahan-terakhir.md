@@ -12,6 +12,15 @@ Tanggal pembaruan: 12 September 2026 (WIB)
 - Memperbaiki binding event pencarian agar tetap aktif pada modal yang dirender ulang, menormalkan karakter beraksen, dan mengurutkan username secara alfabetis/numerik.
 - Validasi: `php artisan view:cache` dan `git diff --check` berhasil.
 
+## Assign PPP Secret dari Daftar Pelanggan
+
+Tanggal pembaruan: 12 September 2026 (WIB)
+
+- Menambahkan tombol **Assign PPP Secret** pada kolom PPPoE di daftar pelanggan.
+- Admin dapat membuka daftar PPP Secret dari router pelanggan, mencari berdasarkan username/profile/comment, memfilter status, lalu mengaitkan secret yang sudah ada ke pelanggan tanpa membuat duplikat di MikroTik.
+- Sistem menyimpan username, password terenkripsi, ID secret, comment, status MikroTik, dan waktu sinkronisasi ke data pelanggan.
+- Assign ditolak jika PPP Secret sudah terhubung ke pelanggan lain; seluruh tindakan dicatat pada activity log.
+
 ## Perpindahan VM
 
 - VM aplikasi dipindahkan dari `172.10.10.253` ke `172.16.2.4`.

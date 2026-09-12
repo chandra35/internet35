@@ -259,6 +259,47 @@
     </div>
 </div>
 @endif
+
+{{-- Assign an existing PPP Secret directly from the customer's MikroTik router. --}}
+<div class="modal fade" id="assignPppSecretModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="fas fa-link mr-2"></i>Assign PPP Secret ke Pelanggan</h5>
+                <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="p-3 border-bottom bg-light">
+                    <div class="small text-muted mb-2">Pelanggan: <strong id="assignPppCustomerName">-</strong></div>
+                    <div class="input-group">
+                        <div class="input-group-prepend"><span class="input-group-text"><i class="fas fa-search"></i></span></div>
+                        <input type="text" class="form-control" id="assignPppSearch" placeholder="Cari username, profile, atau comment...">
+                        <div class="input-group-append"><button type="button" class="btn btn-outline-secondary" id="assignPppRefresh" title="Refresh"><i class="fas fa-sync-alt"></i></button></div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-2">
+                        <small class="text-muted" id="assignPppCount">-</small>
+                        <div class="btn-group btn-group-sm" id="assignPppStatusFilter">
+                            <button type="button" class="btn btn-outline-secondary active" data-filter="all">Semua</button>
+                            <button type="button" class="btn btn-outline-success" data-filter="active">Aktif</button>
+                            <button type="button" class="btn btn-outline-danger" data-filter="disabled">Disabled</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="assignPppLoading" class="text-center py-5 d-none"><i class="fas fa-spinner fa-spin fa-2x text-primary mb-3"></i><p class="text-muted">Memuat PPP Secret dari router...</p></div>
+                <div id="assignPppError" class="text-center py-5 d-none"><i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i><p class="text-danger" id="assignPppErrorText">Gagal memuat data</p></div>
+                <div id="assignPppEmpty" class="text-center py-5 d-none"><i class="fas fa-inbox fa-3x text-muted mb-3"></i><p class="text-muted">Tidak ada PPP Secret ditemukan</p></div>
+                <div id="assignPppTableWrap" class="table-responsive d-none" style="max-height:430px;overflow-y:auto;">
+                    <table class="table table-hover table-sm mb-0">
+                        <thead class="thead-light" style="position:sticky;top:0;z-index:1;"><tr><th>Username</th><th>Profile</th><th>Comment</th><th>Status</th><th class="text-center">Aksi</th></tr></thead>
+                        <tbody id="assignPppTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer justify-content-between"><small class="text-muted"><i class="fas fa-info-circle mr-1"></i>Secret yang dipilih akan dikaitkan ke data pelanggan ini.</small><button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button></div>
+        </div>
+    </div>
+</div>
+
 @endsection
 
 @push('js')
@@ -689,6 +730,123 @@ $(function() {
                         });
                     }
                 });
+            }
+        });
+    });
+
+    // Assign an existing PPP Secret to a customer from the list.
+    let assignPppCustomerId = null;
+    let assignPppRouterId = null;
+    let assignPppSecrets = [];
+
+    function normalizeAssignPppSearch(value) {
+        return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+    }
+
+    function escapeAssignPppHtml(value) {
+        const div = document.createElement('div');
+        div.textContent = value == null ? '' : String(value);
+        return div.innerHTML;
+    }
+
+    function renderAssignPppSecrets() {
+        const query = normalizeAssignPppSearch($('#assignPppSearch').val());
+        const status = $('#assignPppStatusFilter .btn.active').data('filter') || 'all';
+        let visible = 0;
+        let html = '';
+
+        assignPppSecrets.forEach((secret, index) => {
+            const name = String(secret.name || '');
+            const profile = String(secret.profile || '');
+            const comment = String(secret.comment || '');
+            const disabled = secret.disabled === true || String(secret.disabled).toLowerCase() === 'true';
+            const haystack = normalizeAssignPppSearch(`${name} ${profile} ${comment}`);
+            const matches = (!query || haystack.includes(query))
+                && (status === 'all' || (status === 'disabled' ? disabled : !disabled));
+
+            if (!matches) return;
+            visible++;
+            html += `<tr>
+                <td><strong>${escapeAssignPppHtml(name || '-')}</strong></td>
+                <td><span class="badge badge-info">${escapeAssignPppHtml(profile || '-')}</span></td>
+                <td class="text-muted small">${escapeAssignPppHtml(comment || '-')}</td>
+                <td>${disabled ? '<span class="badge badge-danger">Disabled</span>' : '<span class="badge badge-success">Aktif</span>'}</td>
+                <td class="text-center"><button type="button" class="btn btn-sm btn-primary btn-confirm-assign-ppp" data-index="${index}"><i class="fas fa-check mr-1"></i>Pilih</button></td>
+            </tr>`;
+        });
+
+        $('#assignPppTableBody').html(html);
+        $('#assignPppCount').text(`${visible} dari ${assignPppSecrets.length} PPP Secret`);
+        $('#assignPppTableWrap').toggleClass('d-none', visible === 0);
+        $('#assignPppEmpty').toggleClass('d-none', visible !== 0 || assignPppSecrets.length === 0);
+    }
+
+    function loadAssignPppSecrets() {
+        $('#assignPppLoading').removeClass('d-none');
+        $('#assignPppError, #assignPppEmpty, #assignPppTableWrap').addClass('d-none');
+        $('#assignPppCount').text('Memuat...');
+
+        $.get(`{{ url('admin/routers') }}/${assignPppRouterId}/ppp-secrets`)
+            .done(function(response) {
+                if (!response.success) {
+                    $('#assignPppErrorText').text(response.message || 'Gagal memuat PPP Secret');
+                    $('#assignPppError').removeClass('d-none');
+                    return;
+                }
+                assignPppSecrets = (response.secrets || []).slice().sort((a, b) =>
+                    String(a.name || '').localeCompare(String(b.name || ''), undefined, { numeric: true, sensitivity: 'base' })
+                );
+                if (!assignPppSecrets.length) {
+                    $('#assignPppEmpty').removeClass('d-none');
+                    $('#assignPppCount').text('0 PPP Secret');
+                } else {
+                    renderAssignPppSecrets();
+                }
+            })
+            .fail(function(xhr) {
+                $('#assignPppErrorText').text(xhr.responseJSON?.message || 'Gagal terhubung ke router');
+                $('#assignPppError').removeClass('d-none');
+            })
+            .always(function() { $('#assignPppLoading').addClass('d-none'); });
+    }
+
+    $(document).on('click', '.btn-assign-ppp-secret', function() {
+        assignPppCustomerId = $(this).data('id');
+        assignPppRouterId = $(this).data('router');
+        $('#assignPppCustomerName').text($(this).data('name') || '-');
+        $('#assignPppSearch').val('');
+        $('#assignPppStatusFilter .btn').removeClass('active').first().addClass('active');
+        $('#assignPppSecretModal').modal('show');
+        loadAssignPppSecrets();
+    });
+
+    $(document).on('input keyup change', '#assignPppSearch', renderAssignPppSecrets);
+    $(document).on('click', '#assignPppRefresh', loadAssignPppSecrets);
+    $(document).on('click', '#assignPppStatusFilter .btn', function() {
+        $('#assignPppStatusFilter .btn').removeClass('active');
+        $(this).addClass('active');
+        renderAssignPppSecrets();
+    });
+
+    $(document).on('click', '.btn-confirm-assign-ppp', function() {
+        const secret = assignPppSecrets[Number($(this).data('index'))];
+        if (!secret || !assignPppCustomerId) return;
+
+        Swal.fire({
+            title: 'Assign PPP Secret?',
+            html: `Username <strong>${escapeAssignPppHtml(secret.name)}</strong> akan dikaitkan ke pelanggan <strong>${escapeAssignPppHtml($('#assignPppCustomerName').text())}</strong>.`,
+            icon: 'question', showCancelButton: true,
+            confirmButtonText: 'Ya, Assign', cancelButtonText: 'Batal',
+            showLoaderOnConfirm: true,
+            preConfirm: () => $.post(`{{ url('admin/customers') }}/${assignPppCustomerId}/assign-ppp-secret`, {
+                _token: '{{ csrf_token() }}', secret_name: secret.name
+            }).catch(xhr => Swal.showValidationMessage(xhr.responseJSON?.message || 'Gagal melakukan assign')),
+            allowOutsideClick: () => !Swal.isLoading()
+        }).then(function(result) {
+            if (result.isConfirmed && result.value?.success) {
+                $('#assignPppSecretModal').modal('hide');
+                toastr.success(result.value.message);
+                setTimeout(() => location.reload(), 500);
             }
         });
     });
