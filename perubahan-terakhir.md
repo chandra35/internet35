@@ -22,6 +22,7 @@ Tanggal pembaruan: 12 September 2026 (WIB)
 - Assign ditolak jika PPP Secret sudah terhubung ke pelanggan lain; seluruh tindakan dicatat pada activity log.
 - Modal menyediakan pilihan router: admin POP hanya melihat router aktif milik POP-nya, sedangkan superadmin dapat memilih seluruh router aktif.
 - Memperbaiki tombol **Pilih** agar satu klik langsung membuka konfirmasi dan mencegah event klik ganda/bubbling memicu perilaku tidak konsisten.
+- Pemicu konfirmasi dipindahkan ke `mousedown` agar klik pertama tidak terserap oleh fokus/overlay modal.
 
 ## Perpindahan VM
 

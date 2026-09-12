@@ -844,7 +844,9 @@ $(function() {
         renderAssignPppSecrets();
     });
 
-    $(document).on('click', '.btn-confirm-assign-ppp', function(e) {
+    // Use mousedown so the first pointer interaction is handled before any
+    // Bootstrap modal/overlay focus handling can consume the click.
+    $(document).on('mousedown', '.btn-confirm-assign-ppp', function(e) {
         e.preventDefault();
         e.stopImmediatePropagation();
 
