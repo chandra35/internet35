@@ -44,6 +44,16 @@
     .customer-fact:last-child { border-bottom: 0; }
     .customer-fact i { width: 18px; color: #2875c5; text-align: center; }
     .quick-action { border-radius: 9px; min-height: 43px; font-weight: 600; }
+    .billing-overview { border: 0; border-radius: 14px; box-shadow: 0 5px 20px rgba(26, 53, 94, .07); }
+    .billing-overview .metric { border-right: 1px solid #edf1f6; padding: 15px 18px; }
+    .billing-overview .metric:last-child { border-right: 0; }
+    .metric-label { color: #7c8b9c; font-size: .72rem; text-transform: uppercase; letter-spacing: .45px; font-weight: 700; }
+    .metric-value { color: #26384e; font-size: 1.05rem; font-weight: 700; margin-top: 3px; }
+    .period-banner { background: linear-gradient(135deg, #eef6ff, #f7fbff); border: 1px solid #d8e9fb; border-radius: 10px; padding: 13px 16px; }
+    .empty-state { padding: 28px 20px 30px; }
+    .empty-state .empty-icon { width: 58px; height: 58px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: #e9f8ee; color: #28a745; font-size: 1.65rem; }
+    .recent-payment { border-bottom: 1px solid #edf1f6; padding: 10px 0; }
+    .recent-payment:last-child { border-bottom: 0; }
     @media (max-width: 991.98px) { .customer-panel { position: static; } }
     @media (max-width: 767.98px) {
         .payment-table thead { display: none; }
@@ -64,7 +74,17 @@
 @php
     $initial = strtoupper(mb_substr($customer->name, 0, 1));
     $outstandingTotal = $invoices->sum(fn ($invoice) => $invoice->remaining_amount);
+    $packageName = $customer->package?->name ?: 'Belum ada paket';
+    $periodLabel = $currentPeriodStart->translatedFormat('d M Y') . ' – ' . $currentPeriodEnd->translatedFormat('d M Y');
 @endphp
+<div class="card billing-overview mb-4">
+    <div class="row no-gutters">
+        <div class="col-md-3 metric"><div class="metric-label">Status Pelanggan</div><div class="metric-value"><span class="badge badge-{{ $customer->status_color }}">{{ $customer->status_label }}</span></div></div>
+        <div class="col-md-3 metric"><div class="metric-label">Paket Layanan</div><div class="metric-value">{{ $packageName }}</div></div>
+        <div class="col-md-3 metric"><div class="metric-label">Siklus Billing</div><div class="metric-value">Tanggal {{ $billingDay }}</div></div>
+        <div class="col-md-3 metric"><div class="metric-label">Total Belum Bayar</div><div class="metric-value {{ $outstandingTotal > 0 ? 'text-danger' : 'text-success' }}">Rp {{ number_format($outstandingTotal, 0, ',', '.') }}</div></div>
+    </div>
+</div>
 <div class="row">
     <div class="col-lg-8">
         <form id="paymentForm" method="POST" action="{{ route('admin.payments.store', $customer) }}">
@@ -76,7 +96,12 @@
                 </div>
                 <div class="card-body p-0">
                     @if($invoices->isEmpty())
-                    <div class="text-center py-5"><i class="fas fa-check-circle text-success fa-2x mb-2"></i><p class="mb-0 text-muted">Tidak ada tunggakan yang dapat dibayarkan.</p></div>
+                    <div class="text-center empty-state">
+                        <div class="empty-icon mb-3"><i class="fas fa-check"></i></div>
+                        <h5 class="mb-1">Tidak ada tagihan belum bayar</h5>
+                        <p class="text-muted mb-3">Semua invoice pelanggan ini sudah lunas atau belum dibuat.</p>
+                        <div class="period-banner text-left d-inline-block"><div class="metric-label">Periode billing berjalan</div><strong>{{ $periodLabel }}</strong><br><small class="text-muted">Jatuh tempo: tanggal {{ $billingDay }} setiap bulan</small><span class="ml-2 badge badge-{{ $currentInvoice ? $currentInvoice->status_color : 'secondary' }}">{{ $currentInvoice ? $currentInvoice->status_label : 'Invoice belum dibuat' }}</span></div>
+                    </div>
                     @else
                     <div class="table-responsive">
                         <table class="table payment-table mb-0">
@@ -127,7 +152,17 @@
                 <div class="d-flex align-items-center mb-3"><div class="customer-avatar mr-3">{{ $initial }}</div><div><h5 class="mb-1">{{ $customer->name }}</h5><div class="customer-id">{{ $customer->customer_id }}</div></div></div>
                 <div class="customer-fact"><i class="fas fa-phone"></i><span>{{ $customer->phone ?: '—' }}</span></div>
                 <div class="customer-fact"><i class="fas fa-user-tag"></i><span>{{ $customer->pppoe_username ?: 'Tanpa PPPoE' }}</span></div>
+                <div class="customer-fact"><i class="fas fa-wifi"></i><span>{{ $packageName }}</span></div>
+                <div class="customer-fact"><i class="fas fa-calendar-alt"></i><span>Billing setiap tanggal {{ $billingDay }}</span></div>
                 <div class="customer-fact"><i class="fas fa-file-invoice-dollar"></i><span><strong>{{ $invoices->count() }}</strong> invoice belum lunas</span></div>
+            </div></div>
+            <div class="card payment-card mb-3"><div class="card-body">
+                <h6 class="font-weight-bold mb-2"><i class="fas fa-history text-primary mr-2"></i>Pembayaran Terakhir</h6>
+                @forelse($recentPayments as $payment)
+                <div class="recent-payment d-flex justify-content-between align-items-start"><div><strong>Rp {{ number_format($payment->amount, 0, ',', '.') }}</strong><br><small class="text-muted">{{ $payment->paid_at?->format('d/m/Y H:i') }} · {{ $payment->invoice?->invoice_number ?: 'Pembayaran' }}</small></div><span class="badge badge-success">Berhasil</span></div>
+                @empty
+                <small class="text-muted">Belum ada riwayat pembayaran.</small>
+                @endforelse
             </div></div>
             @if($missingPeriodCount > 0)
             @can('invoices.edit')

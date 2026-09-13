@@ -139,10 +139,27 @@ class PaymentController extends Controller implements HasMiddleware
         $invoices = $this->unpaidInvoices($customer)->get();
         $popSetting = PopSetting::where('user_id', $popId)->first();
         $missingPeriodCount = $this->missingPeriodStarts($customer)->count();
+        $customer->loadMissing('package');
+        $billingDay = min(28, max(1, (int) ($customer->billing_day ?: 1)));
+        $currentPeriodStart = now()->startOfMonth()->setDay($billingDay);
+        if ($billingDay > now()->day) {
+            $currentPeriodStart->subMonthNoOverflow();
+        }
+        $currentPeriodEnd = $currentPeriodStart->copy()->addMonthNoOverflow()->subDay();
+        $currentInvoice = $customer->invoices()
+            ->whereDate('period_start', $currentPeriodStart)
+            ->whereDate('period_end', $currentPeriodEnd)
+            ->first();
+        $recentPayments = $customer->payments()
+            ->where('status', 'success')
+            ->with('invoice')
+            ->latest('paid_at')
+            ->limit(5)
+            ->get();
         $selectedPeriod = (string) $request->input('period', '');
         $selectedPeriod = preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $selectedPeriod) ? $selectedPeriod : null;
 
-        return view('admin.payments.show', compact('customer', 'invoices', 'popId', 'popSetting', 'missingPeriodCount', 'selectedPeriod'));
+        return view('admin.payments.show', compact('customer', 'invoices', 'popId', 'popSetting', 'missingPeriodCount', 'selectedPeriod', 'billingDay', 'currentPeriodStart', 'currentPeriodEnd', 'currentInvoice', 'recentPayments'));
     }
 
     /**

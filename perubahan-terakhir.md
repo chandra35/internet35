@@ -14,6 +14,16 @@ Tanggal pembaruan: 13 September 2026 (WIB)
 - Keterangan pengaturan POP dan scheduler disesuaikan dengan kebijakan invoice awal bulan.
 - Validasi lokal: `php -l` controller/command, `php artisan route:list --name=admin.payments`, `php artisan view:cache`, dan `git diff --check` berhasil.
 
+## UI Detail Pembayaran
+
+Tanggal pembaruan: 13 September 2026 (WIB)
+
+- Rebuild halaman detail proses pembayaran agar lebih informatif ketika pelanggan belum memiliki tunggakan.
+- Menambahkan ringkasan status pelanggan, paket layanan, tanggal billing, total belum bayar, periode billing berjalan, dan status invoice periode berjalan.
+- Menambahkan kartu riwayat pembayaran terakhir serta informasi paket dan billing day pada panel pelanggan.
+- Empty state sekarang menjelaskan apakah semua tagihan sudah lunas atau invoice periode berjalan belum dibuat.
+- Validasi lokal: `php -l`, `php artisan view:cache`, dan `git diff --check` berhasil.
+
 ## Modal Browse PPP Secret
 
 Tanggal pembaruan: 12 September 2026 (WIB)
