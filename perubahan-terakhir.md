@@ -40,6 +40,14 @@ Tanggal pembaruan: 13 September 2026 (WIB)
 - Mengaktifkan task scheduler harian untuk generate invoice, auto-isolir, dan auto-buka-isolir di VM produksi.
 - Validasi: dry-run command billing dan `php artisan schedule:list` dilakukan setelah deploy.
 
+## Mode Observasi Billing
+
+Tanggal pembaruan: 13 September 2026 (WIB)
+
+- Menonaktifkan sementara task **Auto Buka Isolir Pelanggan** agar tidak ada perubahan otomatis ke MikroTik selama masa observasi.
+- Deskripsi task diberi penanda **MODE OBSERVASI** agar terlihat di menu Scheduler dan menjadi pengingat untuk mengaktifkannya kembali setelah observasi selesai.
+- Generate invoice dan auto-isolir tetap aktif; auto-isolir tetap dibatasi oleh flag `auto_isolir` masing-masing pelanggan.
+
 ## Modal Browse PPP Secret
 
 Tanggal pembaruan: 12 September 2026 (WIB)
