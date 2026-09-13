@@ -24,6 +24,14 @@ Tanggal pembaruan: 13 September 2026 (WIB)
 - Empty state sekarang menjelaskan apakah semua tagihan sudah lunas atau invoice periode berjalan belum dibuat.
 - Validasi lokal: `php -l`, `php artisan view:cache`, dan `git diff --check` berhasil.
 
+## Sinkronisasi Router Saat Assign PPP Secret
+
+Tanggal pembaruan: 13 September 2026 (WIB)
+
+- Memperbaiki assign PPP Secret dari daftar pelanggan agar `router_id` pelanggan ikut disimpan berdasarkan router yang dipilih pada modal assign.
+- Halaman edit pelanggan dan operasi MikroTik berikutnya kini menggunakan router yang sama dengan router sumber PPP Secret.
+- Validasi lokal: `php -l` dan `git diff --check` berhasil.
+
 ## Modal Browse PPP Secret
 
 Tanggal pembaruan: 12 September 2026 (WIB)

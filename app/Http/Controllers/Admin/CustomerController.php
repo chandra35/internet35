@@ -1008,6 +1008,10 @@ class CustomerController extends Controller implements HasMiddleware
             || strtolower((string) ($secret['disabled'] ?? 'false')) === 'true';
 
         $data = [
+            // The router chosen in the assign modal is the source of truth.
+            // Keep it in sync so the customer edit form and later MikroTik
+            // operations use the same router as the assigned PPP Secret.
+            'router_id' => $router->id,
             'pppoe_username' => $username,
             'previous_pppoe_username' => null,
             'service_type' => 'pppoe',
