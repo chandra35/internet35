@@ -179,7 +179,7 @@
                         <i class="fas fa-check-circle text-success mr-2"></i> Aktifkan
                     </a>
                     <a class="dropdown-item btn-change-status" href="#" data-status="suspended">
-                        <i class="fas fa-ban text-warning mr-2"></i> Suspend
+                        <i class="fas fa-ban text-warning mr-2"></i> Terisolir
                     </a>
                     <a class="dropdown-item btn-change-status" href="#" data-status="terminated">
                         <i class="fas fa-times-circle text-danger mr-2"></i> Terminasi
@@ -568,7 +568,7 @@
             <div class="card-body">
                 @if($customer->suspended_at)
                 <div class="timeline-item">
-                    <strong class="text-warning">Suspend</strong><br>
+                    <strong class="text-warning">Terisolir</strong><br>
                     <small class="text-muted">{{ $customer->suspended_at->format('d M Y H:i') }}</small>
                     @if($customer->suspend_reason)
                     <p class="mb-0 mt-1">{{ $customer->suspend_reason }}</p>
@@ -882,7 +882,7 @@ $(function() {
     $('.btn-change-status').on('click', function(e) {
         e.preventDefault();
         const status = $(this).data('status');
-        const statusLabel = status === 'active' ? 'Aktifkan' : (status === 'suspended' ? 'Suspend' : 'Terminasi');
+        const statusLabel = status === 'active' ? 'Aktifkan' : (status === 'suspended' ? 'Terisolir' : 'Terminasi');
         
         let html = `<p>Ubah status menjadi <strong>${statusLabel}</strong>?</p>`;
         if (status !== 'active') {

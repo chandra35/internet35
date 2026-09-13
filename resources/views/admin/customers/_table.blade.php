@@ -234,7 +234,7 @@
                                 <i class="fas fa-check-circle text-success mr-2"></i> Aktifkan
                             </a>
                             <a class="dropdown-item btn-change-status" href="#" data-id="{{ $customer->id }}" data-status="suspended">
-                                <i class="fas fa-ban text-warning mr-2"></i> Suspend
+                                <i class="fas fa-ban text-warning mr-2"></i> Terisolir
                             </a>
                             @if($customer->router_id && $customer->pppoe_username)
                             <div class="dropdown-divider"></div>

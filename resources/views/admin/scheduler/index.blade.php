@@ -433,7 +433,7 @@
                                {{ $autoUnsuspendTask?->is_enabled ? 'checked' : '' }}>
                         <label class="custom-control-label" for="autoUnsuspendEnabled">Aktifkan auto buka isolir</label>
                     </div>
-                    <small class="text-muted d-block mt-2">Hanya pelanggan <code>suspended</code> tanpa invoice <code>pending</code> atau <code>overdue</code> yang diproses.</small>
+                    <small class="text-muted d-block mt-2">Hanya pelanggan <strong>Terisolir</strong> (status internal <code>suspended</code>) tanpa invoice belum lunas yang diproses.</small>
                 </div>
                 <div class="col-md-2 mt-3 mt-md-0 text-md-right">
                     <button type="submit" class="btn btn-primary btn-sm">

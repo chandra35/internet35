@@ -145,7 +145,7 @@ class Customer extends Model
         return [
             'pending' => 'Pending',
             'active' => 'Aktif',
-            'suspended' => 'Suspend',
+            'suspended' => 'Terisolir',
             'terminated' => 'Terminated',
             'expired' => 'Expired',
         ];

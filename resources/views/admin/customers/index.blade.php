@@ -164,8 +164,8 @@
         <a href="{{ route('admin.customers.index', array_merge($popId ? ['pop_id' => $popId] : [], ['status' => 'suspended'])) }}" class="stat-card stat-red">
             <i class="fas fa-ban sc-icon"></i>
             <div class="sc-value">{{ number_format($stats['suspended']) }}</div>
-            <div class="sc-label">Suspended</div>
-            <span class="sc-link">Filter suspended →</span>
+            <div class="sc-label">Terisolir</div>
+            <span class="sc-link">Filter terisolir →</span>
         </a>
     </div>
 </div>
@@ -884,12 +884,12 @@ $(function() {
         e.preventDefault();
         const id = $(this).data('id');
         const status = $(this).data('status');
-        const statusLabel = status === 'active' ? 'Aktifkan' : (status === 'suspended' ? 'Suspend' : status);
+        const statusLabel = status === 'active' ? 'Aktifkan' : (status === 'suspended' ? 'Terisolir' : status);
         
         let html = `<p>Ubah status pelanggan menjadi <strong>${statusLabel}</strong>?</p>`;
         if (status === 'suspended') {
             html += `<div class="form-group text-left">
-                <label>Alasan Suspend:</label>
+                <label>Alasan terisolir:</label>
                 <textarea id="suspendReason" class="form-control" rows="2" placeholder="Opsional..."></textarea>
             </div>`;
         }

@@ -171,3 +171,11 @@ git diff --check
 ## Catatan keamanan
 
 `INTERNET.md` adalah pedoman internal yang memuat kredensial/topologi. File tersebut sengaja diabaikan Git dan tidak termasuk commit/push. Gunakan hanya dari workspace atau penyimpanan internal terenkripsi.
+
+## Penyatuan Istilah Status Layanan
+
+Tanggal pembaruan: 13 September 2026 (WIB)
+
+- Status database `suspended` sekarang ditampilkan sebagai **Terisolir** pada halaman pelanggan dan form terkait.
+- Istilah **Auto Isolir** tetap digunakan khusus untuk pengaturan isolir otomatis (`auto_isolir`), bukan status layanan.
+- Logika internal, filter database, dan proses MikroTik tetap menggunakan nilai `suspended` agar alur teknis tidak berubah.
