@@ -2,6 +2,18 @@
 
 Tanggal: 27 Agustus 2026 (WIB)
 
+## Belum Bayar dan Invoice Awal Bulan
+
+Tanggal pembaruan: 13 September 2026 (WIB)
+
+- Menu Pembayaran diubah menjadi **Belum Bayar** dan menampilkan seluruh pelanggan yang memiliki invoice `pending`, `partial`, atau `overdue`, termasuk tunggakan bulan sebelumnya secara akumulatif.
+- Kolom daftar dibuat ringkas; detail invoice, checkbox pembayaran, metode pembayaran, tanggal bayar, referensi, dan catatan dibuka melalui modal pelanggan.
+- Pembayaran tetap wajib memilih invoice tertentu sehingga setiap transaksi tetap terhubung ke periode tagihan yang benar.
+- Generator invoice otomatis sekarang membuat invoice pada proses awal bulan untuk seluruh pelanggan aktif/suspend yang memiliki paket, dengan periode dimulai pada `billing_day` masing-masing dan mencegah invoice periode ganda.
+- Opsi `--billing-day` tetap tersedia untuk generate manual satu tanggal billing; konfigurasi lama H-3 tidak lagi digunakan sebagai jadwal pembuatan invoice.
+- Keterangan pengaturan POP dan scheduler disesuaikan dengan kebijakan invoice awal bulan.
+- Validasi lokal: `php -l` controller/command, `php artisan route:list --name=admin.payments`, `php artisan view:cache`, dan `git diff --check` berhasil.
+
 ## Modal Browse PPP Secret
 
 Tanggal pembaruan: 12 September 2026 (WIB)

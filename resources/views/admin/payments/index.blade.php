@@ -1,7 +1,7 @@
 @extends('layouts.admin')
 
-@section('title', 'Pembayaran')
-@section('page-title', 'Pembayaran Pelanggan')
+@section('title', 'Belum Bayar')
+@section('page-title', 'Belum Bayar')
 
 @section('breadcrumb')
     <li class="breadcrumb-item"><a href="{{ route('admin.dashboard') }}">Dashboard</a></li>
@@ -24,6 +24,8 @@
     #paymentsTable_wrapper .dataTables_info { font-size: .78rem; color: #6c757d; padding-top: 0; }
     #paymentsTable_wrapper .pagination { margin: 0; }
     .payment-action { border-radius: 18px; white-space: nowrap; }
+    #paymentDetailModal .modal-dialog { max-width: 920px; }
+    #paymentDetailModal .modal-body { min-height: 220px; }
     @media (max-width: 767.98px) {
         #paymentsTable_wrapper .dataTables_info, #paymentsTable_wrapper .dataTables_paginate { float: none; text-align: center; margin: .5rem 0; }
         #paymentsTable thead { display: none; }
@@ -59,20 +61,11 @@
 <div class="alert alert-warning"><i class="fas fa-exclamation-triangle mr-2"></i>Pilih POP terlebih dahulu.</div>
 @else
 <div class="card card-payments shadow-sm">
-    <div class="card-header"><h3 class="card-title"><i class="fas fa-cash-register mr-2"></i>Daftar Tunggakan Pelanggan</h3></div>
+    <div class="card-header"><h3 class="card-title"><i class="fas fa-cash-register mr-2"></i>Daftar Belum Bayar</h3></div>
     <div class="card-body p-3">
         <div class="payment-filter-bar">
-            @php($paymentPeriods = collect(range(0, 11))->map(fn ($monthsAgo) => now()->startOfMonth()->subMonths($monthsAgo)))
             <div class="form-row align-items-end">
-                <div class="col-md-4 mb-2 mb-md-0">
-                    <label for="paymentPeriod" class="small font-weight-bold text-muted mb-1"><i class="far fa-calendar-alt mr-1"></i>Bulan Tagihan</label>
-                    <select id="paymentPeriod" class="form-control">
-                        @foreach($paymentPeriods as $period)
-                        <option value="{{ $period->format('Y-m') }}">{{ ucfirst($period->translatedFormat('F')) }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-md-8">
+                <div class="col-md-12">
                     <label for="paymentSearch" class="small font-weight-bold text-muted mb-1">Cari Pelanggan</label>
                     <div class="input-group">
                         <input type="search" id="paymentSearch" class="form-control" autocomplete="off" placeholder="&#xf002;  Cari nama, ID pelanggan, telepon, atau PPPoE...">
@@ -80,7 +73,7 @@
                     </div>
                 </div>
             </div>
-            <p class="text-muted small mb-0 mt-2">Menampilkan tunggakan pada bulan yang dipilih. Pilih bulan sebelumnya untuk menagih dan memproses tunggakan lama; detail tahun tersedia pada Invoice.</p>
+            <p class="text-muted small mb-0 mt-2">Menampilkan invoice bulan berjalan dan seluruh tunggakan sebelumnya yang belum lunas.</p>
         </div>
         <div class="table-responsive">
             <table id="paymentsTable" class="table table-hover mb-0">
@@ -91,6 +84,20 @@
     </div>
 </div>
 @endif
+
+<div class="modal fade" id="paymentDetailModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="fas fa-file-invoice-dollar mr-2"></i>Detail Belum Bayar</h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Tutup"><span aria-hidden="true">&times;</span></button>
+            </div>
+            <div class="modal-body" id="paymentDetailBody">
+                <div class="text-center text-muted py-5"><i class="fas fa-spinner fa-spin fa-2x"></i><div class="mt-2">Memuat detail...</div></div>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
 @push('js')
@@ -104,7 +111,7 @@ $(function () {
         lengthMenu: [[10, 20, 50, 100], [10, 20, 50, 100]],
         ajax: {
             url: '{{ route('admin.payments.data') }}',
-            data: function (data) { data.period = $('#paymentPeriod').val(); @if(auth()->user()->hasRole('superadmin')) data.pop_id = '{{ $popId }}'; @endif }
+            data: function (data) { @if(auth()->user()->hasRole('superadmin')) data.pop_id = '{{ $popId }}'; @endif }
         },
         columns: [
             {data: 'customer'}, {data: 'contact'}, {data: 'invoices'}, {data: 'due_date'},
@@ -127,7 +134,16 @@ $(function () {
         clearTimeout(searchTimer);
         searchTimer = setTimeout(function () { table.search(value).draw(); }, 350);
     });
-    $('#paymentPeriod').on('change', function () { table.search('').draw(); });
+    $('#paymentsTable').on('click', '.payment-detail', function () {
+        const url = $(this).data('url');
+        $('#paymentDetailBody').html('<div class="text-center text-muted py-5"><i class="fas fa-spinner fa-spin fa-2x"></i><div class="mt-2">Memuat detail...</div></div>');
+        $('#paymentDetailModal').modal('show');
+        $.get(url).done(function (html) {
+            $('#paymentDetailBody').html(html);
+        }).fail(function (xhr) {
+            $('#paymentDetailBody').html('<div class="alert alert-danger mb-0">Detail pembayaran tidak dapat dimuat. Silakan coba lagi.</div>');
+        });
+    });
 });
 </script>
 @endpush

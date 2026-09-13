@@ -76,16 +76,10 @@
                                 </div>
                                 <div class="col-12"><hr class="mt-0"></div>
                                 <div class="col-12"><h6 class="text-primary mb-3"><i class="fas fa-robot mr-1"></i>Otomasi Penagihan per POP</h6></div>
-                                <div class="col-md-4">
-                                    <div class="form-group">
-                                        <label>Invoice Muncul Sebelum Jatuh Tempo</label>
-                                        <div class="input-group">
-                                            <div class="input-group-prepend"><span class="input-group-text">H-</span></div>
-                                            <input type="number" name="invoice_generate_days_before_due" class="form-control"
-                                                   value="{{ $popSetting->invoice_generate_days_before_due ?? 3 }}" min="0" max="30">
-                                            <div class="input-group-append"><span class="input-group-text">hari</span></div>
-                                        </div>
-                                        <small class="text-muted">Default 3. Tanggal jatuh tempo tetap mengikuti <code>billing_day</code> pelanggan.</small>
+                                <div class="col-md-8">
+                                    <div class="alert alert-info py-2 mb-3">
+                                        <i class="fas fa-calendar-alt mr-1"></i>
+                                        Invoice otomatis dibuat pada proses awal bulan untuk seluruh pelanggan aktif sesuai <code>billing_day</code>. Jatuh tempo mengikuti tanggal billing pelanggan.
                                     </div>
                                 </div>
                                 <div class="col-md-4">

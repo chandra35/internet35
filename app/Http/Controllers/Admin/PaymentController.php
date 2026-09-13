@@ -68,7 +68,7 @@ class PaymentController extends Controller implements HasMiddleware
         return view('admin.payments.index', compact('popId', 'popUsers'));
     }
 
-    /** Server-side DataTable payload for customers with outstanding invoices. */
+    /** Server-side DataTable payload for all customers with cumulative arrears. */
     public function data(Request $request)
     {
         $popId = $this->getPopId($request);
@@ -78,14 +78,7 @@ class PaymentController extends Controller implements HasMiddleware
         $start = max(0, (int) $request->input('start', 0));
         $length = min(100, max(10, (int) $request->input('length', 20)));
         $search = trim((string) $request->input('search.value', ''));
-        $period = (string) $request->input('period', now()->format('Y-m'));
-        $period = preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $period) ? $period : now()->format('Y-m');
-        [$periodYear, $periodMonth] = array_map('intval', explode('-', $period));
-        $unpaid = function ($query) use ($periodYear, $periodMonth) {
-            return $query->whereIn('status', ['pending', 'partial', 'overdue'])
-                ->whereYear('period_start', $periodYear)
-                ->whereMonth('period_start', $periodMonth);
-        };
+        $unpaid = fn ($query) => $query->whereIn('status', ['pending', 'partial', 'overdue']);
 
         $baseQuery = Customer::query()->where('pop_id', $popId)->whereHas('invoices', $unpaid);
         $recordsTotal = (clone $baseQuery)->count();
@@ -109,7 +102,7 @@ class PaymentController extends Controller implements HasMiddleware
             'draw' => $draw,
             'recordsTotal' => $recordsTotal,
             'recordsFiltered' => $recordsFiltered,
-            'data' => $customers->map(function (Customer $customer) use ($period) {
+            'data' => $customers->map(function (Customer $customer) use ($popId) {
                 $firstInvoice = $customer->invoices->first();
                 $outstanding = $customer->invoices->sum(fn (CustomerInvoice $invoice) => $invoice->remaining_amount);
                 $dueDate = $firstInvoice?->due_date?->format('d/m/Y') ?? '—';
@@ -118,13 +111,23 @@ class PaymentController extends Controller implements HasMiddleware
                 return [
                     'customer' => '<strong>' . e($customer->name) . '</strong><br><small class="text-muted">' . e($customer->customer_id) . '</small>',
                     'contact' => e($customer->phone ?: '—') . '<br><small class="text-muted">' . e($customer->pppoe_username ?: '—') . '</small>',
-                    'invoices' => '<span class="badge badge-warning">' . $customer->invoices->count() . ' invoice</span>',
+                    'invoices' => '<span class="badge badge-warning">' . $customer->invoices->count() . ' invoice belum bayar</span>',
                     'due_date' => '<span class="' . $dueClass . '">' . e($dueDate) . '</span>',
                     'outstanding' => '<strong class="text-danger">Rp ' . number_format($outstanding, 0, ',', '.') . '</strong>',
-                    'action' => '<a class="btn btn-success btn-sm payment-action" href="' . route('admin.payments.show', ['customer' => $customer, 'period' => $period]) . '"><i class="fas fa-cash-register mr-1"></i><span>Proses Bayar</span></a>',
+                    'action' => '<button type="button" class="btn btn-success btn-sm payment-action payment-detail" data-url="' . e(route('admin.payments.modal', ['customer' => $customer, 'pop_id' => $popId])) . '"><i class="fas fa-cash-register mr-1"></i><span>Detail / Bayar</span></button>',
                 ];
             })->values(),
         ]);
+    }
+
+    /** Return the compact payment desk detail for the customer modal. */
+    public function modal(Request $request, Customer $customer)
+    {
+        $popId = $this->getPopId($request);
+        $this->ensureCustomerInPop($customer, $popId);
+
+        $invoices = $this->unpaidInvoices($customer)->get();
+        return view('admin.payments.modal', compact('customer', 'invoices', 'popId'));
     }
 
     /** Show all unpaid billing months for a single customer. */

@@ -253,7 +253,7 @@ class SchedulerController extends Controller implements HasMiddleware
         $task->fill([
             'name' => 'Generate Invoice Otomatis',
             'schedule' => $validated['schedule'],
-            'description' => 'Membuat invoice bulanan untuk pelanggan aktif sesuai billing_day. Invoice periode yang sama tidak dibuat dua kali.',
+            'description' => 'Membuat invoice awal bulan untuk pelanggan aktif sesuai billing_day. Invoice periode yang sama tidak dibuat dua kali.',
             'timeout' => 3600,
             'without_overlapping' => true,
             'run_in_background' => false,

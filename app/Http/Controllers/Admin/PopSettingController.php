@@ -198,7 +198,6 @@ class PopSettingController extends Controller implements HasMiddleware
             'user_id' => 'nullable|uuid|exists:users,id',
             'invoice_prefix' => 'required|string|max:20',
             'invoice_due_days' => 'required|integer|min:1|max:90',
-            'invoice_generate_days_before_due' => 'required|integer|min:0|max:30',
             'auto_isolir_grace_days' => 'required|integer|min:0|max:30',
             'auto_isolir_time' => 'required|date_format:H:i',
             'invoice_notes' => 'nullable|string|max:1000',

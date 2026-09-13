@@ -29,7 +29,7 @@ class BillingGenerate extends Command
      *
      * @var string
      */
-    protected $description = 'Generate monthly invoices H-n before each customer billing_day/due date';
+    protected $description = 'Generate invoice awal bulan untuk siklus billing masing-masing pelanggan';
 
     /**
      * Execute the console command.
@@ -55,58 +55,72 @@ class BillingGenerate extends Command
             $this->info("Processing POP: {$pop->name}");
             
             $popSetting = PopSetting::where('user_id', $pop->id)->first();
-            $leadDays = max(0, (int) ($popSetting?->invoice_generate_days_before_due ?? 3));
-            $dueDate = $requestedBillingDay
+            $requestedDueDate = $requestedBillingDay
                 ? Carbon::create(now()->year, now()->month, $requestedBillingDay)->startOfDay()
-                : now()->startOfDay()->addDays($leadDays);
+                : null;
 
-            if ($requestedBillingDay && $dueDate->lt(now()->startOfDay())) {
-                $dueDate->addMonth();
+            if ($requestedDueDate?->lt(now()->startOfDay())) {
+                $requestedDueDate->addMonth();
             }
-
-            $billingDay = $dueDate->day;
-            $periodStart = $dueDate->copy();
-            $periodEnd = $periodStart->copy()->addMonth()->subDay();
+            $currentMonth = now()->startOfMonth();
             
-            // Keep each monthly period running for active and suspended
-            // customers, so arrears are represented invoice-by-invoice per
-            // month instead of stopping at the first suspension.
-            // Also include customers with billing_day=NULL when processing day 1 (treat NULL as 1)
+            // Generate the whole current month's billing cycle in one run.
+            // A customer's period starts on its billing day, not necessarily
+            // on calendar day 1. --billing-day remains available for manual
+            // targeted generation/backfill.
             $customers = Customer::where('pop_id', $pop->id)
                 ->whereIn('status', ['active', 'suspended'])
                 ->whereNotNull('package_id')
-                ->where(function ($q) use ($billingDay) {
-                    $q->where('billing_day', $billingDay);
-                    if ($billingDay === 1) {
-                        $q->orWhereNull('billing_day');
-                    }
+                ->when($requestedBillingDay, function ($query) use ($requestedBillingDay) {
+                    $query->where(function ($q) use ($requestedBillingDay) {
+                        $q->where('billing_day', $requestedBillingDay);
+                        if ($requestedBillingDay === 1) {
+                            $q->orWhereNull('billing_day');
+                        }
+                    });
                 })
-                ->with('package')
-                ->whereDoesntHave('invoices', function($q) use ($periodStart, $periodEnd) {
-                    $q->where('period_start', $periodStart->toDateString())
-                      ->where('period_end', $periodEnd->toDateString());
-                })
+                ->with(['package', 'invoices:id,customer_id,period_start,period_end'])
                 ->get();
-            
-            $this->info("POP {$pop->name}: due {$dueDate->format('Y-m-d')}, invoice H-{$leadDays}; found {$customers->count()} customers (billing_day={$billingDay})");
-            
-            if ($dryRun) {
-                foreach ($customers as $customer) {
-                    $this->line("  - {$customer->name} ({$customer->customer_id}): {$customer->package?->name} [billing_day={$customer->billing_day}]");
+
+            $pendingInvoices = [];
+            foreach ($customers as $customer) {
+                $billingDay = min(28, max(1, (int) ($customer->billing_day ?: 1)));
+                $periodStart = $requestedDueDate
+                    ? $requestedDueDate->copy()
+                    : $currentMonth->copy()->setDay($billingDay);
+                $periodEnd = $periodStart->copy()->addMonth()->subDay();
+                $alreadyExists = $customer->invoices->contains(fn ($invoice) =>
+                    $invoice->period_start?->toDateString() === $periodStart->toDateString()
+                    && $invoice->period_end?->toDateString() === $periodEnd->toDateString()
+                );
+                if ($alreadyExists) {
+                    continue;
                 }
-                $totalSkipped += $customers->count();
+                $pendingInvoices[] = compact('customer', 'billingDay', 'periodStart', 'periodEnd');
+            }
+
+            $description = $requestedDueDate
+                ? "due {$requestedDueDate->format('Y-m-d')} (billing_day={$requestedBillingDay})"
+                : 'periode bulan berjalan';
+            $this->info("POP {$pop->name}: {$description}; invoice awal bulan; found " . count($pendingInvoices) . ' customers');
+
+            if ($dryRun) {
+                foreach ($pendingInvoices as $item) {
+                    $customer = $item['customer'];
+                    $this->line("  - {$customer->name} ({$customer->customer_id}): {$customer->package?->name} [billing_day={$item['billingDay']}]");
+                }
+                $totalSkipped += count($pendingInvoices);
                 continue;
             }
             
             DB::beginTransaction();
             
             try {
-                foreach ($customers as $customer) {
-                    if (!$customer->package) {
-                        $this->warn("  - Skipped {$customer->name}: No package assigned");
-                        $totalSkipped++;
-                        continue;
-                    }
+                foreach ($pendingInvoices as $item) {
+                    $customer = $item['customer'];
+                    $periodStart = $item['periodStart'];
+                    $periodEnd = $item['periodEnd'];
+                    $dueDate = $periodStart->copy();
                     
                     $subtotal = $customer->package->price;
                     $taxAmount = 0;
