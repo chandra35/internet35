@@ -31,11 +31,11 @@ class BillingAutoUnsuspend extends Command
         $popId  = $this->option('pop');
         $dryRun = $this->option('dry-run');
 
-        // Find suspended customers with NO remaining pending/overdue invoices
+        // Find suspended customers with no remaining unpaid invoice.
         $customers = Customer::with(['router', 'package'])
             ->where('status', 'suspended')
             ->when($popId, fn($q) => $q->where('pop_id', $popId))
-            ->whereDoesntHave('invoices', fn($q) => $q->whereIn('status', ['pending', 'overdue']))
+            ->whereDoesntHave('invoices', fn($q) => $q->whereIn('status', ['pending', 'partial', 'overdue']))
             ->get();
 
         $this->info("Found {$customers->count()} suspended customers eligible for unsuspend");

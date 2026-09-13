@@ -32,6 +32,14 @@ Tanggal pembaruan: 13 September 2026 (WIB)
 - Halaman edit pelanggan dan operasi MikroTik berikutnya kini menggunakan router yang sama dengan router sumber PPP Secret.
 - Validasi lokal: `php -l` dan `git diff --check` berhasil.
 
+## Otomasi Billing dan Invoice Partial
+
+Tanggal pembaruan: 13 September 2026 (WIB)
+
+- Status invoice `partial` sekarang diperlakukan sebagai tunggakan oleh auto-isolir dan auto-buka-isolir.
+- Mengaktifkan task scheduler harian untuk generate invoice, auto-isolir, dan auto-buka-isolir di VM produksi.
+- Validasi: dry-run command billing dan `php artisan schedule:list` dilakukan setelah deploy.
+
 ## Modal Browse PPP Secret
 
 Tanggal pembaruan: 12 September 2026 (WIB)

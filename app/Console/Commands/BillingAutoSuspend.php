@@ -54,7 +54,7 @@ class BillingAutoSuspend extends Command
             ->where('auto_isolir', true)
             ->when($popId, fn($q) => $q->where('pop_id', $popId))
             ->whereHas('invoices', function($q) {
-                $q->whereIn('status', ['pending', 'overdue']);
+            $q->whereIn('status', ['pending', 'partial', 'overdue']);
             })
             ->get();
         
@@ -84,7 +84,7 @@ class BillingAutoSuspend extends Command
             
             // Get overdue invoices past grace period
             $overdueInvoices = $customer->invoices
-                ->whereIn('status', ['pending', 'overdue'])
+                ->whereIn('status', ['pending', 'partial', 'overdue'])
                 ->filter(fn($inv) => $inv->due_date && $inv->due_date->toDateString() <= $cutoffDate);
             
             if ($overdueInvoices->isEmpty()) {
