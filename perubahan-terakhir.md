@@ -188,3 +188,10 @@ Tanggal pembaruan: 14 September 2026 (WIB)
 - Belum Bayar menampilkan invoice `pending`, `partial`, dan `overdue`, termasuk akumulasi tunggakan.
 - Sudah Bayar menampilkan pelanggan yang invoice periode bulan aktifnya berstatus `paid`.
 - Detail invoice historis tetap tersedia melalui menu Invoice dan detail pelanggan.
+
+## Perbaikan Daftar Sudah Bayar
+
+Tanggal pembaruan: 14 September 2026 (WIB)
+
+- Filter **Sudah Bayar** diperbaiki agar mencari invoice berstatus `paid` berdasarkan tahun dan bulan aktif.
+- Filter tidak lagi mengharuskan `period_start` tepat tanggal 1, karena periode invoice mengikuti tanggal billing masing-masing pelanggan.
