@@ -122,6 +122,35 @@
             .stat-icon { font-size: 22px; }
             .content-header h1 { font-size: 0.85rem; }
         }
+        /* Responsive foundation for desktop, tablet, and phone */
+        .content-header .breadcrumb { overflow-x: auto; white-space: nowrap; }
+        .table-responsive { -webkit-overflow-scrolling: touch; }
+        .modal-dialog { width: calc(100% - 2rem); margin: 1rem auto; }
+        @media (max-width: 991.98px) {
+            .content-wrapper, .main-footer { margin-left: 0 !important; }
+            .content > .container-fluid, .content-header > .container-fluid { padding-left: .75rem; padding-right: .75rem; }
+            .row > [class*="col-"] { margin-bottom: .75rem; }
+        }
+        @media (max-width: 767.98px) {
+            .main-header .navbar-nav .nav-link { padding-left: .5rem; padding-right: .5rem; }
+            .content-header { padding: 8px 12px 0 !important; }
+            .content-header .breadcrumb { display: block; padding: 0; margin-top: 4px; }
+            .card-header { flex-wrap: wrap; gap: 6px; }
+            .period-strip { align-items: flex-start !important; }
+            .period-strip .text-right { width: 100%; text-align: left !important; margin-top: 3px; }
+            .modal-dialog { width: calc(100% - 1rem); margin: .5rem auto; }
+            .modal-body { padding: .75rem; }
+            .invoice-row .d-flex { align-items: flex-start !important; }
+            .payment-item { padding-left: 10px; padding-right: 10px; }
+        }
+        @media (max-width: 575.98px) {
+            .main-footer { text-align: center; }
+            .main-footer .float-right { float: none !important; display: block; margin-top: 3px; }
+            .stat-card { min-height: 74px; padding: 9px 10px 7px; }
+            .stat-label { font-size: .61rem; }
+            .content { padding-top: 5px !important; }
+            .btn { white-space: normal; }
+        }
     </style>
     @stack('css')
 </head>

@@ -195,3 +195,12 @@ Tanggal pembaruan: 14 September 2026 (WIB)
 
 - Filter **Sudah Bayar** diperbaiki agar mencari invoice berstatus `paid` berdasarkan tahun dan bulan aktif.
 - Filter tidak lagi mengharuskan `period_start` tepat tanggal 1, karena periode invoice mengikuti tanggal billing masing-masing pelanggan.
+
+## Penyelarasan Portal Pelanggan dan Responsive UI
+
+Tanggal pembaruan: 14 September 2026 (WIB)
+
+- Ringkasan tagihan pelanggan kini menghitung status `partial` sebagai belum lunas dan memakai nilai sisa tagihan (`total_amount - paid_amount`).
+- Dashboard pelanggan menampilkan tunggakan sebagian secara konsisten dengan menu admin.
+- Ditambahkan fondasi responsive global untuk layout admin dan portal pelanggan pada desktop, tablet, dan ponsel.
+- Header, sidebar, kartu, tabel, modal, form, tombol, breadcrumb, dan footer diberi aturan adaptif agar tidak meluber pada layar kecil.

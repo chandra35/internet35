@@ -138,6 +138,38 @@
             50% { background-position: 100% 50%; }
             100% { background-position: 0% 50%; }
         }
+
+        /* Responsive foundation for desktop, tablet, and phone */
+        .content-header .breadcrumb { overflow-x: auto; white-space: nowrap; }
+        .content .card-header > .d-flex, .content .card-header.d-flex { flex-wrap: wrap; gap: .5rem; }
+        .table-responsive { -webkit-overflow-scrolling: touch; }
+        .modal-dialog { width: calc(100% - 2rem); max-width: 900px; margin: 1rem auto; }
+        @media (max-width: 991.98px) {
+            .content-wrapper, .main-footer { margin-left: 0 !important; }
+            .content-header { padding-left: 1rem !important; padding-right: 1rem !important; }
+            .content > .container-fluid, .content-header > .container-fluid { padding-left: .75rem; padding-right: .75rem; }
+            .form-row > [class*="col-"] { margin-bottom: .75rem; }
+        }
+        @media (max-width: 767.98px) {
+            .main-header .navbar-nav .nav-link { padding-left: .55rem; padding-right: .55rem; }
+            .content-header { padding-top: .65rem !important; }
+            .content-header h1 { font-size: 1.1rem; }
+            .content-header .breadcrumb { display: block; margin-top: .35rem; padding: 0; font-size: .75rem; }
+            .card-header, .card-body, .card-footer { padding-left: .75rem; padding-right: .75rem; }
+            .card-header .btn, .card-header .btn-group { width: 100%; }
+            .card-header .btn-group .btn { width: auto; }
+            .modal-dialog { width: calc(100% - 1rem); margin: .5rem auto; }
+            .modal-content, .card { border-radius: .5rem; }
+            .modal-body { padding: .75rem; }
+            .btn { white-space: normal; }
+            .dataTables_wrapper .dataTables_length, .dataTables_wrapper .dataTables_filter { float: none; text-align: left; width: 100%; margin-bottom: .5rem; }
+        }
+        @media (max-width: 575.98px) {
+            .main-footer { text-align: center; }
+            .main-footer .float-right { float: none !important; display: block; margin-top: .25rem; }
+            .input-group > .form-control { min-width: 0; }
+            .table { font-size: .78rem; }
+        }
     </style>
     
     @stack('css')

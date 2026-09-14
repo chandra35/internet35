@@ -38,11 +38,18 @@ class PaymentController extends Controller
             return redirect()->route('pelanggan.dashboard');
         }
         
-        $invoices = CustomerInvoice::where('customer_id', $customer->id)
+        $invoiceQuery = CustomerInvoice::where('customer_id', $customer->id);
+        $unpaidStatuses = ['pending', 'partial', 'overdue'];
+        $unpaidCount = (clone $invoiceQuery)->whereIn('status', $unpaidStatuses)->count();
+        $unpaidAmount = (clone $invoiceQuery)->whereIn('status', $unpaidStatuses)
+            ->selectRaw('COALESCE(SUM(total_amount - paid_amount), 0) as amount')->value('amount');
+        $paidCount = (clone $invoiceQuery)->where('status', 'paid')->count();
+        $overdueCount = (clone $invoiceQuery)->where('status', 'overdue')->count();
+        $invoices = $invoiceQuery
             ->orderBy('created_at', 'desc')
             ->paginate(12);
         
-        return view('pelanggan.invoices', compact('customer', 'invoices'));
+        return view('pelanggan.invoices', compact('customer', 'invoices', 'unpaidCount', 'unpaidAmount', 'paidCount', 'overdueCount'));
     }
 
     /**

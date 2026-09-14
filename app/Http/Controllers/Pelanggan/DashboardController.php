@@ -28,7 +28,7 @@ class DashboardController extends Controller
         
         // Get pending invoices
         $pendingInvoices = CustomerInvoice::where('customer_id', $customer->id)
-            ->whereIn('status', ['pending', 'overdue'])
+            ->whereIn('status', ['pending', 'partial', 'overdue'])
             ->orderBy('due_date')
             ->limit(5)
             ->get();
@@ -66,7 +66,8 @@ class DashboardController extends Controller
 
         // Payment summary
         $totalPaid = $customer->payments()->where('status', 'success')->sum('amount');
-        $totalUnpaid = $customer->invoices()->whereIn('status', ['pending', 'overdue'])->sum('total_amount');
+        $totalUnpaid = $customer->invoices()->whereIn('status', ['pending', 'partial', 'overdue'])
+            ->selectRaw('COALESCE(SUM(total_amount - paid_amount), 0) as amount')->value('amount');
         
         return view('pelanggan.dashboard', compact(
             'customer',

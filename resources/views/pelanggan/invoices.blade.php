@@ -5,13 +5,6 @@
 @section('page-title', 'Tagihan Saya')
 
 @section('content')
-@php
-    $unpaidCount  = $invoices->getCollection()->whereIn('status', ['unpaid','overdue','pending'])->count();
-    $unpaidAmount = $invoices->getCollection()->whereIn('status', ['unpaid','overdue','pending'])->sum('total_amount');
-    $paidCount    = $invoices->getCollection()->where('status','paid')->count();
-    $overdueCount = $invoices->getCollection()->where('status','overdue')->count();
-@endphp
-
 {{-- Summary strip --}}
 @if($invoices->total() > 0)
 <div class="row mb-2" style="margin-left:-5px;margin-right:-5px;">
