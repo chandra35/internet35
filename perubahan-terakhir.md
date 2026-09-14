@@ -238,3 +238,11 @@ Tanggal pembaruan: 14 September 2026 (WIB)
 - Status perlakuan PPN ditampilkan pada daftar dan detail pelanggan.
 - Generator invoice otomatis, backfill, manual, dan bulk mengikuti pengaturan efektif pelanggan.
 - Invoice yang sudah ada tidak diubah; pengaturan berlaku saat invoice baru dibuat.
+
+## Koreksi Invoice Pending Setelah PPN POP Dinonaktifkan
+
+Tanggal pembaruan: 14 September 2026 (WIB)
+
+- 366 invoice berstatus pending pada POP terkait yang masih membawa PPN berhasil dikoreksi.
+- Semua invoice tersebut sekarang memakai PPN Rp0 dan total sesuai subtotal Non-PPN.
+- Invoice lunas dan pelanggan dengan override PPN tidak disentuh.
