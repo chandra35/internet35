@@ -123,10 +123,10 @@
                 @if($customer->package)
                 <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:10px;">
                     <div>
-                        <div style="font-size:1rem;font-weight:600;">{{ $customer->package->name }}</div>
+                        <div style="font-size:1rem;font-weight:600;">{{ $customer->package->invoice_label ?? $customer->package->name }}</div>
                         <div class="text-muted" style="font-size:0.78rem;">{{ $customer->package->description ?? 'Paket internet berkecepatan tinggi' }}</div>
                         <div class="mt-2" style="display:flex;gap:6px;flex-wrap:wrap;">
-                            <span class="badge badge-info" style="font-size:0.7rem;"><i class="fas fa-tachometer-alt mr-1"></i>{{ $customer->package->speed_name ?? $customer->package->name }}</span>
+                            <span class="badge badge-info" style="font-size:0.7rem;"><i class="fas fa-tachometer-alt mr-1"></i>{{ $customer->package->invoice_label ?? $customer->package->name }}</span>
                             @if($customer->package->is_unlimited)
                             <span class="badge badge-success" style="font-size:0.7rem;"><i class="fas fa-infinity mr-1"></i>Unlimited</span>
                             @endif

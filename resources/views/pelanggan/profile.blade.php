@@ -39,7 +39,7 @@
                     @if($customer)
                     <tr>
                         <td>Paket</td>
-                        <td><strong>{{ $customer->package?->name ?? '-' }}</strong></td>
+                        <td><strong>{{ $customer->package?->invoice_label ?? $customer->package?->name ?? '-' }}</strong></td>
                     </tr>
                     <tr>
                         <td>Biaya</td>

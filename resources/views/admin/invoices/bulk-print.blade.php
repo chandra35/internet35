@@ -187,7 +187,7 @@
                                         <br><small class="text-muted">{{ $customer->customer_id }}</small>
                                     </td>
                                     <td>
-                                        <span class="badge badge-primary">{{ $customer->package?->name ?? '-' }}</span>
+                                        <span class="badge badge-primary">{{ $customer->package?->invoice_label ?? $customer->package?->name ?? '-' }}</span>
                                     </td>
                                     <td class="text-right">
                                         <strong>Rp {{ number_format($inv->total_amount, 0, ',', '.') }}</strong>
@@ -240,7 +240,7 @@
                                         <br><small class="text-muted">{{ $customer->customer_id }}</small>
                                     </td>
                                     <td>
-                                        <span class="badge badge-primary">{{ $customer->package?->name ?? '-' }}</span>
+                                        <span class="badge badge-primary">{{ $customer->package?->invoice_label ?? $customer->package?->name ?? '-' }}</span>
                                     </td>
                                     <td class="text-right">
                                         <strong>Rp {{ number_format($total, 0, ',', '.') }}</strong>

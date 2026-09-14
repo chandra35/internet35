@@ -80,7 +80,7 @@
                         <tr>
                             <td>
                                 <strong>{{ $invoice->description ?? 'Layanan Internet Bulanan' }}</strong><br>
-                                <small class="text-muted">Paket: {{ $customer->package?->name }}</small>
+                                <small class="text-muted">Paket: {{ $customer->package?->invoice_label ?? $customer->package?->name }}</small>
                             </td>
                             <td class="text-right">Rp {{ number_format($invoice->subtotal, 0, ',', '.') }}</td>
                         </tr>

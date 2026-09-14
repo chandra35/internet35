@@ -107,7 +107,7 @@
                             <option value="">-- Pilih Pelanggan --</option>
                             @foreach($customers as $customer)
                                 <option value="{{ $customer->id }}" 
-                                        data-package="{{ $customer->package?->name }}"
+                                        data-package="{{ $customer->package?->invoice_label ?? $customer->package?->name }}"
                                         data-price="{{ $customer->package?->price ?? 0 }}">
                                     {{ $customer->name }} ({{ $customer->customer_id }})
                                 </option>

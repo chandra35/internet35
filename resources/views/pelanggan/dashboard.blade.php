@@ -19,7 +19,7 @@
     <div class="col-6 col-lg-3 mb-3">
         <div class="stat-card stat-teal">
             <div class="stat-icon"><i class="fas fa-bolt"></i></div>
-            <div class="stat-value">{{ $customer->package?->name ?? '-' }}</div>
+            <div class="stat-value">{{ $customer->package?->invoice_label ?? $customer->package?->name ?? '-' }}</div>
             <div class="stat-label">Paket Aktif</div>
             <a href="{{ route('pelanggan.connection') }}" class="stat-link">Detail paket →</a>
         </div>

@@ -146,7 +146,7 @@ class NotificationService
             'customer_id' => $customer->customer_id,
             'email' => $customer->email ?? '',
             'phone' => $customer->phone ?? '',
-            'package_name' => $package->name ?? '',
+            'package_name' => $package->invoice_label ?? $package->name ?? '',
             'package_price' => $package ? 'Rp ' . number_format($package->price, 0, ',', '.') : '',
             'pppoe_username' => $customer->pppoe_username ?? '',
             'isp_name' => $popSetting->isp_name ?? '',

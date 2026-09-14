@@ -263,3 +263,4 @@ Tanggal pembaruan: 14 September 2026 (WIB)
 - Nama profile MikroTik/wilayah dipisahkan dari nama komersial yang tampil di invoice.
 - Paket kini memiliki tag **Nama Paket untuk Invoice**, dengan pilihan otomatis berdasarkan kecepatan profile atau nama custom.
 - Invoice baru, invoice bulk, backfill, cetak, dan PDF menggunakan tag tersebut; jika kosong, sistem memakai kecepatan profile sebagai fallback, misalnya `10 Mbps`.
+- Metadata pembayaran, form invoice manual, bulk print, portal pelanggan, dan notifikasi juga menggunakan tag invoice; profile MikroTik tetap dipakai khusus untuk operasi teknis router.

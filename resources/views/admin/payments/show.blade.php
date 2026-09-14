@@ -92,7 +92,7 @@
 @php
     $initial = strtoupper(mb_substr($customer->name, 0, 1));
     $outstandingTotal = $invoices->sum(fn ($invoice) => $invoice->remaining_amount);
-    $packageName = $customer->package?->name ?: 'Belum ada paket';
+    $packageName = $customer->package?->invoice_label ?: ($customer->package?->name ?: 'Belum ada paket');
     $periodLabel = $currentPeriodStart->translatedFormat('d M Y') . ' – ' . $currentPeriodEnd->translatedFormat('d M Y');
 @endphp
 <div class="card billing-overview mb-4">
