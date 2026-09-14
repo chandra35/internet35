@@ -19,11 +19,11 @@ class CustomerInvoicePrintController extends Controller implements HasMiddleware
     /**
      * Package prices are stored as final prices; split base and tax when PPN is enabled.
      */
-    private function calculateFromPackagePrice(float $packagePrice, ?PopSetting $popSetting): array
+    private function calculateFromPackagePrice(float $packagePrice, ?PopSetting $popSetting, ?bool $ppnOverride = null): array
     {
         $packagePrice = max(0, $packagePrice);
 
-        if (!$popSetting?->ppn_enabled) {
+        if (!($ppnOverride ?? (bool) ($popSetting?->ppn_enabled))) {
             return [
                 'subtotal' => round($packagePrice, 2),
                 'tax_amount' => 0.0,
@@ -186,7 +186,7 @@ class CustomerInvoicePrintController extends Controller implements HasMiddleware
                     $invoiceDate = Carbon::create((int) $validated['year'], $month, $invoiceDay)->startOfDay();
                     $dueDate = Carbon::create((int) $validated['year'], $month, $dueDay)->startOfDay();
 
-                    $amounts = $this->calculateFromPackagePrice((float) $customer->package->price, $popSetting);
+                    $amounts = $this->calculateFromPackagePrice((float) $customer->package->price, $popSetting, $customer->ppn_enabled);
                     $subtotal = $amounts['subtotal'];
                     $taxAmount = $amounts['tax_amount'];
                     $totalAmount = $amounts['total_amount'];

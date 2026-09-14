@@ -361,6 +361,12 @@
                             <small class="text-muted" id="connOnuDetail">-</small>
                         </div>
                     </div>
+                    <div class="col-md-6">
+                        <div class="info-item">
+                            <div class="info-label">Perlakuan PPN</div>
+                            <div class="info-value"><span class="badge badge-{{ $customer->ppn_enabled === null ? 'secondary' : ($customer->ppn_enabled ? 'success' : 'dark') }}">{{ $customer->ppn_enabled === null ? 'Ikuti Global POP' : ($customer->ppn_enabled ? 'Gunakan PPN' : 'Non-PPN') }}</span></div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

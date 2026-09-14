@@ -223,7 +223,7 @@ class PaymentController extends Controller implements HasMiddleware
                 }
 
                 $subtotal = (float) ($customer->monthly_fee ?: $customer->package->price);
-                $taxAmount = $popSetting?->ppn_enabled
+                $taxAmount = $customer->usesPpn($popSetting)
                     ? $subtotal * ((float) $popSetting->ppn_percentage / 100)
                     : 0;
 

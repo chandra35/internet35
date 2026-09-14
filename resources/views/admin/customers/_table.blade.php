@@ -134,6 +134,7 @@
                     @if($customer->package)
                     <span class="badge badge-pill" style="background:#17a2b8;color:white;font-size:0.71rem;padding:4px 9px;">{{ $customer->package->name }}</span>
                     <br><small class="text-muted" style="font-size:0.71rem;">Rp {{ number_format($customer->monthly_fee, 0, ',', '.') }}/bln</small>
+                    <br><span class="badge badge-{{ $customer->ppn_enabled === null ? 'secondary' : ($customer->ppn_enabled ? 'success' : 'dark') }}" style="font-size:0.62rem;">{{ $customer->ppn_enabled === null ? 'PPN: Global' : ($customer->ppn_enabled ? 'PPN' : 'Non-PPN') }}</span>
                     @else
                     <span class="text-muted">—</span>
                     @endif

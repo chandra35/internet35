@@ -57,6 +57,7 @@ class Customer extends Model
         'active_until',
         'due_date',
         'monthly_fee',
+        'ppn_enabled',
         'installation_fee',
         'billing_day',
         'grace_period_days',
@@ -105,6 +106,7 @@ class Customer extends Model
         'radius_synced' => 'boolean',
         'radius_synced_at' => 'datetime',
         'auto_isolir' => 'boolean',
+        'ppn_enabled' => 'boolean',
     ];
 
     protected $appends = ['photo_ktp_url', 'photo_selfie_url', 'photo_house_url', 'status_label', 'status_color'];
@@ -368,6 +370,12 @@ class Customer extends Model
     public function invoices()
     {
         return $this->hasMany(CustomerInvoice::class);
+    }
+
+    /** Effective PPN setting for this customer; null means inherit the POP default. */
+    public function usesPpn(?PopSetting $popSetting = null): bool
+    {
+        return $this->ppn_enabled ?? (bool) ($popSetting?->ppn_enabled ?? false);
     }
 
     /**

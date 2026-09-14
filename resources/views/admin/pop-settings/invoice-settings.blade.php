@@ -132,10 +132,10 @@
                                         <input type="checkbox" class="custom-control-input preview-trigger" id="ppn_enabled" name="ppn_enabled" 
                                                value="1" {{ $popSetting->ppn_enabled ? 'checked' : '' }}>
                                         <label class="custom-control-label" for="ppn_enabled">
-                                            <strong>Aktifkan PPN</strong>
+                                            <strong>Gunakan PPN untuk semua pelanggan (Global POP)</strong>
                                         </label>
                                     </div>
-                                    <small class="text-muted d-block mt-1">Jika diaktifkan, PPN akan ditambahkan ke setiap invoice</small>
+                                    <small class="text-muted d-block mt-1">Default ini berlaku untuk semua pelanggan yang memilih “Ikuti Pengaturan Global”. Pelanggan tertentu dapat diatur PPN/Non-PPN dari data pelanggan.</small>
                                 </div>
                             </div>
                             

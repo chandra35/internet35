@@ -322,6 +322,7 @@ class CustomerController extends Controller implements HasMiddleware
             'monthly_fee' => 'nullable|numeric|min:0',
             'installation_fee' => 'nullable|numeric|min:0',
             'billing_day' => 'nullable|integer|min:1|max:28',
+            'ppn_enabled' => 'nullable|boolean',
             'create_user_account' => 'boolean',
             'activate_now' => 'boolean',
             'sync_mikrotik' => 'boolean',
@@ -438,6 +439,7 @@ class CustomerController extends Controller implements HasMiddleware
                 'monthly_fee' => $request->monthly_fee ?? ($package->price ?? 0),
                 'installation_fee' => $request->installation_fee ?? 0,
                 'billing_day' => $request->billing_day ?? (int) now()->day,
+                'ppn_enabled' => $request->has('ppn_enabled') ? $request->boolean('ppn_enabled') : null,
                 'status' => $request->boolean('activate_now') ? 'active' : 'pending',
                 'notes' => $request->notes,
                 'internal_notes' => $request->internal_notes,
@@ -757,6 +759,7 @@ class CustomerController extends Controller implements HasMiddleware
             'service_type' => 'nullable|in:pppoe,hotspot,static',
             'monthly_fee' => 'nullable|numeric|min:0',
             'billing_day' => 'nullable|integer|min:1|max:28',
+            'ppn_enabled' => 'nullable|boolean',
             'active_until' => 'nullable|date',
             // ODP connection (optional)
             'odp_id' => 'nullable|uuid|exists:odps,id',
@@ -783,7 +786,7 @@ class CustomerController extends Controller implements HasMiddleware
                 'name', 'nickname', 'email', 'phone', 'phone_alt', 'nik', 'birth_date', 'gender',
                 'address', 'province_code', 'city_code', 'district_code', 'village_code',
                 'postal_code', 'latitude', 'longitude', 'router_id', 'package_id',
-                'pppoe_username', 'service_type', 'monthly_fee', 'billing_day', 
+                'pppoe_username', 'service_type', 'monthly_fee', 'billing_day', 'ppn_enabled',
                 'notes', 'internal_notes', 'remote_address', 'mac_address', 'active_until',
                 'odp_id', 'odp_port',
             ]);

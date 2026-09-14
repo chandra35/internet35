@@ -27,11 +27,11 @@ class InvoiceController extends Controller implements HasMiddleware
      * Package prices in this app are entered as final prices.
      * When PPN is enabled, back-calculate base amount and tax component.
      */
-    private function calculateFromPackagePrice(float $packagePrice, ?PopSetting $popSetting): array
+    private function calculateFromPackagePrice(float $packagePrice, ?PopSetting $popSetting, ?bool $ppnOverride = null): array
     {
         $packagePrice = max(0, $packagePrice);
 
-        if (!$popSetting?->ppn_enabled) {
+        if (!($ppnOverride ?? (bool) ($popSetting?->ppn_enabled))) {
             return [
                 'subtotal' => round($packagePrice, 2),
                 'tax_amount' => 0.0,
@@ -215,7 +215,7 @@ class InvoiceController extends Controller implements HasMiddleware
             
             // Calculate tax if enabled
             $taxAmount = 0;
-            if ($popSetting?->ppn_enabled) {
+            if ($customer->usesPpn($popSetting)) {
                 $taxableAmount = $subtotal - $discountAmount;
                 $taxAmount = $taxableAmount * ($popSetting->ppn_percentage / 100);
             }
@@ -334,7 +334,7 @@ class InvoiceController extends Controller implements HasMiddleware
             
             // Calculate tax if enabled
             $taxAmount = 0;
-            if ($popSetting?->ppn_enabled) {
+            if ($invoice->customer?->usesPpn($popSetting) ?? (bool) ($popSetting?->ppn_enabled)) {
                 $taxableAmount = $subtotal - $discountAmount;
                 $taxAmount = $taxableAmount * ($popSetting->ppn_percentage / 100);
             }
@@ -731,7 +731,7 @@ class InvoiceController extends Controller implements HasMiddleware
                         continue;
                     }
 
-                    $amounts = $this->calculateFromPackagePrice((float) $customer->package->price, $popSetting);
+                    $amounts = $this->calculateFromPackagePrice((float) $customer->package->price, $popSetting, $customer->ppn_enabled);
                     $subtotal = $amounts['subtotal'];
                     $taxAmount = $amounts['tax_amount'];
                     $totalAmount = $amounts['total_amount'];

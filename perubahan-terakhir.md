@@ -228,3 +228,13 @@ Tanggal pembaruan: 14 September 2026 (WIB)
 - Tombol **Kembali ke Pembayaran** dipindahkan ke area judul halaman agar selalu dekat dengan konteks halaman.
 - Metadata status, paket, siklus billing, dan total tagihan diberi jarak, ukuran, dan hierarki teks yang lebih rapi.
 - Tombol kembali yang sebelumnya berada jauh di bagian bawah panel kanan dihapus.
+
+## Pengaturan PPN Global dan Per Pelanggan
+
+Tanggal pembaruan: 14 September 2026 (WIB)
+
+- Pengaturan PPN POP menjadi default global untuk seluruh pelanggan yang memilih **Ikuti Pengaturan Global**.
+- Ditambahkan override PPN per pelanggan: **Gunakan PPN**, **Non-PPN**, atau **Ikuti Pengaturan Global**.
+- Status perlakuan PPN ditampilkan pada daftar dan detail pelanggan.
+- Generator invoice otomatis, backfill, manual, dan bulk mengikuti pengaturan efektif pelanggan.
+- Invoice yang sudah ada tidak diubah; pengaturan berlaku saat invoice baru dibuat.

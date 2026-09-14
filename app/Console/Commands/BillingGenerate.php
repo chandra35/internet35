@@ -125,7 +125,7 @@ class BillingGenerate extends Command
                     $subtotal = $customer->package->price;
                     $taxAmount = 0;
                     
-                    if ($popSetting?->ppn_enabled) {
+                    if ($customer->usesPpn($popSetting)) {
                         $taxAmount = $subtotal * ($popSetting->ppn_percentage / 100);
                     }
                     

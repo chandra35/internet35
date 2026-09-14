@@ -319,6 +319,17 @@
                                         </div>
                                     </div>
                                 </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label>PPN Pelanggan</label>
+                                        <select name="ppn_enabled" class="form-control select2">
+                                            <option value="" selected>Ikuti Pengaturan Global</option>
+                                            <option value="1">Gunakan PPN</option>
+                                            <option value="0">Non-PPN</option>
+                                        </select>
+                                        <small class="text-muted">Default mengikuti pengaturan PPN pada POP.</small>
+                                    </div>
+                                </div>
                             </div>
                             
                             <hr>

@@ -410,6 +410,17 @@
                         </div>
                         <div class="col-md-4">
                             <div class="form-group">
+                                <label>PPN Pelanggan</label>
+                                <select name="ppn_enabled" class="form-control select2">
+                                    <option value="" {{ old('ppn_enabled', $customer->ppn_enabled) === null ? 'selected' : '' }}>Ikuti Pengaturan Global</option>
+                                    <option value="1" {{ old('ppn_enabled', $customer->ppn_enabled) === '1' || old('ppn_enabled', $customer->ppn_enabled) === 1 ? 'selected' : '' }}>Gunakan PPN</option>
+                                    <option value="0" {{ old('ppn_enabled', $customer->ppn_enabled) === '0' || old('ppn_enabled', $customer->ppn_enabled) === 0 ? 'selected' : '' }}>Non-PPN</option>
+                                </select>
+                                <small class="text-muted">Override per pelanggan; default mengikuti POP.</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
                                 <label>Aktif Sampai</label>
                                 <input type="date" name="active_until" class="form-control" 
                                        value="{{ old('active_until', $customer->active_until?->format('Y-m-d')) }}">
