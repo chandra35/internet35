@@ -122,14 +122,22 @@ class BillingGenerate extends Command
                     $periodEnd = $item['periodEnd'];
                     $dueDate = $periodStart->copy();
                     
-                    $subtotal = $customer->package->price;
+                    // Harga paket/monthly fee adalah harga final yang dibayar pelanggan.
+                    // Jika PPN aktif, pecah harga final menjadi subtotal + PPN.
+                    $totalAmount = round((float) ($customer->monthly_fee ?: $customer->package->price), 2);
+                    $subtotal = $totalAmount;
                     $taxAmount = 0;
-                    
+
                     if ($customer->usesPpn($popSetting)) {
-                        $taxAmount = $subtotal * ($popSetting->ppn_percentage / 100);
+                        $rate = (float) ($popSetting?->ppn_percentage ?? 0);
+                        if ($rate > 0) {
+                            $subtotal = $totalAmount / (1 + ($rate / 100));
+                            $taxAmount = $totalAmount - $subtotal;
+                        }
                     }
-                    
-                    $totalAmount = $subtotal + $taxAmount;
+
+                    $subtotal = round($subtotal, 2);
+                    $taxAmount = round($taxAmount, 2);
                     $invoice = CustomerInvoice::create([
                         'customer_id' => $customer->id,
                         'pop_id' => $pop->id,

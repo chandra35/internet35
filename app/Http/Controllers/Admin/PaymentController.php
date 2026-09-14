@@ -222,10 +222,19 @@ class PaymentController extends Controller implements HasMiddleware
                     abort(422, 'Pelanggan belum memiliki paket internet.');
                 }
 
-                $subtotal = (float) ($customer->monthly_fee ?: $customer->package->price);
-                $taxAmount = $customer->usesPpn($popSetting)
-                    ? $subtotal * ((float) $popSetting->ppn_percentage / 100)
-                    : 0;
+                // Harga paket/monthly fee adalah harga final pelanggan, bukan harga sebelum PPN.
+                $totalAmount = round((float) ($customer->monthly_fee ?: $customer->package->price), 2);
+                $subtotal = $totalAmount;
+                $taxAmount = 0;
+                if ($customer->usesPpn($popSetting)) {
+                    $rate = (float) ($popSetting?->ppn_percentage ?? 0);
+                    if ($rate > 0) {
+                        $subtotal = $totalAmount / (1 + ($rate / 100));
+                        $taxAmount = $totalAmount - $subtotal;
+                    }
+                }
+                $subtotal = round($subtotal, 2);
+                $taxAmount = round($taxAmount, 2);
 
                 foreach ($periodStarts as $periodStart) {
                     $periodEnd = $periodStart->copy()->addMonth()->subDay();
@@ -252,7 +261,7 @@ class PaymentController extends Controller implements HasMiddleware
                         'subtotal' => $subtotal,
                         'discount_amount' => 0,
                         'tax_amount' => $taxAmount,
-                        'total_amount' => $subtotal + $taxAmount,
+                        'total_amount' => $totalAmount,
                         'paid_amount' => 0,
                         'status' => 'pending',
                         'notes' => $popSetting?->invoice_notes,

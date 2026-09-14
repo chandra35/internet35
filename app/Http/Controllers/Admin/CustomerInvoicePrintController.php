@@ -159,11 +159,13 @@ class CustomerInvoicePrintController extends Controller implements HasMiddleware
             $printRows = $months->map(function (int $month) use ($validated, $popId, $customer, $popSetting, $regenerate) {
                 $periodStart = Carbon::create((int) $validated['year'], $month, 1)->startOfMonth();
                 $periodEnd = (clone $periodStart)->endOfMonth();
+                $invoiceDate = null;
+                $dueDate = null;
 
                 $invoice = CustomerInvoice::where('pop_id', $popId)
                     ->where('customer_id', $customer->id)
-                    ->whereDate('period_start', $periodStart->toDateString())
-                    ->whereDate('period_end', $periodEnd->toDateString())
+                    ->whereYear('period_start', (int) $validated['year'])
+                    ->whereMonth('period_start', $month)
                     ->orderBy('created_at')
                     ->first();
 
@@ -172,6 +174,10 @@ class CustomerInvoicePrintController extends Controller implements HasMiddleware
                         throw new \RuntimeException('Tidak bisa regenerate invoice yang sudah lunas (' . $invoice->invoice_number . ').');
                     }
 
+                    $periodStart = $invoice->period_start->copy();
+                    $periodEnd = $invoice->period_end->copy();
+                    $invoiceDate = $invoice->invoice_date?->copy();
+                    $dueDate = $invoice->due_date?->copy();
                     $invoice->delete();
                     $invoice = null;
                 }
@@ -181,12 +187,15 @@ class CustomerInvoicePrintController extends Controller implements HasMiddleware
                         abort(422, 'Pelanggan tidak memiliki paket aktif untuk generate invoice.');
                     }
 
-                    $invoiceDay = random_int(1, 10);
-                    $dueDay = random_int(10, 15);
-                    $invoiceDate = Carbon::create((int) $validated['year'], $month, $invoiceDay)->startOfDay();
-                    $dueDate = Carbon::create((int) $validated['year'], $month, $dueDay)->startOfDay();
+                    if (!$invoiceDate || !$dueDate) {
+                        $billingDay = min(28, max(1, (int) ($customer->billing_day ?: 1)));
+                        $periodStart = Carbon::create((int) $validated['year'], $month, $billingDay)->startOfDay();
+                        $periodEnd = $periodStart->copy()->addMonthNoOverflow()->subDay();
+                        $invoiceDate = $periodStart->copy();
+                        $dueDate = $periodStart->copy();
+                    }
 
-                    $amounts = $this->calculateFromPackagePrice((float) $customer->package->price, $popSetting, $customer->ppn_enabled);
+                    $amounts = $this->calculateFromPackagePrice((float) ($customer->monthly_fee ?: $customer->package->price), $popSetting, $customer->ppn_enabled);
                     $subtotal = $amounts['subtotal'];
                     $taxAmount = $amounts['tax_amount'];
                     $totalAmount = $amounts['total_amount'];

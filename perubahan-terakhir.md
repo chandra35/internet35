@@ -246,3 +246,12 @@ Tanggal pembaruan: 14 September 2026 (WIB)
 - 366 invoice berstatus pending pada POP terkait yang masih membawa PPN berhasil dikoreksi.
 - Semua invoice tersebut sekarang memakai PPN Rp0 dan total sesuai subtotal Non-PPN.
 - Invoice lunas dan pelanggan dengan override PPN tidak disentuh.
+
+## Penyatuan Harga Paket dan PPN Invoice
+
+Tanggal pembaruan: 14 September 2026 (WIB)
+
+- Harga paket/monthly fee diperlakukan sebagai harga final yang dibayar pelanggan.
+- Saat PPN aktif, nilai final dipecah menjadi subtotal dan PPN; PPN tidak lagi menambah total paket.
+- Generator otomatis, backfill, bulk invoice, dan invoice cetak memakai aturan harga yang sama serta override PPN pelanggan.
+- Regenerate invoice mencari periode berdasarkan bulan, mengikuti `billing_day`, dan tetap menolak penghapusan invoice yang sudah lunas.

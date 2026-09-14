@@ -547,7 +547,7 @@ class InvoiceController extends Controller implements HasMiddleware
             foreach ($customers as $customer) {
                 if (!$customer->package) continue;
 
-                $amounts = $this->calculateFromPackagePrice((float) $customer->package->price, $popSetting);
+                $amounts = $this->calculateFromPackagePrice((float) ($customer->monthly_fee ?: $customer->package->price), $popSetting, $customer->ppn_enabled);
                 $subtotal = $amounts['subtotal'];
                 $taxAmount = $amounts['tax_amount'];
                 $totalAmount = $amounts['total_amount'];
@@ -731,7 +731,7 @@ class InvoiceController extends Controller implements HasMiddleware
                         continue;
                     }
 
-                    $amounts = $this->calculateFromPackagePrice((float) $customer->package->price, $popSetting, $customer->ppn_enabled);
+                    $amounts = $this->calculateFromPackagePrice((float) ($customer->monthly_fee ?: $customer->package->price), $popSetting, $customer->ppn_enabled);
                     $subtotal = $amounts['subtotal'];
                     $taxAmount = $amounts['tax_amount'];
                     $totalAmount = $amounts['total_amount'];
