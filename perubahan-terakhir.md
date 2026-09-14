@@ -220,3 +220,11 @@ Tanggal pembaruan: 14 September 2026 (WIB)
 - Informasi detail pelanggan diringkas agar tidak mengulang paket dan siklus billing yang sudah tampil pada ringkasan utama.
 - Panel profil, riwayat pembayaran, dan tombol aksi diberi hierarki visual yang lebih jelas.
 - Tombol aksi dan header kartu disesuaikan agar tetap rapi pada desktop, tablet, dan ponsel.
+
+## Perapian Metadata dan Tombol Kembali Pembayaran
+
+Tanggal pembaruan: 14 September 2026 (WIB)
+
+- Tombol **Kembali ke Pembayaran** dipindahkan ke area judul halaman agar selalu dekat dengan konteks halaman.
+- Metadata status, paket, siklus billing, dan total tagihan diberi jarak, ukuran, dan hierarki teks yang lebih rapi.
+- Tombol kembali yang sebelumnya berada jauh di bagian bawah panel kanan dihapus.

@@ -9,6 +9,10 @@
     <li class="breadcrumb-item active">{{ $customer->name }}</li>
 @endsection
 
+@section('page-actions')
+    <a href="{{ route('admin.payments.index', auth()->user()->hasRole('superadmin') ? ['pop_id' => $popId] : []) }}" class="btn btn-outline-primary btn-sm ml-3 page-back-action"><i class="fas fa-arrow-left mr-1"></i>Kembali ke Pembayaran</a>
+@endsection
+
 @push('css')
 <style>
     .payment-card { border: 0; border-radius: 14px; overflow: hidden; box-shadow: 0 5px 20px rgba(26, 53, 94, .08); }
@@ -47,8 +51,8 @@
     .billing-overview { border: 0; border-radius: 14px; box-shadow: 0 5px 20px rgba(26, 53, 94, .07); }
     .billing-overview .metric { border-right: 1px solid #edf1f6; padding: 15px 18px; }
     .billing-overview .metric:last-child { border-right: 0; }
-    .metric-label { color: #7c8b9c; font-size: .72rem; text-transform: uppercase; letter-spacing: .45px; font-weight: 700; }
-    .metric-value { color: #26384e; font-size: 1.05rem; font-weight: 700; margin-top: 3px; }
+    .metric-label { color: #6d7d91; font-size: .76rem; letter-spacing: .15px; font-weight: 700; }
+    .metric-value { color: #26384e; font-size: 1.05rem; font-weight: 700; margin-top: 5px; line-height:1.25; }
     .period-banner { background: linear-gradient(135deg, #eef6ff, #f7fbff); border: 1px solid #d8e9fb; border-radius: 10px; padding: 13px 16px; }
     .empty-state { padding: 28px 20px 30px; min-height:280px; display:flex; flex-direction:column; align-items:center; justify-content:center; }
     .empty-state .empty-icon { width: 58px; height: 58px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: #e9f8ee; color: #28a745; font-size: 1.65rem; }
@@ -185,7 +189,6 @@
             @if($invoices->isNotEmpty())
             <form id="printForm" method="POST" action="{{ route('admin.payments.print', $customer) }}" target="_blank">@csrf<span id="printInvoiceIds"></span><button type="button" id="printSelected" class="btn btn-outline-primary btn-block quick-action"><i class="fas fa-print mr-1"></i>Cetak Invoice Terpilih</button></form>
             @endif
-            <a href="{{ route('admin.payments.index', auth()->user()->hasRole('superadmin') ? ['pop_id' => $popId] : []) }}" class="btn btn-light border btn-block quick-action mt-2"><i class="fas fa-arrow-left mr-1"></i>Kembali ke Pembayaran</a>
         </div>
     </div>
 </div>

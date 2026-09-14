@@ -141,6 +141,7 @@
 
         /* Responsive foundation for desktop, tablet, and phone */
         .content-header .breadcrumb { overflow-x: auto; white-space: nowrap; }
+        .page-heading-title { gap:.5rem; }
         .content .card-header > .d-flex, .content .card-header.d-flex { flex-wrap: wrap; gap: .5rem; }
         .table-responsive { -webkit-overflow-scrolling: touch; }
         .modal-dialog { width: calc(100% - 2rem); max-width: 900px; margin: 1rem auto; }
@@ -155,6 +156,8 @@
             .content-header { padding-top: .65rem !important; }
             .content-header h1 { font-size: 1.1rem; }
             .content-header .breadcrumb { display: block; margin-top: .35rem; padding: 0; font-size: .75rem; }
+            .page-heading-title { flex-wrap:wrap; }
+            .page-back-action { margin-left:0 !important; }
             .card-header, .card-body, .card-footer { padding-left: .75rem; padding-right: .75rem; }
             .card-header .btn, .card-header .btn-group { width: 100%; }
             .card-header .btn-group .btn { width: auto; }
@@ -794,8 +797,9 @@
         <div class="content-header">
             <div class="container-fluid">
                 <div class="row mb-2">
-                    <div class="col-sm-6">
+                    <div class="col-sm-6 d-flex align-items-center page-heading-title">
                         <h1 class="m-0">@yield('page-title', 'Dashboard')</h1>
+                        @yield('page-actions')
                     </div>
                     <div class="col-sm-6">
                         <ol class="breadcrumb float-sm-right">
