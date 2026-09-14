@@ -101,6 +101,29 @@ class CustomerInvoice extends Model
     }
 
     /**
+     * Invoice lama menyimpan deskripsi sebagai snapshot. Untuk tampilan,
+     * sinkronkan deskripsi layanan standar dengan tag paket terbaru.
+     */
+    public function getDisplayItemsAttribute(): array
+    {
+        $items = is_array($this->items) ? $this->items : [];
+        $label = $this->customer?->package?->invoice_label;
+
+        if (!$label) {
+            return $items;
+        }
+
+        return array_map(function (array $item) use ($label): array {
+            $description = (string) ($item['description'] ?? '');
+            if (str_starts_with($description, 'Layanan Internet ')) {
+                $item['description'] = 'Layanan Internet ' . $label;
+            }
+
+            return $item;
+        }, $items);
+    }
+
+    /**
      * Generate invoice number
      */
     public static function generateInvoiceNumber(string $popId): string

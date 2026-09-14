@@ -275,8 +275,8 @@
                 </tr>
             </thead>
             <tbody>
-                @if($invoice->items)
-                    @foreach($invoice->items as $index => $item)
+                @if($invoice->display_items)
+                    @foreach($invoice->display_items as $index => $item)
                     <tr>
                         <td>{{ $index + 1 }}</td>
                         <td>{{ $item['description'] ?? '-' }}</td>

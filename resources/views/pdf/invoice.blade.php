@@ -140,8 +140,8 @@
         </thead>
         <tbody>
             @php $no = 1; @endphp
-            @if(is_array($invoice->items))
-                @foreach($invoice->items as $item)
+            @if($invoice->display_items)
+                @foreach($invoice->display_items as $item)
                 <tr>
                     <td>{{ $no++ }}</td>
                     <td>{{ $item['description'] ?? 'Layanan Internet' }}</td>

@@ -40,8 +40,8 @@
                 </div>
                 <div class="card-body">
                     <div id="itemsContainer">
-                        @if($invoice->items)
-                            @foreach($invoice->items as $index => $item)
+                        @if($invoice->display_items)
+                            @foreach($invoice->display_items as $index => $item)
                             <div class="item-row" data-index="{{ $index }}">
                                 <div class="row">
                                     <div class="col-md-8">
