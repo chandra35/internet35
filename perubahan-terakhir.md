@@ -212,3 +212,11 @@ Tanggal pembaruan: 14 September 2026 (WIB)
 - Halaman pembayaran admin kini memiliki tab status **Belum Bayar** dan **Sudah Bayar** yang terlihat langsung di area konten.
 - Header, tombol status, dan empty-state ditata ulang agar hierarki informasi lebih jelas dan proporsional.
 - Detail pembayaran dibuat lebih seimbang pada layar tablet dan ponsel, termasuk ringkasan, tabel, kartu pelanggan, dan panel aksi.
+
+## Penyempurnaan Detail Pembayaran
+
+Tanggal pembaruan: 14 September 2026 (WIB)
+
+- Informasi detail pelanggan diringkas agar tidak mengulang paket dan siklus billing yang sudah tampil pada ringkasan utama.
+- Panel profil, riwayat pembayaran, dan tombol aksi diberi hierarki visual yang lebih jelas.
+- Tombol aksi dan header kartu disesuaikan agar tetap rapi pada desktop, tablet, dan ponsel.

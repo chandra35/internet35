@@ -54,6 +54,10 @@
     .empty-state .empty-icon { width: 58px; height: 58px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: #e9f8ee; color: #28a745; font-size: 1.65rem; }
     .recent-payment { border-bottom: 1px solid #edf1f6; padding: 10px 0; }
     .recent-payment:last-child { border-bottom: 0; }
+    .customer-panel .quick-action { display:flex; align-items:center; justify-content:center; gap:6px; }
+    .customer-panel .card-body > .d-flex:first-child { padding-bottom:14px; border-bottom:1px solid #edf1f6; }
+    .payment-card .card-header h3 { line-height:1.35; }
+    .overview-label { display:block; }
     @media (max-width: 991.98px) { .customer-panel { position: static; } }
     @media (max-width: 767.98px) {
         .billing-overview .metric { border-right:0; border-bottom:1px solid #edf1f6; padding:12px 14px; }
@@ -61,6 +65,11 @@
         .payment-card .card-header { align-items:flex-start !important; gap:8px; }
         .payment-card .card-header .badge { white-space:normal; text-align:right; }
         .period-banner { width:100%; }
+        .billing-overview { margin-bottom:1rem !important; }
+        .billing-overview .metric-value { font-size:.95rem; }
+        .customer-panel .card-body { padding:15px; }
+        .customer-panel .customer-avatar { width:46px; height:46px; font-size:1.1rem; }
+        .customer-panel h5 { font-size:1rem; }
         .payment-table thead { display: none; }
         .payment-table, .payment-table tbody, .payment-table tr, .payment-table td { display: block; width: 100%; }
         .payment-table tr { padding: 10px 12px; border-bottom: 1px solid #edf1f6; }
@@ -157,8 +166,7 @@
                 <div class="d-flex align-items-center mb-3"><div class="customer-avatar mr-3">{{ $initial }}</div><div><h5 class="mb-1">{{ $customer->name }}</h5><div class="customer-id">{{ $customer->customer_id }}</div></div></div>
                 <div class="customer-fact"><i class="fas fa-phone"></i><span>{{ $customer->phone ?: '—' }}</span></div>
                 <div class="customer-fact"><i class="fas fa-user-tag"></i><span>{{ $customer->pppoe_username ?: 'Tanpa PPPoE' }}</span></div>
-                <div class="customer-fact"><i class="fas fa-wifi"></i><span>{{ $packageName }}</span></div>
-                <div class="customer-fact"><i class="fas fa-calendar-alt"></i><span>Billing setiap tanggal {{ $billingDay }}</span></div>
+                <div class="customer-fact"><i class="fas fa-router"></i><span>{{ $customer->router?->name ?: 'Router belum dipilih' }}</span></div>
                 <div class="customer-fact"><i class="fas fa-file-invoice-dollar"></i><span><strong>{{ $invoices->count() }}</strong> invoice belum lunas</span></div>
             </div></div>
             <div class="card payment-card mb-3"><div class="card-body">
