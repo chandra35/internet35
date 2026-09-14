@@ -331,11 +331,23 @@
                                     <p>Invoice</p>
                                 </a>
                             </li>
-                            <li class="nav-item">
-                                <a href="{{ route('admin.payments.index') }}" class="nav-link {{ request()->routeIs('admin.payments.*') ? 'active' : '' }}">
+                            <li class="nav-item {{ request()->routeIs('admin.payments.*') ? 'menu-open' : '' }}">
+                                <a href="#" class="nav-link {{ request()->routeIs('admin.payments.*') ? 'active' : '' }}">
                                     <i class="far fa-circle nav-icon"></i>
-                                    <p>Pembayaran</p>
+                                    <p>Pembayaran<i class="right fas fa-angle-left"></i></p>
                                 </a>
+                                <ul class="nav nav-treeview">
+                                    <li class="nav-item">
+                                        <a href="{{ route('admin.payments.index') }}" class="nav-link {{ request()->routeIs('admin.payments.index') || request()->routeIs('admin.payments.show') || request()->routeIs('admin.payments.modal') ? 'active' : '' }}">
+                                            <i class="far fa-dot-circle nav-icon text-danger"></i><p>Belum Bayar</p>
+                                        </a>
+                                    </li>
+                                    <li class="nav-item">
+                                        <a href="{{ route('admin.payments.paid') }}" class="nav-link {{ request()->routeIs('admin.payments.paid') ? 'active' : '' }}">
+                                            <i class="far fa-dot-circle nav-icon text-success"></i><p>Sudah Bayar</p>
+                                        </a>
+                                    </li>
+                                </ul>
                             </li>
                             @endcan
                         </ul>

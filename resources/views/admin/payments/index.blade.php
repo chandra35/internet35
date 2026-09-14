@@ -1,7 +1,8 @@
 @extends('layouts.admin')
 
-@section('title', 'Belum Bayar')
-@section('page-title', 'Belum Bayar')
+@php($isPaidView = ($paymentMode ?? 'unpaid') === 'paid')
+@section('title', $isPaidView ? 'Sudah Bayar' : 'Belum Bayar')
+@section('page-title', $isPaidView ? 'Sudah Bayar' : 'Belum Bayar')
 
 @section('breadcrumb')
     <li class="breadcrumb-item"><a href="{{ route('admin.dashboard') }}">Dashboard</a></li>
@@ -61,7 +62,7 @@
 <div class="alert alert-warning"><i class="fas fa-exclamation-triangle mr-2"></i>Pilih POP terlebih dahulu.</div>
 @else
 <div class="card card-payments shadow-sm">
-    <div class="card-header"><h3 class="card-title"><i class="fas fa-cash-register mr-2"></i>Daftar Belum Bayar</h3></div>
+    <div class="card-header"><h3 class="card-title"><i class="fas fa-{{ $isPaidView ? 'check-circle' : 'cash-register' }} mr-2"></i>Daftar {{ $isPaidView ? 'Sudah Bayar' : 'Belum Bayar' }}</h3></div>
     <div class="card-body p-3">
         <div class="payment-filter-bar">
             <div class="form-row align-items-end">
@@ -73,11 +74,11 @@
                     </div>
                 </div>
             </div>
-            <p class="text-muted small mb-0 mt-2">Menampilkan invoice bulan berjalan dan seluruh tunggakan sebelumnya yang belum lunas.</p>
+            <p class="text-muted small mb-0 mt-2">{{ $isPaidView ? 'Menampilkan pelanggan yang sudah melunasi invoice pada bulan berjalan.' : 'Menampilkan invoice bulan berjalan dan seluruh tunggakan sebelumnya yang belum lunas.' }}</p>
         </div>
         <div class="table-responsive">
             <table id="paymentsTable" class="table table-hover mb-0">
-                <thead><tr><th>Pelanggan</th><th>Kontak</th><th>Jumlah Invoice</th><th>Jatuh Tempo Terdekat</th><th class="text-right">Total Tunggakan</th><th class="text-right">Aksi</th></tr></thead>
+                <thead><tr><th>Pelanggan</th><th>Kontak</th><th>Jumlah Invoice</th><th>{{ $isPaidView ? 'Tanggal Bayar' : 'Jatuh Tempo Terdekat' }}</th><th class="text-right">{{ $isPaidView ? 'Total Dibayar' : 'Total Tunggakan' }}</th><th class="text-right">Aksi</th></tr></thead>
                 <tbody></tbody>
             </table>
         </div>
@@ -104,14 +105,14 @@
 <script>
 $(function () {
     if (!$('#paymentsTable').length) return;
-    const labels = ['Pelanggan', 'Kontak', 'Jumlah Invoice', 'Jatuh Tempo Terdekat', 'Total Tunggakan', ''];
+    const labels = ['Pelanggan', 'Kontak', 'Jumlah Invoice', '{{ $isPaidView ? 'Tanggal Bayar' : 'Jatuh Tempo Terdekat' }}', '{{ $isPaidView ? 'Total Dibayar' : 'Total Tunggakan' }}', ''];
     $.fn.dataTable.ext.errMode = 'none';
     const table = $('#paymentsTable').DataTable({
         processing: true, serverSide: true, searching: true, ordering: false, pageLength: 20,
         lengthMenu: [[10, 20, 50, 100], [10, 20, 50, 100]],
         ajax: {
             url: '{{ route('admin.payments.data') }}',
-            data: function (data) { @if(auth()->user()->hasRole('superadmin')) data.pop_id = '{{ $popId }}'; @endif }
+            data: function (data) { data.view = '{{ $isPaidView ? 'paid' : 'unpaid' }}'; @if(auth()->user()->hasRole('superadmin')) data.pop_id = '{{ $popId }}'; @endif }
         },
         columns: [
             {data: 'customer'}, {data: 'contact'}, {data: 'invoices'}, {data: 'due_date'},
@@ -121,7 +122,7 @@ $(function () {
         dom: 'rt<"d-flex flex-column flex-md-row justify-content-between align-items-center mt-3 px-1"ip>',
         language: {
             info: 'Menampilkan _START_–_END_ dari _TOTAL_ pelanggan',
-            infoEmpty: 'Tidak ada tunggakan', processing: 'Memuat data...', zeroRecords: 'Tidak ada tunggakan yang sesuai',
+            infoEmpty: '{{ $isPaidView ? 'Belum ada pembayaran bulan ini' : 'Tidak ada tunggakan' }}', processing: 'Memuat data...', zeroRecords: '{{ $isPaidView ? 'Tidak ada pembayaran yang sesuai' : 'Tidak ada tunggakan yang sesuai' }}',
             paginate: {previous: 'Sebelumnya', next: 'Berikutnya'}
         }
     });

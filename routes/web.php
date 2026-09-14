@@ -320,6 +320,7 @@ Route::prefix('admin')->middleware(['auth', 'role:superadmin|admin|admin-pop|tek
     // Manual payment desk: settle one or more outstanding customer invoices.
     Route::prefix('payments')->name('payments.')->group(function () {
         Route::get('/', [PaymentController::class, 'index'])->name('index');
+        Route::get('/paid', [PaymentController::class, 'paid'])->name('paid');
         Route::get('/data', [PaymentController::class, 'data'])->name('data');
         Route::get('/{customer}/modal', [PaymentController::class, 'modal'])->name('modal');
         Route::post('/{customer}/generate-missing-periods', [PaymentController::class, 'generateMissingPeriods'])->name('generate-missing-periods');

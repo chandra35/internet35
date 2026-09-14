@@ -26,7 +26,7 @@ class PaymentController extends Controller implements HasMiddleware
     public static function middleware(): array
     {
         return [
-            new Middleware('permission:invoices.view', only: ['index', 'data', 'show', 'print']),
+            new Middleware('permission:invoices.view', only: ['index', 'paid', 'data', 'show', 'print']),
             new Middleware('permission:invoices.edit', only: ['store', 'generateMissingPeriods']),
         ];
     }
@@ -55,6 +55,17 @@ class PaymentController extends Controller implements HasMiddleware
     /** List customers who have an invoice that can be settled manually. */
     public function index(Request $request)
     {
+        return $this->paymentIndex($request, 'unpaid');
+    }
+
+    /** List customers whose current billing-period invoice has been paid. */
+    public function paid(Request $request)
+    {
+        return $this->paymentIndex($request, 'paid');
+    }
+
+    protected function paymentIndex(Request $request, string $paymentMode)
+    {
         $popId = $this->getPopId($request);
         $popUsers = auth()->user()->hasRole('superadmin')
             ? User::role('admin-pop')->orderBy('name')->get()
@@ -65,7 +76,7 @@ class PaymentController extends Controller implements HasMiddleware
             $popId = $request->input('pop_id');
         }
 
-        return view('admin.payments.index', compact('popId', 'popUsers'));
+        return view('admin.payments.index', compact('popId', 'popUsers', 'paymentMode'));
     }
 
     /** Server-side DataTable payload for all customers with cumulative arrears. */
@@ -78,9 +89,17 @@ class PaymentController extends Controller implements HasMiddleware
         $start = max(0, (int) $request->input('start', 0));
         $length = min(100, max(10, (int) $request->input('length', 20)));
         $search = trim((string) $request->input('search.value', ''));
-        $unpaid = fn ($query) => $query->whereIn('status', ['pending', 'partial', 'overdue']);
+        $paymentMode = $request->input('view') === 'paid' ? 'paid' : 'unpaid';
+        $periodStart = now()->startOfMonth()->toDateString();
+        $invoiceFilter = function ($query) use ($paymentMode, $periodStart) {
+            if ($paymentMode === 'paid') {
+                $query->where('status', 'paid')->whereDate('period_start', $periodStart);
+            } else {
+                $query->whereIn('status', ['pending', 'partial', 'overdue']);
+            }
+        };
 
-        $baseQuery = Customer::query()->where('pop_id', $popId)->whereHas('invoices', $unpaid);
+        $baseQuery = Customer::query()->where('pop_id', $popId)->whereHas('invoices', $invoiceFilter);
         $recordsTotal = (clone $baseQuery)->count();
         $filteredQuery = (clone $baseQuery)->when($search !== '', function ($query) use ($search) {
             $query->where(function ($subQuery) use ($search) {
@@ -91,8 +110,8 @@ class PaymentController extends Controller implements HasMiddleware
             });
         });
         $recordsFiltered = (clone $filteredQuery)->count();
-        $customers = $filteredQuery->with(['invoices' => function ($query) use ($unpaid) {
-            $unpaid($query);
+        $customers = $filteredQuery->with(['invoices' => function ($query) use ($invoiceFilter) {
+            $invoiceFilter($query);
 
             $query->orderBy('period_start');
         }])
@@ -102,19 +121,27 @@ class PaymentController extends Controller implements HasMiddleware
             'draw' => $draw,
             'recordsTotal' => $recordsTotal,
             'recordsFiltered' => $recordsFiltered,
-            'data' => $customers->map(function (Customer $customer) use ($popId) {
+            'data' => $customers->map(function (Customer $customer) use ($popId, $paymentMode) {
                 $firstInvoice = $customer->invoices->first();
-                $outstanding = $customer->invoices->sum(fn (CustomerInvoice $invoice) => $invoice->remaining_amount);
+                $amount = $paymentMode === 'paid'
+                    ? $customer->invoices->sum(fn (CustomerInvoice $invoice) => $invoice->paid_amount)
+                    : $customer->invoices->sum(fn (CustomerInvoice $invoice) => $invoice->remaining_amount);
                 $dueDate = $firstInvoice?->due_date?->format('d/m/Y') ?? '—';
                 $dueClass = $firstInvoice?->due_date?->isPast() ? 'text-danger font-weight-bold' : '';
+                if ($paymentMode === 'paid') {
+                    $dueDate = $firstInvoice?->paid_at?->format('d/m/Y') ?? '—';
+                    $dueClass = 'text-success';
+                }
 
                 return [
                     'customer' => '<strong>' . e($customer->name) . '</strong><br><small class="text-muted">' . e($customer->customer_id) . '</small>',
                     'contact' => e($customer->phone ?: '—') . '<br><small class="text-muted">' . e($customer->pppoe_username ?: '—') . '</small>',
-                    'invoices' => '<span class="badge badge-warning">' . $customer->invoices->count() . ' invoice belum bayar</span>',
+                    'invoices' => '<span class="badge badge-' . ($paymentMode === 'paid' ? 'success' : 'warning') . '">' . $customer->invoices->count() . ' invoice ' . ($paymentMode === 'paid' ? 'sudah bayar' : 'belum bayar') . '</span>',
                     'due_date' => '<span class="' . $dueClass . '">' . e($dueDate) . '</span>',
-                    'outstanding' => '<strong class="text-danger">Rp ' . number_format($outstanding, 0, ',', '.') . '</strong>',
-                    'action' => '<button type="button" class="btn btn-success btn-sm payment-action payment-detail" data-url="' . e(route('admin.payments.modal', ['customer' => $customer, 'pop_id' => $popId])) . '"><i class="fas fa-cash-register mr-1"></i><span>Detail / Bayar</span></button>',
+                    'outstanding' => '<strong class="' . ($paymentMode === 'paid' ? 'text-success' : 'text-danger') . '">Rp ' . number_format($amount, 0, ',', '.') . '</strong>',
+                    'action' => $paymentMode === 'paid'
+                        ? '<a class="btn btn-outline-success btn-sm payment-action" href="' . e(route('admin.payments.show', ['customer' => $customer, 'pop_id' => $popId])) . '"><i class="fas fa-eye mr-1"></i><span>Detail</span></a>'
+                        : '<button type="button" class="btn btn-success btn-sm payment-action payment-detail" data-url="' . e(route('admin.payments.modal', ['customer' => $customer, 'pop_id' => $popId])) . '"><i class="fas fa-cash-register mr-1"></i><span>Detail / Bayar</span></button>',
                 ];
             })->values(),
         ]);
