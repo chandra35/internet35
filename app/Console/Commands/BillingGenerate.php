@@ -148,7 +148,7 @@ class BillingGenerate extends Command
                         'period_end' => $periodEnd,
                         'items' => [
                             [
-                                'description' => 'Layanan Internet ' . $customer->package->name,
+                                'description' => 'Layanan Internet ' . $customer->package->invoice_label,
                                 'amount' => $subtotal,
                             ]
                         ],

@@ -255,7 +255,7 @@ class PaymentController extends Controller implements HasMiddleware
                         'period_start' => $periodStart,
                         'period_end' => $periodEnd,
                         'items' => [[
-                            'description' => 'Layanan Internet ' . $customer->package->name,
+                            'description' => 'Layanan Internet ' . $customer->package->invoice_label,
                             'amount' => $subtotal,
                         ]],
                         'subtotal' => $subtotal,

@@ -210,7 +210,7 @@ class CustomerInvoicePrintController extends Controller implements HasMiddleware
                         'period_end' => $periodEnd->toDateString(),
                         'items' => [
                             [
-                                'description' => 'Layanan Internet ' . $customer->package->name,
+                                'description' => 'Layanan Internet ' . $customer->package->invoice_label,
                                 'amount' => $subtotal,
                             ],
                         ],

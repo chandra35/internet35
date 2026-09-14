@@ -138,6 +138,7 @@
                             <td>{{ $index + 1 }}</td>
                             <td>
                                 <div class="font-weight-bold">{{ $package->name }}</div>
+                                <small class="text-muted"><i class="fas fa-file-invoice mr-1"></i>Invoice: {{ $package->invoice_label }}</small>
                                 @if($package->description)
                                 <small class="text-muted">{{ Str::limit($package->description, 50) }}</small>
                                 @endif
@@ -281,7 +282,27 @@
                     <div class="form-group">
                         <label>Nama Paket <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" id="packageName" name="name" required>
-                        <small class="text-muted">Nama yang ditampilkan ke pelanggan</small>
+                        <small class="text-muted">Nama profile/wilayah MikroTik</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Nama Paket untuk Invoice</label>
+                        <select class="form-control" id="packageInvoiceLabel" name="invoice_label">
+                            <option value="">Otomatis dari kecepatan profile</option>
+                            <option value="1 Mbps">1 Mbps</option>
+                            <option value="2 Mbps">2 Mbps</option>
+                            <option value="5 Mbps">5 Mbps</option>
+                            <option value="10 Mbps">10 Mbps</option>
+                            <option value="15 Mbps">15 Mbps</option>
+                            <option value="20 Mbps">20 Mbps</option>
+                            <option value="30 Mbps">30 Mbps</option>
+                            <option value="50 Mbps">50 Mbps</option>
+                            <option value="100 Mbps">100 Mbps</option>
+                            <option value="__custom__">Nama lain...</option>
+                        </select>
+                        <input type="text" class="form-control mt-2 d-none" id="packageInvoiceLabelCustom"
+                               placeholder="Contoh: Internet Premium 10 Mbps">
+                        <small class="text-muted">Tag komersial yang akan ditampilkan pada invoice.</small>
                     </div>
                     
                     <div class="row">
@@ -377,6 +398,38 @@ $(function() {
         $('#totalWithPpn').text(formatRupiah(priceWithPpn));
         $('#ppnCalculation').show();
     }
+
+    function setInvoiceLabel(value) {
+        const select = $('#packageInvoiceLabel');
+        const custom = $('#packageInvoiceLabelCustom');
+        const optionExists = value && select.find('option').filter(function() { return this.value === value; }).length;
+        if (optionExists) {
+            select.val(value);
+            custom.val('').addClass('d-none');
+        } else if (value) {
+            select.val('__custom__');
+            custom.val(value).removeClass('d-none');
+        } else {
+            select.val('');
+            custom.val('').addClass('d-none');
+        }
+    }
+
+    function setInvoiceLabelFromRate(rateLimit) {
+        const match = String(rateLimit || '').match(/([0-9]+(?:\.[0-9]+)?)([KMG])(?:b)?/i);
+        if (!match) return setInvoiceLabel('');
+        let mbps = parseFloat(match[1]);
+        const unit = match[2].toUpperCase();
+        if (unit === 'K') mbps /= 1000;
+        if (unit === 'G') mbps *= 1000;
+        setInvoiceLabel(`${mbps} Mbps`);
+    }
+
+    $('#packageInvoiceLabel').on('change', function() {
+        const isCustom = $(this).val() === '__custom__';
+        $('#packageInvoiceLabelCustom').toggleClass('d-none', !isCustom);
+        if (!isCustom) $('#packageInvoiceLabelCustom').val('');
+    });
     
     // Listen to price input changes
     $('#packagePrice').on('input', function() {
@@ -462,6 +515,7 @@ $(function() {
         $('#displayRouter').text(selectedProfile.router_name || '-');
         $('#displayRemoteAddress').text(selectedProfile.remote_address || '-');
         $('#packageName').val(selectedProfile.name);
+        setInvoiceLabelFromRate(selectedProfile.rate_limit);
         $('#packagePrice').val('');
         $('#packageValidity').val(30);
         $('#packageDescription').val('');
@@ -492,6 +546,7 @@ $(function() {
                 $('#displayRouter').text(pkg.router?.name || '-');
                 $('#displayRemoteAddress').text(pkg.remote_address || '-');
                 $('#packageName').val(pkg.name);
+                setInvoiceLabel(pkg.invoice_label || '');
                 $('#packagePrice').val(pkg.price);
                 $('#packageValidity').val(pkg.validity_days);
                 $('#packageDescription').val(pkg.description || '');
@@ -512,6 +567,11 @@ $(function() {
     // Save package
     $('#packageForm').on('submit', function(e) {
         e.preventDefault();
+
+        const invoiceLabel = $('#packageInvoiceLabel');
+        if (invoiceLabel.val() === '__custom__') {
+            invoiceLabel.val($('#packageInvoiceLabelCustom').val().trim());
+        }
         
         const btn = $('#btnSavePackage');
         const originalHtml = btn.html();

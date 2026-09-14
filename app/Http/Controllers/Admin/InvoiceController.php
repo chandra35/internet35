@@ -562,7 +562,7 @@ class InvoiceController extends Controller implements HasMiddleware
                     'period_end' => $validated['period_end'],
                     'items' => [
                         [
-                            'description' => 'Layanan Internet ' . $customer->package->name,
+                            'description' => 'Layanan Internet ' . $customer->package->invoice_label,
                             'amount' => $subtotal,
                         ]
                     ],
@@ -746,7 +746,7 @@ class InvoiceController extends Controller implements HasMiddleware
                         'period_end' => $periodEnd,
                         'items' => [
                             [
-                                'description' => 'Layanan Internet ' . $customer->package->name,
+                                'description' => 'Layanan Internet ' . $customer->package->invoice_label,
                                 'amount' => $subtotal,
                             ]
                         ],

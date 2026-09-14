@@ -151,7 +151,7 @@
             @else
                 <tr>
                     <td>1</td>
-                    <td>Layanan Internet {{ $customer->package?->name ?? '' }}</td>
+                    <td>Layanan Internet {{ $customer->package?->invoice_label ?? $customer->package?->name ?? '' }}</td>
                     <td class="text-right">Rp {{ number_format($invoice->subtotal, 0, ',', '.') }}</td>
                 </tr>
             @endif

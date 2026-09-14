@@ -33,6 +33,17 @@
         </div>
     </div>
 
+    <div class="form-group">
+        <label>Nama Paket untuk Invoice</label>
+        <select name="invoice_label" class="form-control">
+            <option value="">Otomatis dari kecepatan profile</option>
+            @foreach(['1 Mbps', '2 Mbps', '5 Mbps', '10 Mbps', '15 Mbps', '20 Mbps', '30 Mbps', '50 Mbps', '100 Mbps'] as $label)
+                <option value="{{ $label }}" {{ ($package->invoice_label ?? old('invoice_label')) === $label ? 'selected' : '' }}>{{ $label }}</option>
+            @endforeach
+        </select>
+        <small class="text-muted">Tag komersial yang akan ditampilkan pada invoice, terpisah dari profile MikroTik.</small>
+    </div>
+
     <div class="row">
         <div class="col-md-6">
             <div class="form-group">

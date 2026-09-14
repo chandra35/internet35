@@ -170,6 +170,7 @@ class PackageController extends Controller implements HasMiddleware
             'profile_id' => 'required|uuid|exists:ppp_profiles,id',
             'router_id' => 'required|uuid|exists:routers,id',
             'name' => 'required|string|max:255',
+            'invoice_label' => 'nullable|string|max:100',
             'price' => 'required|numeric|min:0',
             'validity_days' => 'required|integer|min:1',
             'description' => 'nullable|string',
@@ -192,6 +193,7 @@ class PackageController extends Controller implements HasMiddleware
                 $existingPackage->restore();
                 $existingPackage->update([
                     'name' => $request->name,
+                    'invoice_label' => $request->input('invoice_label'),
                     'price' => $request->price,
                     'validity_days' => $request->validity_days,
                     'description' => $request->description,
@@ -223,6 +225,7 @@ class PackageController extends Controller implements HasMiddleware
         $package = Package::create([
             'router_id' => $request->router_id,
             'name' => $request->name,
+            'invoice_label' => $request->input('invoice_label'),
             'mikrotik_profile_name' => $profile->name,
             'mikrotik_profile_id' => $profile->mikrotik_id,
             'rate_limit' => $profile->rate_limit,
@@ -259,6 +262,7 @@ class PackageController extends Controller implements HasMiddleware
     {
         $request->validate([
             'name' => 'required|string|max:255',
+            'invoice_label' => 'nullable|string|max:100',
             'price' => 'required|numeric|min:0',
             'validity_days' => 'required|integer|min:1',
             'description' => 'nullable|string',
@@ -270,6 +274,7 @@ class PackageController extends Controller implements HasMiddleware
 
         $package->update([
             'name' => $request->name,
+            'invoice_label' => $request->input('invoice_label'),
             'price' => $request->price,
             'validity_days' => $request->validity_days,
             'description' => $request->description,

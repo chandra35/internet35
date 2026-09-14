@@ -15,6 +15,7 @@ class Package extends Model
     protected $fillable = [
         'router_id',
         'name',
+        'invoice_label',
         'mikrotik_profile_name',
         'mikrotik_profile_id',
         'rate_limit',
@@ -74,6 +75,19 @@ class Package extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * Label komersial yang ditampilkan di invoice. Jika belum diatur,
+     * gunakan kecepatan download paket sebagai fallback.
+     */
+    public function getInvoiceLabelAttribute($value): string
+    {
+        if (filled($value)) {
+            return $value;
+        }
+
+        return $this->formatted_download !== '-' ? $this->formatted_download : $this->name;
     }
 
     /**

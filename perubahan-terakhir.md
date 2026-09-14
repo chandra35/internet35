@@ -255,3 +255,11 @@ Tanggal pembaruan: 14 September 2026 (WIB)
 - Saat PPN aktif, nilai final dipecah menjadi subtotal dan PPN; PPN tidak lagi menambah total paket.
 - Generator otomatis, backfill, bulk invoice, dan invoice cetak memakai aturan harga yang sama serta override PPN pelanggan.
 - Regenerate invoice mencari periode berdasarkan bulan, mengikuti `billing_day`, dan tetap menolak penghapusan invoice yang sudah lunas.
+
+## Tag Nama Paket untuk Invoice
+
+Tanggal pembaruan: 14 September 2026 (WIB)
+
+- Nama profile MikroTik/wilayah dipisahkan dari nama komersial yang tampil di invoice.
+- Paket kini memiliki tag **Nama Paket untuk Invoice**, dengan pilihan otomatis berdasarkan kecepatan profile atau nama custom.
+- Invoice baru, invoice bulk, backfill, cetak, dan PDF menggunakan tag tersebut; jika kosong, sistem memakai kecepatan profile sebagai fallback, misalnya `10 Mbps`.
