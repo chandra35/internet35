@@ -204,3 +204,11 @@ Tanggal pembaruan: 14 September 2026 (WIB)
 - Dashboard pelanggan menampilkan tunggakan sebagian secara konsisten dengan menu admin.
 - Ditambahkan fondasi responsive global untuk layout admin dan portal pelanggan pada desktop, tablet, dan ponsel.
 - Header, sidebar, kartu, tabel, modal, form, tombol, breadcrumb, dan footer diberi aturan adaptif agar tidak meluber pada layar kecil.
+
+## Rebuild UI/UX Pembayaran
+
+Tanggal pembaruan: 14 September 2026 (WIB)
+
+- Halaman pembayaran admin kini memiliki tab status **Belum Bayar** dan **Sudah Bayar** yang terlihat langsung di area konten.
+- Header, tombol status, dan empty-state ditata ulang agar hierarki informasi lebih jelas dan proporsional.
+- Detail pembayaran dibuat lebih seimbang pada layar tablet dan ponsel, termasuk ringkasan, tabel, kartu pelanggan, dan panel aksi.

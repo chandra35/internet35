@@ -50,12 +50,17 @@
     .metric-label { color: #7c8b9c; font-size: .72rem; text-transform: uppercase; letter-spacing: .45px; font-weight: 700; }
     .metric-value { color: #26384e; font-size: 1.05rem; font-weight: 700; margin-top: 3px; }
     .period-banner { background: linear-gradient(135deg, #eef6ff, #f7fbff); border: 1px solid #d8e9fb; border-radius: 10px; padding: 13px 16px; }
-    .empty-state { padding: 28px 20px 30px; }
+    .empty-state { padding: 28px 20px 30px; min-height:280px; display:flex; flex-direction:column; align-items:center; justify-content:center; }
     .empty-state .empty-icon { width: 58px; height: 58px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: #e9f8ee; color: #28a745; font-size: 1.65rem; }
     .recent-payment { border-bottom: 1px solid #edf1f6; padding: 10px 0; }
     .recent-payment:last-child { border-bottom: 0; }
     @media (max-width: 991.98px) { .customer-panel { position: static; } }
     @media (max-width: 767.98px) {
+        .billing-overview .metric { border-right:0; border-bottom:1px solid #edf1f6; padding:12px 14px; }
+        .billing-overview .metric:last-child { border-bottom:0; }
+        .payment-card .card-header { align-items:flex-start !important; gap:8px; }
+        .payment-card .card-header .badge { white-space:normal; text-align:right; }
+        .period-banner { width:100%; }
         .payment-table thead { display: none; }
         .payment-table, .payment-table tbody, .payment-table tr, .payment-table td { display: block; width: 100%; }
         .payment-table tr { padding: 10px 12px; border-bottom: 1px solid #edf1f6; }
