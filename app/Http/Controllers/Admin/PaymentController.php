@@ -90,10 +90,13 @@ class PaymentController extends Controller implements HasMiddleware
         $length = min(100, max(10, (int) $request->input('length', 20)));
         $search = trim((string) $request->input('search.value', ''));
         $paymentMode = $request->input('view') === 'paid' ? 'paid' : 'unpaid';
-        $periodStart = now()->startOfMonth()->toDateString();
-        $invoiceFilter = function ($query) use ($paymentMode, $periodStart) {
+        $periodYear = now()->year;
+        $periodMonth = now()->month;
+        $invoiceFilter = function ($query) use ($paymentMode, $periodYear, $periodMonth) {
             if ($paymentMode === 'paid') {
-                $query->where('status', 'paid')->whereDate('period_start', $periodStart);
+                $query->where('status', 'paid')
+                    ->whereYear('period_start', $periodYear)
+                    ->whereMonth('period_start', $periodMonth);
             } else {
                 $query->whereIn('status', ['pending', 'partial', 'overdue']);
             }
