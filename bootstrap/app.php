@@ -22,5 +22,13 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        $exceptions->render(function (\Spatie\Permission\Exceptions\UnauthorizedException $e, \Illuminate\Http\Request $request) {
+            if (auth()->check()) {
+                if (auth()->user()->hasRole('client')) {
+                    return redirect()->route('pelanggan.dashboard')->with('info', 'Halaman tersebut hanya untuk administrator. Anda telah diarahkan ke Portal Pelanggan.');
+                }
+                return redirect()->route('admin.dashboard')->with('error', 'Anda tidak memiliki hak akses untuk halaman tersebut.');
+            }
+            return redirect()->route('login');
+        });
     })->create();
