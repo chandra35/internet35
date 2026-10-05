@@ -26,8 +26,6 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
     <!-- Toastr -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
-    <!-- Cyber NOC Dark & Neon Theme -->
-    <link rel="stylesheet" href="{{ asset('assets/css/cyber-noc-theme.css') }}">
     
     <style>
         .content-wrapper { min-height: calc(100vh - 57px); }
@@ -179,7 +177,7 @@
     
     @stack('css')
 </head>
-<body class="hold-transition sidebar-mini layout-fixed layout-navbar-fixed cyber-noc-theme">
+<body class="hold-transition sidebar-mini layout-fixed layout-navbar-fixed">
 <div class="wrapper">
     <!-- Custom Preloader -->
     <div class="preloader-custom" id="preloader">
@@ -211,30 +209,6 @@
 
         <!-- Right navbar links -->
         <ul class="navbar-nav ml-auto">
-            <!-- NOC Live Indicator -->
-            <li class="nav-item d-none d-md-flex align-items-center mr-2">
-                <span class="noc-live-badge">
-                    <span class="noc-live-dot"></span> NOC SYSTEM ONLINE
-                </span>
-            </li>
-
-            <!-- Accent Color Switcher Dropdown -->
-            <li class="nav-item dropdown mr-1" title="Aksen Tema Cyber NOC">
-                <a class="nav-link" data-toggle="dropdown" href="#" role="button" aria-label="Cyber Accent Picker">
-                    <i class="fas fa-palette text-warning"></i>
-                </a>
-                <div class="dropdown-menu dropdown-menu-right p-2 cyber-modal-content" style="min-width: 170px;">
-                    <div class="dropdown-header text-muted font-weight-bold px-1 mb-1" style="font-size:0.75rem;">AKSEN CYBER NOC</div>
-                    <div class="d-flex justify-content-between px-1 py-1">
-                        <span class="accent-picker-item" data-color="cyan" style="background:#00f2fe;" title="Cyber Cyan"></span>
-                        <span class="accent-picker-item" data-color="emerald" style="background:#10b981;" title="Emerald Green"></span>
-                        <span class="accent-picker-item" data-color="purple" style="background:#a855f7;" title="Neon Purple"></span>
-                        <span class="accent-picker-item" data-color="amber" style="background:#f59e0b;" title="Amber Gold"></span>
-                        <span class="accent-picker-item" data-color="crimson" style="background:#f43f5e;" title="Crimson Red"></span>
-                    </div>
-                </div>
-            </li>
-
             <li class="nav-item d-none d-md-flex align-items-center">
                 <span class="nav-link text-muted" id="navbarClock" aria-label="Waktu Indonesia Barat">
                     <i class="far fa-clock mr-1"></i><span>--:--:-- WIB</span>
@@ -1183,117 +1157,6 @@
     const updateClock = () => { clock.textContent = `${formatter.format(new Date())} WIB`; };
     updateClock();
     setInterval(updateClock, 1000);
-})();
-{{-- ====== Universal Cyber Confirmation Modal (Bootstrap 5 Style) ====== --}}
-<div class="modal fade" id="cyberConfirmModal" tabindex="-1" role="dialog" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered" role="document" style="max-width: 480px;">
-        <div class="modal-content cyber-modal-content">
-            <div class="modal-header border-0 pb-0">
-                <h5 class="modal-title d-flex align-items-center text-warning" id="cyberConfirmHeading">
-                    <i class="fas fa-exclamation-triangle mr-2" id="cyberConfirmIcon"></i>
-                    <span id="cyberConfirmTitle">Konfirmasi Aksi</span>
-                </h5>
-                <button type="button" class="close text-light" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <div class="modal-body py-3 text-light" id="cyberConfirmMessage">
-                Apakah Anda yakin ingin melakukan tindakan ini?
-            </div>
-            <div class="modal-footer border-0 pt-0">
-                <button type="button" class="btn btn-secondary btn-sm px-3" data-dismiss="modal">Batal</button>
-                <button type="button" class="btn btn-danger btn-sm px-3" id="cyberConfirmBtn">Ya, Lanjutkan</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<script>
-// ====== Accent Color Switcher Handler ======
-(function() {
-    const savedAccent = localStorage.getItem('cyber_accent') || 'cyan';
-    document.documentElement.dataset.accent = savedAccent;
-    
-    $(document).ready(function() {
-        $(`.accent-picker-item[data-color="${savedAccent}"]`).addClass('active');
-        
-        $('.accent-picker-item').on('click', function() {
-            const color = $(this).data('color');
-            $('.accent-picker-item').removeClass('active');
-            $(this).addClass('active');
-            document.documentElement.dataset.accent = color;
-            localStorage.setItem('cyber_accent', color);
-            toastr.info(`Aksen warna diubah ke: ${color.toUpperCase()}`, 'Tema Cyber NOC');
-        });
-    });
-})();
-
-// ====== Toastr Flash Messages Handler ======
-@if(session('success'))
-    toastr.success(@json(session('success')), 'Berhasil');
-@endif
-@if(session('error'))
-    toastr.error(@json(session('error')), 'Gagal / Error');
-@endif
-@if(session('warning'))
-    toastr.warning(@json(session('warning')), 'Peringatan');
-@endif
-@if(session('info'))
-    toastr.info(@json(session('info')), 'Informasi');
-@endif
-
-// ====== Universal Bootstrap 5 Action Confirmation Modal ======
-(function() {
-    let pendingAction = null;
-
-    window.cyberConfirm = function(options) {
-        const title = options.title || 'Konfirmasi Aksi';
-        const message = options.message || 'Apakah Anda yakin ingin melakukan tindakan ini?';
-        const iconClass = options.icon || 'fas fa-exclamation-triangle text-warning';
-        const btnText = options.btnText || 'Ya, Lanjutkan';
-        const btnClass = options.btnClass || 'btn-danger';
-
-        $('#cyberConfirmTitle').text(title);
-        $('#cyberConfirmMessage').html(message);
-        $('#cyberConfirmIcon').attr('class', iconClass + ' mr-2');
-        $('#cyberConfirmBtn').attr('class', 'btn btn-sm px-3 ' + btnClass).text(btnText);
-
-        pendingAction = options.onConfirm || null;
-        $('#cyberConfirmModal').modal('show');
-    };
-
-    $(document).ready(function() {
-        $('#cyberConfirmBtn').on('click', function() {
-            $('#cyberConfirmModal').modal('hide');
-            if (typeof pendingAction === 'function') {
-                pendingAction();
-            }
-        });
-
-        // Event delegation for links / forms with data-confirm
-        $(document).on('click', '[data-confirm-modal="true"], .btn-confirm-delete, .btn-confirm-action', function(e) {
-            e.preventDefault();
-            const $elem = $(this);
-            const title = $elem.data('confirm-title') || 'Konfirmasi Tindakan';
-            const message = $elem.data('confirm-message') || $elem.attr('title') || 'Apakah Anda yakin ingin melanjutkan?';
-            const btnClass = $elem.data('confirm-btn-class') || 'btn-danger';
-            const icon = $elem.data('confirm-icon') || 'fas fa-exclamation-triangle text-warning';
-
-            window.cyberConfirm({
-                title: title,
-                message: message,
-                btnClass: btnClass,
-                icon: icon,
-                onConfirm: function() {
-                    if ($elem.is('a')) {
-                        window.location.href = $elem.attr('href');
-                    } else if ($elem.is('button') && $elem.closest('form').length) {
-                        $elem.closest('form').submit();
-                    }
-                }
-            });
-        });
-    });
 })();
 </script>
 

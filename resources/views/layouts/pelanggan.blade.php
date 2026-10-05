@@ -15,7 +15,6 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/css/adminlte.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastr@2.1.4/build/toastr.min.css">
-    <link rel="stylesheet" href="{{ asset('assets/css/cyber-noc-theme.css') }}">
     
     <style>
         /* Base — 13px felt right for compact portal */
@@ -155,7 +154,7 @@
     </style>
     @stack('css')
 </head>
-<body class="hold-transition sidebar-mini layout-fixed cyber-noc-theme">
+<body class="hold-transition sidebar-mini layout-fixed">
 <div class="wrapper">
 
     <!-- Navbar -->
