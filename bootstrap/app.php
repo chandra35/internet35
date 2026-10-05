@@ -22,6 +22,13 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->render(function (\Illuminate\Session\TokenMismatchException $e, \Illuminate\Http\Request $request) {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json(['message' => 'Sesi telah berakhir, silakan muat ulang halaman.'], 419);
+            }
+            return redirect()->route('login')->with('warning', 'Sesi Anda telah berakhir. Silakan login kembali.');
+        });
+
         $exceptions->render(function (\Spatie\Permission\Exceptions\UnauthorizedException $e, \Illuminate\Http\Request $request) {
             if ($request->expectsJson() || $request->ajax()) {
                 return response()->json(['message' => 'Anda tidak memiliki hak akses untuk aksi ini.'], 403);
