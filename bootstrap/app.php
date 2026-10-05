@@ -23,12 +23,22 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (\Spatie\Permission\Exceptions\UnauthorizedException $e, \Illuminate\Http\Request $request) {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json(['message' => 'Anda tidak memiliki hak akses untuk aksi ini.'], 403);
+            }
+
             if (auth()->check()) {
                 if (auth()->user()->hasRole('client')) {
                     return redirect()->route('pelanggan.dashboard')->with('info', 'Halaman tersebut hanya untuk administrator. Anda telah diarahkan ke Portal Pelanggan.');
                 }
+
+                if ($request->routeIs('admin.dashboard')) {
+                    return response()->view('errors.403', ['exception' => $e], 403);
+                }
+
                 return redirect()->route('admin.dashboard')->with('error', 'Anda tidak memiliki hak akses untuk halaman tersebut.');
             }
+
             return redirect()->route('login');
         });
     })->create();
