@@ -11,7 +11,7 @@
 #   ├── wifi35.net/          ← Document root (public)
 #   │   ├── index.php        ← Modified entry point
 #   │   ├── .htaccess
-#   │   ├── build/           ← Vite assets  
+#   │   ├── build/           ← Vite assets  saya
 #   │   └── storage -> ../internet35-app/storage/app/public
 #   └── internet35-app/      ← Laravel app (above webroot)
 # ============================================================
