@@ -53,19 +53,24 @@ class BillingAutoUnsuspend extends Command
             try {
                 $mikrotikResult = $this->unsuspendService->unsuspend($customer);
 
-                $this->line("  ✓ Unsuspended {$customer->name} ({$customer->customer_id}) [mikrotik: {$mikrotikResult}]");
-                $unsuspended++;
+                if ($mikrotikResult === 'unsuspended' || (!$customer->router && $customer->fresh()->status === 'active')) {
+                    $this->line("  ✓ Unsuspended {$customer->name} ({$customer->customer_id}) [mikrotik: {$mikrotikResult}]");
+                    $unsuspended++;
 
-                Log::info("Auto-unsuspend: unsuspended {$customer->customer_id} ({$customer->name}) [mikrotik: {$mikrotikResult}]");
+                    Log::info("Auto-unsuspend: unsuspended {$customer->customer_id} ({$customer->name}) [mikrotik: {$mikrotikResult}]");
 
-                // Send activation notification
-                try {
-                    app(NotificationService::class)->sendActivated($customer, [
-                        'activate_date' => now()->format('d F Y H:i'),
-                        'reason'        => 'Tagihan telah dilunasi',
-                    ]);
-                } catch (\Exception $notifErr) {
-                    Log::warning("Auto-unsuspend: failed notification for {$customer->customer_id}: " . $notifErr->getMessage());
+                    // Send activation notification
+                    try {
+                        app(NotificationService::class)->sendActivated($customer, [
+                            'activate_date' => now()->format('d F Y H:i'),
+                            'reason'        => 'Tagihan telah dilunasi',
+                        ]);
+                    } catch (\Exception $notifErr) {
+                        Log::warning("Auto-unsuspend: failed notification for {$customer->customer_id}: " . $notifErr->getMessage());
+                    }
+                } else {
+                    $this->error("  ✗ Unsuspend skipped for {$customer->name}: MikroTik returned [{$mikrotikResult}]");
+                    $failed++;
                 }
             } catch (\Exception $e) {
                 Log::error("Auto-unsuspend failed for {$customer->customer_id}: " . $e->getMessage());

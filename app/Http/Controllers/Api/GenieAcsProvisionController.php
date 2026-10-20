@@ -26,6 +26,15 @@ class GenieAcsProvisionController extends Controller
      */
     public function getProvision(Request $request, string $serial): JsonResponse
     {
+        // --- IP Allowlist Check (if configured) ---
+        $allowedIps = config('services.genieacs.allowed_ips', '');
+        if (!empty($allowedIps)) {
+            $ipList = array_map('trim', explode(',', $allowedIps));
+            if (!in_array($request->ip(), $ipList, true) && !in_array('*', $ipList, true)) {
+                return response()->json(['error' => 'Forbidden IP address'], 403);
+            }
+        }
+
         // --- Auth ---
         $configuredKey = config('services.genieacs.provision_key', '');
         if ($configuredKey === '' || $request->header('X-ACS-Key') !== $configuredKey) {

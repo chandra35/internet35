@@ -1448,6 +1448,11 @@ class ZteC320Helper extends BaseOltHelper
             }
             $buffer .= $chunk;
 
+            // If ZTE pagination prompt appears, send space to advance output
+            if (str_contains($buffer, '--More--') || str_contains($buffer, '--More (')) {
+                @fwrite($fp, " ");
+            }
+
             // Check for ZTE prompt at end of buffer (e.g., "ZXAN#", "ZXAN(config)#", "ZXAN(gpon-onu-mng 1/1/1:19)#")
             // Also match confirmation prompts like "[yes/no]:" or "[Y/N]:"
             if (preg_match('/[\w)][#>]\s*$/', $buffer) || preg_match('/\]\s*:\s*$/', $buffer)) {
@@ -2556,6 +2561,10 @@ class ZteC320Helper extends BaseOltHelper
         fwrite($fp, $this->olt->telnet_password . "\r\n");
         sleep(1);
         $this->telnetWaitFor($fp, ['>', '#', '$']);
+
+        // Disable CLI paging to prevent interactive hangs
+        fwrite($fp, "terminal length 0\r\n");
+        usleep(300000);
 
         // Send each command sequentially
         $fullOutput = '';

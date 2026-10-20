@@ -133,10 +133,10 @@ class Odp extends Model
      */
     public function calculateOpticalPower(): array
     {
-        $inputPower = $this->input_power;
+        $inputPower = $this->input_power ?? $this->getSourcePower() ?? 3.0;
         $fiberDistance = $this->fiber_distance ?? 0;
         $fiberLossPerKm = $this->fiber_loss_per_km ?? 0.35;
-        $splitterRatio = $this->splitter_ratio;
+        $splitterRatio = $this->splitter_ratio ?? '1:8';
         
         // Calculate fiber loss
         $fiberLoss = $fiberDistance * $fiberLossPerKm;
@@ -148,17 +148,43 @@ class Odp extends Model
         // Calculate output power
         $outputPower = $powerAfterFiber - $splitterLoss['branch'];
         $cascadeOutputPower = $powerAfterFiber - $splitterLoss['main'];
+        $totalLoss = $fiberLoss + $splitterLoss['branch'];
+
+        $statusPower = 'ideal';
+        if ($outputPower < -27 || $outputPower > -8) {
+            $statusPower = 'critical';
+        } elseif ($outputPower < -24) {
+            $statusPower = 'warning';
+        }
         
         return [
+            'input_power' => round($inputPower, 2),
             'fiber_loss' => round($fiberLoss, 2),
             'power_after_fiber' => round($powerAfterFiber, 2),
             'splitter_loss_main' => $splitterLoss['main'],
             'splitter_loss_branch' => $splitterLoss['branch'],
             'output_power' => round($outputPower, 2),
             'cascade_output_power' => round($cascadeOutputPower, 2),
-            'is_warning' => $outputPower < -28, // Typical ONU sensitivity threshold
-            'is_critical' => $outputPower < -30,
+            'total_loss' => round($totalLoss, 2),
+            'status_power' => $statusPower,
+            'is_warning' => $outputPower < -24,
+            'is_critical' => $outputPower < -27,
         ];
+    }
+
+    /**
+     * Update calculated optical power attributes on this model
+     */
+    public function updateCalculatedOpticalPower(): bool
+    {
+        $calculated = $this->calculateOpticalPower();
+        return $this->update([
+            'fiber_loss' => $calculated['fiber_loss'],
+            'splitter_loss' => $calculated['splitter_loss_branch'],
+            'output_power' => $calculated['output_power'],
+            'cascade_output_power' => $calculated['cascade_output_power'],
+            'total_loss' => $calculated['total_loss'],
+        ]);
     }
 
     /**
@@ -177,8 +203,8 @@ class Odp extends Model
                 return (float) $ponPort->tx_power;
             }
             
-            // Fallback: typical OLT TX power
-            return null;
+            // Standard GPON Class B+ TX power default (+3.0 dBm)
+            return 3.0;
         }
         
         // If connected via ODC
@@ -189,13 +215,11 @@ class Odp extends Model
                     ->where('port_number', $this->odc->olt_pon_port)
                     ->first();
                 
-                if ($oltPonPort && $oltPonPort->tx_power) {
-                    // Subtract estimated fiber loss to ODC
-                    $odcFiberLoss = ($this->odc->fiber_distance ?? 0) * 0.35;
-                    return (float) $oltPonPort->tx_power - $odcFiberLoss;
-                }
+                $baseTxPower = ($oltPonPort && $oltPonPort->tx_power) ? (float) $oltPonPort->tx_power : 3.0;
+                $odcFiberLoss = ($this->odc->cable_distance ?? 0) * 0.35;
+                return round($baseTxPower - $odcFiberLoss, 2);
             }
-            return null;
+            return 3.0;
         }
         
         // If connected via parent ODP (cascade)

@@ -12,16 +12,21 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('customers', function (Blueprint $table) {
-            // Mikrotik sync tracking
-            $table->boolean('mikrotik_synced')->default(false)->after('internal_notes');
-            $table->timestamp('mikrotik_synced_at')->nullable()->after('mikrotik_synced');
-            
-            // Radius sync tracking
-            $table->boolean('radius_synced')->default(false)->after('mikrotik_synced_at');
-            $table->timestamp('radius_synced_at')->nullable()->after('radius_synced');
-            
-            // Sync error tracking
-            $table->text('last_sync_error')->nullable()->after('radius_synced_at');
+            if (!Schema::hasColumn('customers', 'mikrotik_synced')) {
+                $table->boolean('mikrotik_synced')->default(false)->after('internal_notes');
+            }
+            if (!Schema::hasColumn('customers', 'mikrotik_synced_at')) {
+                $table->timestamp('mikrotik_synced_at')->nullable()->after('mikrotik_synced');
+            }
+            if (!Schema::hasColumn('customers', 'radius_synced')) {
+                $table->boolean('radius_synced')->default(false)->after('mikrotik_synced_at');
+            }
+            if (!Schema::hasColumn('customers', 'radius_synced_at')) {
+                $table->timestamp('radius_synced_at')->nullable()->after('radius_synced');
+            }
+            if (!Schema::hasColumn('customers', 'last_sync_error')) {
+                $table->text('last_sync_error')->nullable()->after('radius_synced_at');
+            }
         });
     }
 

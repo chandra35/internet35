@@ -1,59 +1,108 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Internet35 — Sistem Operasi & Billing ISP (FTTH)
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Aplikasi manajemen operasional dan billing ISP berbasis **Laravel 12** yang dirancang untuk penyedia layanan internet fiber-to-the-home (FTTH) dengan arsitektur **Multi-POP (Point of Presence)**.
 
-## About Laravel
+---
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## 🚀 Fitur Utama
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+### 1. Manajemen Multi-POP & Pelanggan
+- Multi-tenant POP dengan isolasi data per wilayah.
+- Manajemen siklus hidup pelanggan (Status: *Pending*, *Active*, *Suspended*, *Terminated*).
+- Integrasi data kependudukan (NIK/wilayah) dan pembatasan akses data per POP.
+- Pemetaan fisik pelanggan ke ODP, ODC, port splitter, dan ONU/CPE.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+### 2. Integrasi MikroTik (RouterOS)
+- Pengelolaan PPP Secret, PPP Profile, dan IP Pool via RouterOS API.
+- **Auto-Isolir (Suspend)**: Mengubah profile PPP secret ke profile isolir dan memutuskan sesi aktif tanpa mematikan (*disable*) secret.
+- **Auto-Buka-Isolir (Unsuspend)**: Otomatis memulihkan profile paket layanan begitu tagihan lunas.
+- Pencarian dan pengaitan (*assign*) PPP Secret existing di MikroTik tanpa duplikasi data.
 
-## Learning Laravel
+### 3. Operasi Jaringan GPON & Multi-Vendor OLT
+- Mendukung integrasi OLT multi-merek: **ZTE C320**, **Huawei**, **FiberHome**, **VSOL**, **Hioso**, dan **HSGQ**.
+- Protokol: SNMP v2c/v3, Telnet CLI, dan SSH.
+- Fitur OLT: Auto-scan unconfigured ONU, registrasi ONU, monitoring redaman optik (Rx/Tx power), T-CONT, GEM Port, Service-Port, dan OMCI `pon-onu-mng`.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+### 4. Provisioning CPE / TR-069 (GenieACS)
+- Integrasi Northbound Interface (NBI REST API) GenieACS.
+- Provisioning otomatis WAN PPPoE, WiFi (SSID, enkripsi, password, channel), dan remote management.
+- Queue background push (`PushPppoeToGenieAcs`) dengan retry berkala hingga perangkat online.
+- Fallback WebUI untuk perangkat FiberHome.
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+### 5. Billing & Finansial
+- Penjadwalan pembuatan invoice otomatis (*scheduled billing*).
+- Fleksibilitas perlakuan PPN (Global POP vs Override per-pelanggan) dengan pemisahan subtotal dan PPN dari harga paket.
+- Dukungan *partial payment* dan pencatatan riwayat pembayaran.
+- Integrasi multi-gateway (Midtrans, DOKU, Tripay, Xendit, Duitku, iPaymu) serta transfer manual.
+- Generator cetak invoice PDF (DomPDF) dengan template per POP.
 
-## Laravel Sponsors
+### 6. Portal Pelanggan & Notifikasi
+- Portal mandiri (`/pelanggan`): cek tagihan, pembayaran online, cek status koneksi, dan ubah pengaturan WiFi.
+- Notifikasi multi-kanal otomatis: WhatsApp (Fonnte/WABA), Telegram Bot, dan Email SMTP.
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+---
 
-### Premium Partners
+## 🛠️ Tech Stack
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+- **Backend**: PHP 8.2+ (PHP 8.3 recommended), Laravel 12.x
+- **Database**: MySQL / MariaDB (Production), SQLite support
+- **Queue & Cache**: Database driver
+- **Frontend Admin**: AdminLTE 3 + Bootstrap 4, Vite
+- **Frontend Portal**: Bootstrap 5 + Responsive Layout
+- **Networking**: MikroTik RouterOS API, PHP SNMP, Socket Telnet/SSH, TR-069 / GenieACS
 
-## Contributing
+---
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## 📋 Panduan Instalasi Lokal
 
-## Code of Conduct
+```bash
+# 1. Clone repository
+git clone https://github.com/chandra35/internet35.git
+cd internet35
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+# 2. Install dependensi
+composer install
+npm install
 
-## Security Vulnerabilities
+# 3. Konfigurasi Environment
+cp .env.example .env
+php artisan key:generate
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+# 4. Migrasi Database (CATATAN: Jangan jalankan migrate:fresh pada data yang sudah ada)
+php artisan migrate
 
-## License
+# 5. Build asset frontend
+npm run build
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+# 6. Jalankan server lokal
+php artisan serve
+```
+
+---
+
+## ⚙️ Scheduled Tasks (Cron)
+
+Pastikan Laravel Scheduler berjalan setiap menit di server:
+
+```bash
+* * * * * cd /path/to/internet35 && php artisan schedule:run >> /dev/null 2>&1
+```
+
+Task utama yang dikelola via `Admin > Scheduler`:
+- `billing:generate` — Generate invoice bulanan
+- `billing:reminder` — Kirim pengingat tagihan
+- `billing:auto-suspend` — Auto-isolir pelanggan jatuh tempo
+- `billing:auto-unsuspend` — Auto-buka isolir setelah pelunasan
+- `onus:scan-new` — Pemindaian berkala ONU baru pada OLT
+- `onu:sync-power` — Sinkronisasi berkala redaman optik ONU
+
+---
+
+## 🔒 Catatan Keamanan
+- File kredensial jaringan, dump database, dan konfigurasi server rahasia dikelola secara terisolasi dan **dilarang di-commit ke repositori publik**.
+- Password PPPoE dan kredensial sensitif disimpan terenkripsi menggunakan Laravel Application Key.
+
+---
+
+## 📄 Lisensi
+Hak Cipta © 2026 Internet35. All rights reserved.

@@ -44,6 +44,7 @@ return [
         'timeout' => env('GENIEACS_TIMEOUT', 10),
         // Static key shared with GenieACS extension for provision callback auth.
         'provision_key' => env('GENIEACS_PROVISION_KEY', ''),
+        'allowed_ips' => env('GENIEACS_ALLOWED_IPS', ''),
     ],
 
     // Vendor ONU WebUI credentials (used when TR-069 cannot configure WAN VLAN reliably).

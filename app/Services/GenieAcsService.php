@@ -2450,4 +2450,41 @@ class GenieAcsService
 
         return $vendorHex . strtoupper($serial);
     }
+
+    /**
+     * Remediate Huawei device TR-069 and service list issues:
+     * 1. Ensure ManagementServer.PeriodicInformEnable is true and interval is set (default 300s).
+     * 2. Find PPPoE WAN connection and lock X_HW_SERVICELIST to 'INTERNET'.
+     *    This prevents the ONU from binding ConnectionRequestURL to the public/isolated PPPoE IP,
+     *    resolving the issue where pending tasks accumulate indefinitely.
+     * See docs/TR069_HUAWEI_SERVICELIST.md
+     */
+    public function fixHuaweiServiceList(string $deviceId, int $informInterval = 300): array
+    {
+        $deviceId = $this->safeDeviceId($deviceId);
+        $brand = $this->getBrandByDeviceId($deviceId);
+
+        $params = [
+            'InternetGatewayDevice.ManagementServer.PeriodicInformEnable' => [true, 'xsd:boolean'],
+            'InternetGatewayDevice.ManagementServer.PeriodicInformInterval' => [$informInterval, 'xsd:unsignedInt'],
+        ];
+
+        // Find existing WAN connections
+        $wanConnections = $this->getWanInfo($deviceId) ?? [];
+        $fixedWanCount = 0;
+
+        foreach ($wanConnections as $wan) {
+            $path = $wan['path'] ?? '';
+            if (str_contains($path, 'WANPPPConnection') && $brand === 'huawei') {
+                $params["{$path}.X_HW_SERVICELIST"] = ['INTERNET', 'xsd:string'];
+                $fixedWanCount++;
+            }
+        }
+
+        $result = $this->setParameterValues($deviceId, $params, true);
+        $result['fixed_wans'] = $fixedWanCount;
+        $result['inform_interval'] = $informInterval;
+
+        return $result;
+    }
 }

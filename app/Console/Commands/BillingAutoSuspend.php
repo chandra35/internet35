@@ -109,6 +109,10 @@ class BillingAutoSuspend extends Command
                 // not actually changed. This makes a scheduler retry safe and
                 // prevents a DB-only suspension from hiding a MikroTik failure.
                 if ($mikrotikResult !== 'isolated') {
+                    $customer->update([
+                        'last_sync_error' => "Auto-isolir failed: MikroTik result [{$mikrotikResult}] at " . now()->format('Y-m-d H:i:s'),
+                        'mikrotik_synced' => false,
+                    ]);
                     throw new \RuntimeException("Mikrotik isolation was not completed ({$mikrotikResult})");
                 }
                 
@@ -120,6 +124,9 @@ class BillingAutoSuspend extends Command
                     // The PPP secret remains enabled; only its profile changes.
                     // Keep this value within the database enum.
                     'mikrotik_status' => 'enabled',
+                    'mikrotik_synced' => true,
+                    'mikrotik_synced_at' => now(),
+                    'last_sync_error' => null,
                 ]);
                 
                 // Update invoices status to overdue

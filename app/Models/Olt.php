@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Crypt;
 use App\Traits\HasPhotos;
 
 class Olt extends Model
@@ -87,6 +88,61 @@ class Olt extends Model
         'api_key',
         'api_secret',
     ];
+
+    /**
+     * Helper to safely decrypt strings with fallback to plaintext
+     */
+    protected function safeDecrypt(?string $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return $value;
+        }
+        try {
+            return Crypt::decryptString($value);
+        } catch (\Throwable $e) {
+            return $value;
+        }
+    }
+
+    public function getSnmpCommunityAttribute($value): ?string
+    {
+        return $this->safeDecrypt($value);
+    }
+
+    public function setSnmpCommunityAttribute($value): void
+    {
+        $this->attributes['snmp_community'] = ($value !== null && $value !== '') ? Crypt::encryptString($value) : null;
+    }
+
+    public function getSnmpCommunityRwAttribute($value): ?string
+    {
+        return $this->safeDecrypt($value);
+    }
+
+    public function setSnmpCommunityRwAttribute($value): void
+    {
+        $this->attributes['snmp_community_rw'] = ($value !== null && $value !== '') ? Crypt::encryptString($value) : null;
+    }
+
+    public function getTelnetPasswordAttribute($value): ?string
+    {
+        return $this->safeDecrypt($value);
+    }
+
+    public function setTelnetPasswordAttribute($value): void
+    {
+        $this->attributes['telnet_password'] = ($value !== null && $value !== '') ? Crypt::encryptString($value) : null;
+    }
+
+    public function getSshPasswordAttribute($value): ?string
+    {
+        return $this->safeDecrypt($value);
+    }
+
+    public function setSshPasswordAttribute($value): void
+    {
+        $this->attributes['ssh_password'] = ($value !== null && $value !== '') ? Crypt::encryptString($value) : null;
+    }
 
     /**
      * Brand constants

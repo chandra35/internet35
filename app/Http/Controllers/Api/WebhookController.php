@@ -19,11 +19,32 @@ class WebhookController extends Controller
     }
 
     /**
+     * Mask sensitive fields from webhook payloads before logging
+     */
+    protected function sanitizePayload(array $payload): array
+    {
+        $sensitiveKeys = [
+            'password', 'server_key', 'private_key', 'client_key', 'api_key',
+            'token', 'signature', 'signature_key', 'card_number', 'cvv', 'auth_key'
+        ];
+
+        foreach ($payload as $key => $value) {
+            if (is_array($value)) {
+                $payload[$key] = $this->sanitizePayload($value);
+            } elseif (in_array(strtolower($key), $sensitiveKeys, true)) {
+                $payload[$key] = '***MASKED***';
+            }
+        }
+
+        return $payload;
+    }
+
+    /**
      * Handle Tripay webhook callback
      */
     public function tripay(Request $request)
     {
-        Log::info('Tripay webhook received', $request->all());
+        Log::info('Tripay webhook received', $this->sanitizePayload($request->all()));
 
         $callbackSignature = $request->server('HTTP_X_CALLBACK_SIGNATURE');
         $merchantRef = $request->input('merchant_ref');
@@ -67,7 +88,7 @@ class WebhookController extends Controller
      */
     public function midtrans(Request $request)
     {
-        Log::info('Midtrans webhook received', $request->all());
+        Log::info('Midtrans webhook received', $this->sanitizePayload($request->all()));
 
         $orderId = $request->input('order_id');
         $transactionStatus = $request->input('transaction_status');
@@ -128,7 +149,7 @@ class WebhookController extends Controller
      */
     public function xendit(Request $request)
     {
-        Log::info('Xendit webhook received', $request->all());
+        Log::info('Xendit webhook received', $this->sanitizePayload($request->all()));
 
         $externalId = $request->input('external_id');
         $status = $request->input('status');
@@ -153,9 +174,9 @@ class WebhookController extends Controller
             $credentials = $gateway->decrypted_credentials;
             $webhookToken = $credentials['webhook_token'] ?? '';
 
-            if ($webhookToken && $callbackToken !== $webhookToken) {
-                Log::warning('Xendit webhook: invalid token', ['external_id' => $externalId]);
-                return response()->json(['success' => false, 'message' => 'Invalid token'], 403);
+            if (empty($webhookToken) || $callbackToken !== $webhookToken) {
+                Log::warning('Xendit webhook: missing or invalid token', ['external_id' => $externalId]);
+                return response()->json(['success' => false, 'message' => 'Invalid or unconfigured callback token'], 403);
             }
         }
 
@@ -169,7 +190,7 @@ class WebhookController extends Controller
      */
     public function duitku(Request $request)
     {
-        Log::info('Duitku webhook received', $request->all());
+        Log::info('Duitku webhook received', $this->sanitizePayload($request->all()));
 
         $merchantOrderId = $request->input('merchantOrderId');
         $resultCode = $request->input('resultCode');
@@ -222,7 +243,7 @@ class WebhookController extends Controller
      */
     public function ipaymu(Request $request)
     {
-        Log::info('iPaymu webhook received', $request->all());
+        Log::info('iPaymu webhook received', $this->sanitizePayload($request->all()));
 
         $referenceId = $request->input('reference_id');
         $statusCode = (int) $request->input('status');

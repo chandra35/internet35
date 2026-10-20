@@ -48,6 +48,11 @@ class CustomerUnsuspendService
         if ($customer->router && $customer->pppoe_username && $mikrotikResult !== 'unsuspended') {
             Log::warning("Customer {$customer->customer_id} remains suspended because MikroTik unsuspend failed [{$mikrotikResult}]");
 
+            $customer->update([
+                'last_sync_error' => "Unsuspend failed: MikroTik result [{$mikrotikResult}] at " . now()->format('Y-m-d H:i:s'),
+                'mikrotik_synced' => false,
+            ]);
+
             return $mikrotikResult;
         }
 
@@ -58,6 +63,9 @@ class CustomerUnsuspendService
             'suspended_at' => null,
             'suspend_reason' => null,
             'mikrotik_status' => ($mikrotikResult === 'unsuspended') ? 'enabled' : $customer->mikrotik_status,
+            'mikrotik_synced' => ($mikrotikResult === 'unsuspended'),
+            'mikrotik_synced_at' => ($mikrotikResult === 'unsuspended') ? now() : $customer->mikrotik_synced_at,
+            'last_sync_error' => null,
         ]);
 
         Log::info("Customer {$customer->customer_id} unsuspended [mikrotik: {$mikrotikResult}]");
