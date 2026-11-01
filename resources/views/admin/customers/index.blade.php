@@ -394,6 +394,21 @@ $(function() {
         loadTable(new URL($(this).attr('href'), window.location.origin));
     });
 
+    // AJAX sort header click
+    $(document).on('click', '#tableWrapper .sortable-header', function(e) {
+        e.preventDefault();
+        const sort = $(this).data('sort');
+        const direction = $(this).data('direction');
+        const url = new URL(window.location.href);
+        url.searchParams.set('sort', sort);
+        url.searchParams.set('direction', direction);
+        url.searchParams.delete('page');
+        @if($popId && auth()->user()->hasRole('superadmin'))
+        url.searchParams.set('pop_id', '{{ $popId }}');
+        @endif
+        loadTable(url);
+    });
+
     function getTotalAll() { return parseInt($('#tableTotalCount').data('total') || 0); }
     let selectAll = false;
 

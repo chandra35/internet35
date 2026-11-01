@@ -180,11 +180,16 @@
                 <h3 class="card-title"><i class="fas fa-users mr-2"></i>Daftar Pelanggan ({{ $odp->customers->count() }})</h3>
             </div>
             <div class="card-body table-responsive p-0">
-                <table class="table table-hover table-striped">
+                <table class="table table-hover table-striped" id="odpCustomersTable">
                     <thead>
                         <tr>
                             <th>ID</th>
-                            <th>Nama</th>
+                            <th id="thCustomerName" style="cursor: pointer; user-select: none;">
+                                <span class="d-inline-flex align-items-center">
+                                    Nama
+                                    <i class="fas fa-sort-up ml-1 text-primary" id="sortIconCustomerName"></i>
+                                </span>
+                            </th>
                             <th>Port ODP</th>
                             <th>Paket</th>
                             <th>Status</th>
@@ -195,7 +200,7 @@
                         @forelse($odp->customers as $customer)
                         <tr>
                             <td><code>{{ $customer->customer_id }}</code></td>
-                            <td>{{ $customer->name }}</td>
+                            <td class="customer-name-cell">{{ $customer->name }}</td>
                             <td><span class="badge badge-info">Port {{ $customer->odp_port ?? '-' }}</span></td>
                             <td>{{ $customer->package->name ?? '-' }}</td>
                             <td>
@@ -747,6 +752,28 @@ $(function() {
                 toastr.error(msg);
             }
         });
+    });
+    // ── Client-side Sort Pelanggan ODP ───────────────────────────────────
+    let customerSortAsc = true;
+    $('#thCustomerName').on('click', function() {
+        customerSortAsc = !customerSortAsc;
+        const $tbody = $('#odpCustomersTable tbody');
+        const rows = $tbody.find('tr').get();
+
+        rows.sort(function(a, b) {
+            const valA = $(a).find('.customer-name-cell').text().trim().toLowerCase();
+            const valB = $(b).find('.customer-name-cell').text().trim().toLowerCase();
+            if (!valA && !valB) return 0;
+            return customerSortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+        });
+
+        $.each(rows, function(idx, row) {
+            $tbody.append(row);
+        });
+
+        $('#sortIconCustomerName')
+            .removeClass('fa-sort fa-sort-up fa-sort-down')
+            .addClass(customerSortAsc ? 'fa-sort-up' : 'fa-sort-down');
     });
 });
 </script>

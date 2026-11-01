@@ -70,6 +70,11 @@
     @endcan
 </div>
 @else
+@php
+    $currentSort = request('sort', 'name');
+    $currentDirection = strtolower(request('direction', 'asc'));
+    $nextDirection = ($currentSort === 'name' && $currentDirection === 'asc') ? 'desc' : 'asc';
+@endphp
 <div class="table-responsive">
     <table class="table table-customers table-hover mb-0">
         <thead>
@@ -80,7 +85,16 @@
                         <label class="custom-control-label" for="checkAll"></label>
                     </div>
                 </th>
-                <th>Pelanggan</th>
+                <th class="sortable-header" data-sort="name" data-direction="{{ $nextDirection }}" style="cursor: pointer; user-select: none;">
+                    <span class="d-inline-flex align-items-center">
+                        Pelanggan
+                        @if($currentSort === 'name')
+                            <i class="fas fa-sort-{{ $currentDirection === 'asc' ? 'up' : 'down' }} ml-1 text-primary"></i>
+                        @else
+                            <i class="fas fa-sort ml-1 text-muted"></i>
+                        @endif
+                    </span>
+                </th>
                 <th>Kontak</th>
                 <th>Paket</th>
                 <th>PPPoE</th>

@@ -119,15 +119,19 @@ $(function () {
     const labels = ['Pelanggan', 'Kontak', 'Jumlah Invoice', '{{ $isPaidView ? 'Tanggal Bayar' : 'Jatuh Tempo Terdekat' }}', '{{ $isPaidView ? 'Total Dibayar' : 'Total Tunggakan' }}', ''];
     $.fn.dataTable.ext.errMode = 'none';
     const table = $('#paymentsTable').DataTable({
-        processing: true, serverSide: true, searching: true, ordering: false, pageLength: 20,
+        processing: true, serverSide: true, searching: true, ordering: true, order: [[0, 'asc']], pageLength: 20,
         lengthMenu: [[10, 20, 50, 100], [10, 20, 50, 100]],
         ajax: {
             url: '{{ route('admin.payments.data') }}',
             data: function (data) { data.view = '{{ $isPaidView ? 'paid' : 'unpaid' }}'; @if(auth()->user()->hasRole('superadmin')) data.pop_id = '{{ $popId }}'; @endif }
         },
         columns: [
-            {data: 'customer'}, {data: 'contact'}, {data: 'invoices'}, {data: 'due_date'},
-            {data: 'outstanding', className: 'text-right'}, {data: 'action', orderable: false, searchable: false, className: 'text-right'}
+            {data: 'customer', orderable: true},
+            {data: 'contact', orderable: false},
+            {data: 'invoices', orderable: false},
+            {data: 'due_date', orderable: false},
+            {data: 'outstanding', orderable: false, className: 'text-right'},
+            {data: 'action', orderable: false, searchable: false, className: 'text-right'}
         ],
         createdRow: function (row) { $('td', row).each(function (index) { $(this).attr('data-label', labels[index]); }); },
         dom: 'rt<"d-flex flex-column flex-md-row justify-content-between align-items-center mt-3 px-1"ip>',

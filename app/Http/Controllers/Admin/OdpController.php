@@ -405,7 +405,16 @@ class OdpController extends Controller implements HasMiddleware
      */
     public function show(Odp $odp)
     {
-        $odp->load(['pop', 'odc.olt', 'olt', 'parentOdp', 'childOdps', 'customers', 'creator', 'onus.olt']);
+        $odp->load([
+            'pop',
+            'odc.olt',
+            'olt',
+            'parentOdp',
+            'childOdps',
+            'customers' => fn($q) => $q->orderBy('name', 'asc'),
+            'creator',
+            'onus.olt',
+        ]);
 
         return view('admin.odps.show', compact('odp'));
     }

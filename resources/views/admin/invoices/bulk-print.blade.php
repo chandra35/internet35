@@ -155,7 +155,12 @@
                                         <label class="custom-control-label" for="checkAll"></label>
                                     </div>
                                 </th>
-                                <th>Pelanggan</th>
+                                <th id="thBulkCustomer" style="cursor: pointer; user-select: none;">
+                                    <span class="d-inline-flex align-items-center">
+                                        Pelanggan
+                                        <i class="fas fa-sort-up ml-1 text-primary" id="sortIconBulkCustomer"></i>
+                                    </span>
+                                </th>
                                 <th>Paket</th>
                                 <th class="text-right">Tagihan</th>
                                 <th>Status Invoice</th>
@@ -441,6 +446,66 @@ $(document).ready(function() {
             const id = $(this).data('id') || '';
             $(this).toggle(name.includes(val) || id.includes(val));
         });
+    });
+
+    // Client-side Sort Pelanggan
+    let bulkCustomerSortAsc = true;
+    $('#thBulkCustomer').on('click', function() {
+        bulkCustomerSortAsc = !bulkCustomerSortAsc;
+
+        // Sort rows within each section tbody or around section dividers
+        const $tbody = $('#customerTable tbody');
+        const rows = $tbody.children('tr').get();
+        let currentSectionRows = [];
+
+        function flushSection() {
+            if (currentSectionRows.length > 0) {
+                currentSectionRows.sort(function(a, b) {
+                    const nameA = $(a).data('name') || '';
+                    const nameB = $(b).data('name') || '';
+                    return bulkCustomerSortAsc ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA);
+                });
+                $.each(currentSectionRows, function(i, row) {
+                    $tbody.append(row);
+                });
+                currentSectionRows = [];
+            }
+        }
+
+        // Re-append sections with sorted child rows
+        const sections = [];
+        let cur = null;
+        $.each(rows, function(i, tr) {
+            if ($(tr).hasClass('section-divider')) {
+                cur = { divider: tr, rows: [] };
+                sections.push(cur);
+            } else if (cur) {
+                cur.rows.push(tr);
+            } else {
+                if (!sections.length) {
+                    cur = { divider: null, rows: [] };
+                    sections.push(cur);
+                }
+                sections[0].rows.push(tr);
+            }
+        });
+
+        $tbody.empty();
+        $.each(sections, function(i, sec) {
+            if (sec.divider) $tbody.append(sec.divider);
+            sec.rows.sort(function(a, b) {
+                const nameA = $(a).data('name') || '';
+                const nameB = $(b).data('name') || '';
+                return bulkCustomerSortAsc ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA);
+            });
+            $.each(sec.rows, function(j, row) {
+                $tbody.append(row);
+            });
+        });
+
+        $('#sortIconBulkCustomer')
+            .removeClass('fa-sort fa-sort-up fa-sort-down')
+            .addClass(bulkCustomerSortAsc ? 'fa-sort-up' : 'fa-sort-down');
     });
 });
 

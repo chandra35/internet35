@@ -113,12 +113,19 @@ class PaymentController extends Controller implements HasMiddleware
             });
         });
         $recordsFiltered = (clone $filteredQuery)->count();
+        $orderDir = strtolower($request->input('order.0.dir', 'asc')) === 'desc' ? 'desc' : 'asc';
+        $orderColIndex = (int) $request->input('order.0.column', 0);
+        $orderCol = match ($orderColIndex) {
+            0 => 'name',
+            default => 'name',
+        };
+
         $customers = $filteredQuery->with(['invoices' => function ($query) use ($invoiceFilter) {
             $invoiceFilter($query);
 
             $query->orderBy('period_start');
         }])
-            ->orderBy('name')->skip($start)->take($length)->get();
+            ->orderBy($orderCol, $orderDir)->skip($start)->take($length)->get();
 
         return response()->json([
             'draw' => $draw,

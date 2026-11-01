@@ -103,7 +103,10 @@ class CustomerController extends Controller implements HasMiddleware
                 });
             });
         
-        $customers = $query->orderBy('created_at', 'desc')->paginate(20);
+        $sort = in_array($request->input('sort'), ['name', 'created_at', 'customer_id']) ? $request->input('sort') : 'name';
+        $direction = strtolower($request->input('direction', 'asc')) === 'desc' ? 'desc' : 'asc';
+
+        $customers = $query->orderBy($sort, $direction)->paginate(20)->withQueryString();
         
         // Get routers for filter
         $routers = Router::when($popId, fn($q) => $q->where('pop_id', $popId))
@@ -175,7 +178,10 @@ class CustomerController extends Controller implements HasMiddleware
                 });
             });
 
-        $customers = $query->orderBy('created_at', 'desc')->paginate(20);
+        $sort = in_array($request->input('sort'), ['name', 'created_at', 'customer_id']) ? $request->input('sort') : 'name';
+        $direction = strtolower($request->input('direction', 'asc')) === 'desc' ? 'desc' : 'asc';
+
+        $customers = $query->orderBy($sort, $direction)->paginate(20)->withQueryString();
 
         $routers = Router::when($popId, fn($q) => $q->where('pop_id', $popId))
             ->where('is_active', true)->orderBy('name')->get();
