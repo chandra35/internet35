@@ -64,7 +64,7 @@
                 <strong class="ml-2">Mode Superadmin:</strong>
             </div>
             <div class="col-md-4">
-                <select class="form-control select2" onchange="changePop(this.value)">
+                <select class="form-control select2" id="selectPop" onchange="changePop(this.value)">
                     <option value="">-- Pilih POP --</option>
                     @foreach($popUsers as $pop)
                         <option value="{{ $pop->id }}" {{ $popId == $pop->id ? 'selected' : '' }}>
@@ -520,5 +520,11 @@ function changePop(popId) {
         window.location.href = '{{ route("admin.invoices.bulk-print-select") }}?pop_id=' + popId;
     }
 }
+
+$(document).ready(function() {
+    $('#selectPop').on('change select2:select', function() {
+        changePop($(this).val());
+    });
+});
 </script>
 @endpush

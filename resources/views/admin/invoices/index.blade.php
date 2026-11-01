@@ -663,15 +663,28 @@
 
 @endsection
 
-@push('scripts')
+@push('js')
 <script>
 function changePop(popId) {
+    var url = new URL(window.location.href);
     if (popId) {
-        window.location.href = '{{ route('admin.invoices.index') }}?pop_id=' + popId;
+        url.searchParams.set('pop_id', popId);
+    } else {
+        url.searchParams.delete('pop_id');
     }
+    url.searchParams.delete('page');
+    if ($('#pageLoaderBar').length) {
+        $('#pageLoaderBar').addClass('loading');
+    }
+    window.location.href = url.toString();
 }
 
 $(document).ready(function() {
+    // Explicitly handle Select2 change / select events
+    $('#selectPop').on('change select2:select', function() {
+        changePop($(this).val());
+    });
+
     // Keep accordion indicator chevron updated on collapse show/hide
     $('.detail-invoices-row .collapse').on('show.bs.collapse', function() {
         var targetRow = $(this).closest('tr').prev('.customer-group-row');

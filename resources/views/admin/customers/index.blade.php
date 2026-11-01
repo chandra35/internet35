@@ -319,6 +319,9 @@ function changePop(popId) {
 }
 
 $(function() {
+    $('#selectPop').on('change select2:select', function() {
+        changePop($(this).val());
+    });
     // ========== AJAX Table Loader ==========
     function loadTable(url) {
         const $w = $('#tableWrapper');

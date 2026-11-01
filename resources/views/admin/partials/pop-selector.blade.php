@@ -35,6 +35,11 @@
 function changePop(popId) {
     window.location.href = window.location.pathname + '?pop_id=' + encodeURIComponent(popId);
 }
+$(document).ready(function() {
+    $(document).on('change select2:select', '#selectPop', function() {
+        changePop($(this).val());
+    });
+});
 </script>
 @endonce
 @endif

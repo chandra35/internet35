@@ -826,6 +826,9 @@ function changePop(popId) {
 }
 
 $(document).ready(function() {
+    $('#selectPop').on('change select2:select', function() {
+        changePop($(this).val());
+    });
     // Handle command selection
     $('#commandSelect').change(function() {
         const selected = $(this).find(':selected');

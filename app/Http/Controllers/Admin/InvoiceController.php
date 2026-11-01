@@ -82,7 +82,10 @@ class InvoiceController extends Controller implements HasMiddleware
         $user = auth()->user();
         
         if ($user->hasRole('superadmin')) {
-            return $request->input('pop_id') ?: $request->session()->get('manage_pop_id');
+            if ($request->has('pop_id')) {
+                return $request->input('pop_id') ?: null;
+            }
+            return $request->session()->get('manage_pop_id');
         }
         
         return $user->id;
