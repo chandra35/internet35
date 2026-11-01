@@ -190,13 +190,7 @@ class InvoiceController extends Controller implements HasMiddleware
                    ->when($request->month, fn($q, $m) => $q->whereMonth('invoice_date', $m))
                    ->when($request->year, fn($q, $y) => $q->whereYear('invoice_date', $y))
                    ->when($request->search, function($q, $s) {
-                       $q->where(function($sq) use ($s) {
-                           $sq->where('invoice_number', 'like', "%{$s}%")
-                              ->orWhereHas('customer', function($cq) use ($s) {
-                                  $cq->where('name', 'like', "%{$s}%")
-                                     ->orWhere('customer_id', 'like', "%{$s}%");
-                              });
-                       });
+                       $q->where('invoice_number', 'like', "%{$s}%");
                    });
             })
             ->with(['package'])
@@ -206,13 +200,7 @@ class InvoiceController extends Controller implements HasMiddleware
                    ->when($request->month, fn($q, $m) => $q->whereMonth('invoice_date', $m))
                    ->when($request->year, fn($q, $y) => $q->whereYear('invoice_date', $y))
                    ->when($request->search, function($q, $s) {
-                       $q->where(function($sq) use ($s) {
-                           $sq->where('invoice_number', 'like', "%{$s}%")
-                              ->orWhereHas('customer', function($cq) use ($s) {
-                                  $cq->where('name', 'like', "%{$s}%")
-                                     ->orWhere('customer_id', 'like', "%{$s}%");
-                              });
-                       });
+                       $q->where('invoice_number', 'like', "%{$s}%");
                    })
                    ->orderBy('invoice_date', 'desc');
             }]);

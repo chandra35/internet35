@@ -886,26 +886,35 @@
         "timeOut": "3000"
     };
 
-    // Hide preloader with smooth animation
-    $(window).on('load', function() {
-        $('#preloader').addClass('fade-out');
-        setTimeout(function() {
-            $('#preloader').remove();
-            
-            // Show flash messages after preloader is gone
-            @if(session('success'))
-                toastr.success('{{ session('success') }}');
-            @endif
-            @if(session('error'))
-                toastr.error('{{ session('error') }}');
-            @endif
-            @if(session('warning'))
-                toastr.warning('{{ session('warning') }}');
-            @endif
-            @if(session('info'))
-                toastr.info('{{ session('info') }}');
-            @endif
-        }, 500);
+    // Hide preloader with smooth animation (fallback to DOMContentLoaded / timeout to prevent stuck screen)
+    function hidePreloader() {
+        var $pre = $('#preloader');
+        if ($pre.length && !$pre.hasClass('fade-out')) {
+            $pre.addClass('fade-out');
+            setTimeout(function() {
+                $pre.remove();
+                
+                // Show flash messages after preloader is gone
+                @if(session('success'))
+                    toastr.success('{{ session('success') }}');
+                @endif
+                @if(session('error'))
+                    toastr.error('{{ session('error') }}');
+                @endif
+                @if(session('warning'))
+                    toastr.warning('{{ session('warning') }}');
+                @endif
+                @if(session('info'))
+                    toastr.info('{{ session('info') }}');
+                @endif
+            }, 500);
+        }
+    }
+
+    $(window).on('load', hidePreloader);
+    $(document).ready(function() {
+        // Fallback: hide preloader within 1.5 seconds even if an external CDN asset is slow/pending
+        setTimeout(hidePreloader, 1500);
     });
     
     // Page navigation loader
