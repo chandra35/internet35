@@ -157,6 +157,12 @@
     <div class="card-body">
         <!-- Filter Form -->
         <form action="{{ route('admin.invoices.index') }}" method="GET" class="mb-4">
+            @if(request('sort'))
+                <input type="hidden" name="sort" value="{{ request('sort') }}">
+            @endif
+            @if(request('direction'))
+                <input type="hidden" name="direction" value="{{ request('direction') }}">
+            @endif
             <div class="row">
                 <div class="col-md-3">
                     <div class="form-group">
@@ -222,12 +228,29 @@
         </form>
         
         <!-- Invoice Table -->
+        @php
+            $currentSort = request('sort', 'customer_name');
+            $currentDirection = strtolower(request('direction', 'asc'));
+            $isCustomerSort = in_array($currentSort, ['customer_name', 'customer']);
+            $nextCustomerDirection = ($isCustomerSort && $currentDirection === 'asc') ? 'desc' : 'asc';
+        @endphp
         <div class="table-responsive">
             <table class="table table-hover table-striped">
                 <thead class="thead-light">
                     <tr>
                         <th>No. Invoice</th>
-                        <th>Pelanggan</th>
+                        <th>
+                            <a href="{{ route('admin.invoices.index', array_merge(request()->query(), ['sort' => 'customer_name', 'direction' => $nextCustomerDirection])) }}" 
+                               class="text-dark d-inline-flex align-items-center text-decoration-none" 
+                               title="Urutkan berdasarkan nama pelanggan">
+                                <span>Pelanggan</span>
+                                @if($isCustomerSort)
+                                    <i class="fas fa-sort-{{ $currentDirection === 'asc' ? 'up' : 'down' }} ml-1 text-primary"></i>
+                                @else
+                                    <i class="fas fa-sort ml-1 text-muted"></i>
+                                @endif
+                            </a>
+                        </th>
                         <th>Tanggal</th>
                         <th>Jatuh Tempo</th>
                         <th class="text-right">Total</th>

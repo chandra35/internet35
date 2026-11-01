@@ -129,8 +129,30 @@ class InvoiceController extends Controller implements HasMiddleware
                        });
                 });
             });
+
+        // Sorting (default: customer name ascending)
+        $sort = $request->input('sort', 'customer_name');
+        $direction = strtolower($request->input('direction', 'asc')) === 'desc' ? 'desc' : 'asc';
+
+        if ($sort === 'customer_name' || $sort === 'customer') {
+            $query->orderBy(
+                Customer::select('name')
+                    ->whereColumn('customers.id', 'customer_invoices.customer_id')
+                    ->limit(1),
+                $direction
+            );
+        } elseif (in_array($sort, ['invoice_number', 'invoice_date', 'due_date', 'total_amount', 'paid_amount', 'status', 'created_at'])) {
+            $query->orderBy($sort, $direction);
+        } else {
+            $query->orderBy(
+                Customer::select('name')
+                    ->whereColumn('customers.id', 'customer_invoices.customer_id')
+                    ->limit(1),
+                'asc'
+            );
+        }
         
-        $invoices = $query->orderBy('created_at', 'desc')->paginate(20);
+        $invoices = $query->paginate(20)->withQueryString();
         
         // Statistics
         $stats = [];
