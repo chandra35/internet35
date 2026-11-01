@@ -382,7 +382,27 @@
                     <li class="nav-item"><a class="nav-link" href="#packages">Paket</a></li>
                     <li class="nav-item"><a class="nav-link" href="#testimonials">Testimoni</a></li>
                     <li class="nav-item"><a class="nav-link" href="#faq">FAQ</a></li>
-                    <li class="nav-item"><a class="nav-link btn btn-primary text-white ms-2 px-4" href="{{ route('login') }}">Login</a></li>
+                    @auth
+                        @if(auth()->user()->hasRole('client'))
+                            <li class="nav-item">
+                                <a class="nav-link btn btn-primary text-white ms-2 px-4" href="{{ route('pelanggan.dashboard') }}">
+                                    <i class="fas fa-tachometer-alt me-1"></i> Dashboard
+                                </a>
+                            </li>
+                        @else
+                            <li class="nav-item">
+                                <a class="nav-link btn btn-primary text-white ms-2 px-4" href="{{ route('admin.dashboard') }}">
+                                    <i class="fas fa-user-shield me-1"></i> Panel Admin
+                                </a>
+                            </li>
+                        @endif
+                    @else
+                        <li class="nav-item">
+                            <a class="nav-link btn btn-primary text-white ms-2 px-4" href="{{ route('login') }}">
+                                <i class="fas fa-sign-in-alt me-1"></i> Login
+                            </a>
+                        </li>
+                    @endauth
                 </ul>
             </div>
         </div>
