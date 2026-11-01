@@ -109,51 +109,9 @@ class InvoiceController extends Controller implements HasMiddleware
 
         // Get POP settings for invoice configuration
         $popSetting = $popId ? PopSetting::where('user_id', $popId)->first() : null;
-        
-        // Build query
-        $query = CustomerInvoice::with(['customer', 'creator'])
-            ->when($popId, fn($q) => $q->where('pop_id', $popId))
-            ->when($request->status, fn($q, $s) => $q->where('status', $s))
-            ->when($request->month, function($q, $m) {
-                $q->whereMonth('invoice_date', $m);
-            })
-            ->when($request->year, function($q, $y) {
-                $q->whereYear('invoice_date', $y);
-            })
-            ->when($request->search, function($q, $s) {
-                $q->where(function($sq) use ($s) {
-                    $sq->where('invoice_number', 'like', "%{$s}%")
-                       ->orWhereHas('customer', function($cq) use ($s) {
-                           $cq->where('name', 'like', "%{$s}%")
-                              ->orWhere('customer_id', 'like', "%{$s}%");
-                       });
-                });
-            });
 
-        // Sorting (default: customer name ascending)
-        $sort = $request->input('sort', 'customer_name');
-        $direction = strtolower($request->input('direction', 'asc')) === 'desc' ? 'desc' : 'asc';
+        $viewMode = $request->input('view', 'grouped'); // 'grouped' (per customer) or 'flat' (all invoices)
 
-        if ($sort === 'customer_name' || $sort === 'customer') {
-            $query->orderBy(
-                Customer::select('name')
-                    ->whereColumn('customers.id', 'customer_invoices.customer_id')
-                    ->limit(1),
-                $direction
-            );
-        } elseif (in_array($sort, ['invoice_number', 'invoice_date', 'due_date', 'total_amount', 'paid_amount', 'status', 'created_at'])) {
-            $query->orderBy($sort, $direction);
-        } else {
-            $query->orderBy(
-                Customer::select('name')
-                    ->whereColumn('customers.id', 'customer_invoices.customer_id')
-                    ->limit(1),
-                'asc'
-            );
-        }
-        
-        $invoices = $query->paginate(20)->withQueryString();
-        
         // Statistics
         $stats = [];
         if ($popId) {
@@ -171,8 +129,110 @@ class InvoiceController extends Controller implements HasMiddleware
                     ->sum('total_amount'),
             ];
         }
-        
-        return view('admin.invoices.index', compact('invoices', 'popUsers', 'popId', 'popSetting', 'stats'));
+
+        if ($viewMode === 'flat') {
+            // Build query flat
+            $query = CustomerInvoice::with(['customer', 'creator'])
+                ->when($popId, fn($q) => $q->where('pop_id', $popId))
+                ->when($request->status, fn($q, $s) => $q->where('status', $s))
+                ->when($request->month, function($q, $m) {
+                    $q->whereMonth('invoice_date', $m);
+                })
+                ->when($request->year, function($q, $y) {
+                    $q->whereYear('invoice_date', $y);
+                })
+                ->when($request->search, function($q, $s) {
+                    $q->where(function($sq) use ($s) {
+                        $sq->where('invoice_number', 'like', "%{$s}%")
+                           ->orWhereHas('customer', function($cq) use ($s) {
+                               $cq->where('name', 'like', "%{$s}%")
+                                  ->orWhere('customer_id', 'like', "%{$s}%");
+                           });
+                    });
+                });
+
+            // Sorting (default: customer name ascending)
+            $sort = $request->input('sort', 'customer_name');
+            $direction = strtolower($request->input('direction', 'asc')) === 'desc' ? 'desc' : 'asc';
+
+            if ($sort === 'customer_name' || $sort === 'customer') {
+                $query->orderBy(
+                    Customer::select('name')
+                        ->whereColumn('customers.id', 'customer_invoices.customer_id')
+                        ->limit(1),
+                    $direction
+                );
+            } elseif (in_array($sort, ['invoice_number', 'invoice_date', 'due_date', 'total_amount', 'paid_amount', 'status', 'created_at'])) {
+                $query->orderBy($sort, $direction);
+            } else {
+                $query->orderBy(
+                    Customer::select('name')
+                        ->whereColumn('customers.id', 'customer_invoices.customer_id')
+                        ->limit(1),
+                    'asc'
+                );
+            }
+
+            $invoices = $query->paginate(20)->withQueryString();
+            $customerGroups = null;
+
+            return view('admin.invoices.index', compact('invoices', 'customerGroups', 'viewMode', 'popUsers', 'popId', 'popSetting', 'stats'));
+        }
+
+        // Default: Grouped by customer
+        $direction = strtolower($request->input('direction', 'asc')) === 'desc' ? 'desc' : 'asc';
+
+        $customerQuery = Customer::query()
+            ->when($popId, fn($q) => $q->where('pop_id', $popId))
+            ->whereHas('invoices', function($iq) use ($request, $popId) {
+                $iq->when($popId, fn($q) => $q->where('pop_id', $popId))
+                   ->when($request->status, fn($q, $s) => $q->where('status', $s))
+                   ->when($request->month, fn($q, $m) => $q->whereMonth('invoice_date', $m))
+                   ->when($request->year, fn($q, $y) => $q->whereYear('invoice_date', $y))
+                   ->when($request->search, function($q, $s) {
+                       $q->where(function($sq) use ($s) {
+                           $sq->where('invoice_number', 'like', "%{$s}%")
+                              ->orWhereHas('customer', function($cq) use ($s) {
+                                  $cq->where('name', 'like', "%{$s}%")
+                                     ->orWhere('customer_id', 'like', "%{$s}%");
+                              });
+                       });
+                   });
+            })
+            ->with(['package'])
+            ->with(['invoices' => function($iq) use ($request, $popId) {
+                $iq->when($popId, fn($q) => $q->where('pop_id', $popId))
+                   ->when($request->status, fn($q, $s) => $q->where('status', $s))
+                   ->when($request->month, fn($q, $m) => $q->whereMonth('invoice_date', $m))
+                   ->when($request->year, fn($q, $y) => $q->whereYear('invoice_date', $y))
+                   ->when($request->search, function($q, $s) {
+                       $q->where(function($sq) use ($s) {
+                           $sq->where('invoice_number', 'like', "%{$s}%")
+                              ->orWhereHas('customer', function($cq) use ($s) {
+                                  $cq->where('name', 'like', "%{$s}%")
+                                     ->orWhere('customer_id', 'like', "%{$s}%");
+                              });
+                       });
+                   })
+                   ->orderBy('invoice_date', 'desc');
+            }]);
+
+        // Search filter at customer level too if provided
+        if ($request->filled('search')) {
+            $s = $request->input('search');
+            $customerQuery->where(function($cq) use ($s) {
+                $cq->where('name', 'like', "%{$s}%")
+                   ->orWhere('customer_id', 'like', "%{$s}%")
+                   ->orWhereHas('invoices', function($iq) use ($s) {
+                       $iq->where('invoice_number', 'like', "%{$s}%");
+                   });
+            });
+        }
+
+        $customerGroups = $customerQuery->orderBy('name', $direction)->paginate(15)->withQueryString();
+        $invoices = null;
+
+        return view('admin.invoices.index', compact('invoices', 'customerGroups', 'viewMode', 'popUsers', 'popId', 'popSetting', 'stats'));
     }
 
     /**

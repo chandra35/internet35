@@ -44,6 +44,36 @@
     .row-inv-overdue  { box-shadow: inset 3px 0 0 #dc3545; }
     .row-inv-cancelled{ box-shadow: inset 3px 0 0 #868e96; }
     .row-inv-void     { box-shadow: inset 3px 0 0 #868e96; }
+
+    /* Grouped Accordion styles */
+    .customer-group-row {
+        cursor: pointer;
+        transition: background-color 0.15s ease-in-out;
+    }
+    .customer-group-row:hover {
+        background-color: #f1f5f9 !important;
+    }
+    .customer-group-row .accordion-toggle-icon {
+        display: inline-block;
+        transition: transform 0.2s ease-in-out;
+        width: 18px;
+        text-align: center;
+    }
+    .customer-group-row[aria-expanded="true"] .accordion-toggle-icon {
+        transform: rotate(90deg);
+    }
+    .detail-invoices-row > td {
+        background-color: #f8fafc !important;
+        padding: 0 !important;
+    }
+    .detail-invoices-container {
+        border-left: 4px solid #1e3c72;
+        margin: 8px 12px 14px 12px;
+        background: #fff;
+        border-radius: 6px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+        overflow: hidden;
+    }
 </style>
 @endpush
 
@@ -157,6 +187,7 @@
     <div class="card-body">
         <!-- Filter Form -->
         <form action="{{ route('admin.invoices.index') }}" method="GET" class="mb-4">
+            <input type="hidden" name="view" value="{{ $viewMode ?? 'grouped' }}">
             @if(request('sort'))
                 <input type="hidden" name="sort" value="{{ request('sort') }}">
             @endif
@@ -215,10 +246,10 @@
                     <div class="form-group">
                         <label>&nbsp;</label>
                         <div>
-                            <button type="submit" class="btn btn-primary">
+                            <button type="submit" class="btn btn-primary" title="Filter / Cari">
                                 <i class="fas fa-search"></i>
                             </button>
-                            <a href="{{ route('admin.invoices.index') }}" class="btn btn-secondary">
+                            <a href="{{ route('admin.invoices.index', ['view' => $viewMode ?? 'grouped']) }}" class="btn btn-secondary" title="Reset Filter">
                                 <i class="fas fa-sync"></i>
                             </a>
                         </div>
@@ -226,112 +257,362 @@
                 </div>
             </div>
         </form>
+
+        <!-- View Mode Switcher & Quick Information Bar -->
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 pb-2 border-bottom">
+            <div class="btn-group btn-group-toggle mb-2 mb-md-0" data-toggle="buttons">
+                <a href="{{ route('admin.invoices.index', array_merge(request()->except('page'), ['view' => 'grouped'])) }}" 
+                   class="btn btn-outline-primary btn-sm {{ ($viewMode ?? 'grouped') === 'grouped' ? 'active font-weight-bold' : '' }}">
+                    <i class="fas fa-layer-group mr-1"></i> Per Pelanggan (Ringkas)
+                </a>
+                <a href="{{ route('admin.invoices.index', array_merge(request()->except('page'), ['view' => 'flat'])) }}" 
+                   class="btn btn-outline-primary btn-sm {{ ($viewMode ?? 'grouped') === 'flat' ? 'active font-weight-bold' : '' }}">
+                    <i class="fas fa-list mr-1"></i> Semua Invoice (Flat)
+                </a>
+            </div>
+            <div class="text-muted small">
+                @if(($viewMode ?? 'grouped') === 'grouped')
+                    <i class="fas fa-info-circle text-info mr-1"></i> Menampilkan 1 baris per pelanggan. Klik baris pelanggan untuk membuka daftar invoice.
+                @else
+                    <i class="fas fa-info-circle text-secondary mr-1"></i> Menampilkan seluruh baris invoice individual.
+                @endif
+            </div>
+        </div>
         
-        <!-- Invoice Table -->
-        @php
-            $currentSort = request('sort', 'customer_name');
-            $currentDirection = strtolower(request('direction', 'asc'));
-            $isCustomerSort = in_array($currentSort, ['customer_name', 'customer']);
-            $nextCustomerDirection = ($isCustomerSort && $currentDirection === 'asc') ? 'desc' : 'asc';
-        @endphp
-        <div class="table-responsive">
-            <table class="table table-hover table-striped">
-                <thead class="thead-light">
-                    <tr>
-                        <th>No. Invoice</th>
-                        <th>
-                            <a href="{{ route('admin.invoices.index', array_merge(request()->query(), ['sort' => 'customer_name', 'direction' => $nextCustomerDirection])) }}" 
-                               class="text-dark d-inline-flex align-items-center text-decoration-none" 
-                               title="Urutkan berdasarkan nama pelanggan">
-                                <span>Pelanggan</span>
-                                @if($isCustomerSort)
+        @if(($viewMode ?? 'grouped') === 'grouped')
+            {{-- ==================== GROUPED ACCORDION VIEW ==================== --}}
+            @php
+                $currentDirection = strtolower(request('direction', 'asc'));
+                $nextDirection = $currentDirection === 'asc' ? 'desc' : 'asc';
+            @endphp
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="thead-light">
+                        <tr>
+                            <th width="40" class="text-center">#</th>
+                            <th>
+                                <a href="{{ route('admin.invoices.index', array_merge(request()->query(), ['view' => 'grouped', 'direction' => $nextDirection])) }}" 
+                                   class="text-dark d-inline-flex align-items-center text-decoration-none" 
+                                   title="Urutkan berdasarkan nama pelanggan">
+                                    <span>Pelanggan</span>
                                     <i class="fas fa-sort-{{ $currentDirection === 'asc' ? 'up' : 'down' }} ml-1 text-primary"></i>
-                                @else
-                                    <i class="fas fa-sort ml-1 text-muted"></i>
+                                </a>
+                            </th>
+                            <th>Paket / Kontak</th>
+                            <th class="text-center">Jml Invoice</th>
+                            <th class="text-right">Total Tagihan</th>
+                            <th class="text-right">Sisa / Belum Dibayar</th>
+                            <th>Ringkasan Status</th>
+                            <th width="140" class="text-center">Aksi Pelanggan</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($customerGroups as $customer)
+                            @php
+                                $custInvoices = $customer->invoices;
+                                $totalInvCount = $custInvoices->count();
+                                $totalBilled = $custInvoices->sum('total_amount');
+                                $totalPaid = $custInvoices->sum('paid_amount');
+                                $totalUnpaid = max(0, $totalBilled - $totalPaid);
+                                
+                                $hasOverdue = $custInvoices->contains(fn($inv) => $inv->isOverdue() && $inv->status !== 'paid');
+                                $hasPending = $custInvoices->contains(fn($inv) => in_array($inv->status, ['pending', 'partially_paid']));
+                                $allPaid = $custInvoices->every(fn($inv) => $inv->status === 'paid');
+                            @endphp
+                            <tr class="customer-group-row" 
+                                data-toggle="collapse" 
+                                data-target="#customer-invoices-{{ $customer->id }}" 
+                                aria-expanded="false" 
+                                aria-controls="customer-invoices-{{ $customer->id }}">
+                                <td class="text-center align-middle">
+                                    <span class="accordion-toggle-icon text-primary font-weight-bold">
+                                        <i class="fas fa-chevron-right"></i>
+                                    </span>
+                                </td>
+                                <td class="align-middle">
+                                    <div class="font-weight-bold text-dark" style="font-size: 1.02rem;">
+                                        {{ $customer->name }}
+                                    </div>
+                                    <small class="text-muted">
+                                        ID: <span class="badge badge-light border">{{ $customer->customer_id }}</span>
+                                    </small>
+                                </td>
+                                <td class="align-middle">
+                                    <div><i class="fas fa-box text-secondary mr-1"></i>{{ $customer->package?->name ?? 'Tanpa Paket' }}</div>
+                                    @if($customer->phone)
+                                        <small class="text-muted"><i class="fas fa-phone mr-1"></i>{{ $customer->phone }}</small>
+                                    @endif
+                                </td>
+                                <td class="text-center align-middle">
+                                    <span class="badge badge-primary px-2 py-1" style="font-size: 0.85rem;" title="Klik untuk lihat invoice">
+                                        {{ $totalInvCount }} invoice
+                                    </span>
+                                </td>
+                                <td class="text-right align-middle">
+                                    <strong class="text-dark">Rp {{ number_format($totalBilled, 0, ',', '.') }}</strong>
+                                </td>
+                                <td class="text-right align-middle">
+                                    @if($totalUnpaid > 0)
+                                        <strong class="text-danger">Rp {{ number_format($totalUnpaid, 0, ',', '.') }}</strong>
+                                    @else
+                                        <span class="text-success font-weight-bold"><i class="fas fa-check-circle mr-1"></i>Lunas</span>
+                                    @endif
+                                </td>
+                                <td class="align-middle">
+                                    @if($hasOverdue)
+                                        <span class="badge badge-danger"><i class="fas fa-exclamation-circle mr-1"></i>Ada Jatuh Tempo</span>
+                                    @elseif($hasPending)
+                                        <span class="badge badge-warning text-dark"><i class="fas fa-clock mr-1"></i>Belum Lunas</span>
+                                    @elseif($allPaid)
+                                        <span class="badge badge-success"><i class="fas fa-check mr-1"></i>Semua Lunas</span>
+                                    @else
+                                        <span class="badge badge-secondary">-</span>
+                                    @endif
+                                </td>
+                                <td class="text-center align-middle" onclick="event.stopPropagation();">
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{{ route('admin.invoice-customer-print.print', $customer) }}" 
+                                           class="btn btn-outline-secondary" title="Cetak Ringkasan Pelanggan" target="_blank">
+                                            <i class="fas fa-print"></i>
+                                        </a>
+                                        <a href="{{ route('admin.customers.show', $customer) }}" 
+                                           class="btn btn-outline-info" title="Profil Pelanggan">
+                                            <i class="fas fa-user"></i>
+                                        </a>
+                                        @can('invoices.create')
+                                        <a href="{{ route('admin.invoices.create', ['customer_id' => $customer->id]) }}" 
+                                           class="btn btn-outline-success" title="Tambah Invoice Baru">
+                                            <i class="fas fa-plus"></i>
+                                        </a>
+                                        @endcan
+                                    </div>
+                                </td>
+                            </tr>
+                            {{-- Collapsible Detail Row for Customer Invoices --}}
+                            <tr class="detail-invoices-row">
+                                <td colspan="8">
+                                    <div class="collapse" id="customer-invoices-{{ $customer->id }}">
+                                        <div class="detail-invoices-container p-3">
+                                            <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                                                <div class="font-weight-bold text-dark">
+                                                    <i class="fas fa-receipt mr-1 text-primary"></i>
+                                                    Rincian Invoice: {{ $customer->name }} ({{ $totalInvCount }} Invoice)
+                                                </div>
+                                                <div>
+                                                    <a href="{{ route('admin.invoice-customer-print.print', $customer) }}" 
+                                                       class="btn btn-xs btn-outline-secondary" target="_blank">
+                                                        <i class="fas fa-print mr-1"></i> Cetak Rekap Pelanggan Ini
+                                                    </a>
+                                                </div>
+                                            </div>
+                                            <div class="table-responsive">
+                                                <table class="table table-sm table-bordered table-hover bg-white mb-0">
+                                                    <thead class="thead-light">
+                                                        <tr>
+                                                            <th>No. Invoice</th>
+                                                            <th>Tanggal</th>
+                                                            <th>Jatuh Tempo</th>
+                                                            <th class="text-right">Total Tagihan</th>
+                                                            <th class="text-right">Telah Dibayar</th>
+                                                            <th class="text-right">Sisa Tagihan</th>
+                                                            <th class="text-center">Status</th>
+                                                            <th width="140" class="text-center">Aksi Invoice</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        @foreach($custInvoices as $invoice)
+                                                            @php
+                                                                $invUnpaid = max(0, $invoice->total_amount - $invoice->paid_amount);
+                                                            @endphp
+                                                            <tr class="row-inv-{{ $invoice->status }}">
+                                                                <td>
+                                                                    <a href="{{ route('admin.invoices.show', $invoice) }}" class="font-weight-bold">
+                                                                        {{ $invoice->invoice_number }}
+                                                                    </a>
+                                                                    @if($invoice->notes)
+                                                                        <div class="small text-muted">{{ Str::limit($invoice->notes, 35) }}</div>
+                                                                    @endif
+                                                                </td>
+                                                                <td>{{ $invoice->invoice_date?->format('d/m/Y') }}</td>
+                                                                <td>
+                                                                    {{ $invoice->due_date?->format('d/m/Y') }}
+                                                                    @if($invoice->isOverdue() && $invoice->status !== 'paid')
+                                                                        <span class="badge badge-danger">Lewat!</span>
+                                                                    @endif
+                                                                </td>
+                                                                <td class="text-right font-weight-bold">
+                                                                    Rp {{ number_format($invoice->total_amount, 0, ',', '.') }}
+                                                                </td>
+                                                                <td class="text-right text-success">
+                                                                    Rp {{ number_format($invoice->paid_amount, 0, ',', '.') }}
+                                                                </td>
+                                                                <td class="text-right font-weight-bold {{ $invUnpaid > 0 ? 'text-danger' : 'text-muted' }}">
+                                                                    Rp {{ number_format($invUnpaid, 0, ',', '.') }}
+                                                                </td>
+                                                                <td class="text-center">
+                                                                    <span class="badge badge-{{ $invoice->status_color }}">
+                                                                        {{ $invoice->status_label }}
+                                                                    </span>
+                                                                </td>
+                                                                <td class="text-center">
+                                                                    <div class="btn-group btn-group-sm">
+                                                                        <a href="{{ route('admin.invoices.show', $invoice) }}" 
+                                                                           class="btn btn-info" title="Detail">
+                                                                            <i class="fas fa-eye"></i>
+                                                                        </a>
+                                                                        @can('invoices.edit')
+                                                                        @if($invoice->status !== 'paid')
+                                                                        <a href="{{ route('admin.invoices.edit', $invoice) }}" 
+                                                                           class="btn btn-warning" title="Edit">
+                                                                            <i class="fas fa-edit"></i>
+                                                                        </a>
+                                                                        @endif
+                                                                        @endcan
+                                                                        <a href="{{ route('admin.invoices.print', $invoice) }}" 
+                                                                           class="btn btn-secondary" title="Print" target="_blank">
+                                                                            <i class="fas fa-print"></i>
+                                                                        </a>
+                                                                        <a href="{{ route('admin.invoices.download-pdf', $invoice) }}" 
+                                                                           class="btn btn-danger" title="Download PDF">
+                                                                            <i class="fas fa-file-pdf"></i>
+                                                                        </a>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        @endforeach
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="8" class="text-center py-4">
+                                    <div class="text-muted">
+                                        <i class="fas fa-file-invoice fa-3x mb-3"></i>
+                                        <p>Belum ada invoice yang sesuai dengan filter.</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Grouped Pagination -->
+            <div class="mt-3">
+                {{ $customerGroups->links() }}
+            </div>
+
+        @else
+            {{-- ==================== FLAT INVOICE TABLE VIEW ==================== --}}
+            @php
+                $currentSort = request('sort', 'customer_name');
+                $currentDirection = strtolower(request('direction', 'asc'));
+                $isCustomerSort = in_array($currentSort, ['customer_name', 'customer']);
+                $nextCustomerDirection = ($isCustomerSort && $currentDirection === 'asc') ? 'desc' : 'asc';
+            @endphp
+            <div class="table-responsive">
+                <table class="table table-hover table-striped">
+                    <thead class="thead-light">
+                        <tr>
+                            <th>No. Invoice</th>
+                            <th>
+                                <a href="{{ route('admin.invoices.index', array_merge(request()->query(), ['view' => 'flat', 'sort' => 'customer_name', 'direction' => $nextCustomerDirection])) }}" 
+                                   class="text-dark d-inline-flex align-items-center text-decoration-none" 
+                                   title="Urutkan berdasarkan nama pelanggan">
+                                    <span>Pelanggan</span>
+                                    @if($isCustomerSort)
+                                        <i class="fas fa-sort-{{ $currentDirection === 'asc' ? 'up' : 'down' }} ml-1 text-primary"></i>
+                                    @else
+                                        <i class="fas fa-sort ml-1 text-muted"></i>
+                                    @endif
+                                </a>
+                            </th>
+                            <th>Tanggal</th>
+                            <th>Jatuh Tempo</th>
+                            <th class="text-right">Total</th>
+                            <th class="text-right">Dibayar</th>
+                            <th>Status</th>
+                            <th width="120">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($invoices as $invoice)
+                        <tr class="row-inv-{{ $invoice->status }}">
+                            <td>
+                                <a href="{{ route('admin.invoices.show', $invoice) }}">
+                                    <strong>{{ $invoice->invoice_number }}</strong>
+                                </a>
+                            </td>
+                            <td>
+                                <div>{{ $invoice->customer?->name ?? '-' }}</div>
+                                <small class="text-muted">{{ $invoice->customer?->customer_id }}</small>
+                            </td>
+                            <td>{{ $invoice->invoice_date?->format('d/m/Y') }}</td>
+                            <td>
+                                {{ $invoice->due_date?->format('d/m/Y') }}
+                                @if($invoice->isOverdue() && $invoice->status !== 'paid')
+                                    <span class="badge badge-danger">Lewat!</span>
                                 @endif
-                            </a>
-                        </th>
-                        <th>Tanggal</th>
-                        <th>Jatuh Tempo</th>
-                        <th class="text-right">Total</th>
-                        <th class="text-right">Dibayar</th>
-                        <th>Status</th>
-                        <th width="120">Aksi</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse($invoices as $invoice)
-                    <tr class="row-inv-{{ $invoice->status }}">
-                        <td>
-                            <a href="{{ route('admin.invoices.show', $invoice) }}">
-                                <strong>{{ $invoice->invoice_number }}</strong>
-                            </a>
-                        </td>
-                        <td>
-                            <div>{{ $invoice->customer?->name ?? '-' }}</div>
-                            <small class="text-muted">{{ $invoice->customer?->customer_id }}</small>
-                        </td>
-                        <td>{{ $invoice->invoice_date?->format('d/m/Y') }}</td>
-                        <td>
-                            {{ $invoice->due_date?->format('d/m/Y') }}
-                            @if($invoice->isOverdue() && $invoice->status !== 'paid')
-                                <span class="badge badge-danger">Lewat!</span>
-                            @endif
-                        </td>
-                        <td class="text-right">
-                            <strong>Rp {{ number_format($invoice->total_amount, 0, ',', '.') }}</strong>
-                        </td>
-                        <td class="text-right">
-                            Rp {{ number_format($invoice->paid_amount, 0, ',', '.') }}
-                        </td>
-                        <td>
-                            <span class="badge badge-{{ $invoice->status_color }}">
-                                {{ $invoice->status_label }}
-                            </span>
-                        </td>
-                        <td>
-                            <div class="btn-group btn-group-sm">
-                                <a href="{{ route('admin.invoices.show', $invoice) }}" 
-                                   class="btn btn-info" title="Detail">
-                                    <i class="fas fa-eye"></i>
-                                </a>
-                                @can('invoices.edit')
-                                @if($invoice->status !== 'paid')
-                                <a href="{{ route('admin.invoices.edit', $invoice) }}" 
-                                   class="btn btn-warning" title="Edit">
-                                    <i class="fas fa-edit"></i>
-                                </a>
-                                @endif
-                                @endcan
-                                <a href="{{ route('admin.invoices.print', $invoice) }}" 
-                                   class="btn btn-secondary" title="Print" target="_blank">
-                                    <i class="fas fa-print"></i>
-                                </a>
-                                <a href="{{ route('admin.invoices.download-pdf', $invoice) }}" 
-                                   class="btn btn-danger" title="Download PDF">
-                                    <i class="fas fa-file-pdf"></i>
-                                </a>
-                            </div>
-                        </td>
-                    </tr>
-                    @empty
-                    <tr>
-                        <td colspan="8" class="text-center py-4">
-                            <div class="text-muted">
-                                <i class="fas fa-file-invoice fa-3x mb-3"></i>
-                                <p>Belum ada invoice</p>
-                            </div>
-                        </td>
-                    </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-        
-        <!-- Pagination -->
-        <div class="mt-3">
-            {{ $invoices->appends(request()->query())->links() }}
-        </div>
+                            </td>
+                            <td class="text-right">
+                                <strong>Rp {{ number_format($invoice->total_amount, 0, ',', '.') }}</strong>
+                            </td>
+                            <td class="text-right">
+                                Rp {{ number_format($invoice->paid_amount, 0, ',', '.') }}
+                            </td>
+                            <td>
+                                <span class="badge badge-{{ $invoice->status_color }}">
+                                    {{ $invoice->status_label }}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{{ route('admin.invoices.show', $invoice) }}" 
+                                       class="btn btn-info" title="Detail">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    @can('invoices.edit')
+                                    @if($invoice->status !== 'paid')
+                                    <a href="{{ route('admin.invoices.edit', $invoice) }}" 
+                                       class="btn btn-warning" title="Edit">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    @endif
+                                    @endcan
+                                    <a href="{{ route('admin.invoices.print', $invoice) }}" 
+                                       class="btn btn-secondary" title="Print" target="_blank">
+                                        <i class="fas fa-print"></i>
+                                    </a>
+                                    <a href="{{ route('admin.invoices.download-pdf', $invoice) }}" 
+                                       class="btn btn-danger" title="Download PDF">
+                                        <i class="fas fa-file-pdf"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        @empty
+                        <tr>
+                            <td colspan="8" class="text-center py-4">
+                                <div class="text-muted">
+                                    <i class="fas fa-file-invoice fa-3x mb-3"></i>
+                                    <p>Belum ada invoice</p>
+                                </div>
+                            </td>
+                        </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Flat Pagination -->
+            <div class="mt-3">
+                {{ $invoices->links() }}
+            </div>
+        @endif
     </div>
 </div>
 
@@ -389,5 +670,16 @@ function changePop(popId) {
         window.location.href = '{{ route('admin.invoices.index') }}?pop_id=' + popId;
     }
 }
+
+$(document).ready(function() {
+    // Keep accordion indicator chevron updated on collapse show/hide
+    $('.detail-invoices-row .collapse').on('show.bs.collapse', function() {
+        var targetRow = $(this).closest('tr').prev('.customer-group-row');
+        targetRow.attr('aria-expanded', 'true');
+    }).on('hide.bs.collapse', function() {
+        var targetRow = $(this).closest('tr').prev('.customer-group-row');
+        targetRow.attr('aria-expanded', 'false');
+    });
+});
 </script>
 @endpush
