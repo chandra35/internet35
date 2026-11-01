@@ -20,6 +20,7 @@ class BillingAutoSuspend extends Command
     protected $signature = 'billing:auto-suspend 
                             {--pop= : Process only for specific POP ID}
                             {--grace-days=0 : Override grace period days (0 = use per-customer setting)}
+                            {--force : Bypass isolir time check}
                             {--dry-run : Preview without suspending}';
 
     /**
@@ -46,6 +47,7 @@ class BillingAutoSuspend extends Command
         
         $popId = $this->option('pop');
         $globalGraceDays = $this->option('grace-days');
+        $force = $this->option('force');
         $dryRun = $this->option('dry-run');
         
         // Get customers with auto_isolir enabled, active status, and overdue invoices
@@ -76,7 +78,7 @@ class BillingAutoSuspend extends Command
                 ? (int) $globalGraceDays
                 : (int) ($popSetting?->auto_isolir_grace_days ?? $customer->grace_period_days ?? 0);
             $isolirTime = substr((string) ($popSetting?->auto_isolir_time ?? '20:00'), 0, 5);
-            if (now()->format('H:i') < $isolirTime) {
+            if (!$force && now()->format('H:i') < $isolirTime) {
                 $skipped++;
                 continue;
             }

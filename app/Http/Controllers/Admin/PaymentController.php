@@ -407,12 +407,13 @@ class PaymentController extends Controller implements HasMiddleware
 
     protected function unsuspendWhenFullyPaid(Customer $customer): string
     {
-        if ($customer->status !== 'suspended' || $this->unpaidInvoices($customer)->exists()) {
+        $unsuspendService = app(CustomerUnsuspendService::class);
+        if ($customer->status !== 'suspended' || $unsuspendService->hasOverdueInvoices($customer)) {
             return '';
         }
 
         try {
-            $result = app(CustomerUnsuspendService::class)->unsuspend($customer->fresh(['router', 'package']));
+            $result = $unsuspendService->unsuspend($customer->fresh(['router', 'package']));
             if ($result !== 'unsuspended') {
                 return " Pembayaran tercatat, tetapi isolir belum dapat dibuka di MikroTik ({$result}).";
             }

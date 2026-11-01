@@ -45,9 +45,9 @@ class BillingReminder extends Command
         
         $this->info("Looking for invoices due on or before: {$targetDate}");
         
-        // Get pending invoices approaching due date
+        // Get pending, partial, and overdue invoices approaching or past due date
         $invoices = CustomerInvoice::with(['customer', 'pop'])
-            ->where('status', 'pending')
+            ->whereIn('status', ['pending', 'partial', 'overdue'])
             ->whereDate('due_date', '<=', $targetDate)
             ->when($popId, fn($q) => $q->where('pop_id', $popId))
             ->get();

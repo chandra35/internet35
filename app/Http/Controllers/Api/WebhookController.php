@@ -7,6 +7,7 @@ use App\Models\CustomerPayment;
 use App\Services\CustomerUnsuspendService;
 use App\Services\NotificationService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class WebhookController extends Controller
@@ -283,32 +284,46 @@ class WebhookController extends Controller
         $normalizedStatus = strtoupper($status);
 
         if (in_array($normalizedStatus, ['PAID', 'SUCCESS', 'SETTLEMENT'])) {
-            if ($payment->status !== 'success') {
-                $payment->markAsSuccess($rawData['reference'] ?? $rawData['transaction_id'] ?? null);
+            $shouldNotify = false;
+            $lockedPayment = null;
+
+            DB::transaction(function () use ($payment, $rawData, &$shouldNotify, &$lockedPayment) {
+                $lockedPayment = CustomerPayment::where('id', $payment->id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (!$lockedPayment || $lockedPayment->status === 'success') {
+                    return;
+                }
+
+                $lockedPayment->markAsSuccess($rawData['reference'] ?? $rawData['transaction_id'] ?? null);
 
                 // Auto unsuspend (buka isolir) if customer is suspended
-                $this->autoUnsuspend($payment);
+                $this->autoUnsuspend($lockedPayment);
 
                 // Update gateway statistics
-                $this->updateGatewayStats($payment);
+                $this->updateGatewayStats($lockedPayment);
 
+                $shouldNotify = true;
+                Log::info("Payment {$lockedPayment->payment_number} marked as success via webhook");
+            });
+
+            if ($shouldNotify && $lockedPayment) {
                 // Send payment success notification
                 try {
-                    $customer = $payment->customer;
+                    $customer = $lockedPayment->customer;
                     if ($customer) {
                         app(NotificationService::class)->sendPaymentSuccess($customer, [
-                            'invoice_number' => $payment->invoice?->invoice_number ?? '-',
-                            'payment_number' => $payment->payment_number,
-                            'amount' => 'Rp ' . number_format($payment->amount, 0, ',', '.'),
+                            'invoice_number' => $lockedPayment->invoice?->invoice_number ?? '-',
+                            'payment_number' => $lockedPayment->payment_number,
+                            'amount' => 'Rp ' . number_format($lockedPayment->amount, 0, ',', '.'),
                             'payment_date' => now()->format('d F Y H:i'),
-                            'payment_method' => $payment->payment_method ?? '-',
+                            'payment_method' => $lockedPayment->payment_method ?? '-',
                         ]);
                     }
                 } catch (\Exception $e) {
                     Log::warning('Webhook: Failed to send payment notification: ' . $e->getMessage());
                 }
-
-                Log::info("Payment {$payment->payment_number} marked as success via webhook");
             }
         } elseif (in_array($normalizedStatus, ['FAILED', 'DENY', 'CANCEL'])) {
             $payment->update(['status' => 'failed']);
@@ -334,12 +349,7 @@ class WebhookController extends Controller
             }
 
             // Check if all overdue invoices for this customer are now paid
-            $hasOverdueInvoices = $customer->invoices()
-                ->whereIn('status', ['pending', 'overdue'])
-                ->where('due_date', '<', now())
-                ->exists();
-
-            if (!$hasOverdueInvoices) {
+            if (!$this->unsuspendService->hasOverdueInvoices($customer)) {
                 $this->unsuspendService->unsuspend($customer);
                 Log::info("Auto unsuspend: Customer {$customer->customer_id} unsuspended after payment {$payment->payment_number}");
             } else {

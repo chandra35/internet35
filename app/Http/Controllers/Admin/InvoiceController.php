@@ -446,18 +446,14 @@ class InvoiceController extends Controller implements HasMiddleware
 
             $this->activityLog->logUpdate('invoices', "Marked invoice {$invoice->invoice_number} as paid");
 
-            // Auto-unsuspend if customer is suspended and has no more overdue/pending invoices
+            // Auto-unsuspend if customer is suspended and has no more overdue/past-due invoices
             $customer = $invoice->customer;
             $unsuspendMsg = '';
             if ($customer && $customer->status === 'suspended') {
-                $remainingOverdue = $customer->invoices()
-                    ->whereIn('status', ['pending', 'overdue'])
-                    ->where('id', '!=', $invoice->id)
-                    ->exists();
-
-                if (!$remainingOverdue) {
+                $unsuspendService = app(CustomerUnsuspendService::class);
+                if (!$unsuspendService->hasOverdueInvoices($customer)) {
                     try {
-                        $result = app(CustomerUnsuspendService::class)->unsuspend($customer);
+                        $result = $unsuspendService->unsuspend($customer);
                         $unsuspendMsg = $result === 'unsuspended'
                             ? ' Isolir pelanggan berhasil dibuka otomatis.'
                             : ' Pembayaran tercatat, tetapi isolir belum dapat dibuka di MikroTik (' . $result . '). Pelanggan tetap suspended.';

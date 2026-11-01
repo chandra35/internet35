@@ -15,6 +15,35 @@ class CustomerUnsuspendService
     const DEFAULT_ISOLIR_PROFILE = 'isolir';
 
     /**
+     * Check if customer has any unpaid overdue/past-due invoices.
+     * Invoices that count as overdue:
+     * - Status is 'overdue'
+     * - Status is 'pending' or 'partial' and due_date <= today
+     */
+    public function hasOverdueInvoices(Customer $customer): bool
+    {
+        $today = now()->startOfDay()->toDateString();
+
+        return $customer->invoices()
+            ->where(function ($q) use ($today) {
+                $q->where('status', 'overdue')
+                  ->orWhere(function ($sub) use ($today) {
+                      $sub->whereIn('status', ['pending', 'partial'])
+                          ->whereDate('due_date', '<=', $today);
+                  });
+            })
+            ->exists();
+    }
+
+    /**
+     * Check if a customer is eligible to be unsuspended.
+     */
+    public function isEligibleForUnsuspend(Customer $customer): bool
+    {
+        return $customer->status === 'suspended' && !$this->hasOverdueInvoices($customer);
+    }
+
+    /**
      * Get the isolir profile name for a customer's POP
      */
     protected function getIsolirProfileName(Customer $customer): string

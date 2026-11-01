@@ -258,13 +258,7 @@ class PaymentController extends Controller
             // Auto unsuspend if customer is suspended
             $unsuspendResult = null;
             if ($customer->status === 'suspended') {
-                // Check if all overdue invoices are now paid
-                $hasOverdueInvoices = $customer->invoices()
-                    ->whereIn('status', ['pending', 'overdue'])
-                    ->where('due_date', '<', now())
-                    ->exists();
-                
-                if (!$hasOverdueInvoices) {
+                if (!$this->unsuspendService->hasOverdueInvoices($customer)) {
                     $unsuspendResult = $this->unsuspendService->unsuspend($customer);
                 }
             }
