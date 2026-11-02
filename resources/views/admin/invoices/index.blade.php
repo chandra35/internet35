@@ -320,7 +320,6 @@
                                 $allPaid = $custInvoices->every(fn($inv) => $inv->status === 'paid');
                             @endphp
                             <tr class="customer-group-row" 
-                                data-toggle="collapse" 
                                 data-target="#customer-invoices-{{ $customer->id }}" 
                                 aria-expanded="false" 
                                 aria-controls="customer-invoices-{{ $customer->id }}">
@@ -369,12 +368,13 @@
                                         <span class="badge badge-secondary">-</span>
                                     @endif
                                 </td>
-                                <td class="text-center align-middle" onclick="event.stopPropagation();">
+                                <td class="text-center align-middle customer-actions-cell">
                                     <div class="d-flex justify-content-center align-items-center" style="gap: 4px;">
                                         @if($totalUnpaid > 0)
                                         <button type="button" 
                                                 class="btn btn-sm btn-success btn-pay-modal" 
                                                 data-url="{{ route('admin.payments.modal', ['customer' => $customer->id, 'pop_id' => $popId, 'redirect_to' => request()->fullUrl()]) }}" 
+                                                onclick="openPaymentModal(this.getAttribute('data-url'));"
                                                 title="Bayar Tagihan Pelanggan (Ceklis Pembayaran)">
                                             <i class="fas fa-cash-register mr-1"></i>Bayar
                                         </button>
@@ -471,6 +471,7 @@
                                                                                 class="btn btn-success btn-pay-modal" 
                                                                                 data-url="{{ route('admin.payments.modal', ['customer' => $customer->id, 'pop_id' => $popId, 'redirect_to' => request()->fullUrl()]) }}" 
                                                                                 data-invoice-id="{{ $invoice->id }}" 
+                                                                                onclick="openPaymentModal(this.getAttribute('data-url'), this.getAttribute('data-invoice-id'));"
                                                                                 title="Bayar Invoice Ini">
                                                                             <i class="fas fa-cash-register"></i>
                                                                         </button>
@@ -595,6 +596,7 @@
                                             class="btn btn-success btn-pay-modal" 
                                             data-url="{{ route('admin.payments.modal', ['customer' => $invoice->customer_id, 'pop_id' => $popId, 'redirect_to' => request()->fullUrl()]) }}" 
                                             data-invoice-id="{{ $invoice->id }}" 
+                                            onclick="openPaymentModal(this.getAttribute('data-url'), this.getAttribute('data-invoice-id'));"
                                             title="Bayar Invoice Ini">
                                         <i class="fas fa-cash-register"></i>
                                     </button>
@@ -727,10 +729,46 @@ function changePop(popId) {
     window.location.href = url.toString();
 }
 
+function openPaymentModal(url, invoiceId) {
+    if (!url) return;
+    $('#paymentDetailBody').html('<div class="text-center text-muted py-5"><i class="fas fa-spinner fa-spin fa-2x"></i><div class="mt-2">Memuat formulir pembayaran...</div></div>');
+    $('#paymentDetailModal').modal('show');
+
+    $.get(url).done(function(html) {
+        $('#paymentDetailBody').html(html);
+
+        // If a specific invoice ID was clicked, check only that invoice
+        if (invoiceId) {
+            var $targetCheck = $('#paymentDetailModal .modal-invoice-check[value="' + invoiceId + '"]');
+            if ($targetCheck.length) {
+                $('#paymentDetailModal .modal-invoice-check').prop('checked', false);
+                $targetCheck.prop('checked', true).trigger('change');
+            }
+        } else {
+            // If clicked from customer row, check all invoices by default
+            $('#modalCheckAll').prop('checked', true).trigger('change');
+        }
+    }).fail(function(xhr) {
+        $('#paymentDetailBody').html('<div class="alert alert-danger mb-0"><i class="fas fa-exclamation-triangle mr-2"></i>Gagal memuat formulir pembayaran. Pastikan Anda memiliki izin akses.</div>');
+    });
+}
+window.openPaymentModal = openPaymentModal;
+
 $(document).ready(function() {
     // Explicitly handle Select2 change / select events
     $('#selectPop').on('change select2:select', function() {
         changePop($(this).val());
+    });
+
+    // Toggle customer invoices accordion on row click (excluding buttons/links/actions)
+    $(document).on('click', '.customer-group-row', function(e) {
+        if ($(e.target).closest('a, button, input, .customer-actions-cell').length) {
+            return;
+        }
+        var target = $(this).data('target');
+        if (target) {
+            $(target).collapse('toggle');
+        }
     });
 
     // Keep accordion indicator chevron updated on collapse show/hide
@@ -747,29 +785,10 @@ $(document).ready(function() {
         e.preventDefault();
         e.stopPropagation();
 
-        var url = $(this).data('url');
-        var invoiceId = $(this).data('invoice-id');
+        var url = $(this).attr('data-url') || $(this).data('url');
+        var invoiceId = $(this).attr('data-invoice-id') || $(this).data('invoice-id');
 
-        $('#paymentDetailBody').html('<div class="text-center text-muted py-5"><i class="fas fa-spinner fa-spin fa-2x"></i><div class="mt-2">Memuat formulir pembayaran...</div></div>');
-        $('#paymentDetailModal').modal('show');
-
-        $.get(url).done(function(html) {
-            $('#paymentDetailBody').html(html);
-
-            // If a specific invoice ID was clicked, check only that invoice
-            if (invoiceId) {
-                var $targetCheck = $('#paymentDetailModal .modal-invoice-check[value="' + invoiceId + '"]');
-                if ($targetCheck.length) {
-                    $('#paymentDetailModal .modal-invoice-check').prop('checked', false);
-                    $targetCheck.prop('checked', true).trigger('change');
-                }
-            } else {
-                // If clicked from customer row, check all invoices by default
-                $('#modalCheckAll').prop('checked', true).trigger('change');
-            }
-        }).fail(function(xhr) {
-            $('#paymentDetailBody').html('<div class="alert alert-danger mb-0"><i class="fas fa-exclamation-triangle mr-2"></i>Gagal memuat formulir pembayaran. Pastikan Anda memiliki izin akses.</div>');
-        });
+        openPaymentModal(url, invoiceId);
     });
 });
 </script>
