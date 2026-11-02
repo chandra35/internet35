@@ -212,6 +212,7 @@ class PackageController extends Controller implements HasMiddleware
                 return response()->json([
                     'success' => true,
                     'message' => 'Paket berhasil direstore dan diupdate!',
+                    'data' => $existingPackage->fresh(),
                 ]);
             }
 
@@ -252,6 +253,7 @@ class PackageController extends Controller implements HasMiddleware
         return response()->json([
             'success' => true,
             'message' => 'Paket berhasil dibuat!',
+            'data' => $package,
         ]);
     }
 

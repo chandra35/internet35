@@ -236,7 +236,14 @@
                                 </div>
                                 <div class="col-md-6">
                                     <div class="form-group">
-                                        <label>Paket Layanan <span class="text-danger">*</span></label>
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <label class="mb-0">Paket Layanan <span class="text-danger">*</span></label>
+                                            @can('packages.create')
+                                            <button type="button" class="btn btn-xs btn-outline-success" id="btnQuickAddPackage" title="Tambah Paket Baru">
+                                                <i class="fas fa-plus mr-1"></i>Tambah Paket
+                                            </button>
+                                            @endcan
+                                        </div>
                                         <select name="package_id" id="package_id" class="form-control select2" required disabled>
                                             <option value="">Pilih Router dulu...</option>
                                         </select>
@@ -905,6 +912,8 @@
     </div>
 </div>
 @endif
+
+@include('admin.packages.quick-modal')
 
 @endsection
 
