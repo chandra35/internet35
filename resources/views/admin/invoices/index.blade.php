@@ -303,7 +303,7 @@
                             <th class="text-right">Total Tagihan</th>
                             <th class="text-right">Sisa / Belum Dibayar</th>
                             <th>Ringkasan Status</th>
-                            <th width="140" class="text-center">Aksi Pelanggan</th>
+                            <th width="180" class="text-center">Aksi Pelanggan</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -370,21 +370,31 @@
                                     @endif
                                 </td>
                                 <td class="text-center align-middle" onclick="event.stopPropagation();">
-                                    <div class="btn-group btn-group-sm">
-                                        <a href="{{ route('admin.invoice-customer-print.print', $customer) }}" 
-                                           class="btn btn-outline-secondary" title="Cetak Ringkasan Pelanggan" target="_blank">
-                                            <i class="fas fa-print"></i>
-                                        </a>
-                                        <a href="{{ route('admin.customers.show', $customer) }}" 
-                                           class="btn btn-outline-info" title="Profil Pelanggan">
-                                            <i class="fas fa-user"></i>
-                                        </a>
-                                        @can('invoices.create')
-                                        <a href="{{ route('admin.invoices.create', ['customer_id' => $customer->id]) }}" 
-                                           class="btn btn-outline-success" title="Tambah Invoice Baru">
-                                            <i class="fas fa-plus"></i>
-                                        </a>
-                                        @endcan
+                                    <div class="d-flex justify-content-center align-items-center" style="gap: 4px;">
+                                        @if($totalUnpaid > 0)
+                                        <button type="button" 
+                                                class="btn btn-sm btn-success btn-pay-modal" 
+                                                data-url="{{ route('admin.payments.modal', ['customer' => $customer->id, 'pop_id' => $popId, 'redirect_to' => request()->fullUrl()]) }}" 
+                                                title="Bayar Tagihan Pelanggan (Ceklis Pembayaran)">
+                                            <i class="fas fa-cash-register mr-1"></i>Bayar
+                                        </button>
+                                        @endif
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="{{ route('admin.invoice-customer-print.print', $customer) }}" 
+                                               class="btn btn-outline-secondary" title="Cetak Ringkasan Pelanggan" target="_blank">
+                                                <i class="fas fa-print"></i>
+                                            </a>
+                                            <a href="{{ route('admin.customers.show', $customer) }}" 
+                                               class="btn btn-outline-info" title="Profil Pelanggan">
+                                                <i class="fas fa-user"></i>
+                                            </a>
+                                            @can('invoices.create')
+                                            <a href="{{ route('admin.invoices.create', ['customer_id' => $customer->id]) }}" 
+                                               class="btn btn-outline-success" title="Tambah Invoice Baru">
+                                                <i class="fas fa-plus"></i>
+                                            </a>
+                                            @endcan
+                                        </div>
                                     </div>
                                 </td>
                             </tr>
@@ -416,7 +426,7 @@
                                                             <th class="text-right">Telah Dibayar</th>
                                                             <th class="text-right">Sisa Tagihan</th>
                                                             <th class="text-center">Status</th>
-                                                            <th width="140" class="text-center">Aksi Invoice</th>
+                                                            <th width="170" class="text-center">Aksi Invoice</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
@@ -456,6 +466,15 @@
                                                                 </td>
                                                                 <td class="text-center">
                                                                     <div class="btn-group btn-group-sm">
+                                                                        @if($invoice->status !== 'paid')
+                                                                        <button type="button" 
+                                                                                class="btn btn-success btn-pay-modal" 
+                                                                                data-url="{{ route('admin.payments.modal', ['customer' => $customer->id, 'pop_id' => $popId, 'redirect_to' => request()->fullUrl()]) }}" 
+                                                                                data-invoice-id="{{ $invoice->id }}" 
+                                                                                title="Bayar Invoice Ini">
+                                                                            <i class="fas fa-cash-register"></i>
+                                                                        </button>
+                                                                        @endif
                                                                         <a href="{{ route('admin.invoices.show', $invoice) }}" 
                                                                            class="btn btn-info" title="Detail">
                                                                             <i class="fas fa-eye"></i>
@@ -536,7 +555,7 @@
                             <th class="text-right">Total</th>
                             <th class="text-right">Dibayar</th>
                             <th>Status</th>
-                            <th width="120">Aksi</th>
+                            <th width="170" class="text-center">Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -569,8 +588,17 @@
                                     {{ $invoice->status_label }}
                                 </span>
                             </td>
-                            <td>
+                            <td class="text-center">
                                 <div class="btn-group btn-group-sm">
+                                    @if($invoice->status !== 'paid')
+                                    <button type="button" 
+                                            class="btn btn-success btn-pay-modal" 
+                                            data-url="{{ route('admin.payments.modal', ['customer' => $invoice->customer_id, 'pop_id' => $popId, 'redirect_to' => request()->fullUrl()]) }}" 
+                                            data-invoice-id="{{ $invoice->id }}" 
+                                            title="Bayar Invoice Ini">
+                                        <i class="fas fa-cash-register"></i>
+                                    </button>
+                                    @endif
                                     <a href="{{ route('admin.invoices.show', $invoice) }}" 
                                        class="btn btn-info" title="Detail">
                                         <i class="fas fa-eye"></i>
@@ -661,6 +689,26 @@
     </div>
 </div>
 
+<!-- Payment Modal -->
+<div class="modal fade" id="paymentDetailModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="fas fa-file-invoice-dollar mr-2"></i>Pembayaran Tagihan Pelanggan</h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Tutup">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body" id="paymentDetailBody">
+                <div class="text-center text-muted py-5">
+                    <i class="fas fa-spinner fa-spin fa-2x"></i>
+                    <div class="mt-2">Memuat formulir pembayaran...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 @endsection
 
 @push('js')
@@ -692,6 +740,36 @@ $(document).ready(function() {
     }).on('hide.bs.collapse', function() {
         var targetRow = $(this).closest('tr').prev('.customer-group-row');
         targetRow.attr('aria-expanded', 'false');
+    });
+
+    // Payment Modal Handler
+    $(document).on('click', '.btn-pay-modal', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        var url = $(this).data('url');
+        var invoiceId = $(this).data('invoice-id');
+
+        $('#paymentDetailBody').html('<div class="text-center text-muted py-5"><i class="fas fa-spinner fa-spin fa-2x"></i><div class="mt-2">Memuat formulir pembayaran...</div></div>');
+        $('#paymentDetailModal').modal('show');
+
+        $.get(url).done(function(html) {
+            $('#paymentDetailBody').html(html);
+
+            // If a specific invoice ID was clicked, check only that invoice
+            if (invoiceId) {
+                var $targetCheck = $('#paymentDetailModal .modal-invoice-check[value="' + invoiceId + '"]');
+                if ($targetCheck.length) {
+                    $('#paymentDetailModal .modal-invoice-check').prop('checked', false);
+                    $targetCheck.prop('checked', true).trigger('change');
+                }
+            } else {
+                // If clicked from customer row, check all invoices by default
+                $('#modalCheckAll').prop('checked', true).trigger('change');
+            }
+        }).fail(function(xhr) {
+            $('#paymentDetailBody').html('<div class="alert alert-danger mb-0"><i class="fas fa-exclamation-triangle mr-2"></i>Gagal memuat formulir pembayaran. Pastikan Anda memiliki izin akses.</div>');
+        });
     });
 });
 </script>

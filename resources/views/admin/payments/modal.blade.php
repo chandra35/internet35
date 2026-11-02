@@ -1,6 +1,9 @@
 @php($outstandingTotal = $invoices->sum(fn ($invoice) => $invoice->remaining_amount))
 <form method="POST" action="{{ route('admin.payments.store', ['customer' => $customer, 'pop_id' => $popId]) }}" id="modalPaymentForm">
     @csrf
+    @if(request()->filled('redirect_to'))
+        <input type="hidden" name="redirect_to" value="{{ request('redirect_to') }}">
+    @endif
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div><strong>{{ $customer->name }}</strong><br><small class="text-muted">{{ $customer->customer_id }} · {{ $customer->pppoe_username ?: 'Tanpa PPPoE' }}</small></div>
         <span class="badge badge-danger px-2 py-2">Rp {{ number_format($outstandingTotal, 0, ',', '.') }}</span>
@@ -44,9 +47,9 @@
         $('#modalSelectedTotal').text('Rp ' + new Intl.NumberFormat('id-ID').format(total));
         $('#modalCheckAll').prop('checked', checks.length > 0 && checks.length === checks.filter(':checked').length);
     }
-    $('#modalCheckAll').on('change', function () { checks.prop('checked', this.checked); update(); });
-    checks.on('change', update);
-    $('#modalPaymentForm').on('submit', function (event) {
+    $('#modalCheckAll').off('change').on('change', function () { checks.prop('checked', this.checked); update(); });
+    checks.off('change').on('change', update);
+    $('#modalPaymentForm').off('submit').on('submit', function (event) {
         if (!checks.filter(':checked').length) { event.preventDefault(); toastr.warning('Pilih minimal satu invoice yang akan dibayar.'); }
     });
     update();

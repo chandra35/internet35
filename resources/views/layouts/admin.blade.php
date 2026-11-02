@@ -941,6 +941,38 @@
         $('.select2').select2({
             theme: 'bootstrap-5'
         });
+
+        // Robust Sidebar Treeview click handler (handles nested submenus like Pembayaran reliably)
+        $(document).on('click', '.nav-sidebar .nav-item > a.nav-link', function(e) {
+            var $link = $(this);
+            var $parentLi = $link.closest('.nav-item');
+            var $treeview = $parentLi.children('.nav-treeview');
+
+            if ($treeview.length > 0) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+
+                // If sidebar is currently collapsed, expand it first
+                if ($('body').hasClass('sidebar-collapse')) {
+                    $('[data-widget="pushmenu"]').first().trigger('click');
+                }
+
+                if ($parentLi.hasClass('menu-open')) {
+                    $parentLi.removeClass('menu-open menu-is-opening');
+                    $treeview.stop(true, true).slideUp(200);
+                } else {
+                    $parentLi.addClass('menu-is-opening');
+                    $treeview.stop(true, true).slideDown(200, function() {
+                        $parentLi.addClass('menu-open').removeClass('menu-is-opening');
+                    });
+                }
+            }
+        });
+
+        // Prevent hash jump on any nav-sidebar link with href="#"
+        $(document).on('click', '.nav-sidebar a[href="#"]', function(e) {
+            e.preventDefault();
+        });
     });
 
     // Global delete confirmation

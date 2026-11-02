@@ -329,6 +329,7 @@ class PaymentController extends Controller implements HasMiddleware
             'payment_reference' => ['nullable', 'string', 'max:100'],
             'paid_at' => ['required', 'date'],
             'notes' => ['nullable', 'string', 'max:500'],
+            'redirect_to' => ['nullable', 'string'],
         ]);
 
         try {
@@ -374,6 +375,11 @@ class PaymentController extends Controller implements HasMiddleware
 
             $this->activityLog->logUpdate('payments', "Pembayaran manual {$paidCount} invoice untuk {$customer->customer_id}");
             $unsuspendMessage = $this->unsuspendWhenFullyPaid($customer);
+
+            if ($request->filled('redirect_to')) {
+                return redirect($request->input('redirect_to'))
+                    ->with('success', "Pembayaran {$paidCount} invoice berhasil dicatat." . $unsuspendMessage);
+            }
 
             return redirect()->route('admin.payments.show', $customer)
                 ->with('success', "Pembayaran {$paidCount} invoice berhasil dicatat." . $unsuspendMessage);
