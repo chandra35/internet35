@@ -38,7 +38,7 @@ class CustomerController extends Controller implements HasMiddleware
         return [
             new Middleware('permission:customers.view', only: ['index', 'show', 'getData']),
             new Middleware('permission:customers.create', only: ['create', 'store', 'import', 'processImport', 'previewImport', 'downloadTemplate']),
-            new Middleware('permission:customers.edit', only: ['edit', 'update', 'syncMikrotik', 'assignPppSecret', 'bulkToggleAutoIsolir', 'isolir', 'bukaIsolir', 'matchAcsDevice', 'updateWifi']),
+            new Middleware('permission:customers.edit', only: ['edit', 'update', 'changePackageData', 'changePackage', 'syncMikrotik', 'assignPppSecret', 'bulkToggleAutoIsolir', 'isolir', 'bukaIsolir', 'matchAcsDevice', 'updateWifi']),
             new Middleware('permission:customers.delete', only: ['destroy']),
         ];
     }
@@ -951,6 +951,157 @@ class CustomerController extends Controller implements HasMiddleware
             'success' => true,
             'message' => 'Status pelanggan berhasil diubah',
         ]);
+    }
+
+    /**
+     * Get package data for quick change package modal
+     */
+    public function changePackageData(Customer $customer)
+    {
+        $this->authorizeCustomer($customer);
+
+        $customer->load(['package', 'router']);
+
+        $packagesQuery = Package::query()->where('is_active', true);
+
+        if ($customer->router_id) {
+            $packagesQuery->where('router_id', $customer->router_id);
+        } elseif ($customer->pop_id) {
+            $routerIds = Router::where('pop_id', $customer->pop_id)->pluck('id');
+            $packagesQuery->whereIn('router_id', $routerIds);
+        }
+
+        $packages = $packagesQuery->orderBy('name')->get([
+            'id', 'name', 'price', 'speed_up', 'speed_down', 'rate_limit', 'mikrotik_profile_name'
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'customer' => [
+                'id' => $customer->id,
+                'name' => $customer->name,
+                'customer_id' => $customer->customer_id,
+                'router_id' => $customer->router_id,
+                'router_name' => $customer->router?->name ?? 'Belum ada router',
+                'package_id' => $customer->package_id,
+                'package_name' => $customer->package?->name ?? 'Belum ada paket',
+                'monthly_fee' => (float) ($customer->monthly_fee ?: ($customer->package?->price ?? 0)),
+                'has_mikrotik' => (bool) ($customer->router_id && $customer->pppoe_username),
+                'pppoe_username' => $customer->pppoe_username,
+            ],
+            'packages' => $packages,
+        ]);
+    }
+
+    /**
+     * Quick change customer package
+     */
+    public function changePackage(Request $request, Customer $customer)
+    {
+        $this->authorizeCustomer($customer);
+
+        $validated = $request->validate([
+            'package_id' => 'required|uuid|exists:packages,id',
+            'monthly_fee' => 'nullable|numeric|min:0',
+            'sync_mikrotik' => 'nullable|boolean',
+        ]);
+
+        $package = Package::findOrFail($validated['package_id']);
+
+        if ($customer->router_id && $package->router_id && $customer->router_id !== $package->router_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Paket yang dipilih tidak cocok dengan router pelanggan.',
+            ], 422);
+        }
+
+        $oldPackageName = $customer->package?->name ?? 'Tanpa Paket';
+        $newMonthlyFee = $request->filled('monthly_fee') ? (float) $request->monthly_fee : (float) $package->price;
+
+        DB::beginTransaction();
+        try {
+            $customer->package_id = $package->id;
+            $customer->monthly_fee = $newMonthlyFee;
+            $customer->updated_by = auth()->id();
+            $customer->save();
+
+            $syncNote = null;
+            if ($request->boolean('sync_mikrotik') && $customer->router_id && $customer->pppoe_username) {
+                $router = Router::whereKey($customer->router_id)->where('is_active', true)->first();
+                if ($router) {
+                    try {
+                        $mikrotik = new MikrotikService();
+                        if ($mikrotik->connectRouter($router)) {
+                            $secret = $mikrotik->getPppSecretByName($customer->pppoe_username);
+                            $secretId = $secret['.id'] ?? null;
+                            $packageProfile = $package->mikrotik_profile_name ?: $package->name;
+
+                            if ($secretId && $packageProfile) {
+                                $updated = $mikrotik->updatePppSecret($secretId, [
+                                    'profile' => $packageProfile,
+                                ]);
+
+                                if ($updated) {
+                                    // Disconnect active session if any so customer reconnects with new profile
+                                    $activeConnections = $mikrotik->getPppActive();
+                                    foreach ($activeConnections as $conn) {
+                                        if (($conn['name'] ?? '') === $customer->pppoe_username && isset($conn['.id'])) {
+                                            $mikrotik->disconnectPppUser($conn['.id']);
+                                            break;
+                                        }
+                                    }
+
+                                    $customer->update([
+                                        'mikrotik_synced' => true,
+                                        'mikrotik_synced_at' => now(),
+                                        'last_sync_error' => null,
+                                    ]);
+                                    $syncNote = 'Profile MikroTik berhasil diperbarui & sesi aktif di-reconnect.';
+                                } else {
+                                    $syncNote = 'Gagal memperbarui secret di MikroTik.';
+                                }
+                            } else {
+                                $syncNote = 'Secret tidak ditemukan di MikroTik atau profil paket belum diatur.';
+                            }
+                        } else {
+                            $syncNote = 'Tidak dapat terhubung ke router MikroTik.';
+                        }
+                    } catch (\Exception $me) {
+                        Log::warning("MikroTik sync error during package change for customer {$customer->id}: " . $me->getMessage());
+                        $syncNote = 'Error sinkron MikroTik: ' . $me->getMessage();
+                    }
+                }
+            }
+
+            $this->activityLog->log('customers', "Mengubah paket pelanggan {$customer->name} ({$customer->customer_id}) dari {$oldPackageName} ke {$package->name} (Rp " . number_format($newMonthlyFee, 0, ',', '.') . ")");
+
+            DB::commit();
+
+            $message = "Paket pelanggan berhasil diubah ke {$package->name}.";
+            if ($syncNote) {
+                $message .= " ({$syncNote})";
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'customer' => [
+                    'id' => $customer->id,
+                    'package_id' => $package->id,
+                    'package_name' => $package->name,
+                    'monthly_fee' => $newMonthlyFee,
+                    'monthly_fee_formatted' => 'Rp ' . number_format($newMonthlyFee, 0, ',', '.'),
+                ],
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error("Failed to change package for customer {$customer->id}: " . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengubah paket pelanggan: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
     /**

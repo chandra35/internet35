@@ -308,6 +308,86 @@
     </div>
 </div>
 
+<!-- Modal Quick Ubah Paket -->
+<div class="modal fade" id="changePackageModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content" style="border-radius:10px;border:none;box-shadow:0 10px 30px rgba(0,0,0,0.2);">
+            <div class="modal-header bg-info text-white" style="border-top-left-radius:10px;border-top-right-radius:10px;">
+                <h5 class="modal-title font-weight-bold">
+                    <i class="fas fa-exchange-alt mr-2"></i>Ubah Paket Pelanggan
+                </h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form id="changePackageForm">
+                @csrf
+                <input type="hidden" id="cpCustomerId" name="customer_id">
+                <div class="modal-body p-4">
+                    <div id="cpLoading" class="text-center py-4">
+                        <i class="fas fa-spinner fa-spin fa-2x text-info"></i>
+                        <p class="text-muted mt-2 mb-0" style="font-size:0.9rem;">Memuat data paket...</p>
+                    </div>
+
+                    <div id="cpFormBody" style="display:none;">
+                        <div class="alert alert-light border mb-3 p-2" style="font-size:0.85rem;border-radius:8px;">
+                            <div class="d-flex justify-content-between">
+                                <span class="text-muted">Pelanggan:</span>
+                                <strong id="cpCustomerName">-</strong>
+                            </div>
+                            <div class="d-flex justify-content-between mt-1">
+                                <span class="text-muted">ID Pelanggan:</span>
+                                <code id="cpCustomerCode">-</code>
+                            </div>
+                            <div class="d-flex justify-content-between mt-1">
+                                <span class="text-muted">Router:</span>
+                                <span id="cpRouterName" class="badge badge-light border">-</span>
+                            </div>
+                            <div class="d-flex justify-content-between mt-1">
+                                <span class="text-muted">Paket Saat Ini:</span>
+                                <span id="cpCurrentPackage" class="badge badge-info">-</span>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="font-weight-bold" style="font-size:0.88rem;">Pilih Paket Baru <span class="text-danger">*</span></label>
+                            <select id="cpSelectPackage" name="package_id" class="form-control" style="width:100%;" required>
+                                <option value="">-- Pilih Paket --</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="font-weight-bold" style="font-size:0.88rem;">Tarif Bulanan (Rp) <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <div class="input-group-prepend">
+                                    <span class="input-group-text font-weight-bold">Rp</span>
+                                </div>
+                                <input type="number" id="cpMonthlyFee" name="monthly_fee" class="form-control font-weight-bold" min="0" step="1000" required>
+                            </div>
+                            <small class="text-muted">Otomatis terisi tarif normal paket, tetapi dapat disesuaikan untuk harga khusus.</small>
+                        </div>
+
+                        <div class="form-group mb-0" id="cpMikrotikGroup" style="display:none;">
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" class="custom-control-input" id="cpSyncMikrotik" name="sync_mikrotik" value="1" checked>
+                                <label class="custom-control-label" for="cpSyncMikrotik" style="font-size:0.85rem;">
+                                    <strong>Sinkronisasi ke MikroTik</strong> (update profile PPP secret & reconnect sesi aktif)
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light" style="border-bottom-left-radius:10px;border-bottom-right-radius:10px;">
+                    <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Batal</button>
+                    <button type="submit" id="cpBtnSubmit" class="btn btn-info btn-sm font-weight-bold" disabled>
+                        <i class="fas fa-save mr-1"></i> Simpan Perubahan
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 @endsection
 
 @push('js')
@@ -1056,6 +1136,103 @@ $(function() {
                     text: result.value.message,
                     icon: icon,
                 }).then(() => location.reload());
+            }
+        });
+    });
+
+    // ========== Quick Change Package ==========
+    let cpPackagesData = [];
+
+    $(document).on('click', '.btn-change-package', function(e) {
+        e.preventDefault();
+        const customerId = $(this).data('id');
+        $('#cpCustomerId').val(customerId);
+        $('#changePackageModal').modal('show');
+        $('#cpLoading').show();
+        $('#cpFormBody').hide();
+        $('#cpBtnSubmit').prop('disabled', true);
+
+        $.ajax({
+            url: `{{ url('admin/customers') }}/${customerId}/change-package`,
+            method: 'GET',
+            success: function(res) {
+                if (res.success) {
+                    const c = res.customer;
+                    $('#cpCustomerName').text(c.name);
+                    $('#cpCustomerCode').text(c.customer_id);
+                    $('#cpRouterName').text(c.router_name);
+                    const feeFormatted = new Intl.NumberFormat('id-ID', {maximumFractionDigits:0}).format(c.monthly_fee);
+                    $('#cpCurrentPackage').text(c.package_name + ' (Rp ' + feeFormatted + '/bln)');
+
+                    cpPackagesData = res.packages || [];
+                    let options = '<option value="">-- Pilih Paket Baru --</option>';
+                    cpPackagesData.forEach(function(pkg) {
+                        const isCurrent = pkg.id === c.package_id;
+                        const priceFmt = new Intl.NumberFormat('id-ID').format(pkg.price);
+                        const speed = (pkg.speed_down ? pkg.speed_down + 'M' : '') + (pkg.speed_up ? '/' + pkg.speed_up + 'M' : '');
+                        const label = pkg.name + ' - Rp ' + priceFmt + (speed ? ' (' + speed + ')' : '');
+                        options += `<option value="${pkg.id}" ${isCurrent ? 'selected' : ''}>${label}</option>`;
+                    });
+
+                    $('#cpSelectPackage').html(options);
+                    $('#cpMonthlyFee').val(c.monthly_fee);
+
+                    if (c.has_mikrotik) {
+                        $('#cpMikrotikGroup').show();
+                        $('#cpSyncMikrotik').prop('checked', true);
+                    } else {
+                        $('#cpMikrotikGroup').hide();
+                        $('#cpSyncMikrotik').prop('checked', false);
+                    }
+
+                    $('#cpLoading').hide();
+                    $('#cpFormBody').show();
+                    $('#cpBtnSubmit').prop('disabled', false);
+                } else {
+                    $('#changePackageModal').modal('hide');
+                    toastr.error(res.message || 'Gagal memuat data pelanggan');
+                }
+            },
+            error: function(xhr) {
+                $('#changePackageModal').modal('hide');
+                toastr.error(xhr.responseJSON?.message || 'Gagal memuat data pelanggan');
+            }
+        });
+    });
+
+    $(document).on('change', '#cpSelectPackage', function() {
+        const pkgId = $(this).val();
+        const selected = cpPackagesData.find(p => p.id === pkgId);
+        if (selected) {
+            $('#cpMonthlyFee').val(selected.price);
+        }
+    });
+
+    $('#changePackageForm').on('submit', function(e) {
+        e.preventDefault();
+        const customerId = $('#cpCustomerId').val();
+        const $btn = $('#cpBtnSubmit');
+
+        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Menyimpan...');
+
+        $.ajax({
+            url: `{{ url('admin/customers') }}/${customerId}/change-package`,
+            method: 'POST',
+            data: $(this).serialize(),
+            success: function(res) {
+                if (res.success) {
+                    $('#changePackageModal').modal('hide');
+                    toastr.success(res.message);
+                    loadTable(new URL(window.location.href));
+                } else {
+                    toastr.error(res.message || 'Gagal mengubah paket');
+                }
+            },
+            error: function(xhr) {
+                toastr.error(xhr.responseJSON?.message || 'Gagal mengubah paket');
+            },
+            complete: function() {
+                $btn.prop('disabled', false).html('<i class="fas fa-save mr-1"></i> Simpan Perubahan');
             }
         });
     });

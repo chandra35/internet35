@@ -276,6 +276,8 @@ Route::prefix('admin')->middleware(['auth', 'role:superadmin|admin|admin-pop|tek
         Route::put('/{customer}', [CustomerController::class, 'update'])->name('update');
         Route::delete('/{customer}', [CustomerController::class, 'destroy'])->name('destroy');
         Route::get('/{customer}/password', [CustomerController::class, 'getPassword'])->name('password');
+        Route::get('/{customer}/change-package', [CustomerController::class, 'changePackageData'])->name('change-package-data');
+        Route::post('/{customer}/change-package', [CustomerController::class, 'changePackage'])->name('change-package');
         Route::post('/{customer}/status', [CustomerController::class, 'changeStatus'])->name('change-status');
         Route::post('/{customer}/sync-mikrotik', [CustomerController::class, 'syncMikrotik'])->name('sync-mikrotik');
         Route::post('/{customer}/assign-ppp-secret', [CustomerController::class, 'assignPppSecret'])->name('assign-ppp-secret');

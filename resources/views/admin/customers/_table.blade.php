@@ -146,11 +146,23 @@
                 </td>
                 <td>
                     @if($customer->package)
-                    <span class="badge badge-pill" style="background:#17a2b8;color:white;font-size:0.71rem;padding:4px 9px;">{{ $customer->package->name }}</span>
-                    <br><small class="text-muted" style="font-size:0.71rem;">Rp {{ number_format($customer->monthly_fee, 0, ',', '.') }}/bln</small>
+                    <div class="d-flex align-items-center">
+                        <span class="badge badge-pill" style="background:#17a2b8;color:white;font-size:0.71rem;padding:4px 9px;">{{ $customer->package->name }}</span>
+                        @can('customers.edit')
+                        <button type="button" class="btn btn-action btn-outline-info ml-1 btn-change-package" data-id="{{ $customer->id }}" title="Ubah Paket">
+                            <i class="fas fa-exchange-alt"></i>
+                        </button>
+                        @endcan
+                    </div>
+                    <small class="text-muted" style="font-size:0.71rem;">Rp {{ number_format($customer->monthly_fee, 0, ',', '.') }}/bln</small>
                     <br><span class="badge badge-{{ $customer->ppn_enabled === null ? 'secondary' : ($customer->ppn_enabled ? 'success' : 'dark') }}" style="font-size:0.62rem;">{{ $customer->ppn_enabled === null ? 'PPN: Global' : ($customer->ppn_enabled ? 'PPN' : 'Non-PPN') }}</span>
                     @else
                     <span class="text-muted">—</span>
+                    @can('customers.edit')
+                    <button type="button" class="btn btn-action btn-outline-primary ml-1 btn-change-package" data-id="{{ $customer->id }}" title="Atur Paket">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                    @endcan
                     @endif
                 </td>
                 <td>
@@ -245,6 +257,11 @@
                             <i class="fas fa-ellipsis-v"></i>
                         </button>
                         <div class="dropdown-menu dropdown-menu-right shadow-sm" style="font-size:0.82rem;min-width:165px;border-radius:8px;border-color:#e0e6f0;">
+                            @can('customers.edit')
+                            <a class="dropdown-item btn-change-package" href="#" data-id="{{ $customer->id }}">
+                                <i class="fas fa-exchange-alt text-info mr-2"></i> Ubah Paket
+                            </a>
+                            @endcan
                             <a class="dropdown-item btn-change-status" href="#" data-id="{{ $customer->id }}" data-status="active">
                                 <i class="fas fa-check-circle text-success mr-2"></i> Aktifkan
                             </a>
